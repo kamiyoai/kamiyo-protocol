@@ -2147,6 +2147,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/agent-paranet':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-agent-paranet
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../../packages/kamiyo-sdk
@@ -17232,84 +17235,6 @@ snapshots:
       - typescript
       - utf-8-validate
       - ws
-
-  '@elizaos/core@1.7.2(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@langchain/core': 1.1.12(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.0))(openai@6.16.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76))
-      '@langchain/textsplitters': 1.0.1(@langchain/core@1.1.12(@opentelemetry/api@1.9.0))
-      adze: 2.3.0
-      crypto-browserify: 3.12.1
-      dotenv: 17.3.1
-      fast-redact: 3.5.0
-      glob: 13.0.1
-      handlebars: 4.7.8
-      pdfjs-dist: 5.4.624
-      unique-names-generator: 4.7.1
-      uuid: 13.0.0
-      zod: 4.3.6
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - '@opentelemetry/exporter-trace-otlp-proto'
-      - '@opentelemetry/sdk-trace-base'
-      - openai
-
-  '@elizaos/plugin-anthropic@1.0.3(@opentelemetry/api@1.9.0)(react@19.1.0)(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/anthropic': 1.2.12(zod@4.3.6)
-      '@ai-sdk/ui-utils': 1.2.11(zod@4.3.6)
-      '@elizaos/core': 1.7.2(@opentelemetry/api@1.9.0)
-      ai: 4.3.15(react@19.1.0)(zod@4.3.6)
-      jsonrepair: 3.13.2
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - '@opentelemetry/exporter-trace-otlp-proto'
-      - '@opentelemetry/sdk-trace-base'
-      - openai
-      - react
-      - zod
-
-  '@elizaos/plugin-trust@1.2.1(@electric-sql/pglite@0.2.17)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.16.0)(better-sqlite3@11.8.1)(pg@8.17.2)(react@19.1.0)(sql.js@1.13.0)(zod@4.3.6)':
-    dependencies:
-      '@elizaos/core': 1.7.2(@opentelemetry/api@1.9.0)
-      '@elizaos/plugin-anthropic': 1.0.3(@opentelemetry/api@1.9.0)(react@19.1.0)(zod@4.3.6)
-      dedent: 1.7.1
-      drizzle-orm: 0.44.7(@electric-sql/pglite@0.2.17)(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/pg@8.16.0)(better-sqlite3@11.8.1)(pg@8.17.2)(sql.js@1.13.0)
-    transitivePeerDependencies:
-      - '@aws-sdk/client-rds-data'
-      - '@cloudflare/workers-types'
-      - '@electric-sql/pglite'
-      - '@libsql/client'
-      - '@libsql/client-wasm'
-      - '@neondatabase/serverless'
-      - '@op-engineering/op-sqlite'
-      - '@opentelemetry/api'
-      - '@opentelemetry/exporter-trace-otlp-proto'
-      - '@opentelemetry/sdk-trace-base'
-      - '@planetscale/database'
-      - '@prisma/client'
-      - '@tidbcloud/serverless'
-      - '@types/better-sqlite3'
-      - '@types/pg'
-      - '@types/sql.js'
-      - '@upstash/redis'
-      - '@vercel/postgres'
-      - '@xata.io/client'
-      - babel-plugin-macros
-      - better-sqlite3
-      - bun-types
-      - expo-sqlite
-      - gel
-      - knex
-      - kysely
-      - mysql2
-      - openai
-      - pg
-      - postgres
-      - prisma
-      - react
-      - sql.js
-      - sqlite3
-      - zod
 
   '@elizaos/core@1.7.2(@opentelemetry/api@1.9.0)':
     dependencies:

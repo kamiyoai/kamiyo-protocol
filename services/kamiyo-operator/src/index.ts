@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AgentType } from '@kamiyo/sdk';
+import { AgentType, KAMIYO_PROGRAM_ID } from '@kamiyo/sdk';
 
 import { env } from './config.js';
 import { identityFromEnv, identityPrompt } from './identity.js';
@@ -23,6 +23,9 @@ import {
 } from './tools/fundryStaking.js';
 import { depositToStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
+import { createDkgActivityPublisher, type DkgActivityEvent } from './dkgActivity.js';
+import { ensureMeishiTrust } from './meishiTrust.js';
+import { readTrustedLaunchState } from './trustedLaunch.js';
 
 function startOfUtcDayIso(now = new Date()): string {
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -139,6 +142,132 @@ function parsePeriodNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
   if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
   return null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function asBool(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+type TrustCheck = {
+  id: string;
+  required: boolean;
+  ok: boolean;
+  detail: string;
+};
+
+function buildTrustLayerObservation(params: {
+  agentExists: boolean;
+  agentIdentity: string;
+  targetMint?: string;
+  meishiEnabled: boolean;
+  meishiAgentIdentity?: string;
+  meishiAgentIdentitySource?: string;
+  meishi?: Record<string, unknown>;
+  trustedLaunch?: Record<string, unknown>;
+  dkgEnabled: boolean;
+  dkgActivity?: Record<string, unknown>;
+}): {
+  ready: boolean;
+  blocking: string[];
+  warnings: string[];
+  checks: TrustCheck[];
+} {
+  const checks: TrustCheck[] = [];
+  const meishiCompliant =
+    asBool(params.meishi?.compliant) === true &&
+    asBool(params.meishi?.mandateValid) === true &&
+    asBool(params.meishi?.suspended) !== true;
+
+  checks.push({
+    id: 'agent_identity_active',
+    required: true,
+    ok: params.agentExists,
+    detail: params.agentExists ? `active:${params.agentIdentity}` : 'agent identity missing',
+  });
+
+  if (params.targetMint) {
+    const linked = asBool(params.trustedLaunch?.linked) === true;
+    const launchReason =
+      asString(params.trustedLaunch?.reason) ??
+      (linked ? 'launch_record_and_rate_limit_linked' : 'trusted_launch_link_missing');
+    checks.push({
+      id: 'trusted_launch_link',
+      required: true,
+      ok: linked,
+      detail: launchReason,
+    });
+  } else {
+    checks.push({
+      id: 'trusted_launch_link',
+      required: false,
+      ok: false,
+      detail: 'target mint not configured',
+    });
+  }
+
+  if (params.meishiEnabled) {
+    const reason =
+      asString(params.meishi?.reason) ??
+      asString(params.meishi?.error) ??
+      (meishiCompliant ? 'passport verified' : 'passport not fully verified');
+    checks.push({
+      id: 'meishi_compliance',
+      required: true,
+      ok: meishiCompliant,
+      detail: reason,
+    });
+  }
+
+  const dkgReason = asString(params.dkgActivity?.reason);
+  const dkgHealthy =
+    asBool(params.dkgActivity?.published) === true ||
+    dkgReason === 'no_events' ||
+    dkgReason === 'propose_mode' ||
+    dkgReason === 'disabled' ||
+    dkgReason === 'missing_config';
+  checks.push({
+    id: 'dkg_activity_feed',
+    required: false,
+    ok: !params.dkgEnabled || dkgHealthy,
+    detail: params.dkgEnabled ? dkgReason ?? (dkgHealthy ? 'published' : 'unknown') : 'disabled',
+  });
+
+  if (params.meishiAgentIdentity && params.meishiAgentIdentity !== params.agentIdentity) {
+    const dualIdentityMode = params.meishiAgentIdentitySource === 'override' && meishiCompliant;
+    checks.push({
+      id: 'identity_alignment',
+      required: false,
+      ok: dualIdentityMode,
+      detail: dualIdentityMode
+        ? `dual_identity_mode: primary=${params.agentIdentity}, meishi=${params.meishiAgentIdentity}`
+        : `primary=${params.agentIdentity}, meishi=${params.meishiAgentIdentity}`,
+    });
+  } else {
+    checks.push({
+      id: 'identity_alignment',
+      required: false,
+      ok: true,
+      detail: params.meishiAgentIdentity ? params.agentIdentity : 'single identity',
+    });
+  }
+
+  const blocking = checks.filter(check => check.required && !check.ok).map(check => check.id);
+  const warnings = checks.filter(check => !check.required && !check.ok).map(check => check.id);
+
+  return {
+    ready: blocking.length === 0,
+    blocking,
+    warnings,
+    checks,
+  };
 }
 
 function getClaimablePeriodNumbers(position: FundryUserPosition, maxPeriods: number): number[] {
@@ -741,6 +870,22 @@ async function main(): Promise<void> {
   const kyoshinClaimerIsOperator = kyoshinClaimerKeypair.publicKey.equals(keypair.publicKey);
   const wallet = new KeypairWallet(keypair);
   const connection = new Connection(env.SOLANA_RPC_URL, { commitment: 'confirmed', disableRetryOnRateLimit: true });
+  const dkgParanetUAL =
+    env.KAMIYO_DKG_PARANET_UAL ??
+    process.env.MEISHI_PARANET_UAL?.trim() ??
+    process.env.DKG_PARANET_UAL?.trim() ??
+    process.env.PARANET_UAL?.trim();
+  const dkgActivityPublisher = createDkgActivityPublisher({
+    enabled: env.KAMIYO_DKG_ACTIVITY_ENABLED,
+    endpoint: env.KAMIYO_DKG_ENDPOINT ?? process.env.DKG_ENDPOINT?.trim(),
+    port: env.KAMIYO_DKG_PORT,
+    blockchain: env.KAMIYO_DKG_BLOCKCHAIN,
+    privateKey: env.KAMIYO_DKG_PRIVATE_KEY ?? process.env.DKG_PRIVATE_KEY?.trim(),
+    paranetUAL: dkgParanetUAL,
+    source: env.KAMIYO_DKG_AUDIT_SOURCE,
+    jurisdiction: env.KAMIYO_DKG_JURISDICTION,
+    epochs: env.KAMIYO_DKG_EPOCHS,
+  });
 
   const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
@@ -843,6 +988,8 @@ async function main(): Promise<void> {
       let operatorBalanceLamports = BigInt(await connection.getBalance(wallet.publicKey, 'confirmed'));
       let kyoshinClaimerBalanceLamports: bigint | undefined =
         kyoshinClaimerIsOperator ? operatorBalanceLamports : undefined;
+      const dkgEvents: DkgActivityEvent[] = [];
+      const dkgAgentId = env.KAMIYO_DKG_AGENT_ID ?? kyoshinClaimerKeypair.publicKey.toBase58();
 
       const observation: Record<string, unknown> = {
         at: new Date().toISOString(),
@@ -872,6 +1019,14 @@ async function main(): Promise<void> {
                 maxPeriodsPerRun: env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN,
               }
             : null,
+          dkgActivity: {
+            enabled: env.KAMIYO_DKG_ACTIVITY_ENABLED,
+            source: env.KAMIYO_DKG_AUDIT_SOURCE,
+            endpoint: env.KAMIYO_DKG_ENDPOINT ?? process.env.DKG_ENDPOINT?.trim() ?? null,
+            paranetUAL: dkgParanetUAL ?? null,
+            agentId: dkgAgentId,
+            rateLimitCooldownSeconds: env.KAMIYO_DKG_RATE_LIMIT_COOLDOWN_SECONDS,
+          },
           llm: budgetState,
         },
         token: env.KAMIYO_TARGET_MINT ? { mint: env.KAMIYO_TARGET_MINT } : { mint: null },
@@ -963,6 +1118,126 @@ async function main(): Promise<void> {
               autoCreate: false,
             };
 
+      let meishiAgentState = agentState;
+      if (env.KAMIYO_MEISHI_AGENT_PROGRAM_ID) {
+        try {
+          const meishiAgentProgramId = new PublicKey(env.KAMIYO_MEISHI_AGENT_PROGRAM_ID);
+          const allowMeishiAgentCreate = env.KAMIYO_MODE === 'execute' && env.KAMIYO_MEISHI_AUTO_CREATE_AGENT;
+          const overrideState = await getOrCreateAgentIdentity({
+            connection,
+            wallet,
+            name: env.KAMIYO_AGENT_NAME,
+            agentType,
+            stakeSol: env.KAMIYO_AGENT_STAKE_SOL,
+            createIfMissing: allowMeishiAgentCreate,
+            programId: meishiAgentProgramId,
+          });
+          meishiAgentState = overrideState;
+
+          observation.meishiAgentIdentity =
+            overrideState.exists
+              ? {
+                  source: 'override',
+                  programId: meishiAgentProgramId.toBase58(),
+                  name: overrideState.agent.name,
+                  pda: overrideState.pda.toBase58(),
+                  created: overrideState.created,
+                  ...(overrideState.created ? { signature: overrideState.signature } : {}),
+                }
+              : {
+                  source: 'override',
+                  programId: meishiAgentProgramId.toBase58(),
+                  exists: false,
+                  pda: overrideState.pda.toBase58(),
+                  desiredName: env.KAMIYO_AGENT_NAME,
+                  autoCreate: allowMeishiAgentCreate,
+                };
+        } catch (e) {
+          meishiAgentState = { exists: false, pda: agentState.pda };
+          observation.meishiAgentIdentity = {
+            source: 'override',
+            programId: env.KAMIYO_MEISHI_AGENT_PROGRAM_ID,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      } else {
+        observation.meishiAgentIdentity = {
+          source: 'primary',
+          pda: agentState.pda.toBase58(),
+        };
+      }
+
+      if (meishiAgentState.exists) {
+        try {
+          const meishiState = await ensureMeishiTrust({
+            connection,
+            signer: keypair,
+            agentIdentity: meishiAgentState.pda,
+            tickId,
+            config: {
+              enabled: env.KAMIYO_MEISHI_ENABLED,
+              mode: env.KAMIYO_MODE,
+              programId: env.KAMIYO_MEISHI_PROGRAM_ID,
+              jurisdiction: env.KAMIYO_MEISHI_JURISDICTION,
+              autoCreatePassport: env.KAMIYO_MEISHI_AUTO_CREATE_PASSPORT,
+              autoSetMandate: env.KAMIYO_MEISHI_AUTO_SET_MANDATE,
+              autoBaselineAudit: env.KAMIYO_MEISHI_AUTO_BASELINE_AUDIT,
+              baselineScore: env.KAMIYO_MEISHI_BASELINE_SCORE,
+              mandateDurationDays: env.KAMIYO_MEISHI_MANDATE_DURATION_DAYS,
+              txLimitUsd: env.KAMIYO_MEISHI_TX_LIMIT_USD,
+              dailyLimitUsd: env.KAMIYO_MEISHI_DAILY_LIMIT_USD,
+              monthlyLimitUsd: env.KAMIYO_MEISHI_MONTHLY_LIMIT_USD,
+              humanApprovalUsd: env.KAMIYO_MEISHI_HUMAN_APPROVAL_USD,
+              findingsPrefix: env.KAMIYO_MEISHI_FINDINGS_PREFIX,
+              categoryWhitelistHex: env.KAMIYO_MEISHI_CATEGORY_WHITELIST_HEX,
+              merchantWhitelistHex: env.KAMIYO_MEISHI_MERCHANT_WHITELIST_HEX,
+            },
+          });
+          observation.meishi = {
+            ...meishiState,
+            agentIdentitySource: env.KAMIYO_MEISHI_AGENT_PROGRAM_ID ? 'override' : 'primary',
+          };
+
+          for (const action of meishiState.actions) {
+            db.addAction(
+              tickId,
+              `meishi_${action.type}`,
+              {
+                agentIdentity: meishiState.agentIdentity,
+                passportAddress: meishiState.passportAddress,
+              },
+              { success: true, data: action }
+            );
+            const receiptPath = writeOutbox(outboxDir, `meishi-${action.type}-receipt`, {
+              at: new Date().toISOString(),
+              tickId,
+              mode: env.KAMIYO_MODE,
+              agentIdentity: meishiState.agentIdentity,
+              passportAddress: meishiState.passportAddress,
+              action,
+            });
+            db.addAction(tickId, `write_meishi_${action.type}_receipt`, {}, { receiptPath });
+
+            if (action.type === 'create_passport') {
+              dkgEvents.push({ type: 'meishi_passport_create', signature: action.signature });
+            } else if (action.type === 'update_mandate') {
+              dkgEvents.push({ type: 'meishi_mandate_update', signature: action.signature });
+            } else if (action.type === 'record_audit') {
+              dkgEvents.push({ type: 'meishi_audit_record', signature: action.signature });
+            }
+          }
+        } catch (e) {
+          observation.meishi = { enabled: env.KAMIYO_MEISHI_ENABLED, error: e instanceof Error ? e.message : String(e) };
+        }
+      } else {
+        observation.meishi = {
+          enabled: env.KAMIYO_MEISHI_ENABLED,
+          reason: 'agent_identity_missing',
+          agentIdentity: meishiAgentState.pda.toBase58(),
+          agentIdentitySource: env.KAMIYO_MEISHI_AGENT_PROGRAM_ID ? 'override' : 'primary',
+        };
+      }
+
       if (env.KAMIYO_TARGET_MINT) {
         try {
           const mint = new PublicKey(env.KAMIYO_TARGET_MINT);
@@ -972,9 +1247,68 @@ async function main(): Promise<void> {
             exists: info.value !== null,
             owner: info.value?.owner?.toBase58() ?? null,
           };
+
+          {
+            const launchOwner = kyoshinClaimerKeypair.publicKey;
+            const [launchAgentIdentity] = PublicKey.findProgramAddressSync(
+              [Buffer.from('agent'), launchOwner.toBuffer()],
+              KAMIYO_PROGRAM_ID
+            );
+            const launchAgentExists = (await connection.getAccountInfo(launchAgentIdentity, 'confirmed')) !== null;
+            const trustedLaunch = await readTrustedLaunchState({
+              connection,
+              programId: KAMIYO_PROGRAM_ID,
+              agentIdentity: launchAgentIdentity,
+              mint,
+            });
+
+            db.addAction(
+              tickId,
+              'trusted_launch_verify',
+              {
+                programId: KAMIYO_PROGRAM_ID.toBase58(),
+                ownerWallet: launchOwner.toBase58(),
+                agentIdentity: launchAgentIdentity.toBase58(),
+                agentExists: launchAgentExists,
+                mint: mint.toBase58(),
+                launchRecordPda: trustedLaunch.launchRecordPda,
+                launchRateLimitPda: trustedLaunch.launchRateLimitPda,
+              },
+              {
+                success: trustedLaunch.linked,
+                data: trustedLaunch,
+              },
+              trustedLaunch.linked ? undefined : trustedLaunch.reason ?? 'trusted_launch_link_missing'
+            );
+
+            const receiptPath = writeOutbox(outboxDir, 'trusted-launch-check', {
+              at: new Date().toISOString(),
+              tickId,
+              mode: env.KAMIYO_MODE,
+              ownerWallet: launchOwner.toBase58(),
+              launchAgentIdentity: launchAgentIdentity.toBase58(),
+              trustedLaunch,
+            });
+            db.addAction(tickId, 'write_trusted_launch_check_receipt', {}, { receiptPath });
+            observation.trustedLaunch = {
+              ...trustedLaunch,
+              ownerWallet: launchOwner.toBase58(),
+              launchAgentIdentity: launchAgentIdentity.toBase58(),
+              launchAgentExists,
+              receiptPath,
+            };
+          }
         } catch (e) {
           observation.token = { mint: env.KAMIYO_TARGET_MINT, error: e instanceof Error ? e.message : String(e) };
+          observation.trustedLaunch = {
+            linked: false,
+            reason: 'token_lookup_failed',
+            mint: env.KAMIYO_TARGET_MINT,
+            error: e instanceof Error ? e.message : String(e),
+          };
         }
+      } else {
+        observation.trustedLaunch = { linked: false, reason: 'target_mint_not_configured' };
       }
 
       if (env.KAMIYO_FEE_VAULT) {
@@ -1085,6 +1419,11 @@ async function main(): Promise<void> {
               receiptPath,
               ...autoClaimMeta,
             };
+            dkgEvents.push({
+              type: 'fee_vault_claim',
+              signature: claimResult.signature ?? undefined,
+              amountLamports: unclaimedLamports.toString(),
+            });
           } catch (e) {
             const error = e instanceof Error ? e.message : String(e);
             db.addAction(
@@ -1195,6 +1534,13 @@ async function main(): Promise<void> {
                   claimsCount: claims.length,
                   ...claimMeta,
                 };
+                dkgEvents.push({
+                  type: 'kyoshin_staking_claim',
+                  signatures: claims
+                    .map(claim => claim.signature)
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0),
+                  amountLamports: claimableLamports.toString(),
+                });
               }
             }
           } catch (e) {
@@ -1241,6 +1587,22 @@ async function main(): Promise<void> {
           });
           operatorBalanceLamports = operatorStake.nextBalanceLamports;
           observation.autoStake = operatorStake.observation;
+          {
+            const stakeObservation = operatorStake.observation as Record<string, unknown>;
+            if (stakeObservation.executed === true) {
+              dkgEvents.push({
+                type: 'staking_period_deposit',
+                signature:
+                  typeof stakeObservation.signature === 'string'
+                    ? stakeObservation.signature
+                    : undefined,
+                amountLamports:
+                  typeof stakeObservation.amountLamports === 'string'
+                    ? stakeObservation.amountLamports
+                    : undefined,
+              });
+            }
+          }
 
           if (operatorStake.period) {
             observation.stakingPool = {
@@ -1275,6 +1637,22 @@ async function main(): Promise<void> {
               });
               kyoshinClaimerBalanceLamports = kyoshinRoute.nextBalanceLamports;
               observation.kyoshinRoute = kyoshinRoute.observation;
+              {
+                const routeObservation = kyoshinRoute.observation as Record<string, unknown>;
+                if (routeObservation.executed === true) {
+                  dkgEvents.push({
+                    type: 'kyoshin_route_deposit',
+                    signature:
+                      typeof routeObservation.signature === 'string'
+                        ? routeObservation.signature
+                        : undefined,
+                    amountLamports:
+                      typeof routeObservation.amountLamports === 'string'
+                        ? routeObservation.amountLamports
+                        : undefined,
+                  });
+                }
+              }
             }
           }
         }
@@ -1300,6 +1678,113 @@ async function main(): Promise<void> {
         publicKey: wallet.publicKey.toBase58(),
         solBalance: lamportsToSol(operatorBalanceLamports),
       };
+
+      {
+        const rateLimitCooldownKey = 'dkg_activity_rate_limit_retry_at';
+        const cooldownRetryAtIso = db.kvGet(rateLimitCooldownKey);
+        const cooldownRetryAtMs = parseIsoMillis(cooldownRetryAtIso);
+        const nowMs = Date.now();
+
+        let activity =
+          env.KAMIYO_DKG_ACTIVITY_ENABLED &&
+          env.KAMIYO_MODE === 'execute' &&
+          dkgEvents.length > 0 &&
+          cooldownRetryAtMs != null &&
+          nowMs < cooldownRetryAtMs
+            ? {
+                enabled: true,
+                published: false,
+                source: env.KAMIYO_DKG_AUDIT_SOURCE,
+                agentId: dkgAgentId,
+                eventCount: dkgEvents.length,
+                signatures: [] as string[],
+                reason: 'rate_limit_cooldown',
+                retryAt: new Date(cooldownRetryAtMs).toISOString(),
+                error: undefined,
+              }
+            : await dkgActivityPublisher.publish({
+                tickId,
+                observedAt: new Date().toISOString(),
+                mode: env.KAMIYO_MODE,
+                agentId: dkgAgentId,
+                agentName: env.KAMIYO_AGENT_NAME,
+                events: dkgEvents,
+              });
+
+        if (activity.published) {
+          db.kvSet(rateLimitCooldownKey, '');
+          const receiptPath = writeOutbox(outboxDir, 'dkg-activity-receipt', {
+            at: new Date().toISOString(),
+            tickId,
+            mode: env.KAMIYO_MODE,
+            agentId: dkgAgentId,
+            events: dkgEvents,
+            activity,
+          });
+          db.addAction(
+            tickId,
+            'dkg_activity_publish',
+            {
+              source: env.KAMIYO_DKG_AUDIT_SOURCE,
+              agentId: dkgAgentId,
+              eventCount: dkgEvents.length,
+            },
+            {
+              success: true,
+              data: activity,
+            }
+          );
+          db.addAction(tickId, 'write_dkg_activity_receipt', {}, { receiptPath });
+          observation.dkgActivity = { ...activity, receiptPath };
+        } else {
+          if (activity.reason === 'rate_limited') {
+            const retryAtIso = new Date(Date.now() + env.KAMIYO_DKG_RATE_LIMIT_COOLDOWN_SECONDS * 1000).toISOString();
+            db.kvSet(rateLimitCooldownKey, retryAtIso);
+            activity = { ...activity, retryAt: retryAtIso };
+            db.addAction(
+              tickId,
+              'dkg_activity_publish',
+              {
+                source: env.KAMIYO_DKG_AUDIT_SOURCE,
+                agentId: dkgAgentId,
+                eventCount: dkgEvents.length,
+                retryAt: retryAtIso,
+              },
+              null,
+              activity.error || 'rate_limited'
+            );
+          } else if (activity.reason === 'publish_failed') {
+            db.kvSet(rateLimitCooldownKey, '');
+            db.addAction(
+              tickId,
+              'dkg_activity_publish',
+              {
+                source: env.KAMIYO_DKG_AUDIT_SOURCE,
+                agentId: dkgAgentId,
+                eventCount: dkgEvents.length,
+              },
+              null,
+              activity.error || 'publish_failed'
+            );
+          } else if (activity.reason !== 'rate_limit_cooldown') {
+            db.kvSet(rateLimitCooldownKey, '');
+          }
+          observation.dkgActivity = activity;
+        }
+      }
+
+      observation.trustLayer = buildTrustLayerObservation({
+        agentExists: agentState.exists,
+        agentIdentity: agentState.pda.toBase58(),
+        targetMint: env.KAMIYO_TARGET_MINT,
+        meishiEnabled: env.KAMIYO_MEISHI_ENABLED,
+        meishiAgentIdentity: asString(asRecord(observation.meishiAgentIdentity)?.pda) ?? undefined,
+        meishiAgentIdentitySource: asString(asRecord(observation.meishiAgentIdentity)?.source) ?? undefined,
+        meishi: asRecord(observation.meishi) ?? undefined,
+        trustedLaunch: asRecord(observation.trustedLaunch) ?? undefined,
+        dkgEnabled: env.KAMIYO_DKG_ACTIVITY_ENABLED,
+        dkgActivity: asRecord(observation.dkgActivity) ?? undefined,
+      });
 
       db.addObservation(tickId, 'snapshot', observation);
 

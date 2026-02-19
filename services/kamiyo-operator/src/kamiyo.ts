@@ -14,8 +14,13 @@ export async function getOrCreateAgentIdentity(params: {
   agentType: AgentType;
   stakeSol: number;
   createIfMissing: boolean;
+  programId?: PublicKey;
 }): Promise<AgentIdentityState> {
-  const client = new KamiyoClient({ connection: params.connection, wallet: params.wallet });
+  const client = new KamiyoClient({
+    connection: params.connection,
+    wallet: params.wallet,
+    ...(params.programId ? { programId: params.programId } : {}),
+  });
   const { BN } = anchor;
 
   const [pda] = client.getAgentPDA(params.wallet.publicKey);

@@ -44,6 +44,52 @@ const envSchema = z.object({
     .default(
       'Work for $KAMIYO: maximize SOL fees/revenue and route that SOL into the $KAMIYO staking pool so $KAMIYO stakers are paid.'
     ),
+  KAMIYO_DKG_ACTIVITY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_DKG_ENDPOINT: optionalNonEmptyString,
+  KAMIYO_DKG_PORT: z.coerce.number().int().positive().default(8900),
+  KAMIYO_DKG_BLOCKCHAIN: z.enum(['base:8453', 'gnosis:100', 'otp:2043']).default('base:8453'),
+  KAMIYO_DKG_PRIVATE_KEY: optionalNonEmptyString,
+  KAMIYO_DKG_PARANET_UAL: optionalNonEmptyString,
+  KAMIYO_DKG_AGENT_ID: optionalNonEmptyString,
+  KAMIYO_DKG_AUDIT_SOURCE: z.string().min(1).default('kamiyo-operator'),
+  KAMIYO_DKG_JURISDICTION: z.string().min(1).default('global'),
+  KAMIYO_DKG_EPOCHS: z.coerce.number().int().positive().default(12),
+  KAMIYO_DKG_RATE_LIMIT_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(600),
+  KAMIYO_MEISHI_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_MEISHI_PROGRAM_ID: optionalNonEmptyString,
+  KAMIYO_MEISHI_AGENT_PROGRAM_ID: optionalNonEmptyString,
+  KAMIYO_MEISHI_AUTO_CREATE_AGENT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_MEISHI_JURISDICTION: z.enum(['global', 'eu', 'us', 'uk', 'apac']).default('global'),
+  KAMIYO_MEISHI_AUTO_CREATE_PASSPORT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_MEISHI_AUTO_SET_MANDATE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_MEISHI_AUTO_BASELINE_AUDIT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_MEISHI_BASELINE_SCORE: z.coerce.number().int().min(-1000).max(1000).default(650),
+  KAMIYO_MEISHI_MANDATE_DURATION_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  KAMIYO_MEISHI_TX_LIMIT_USD: z.coerce.number().positive().default(500),
+  KAMIYO_MEISHI_DAILY_LIMIT_USD: z.coerce.number().positive().default(2500),
+  KAMIYO_MEISHI_MONTHLY_LIMIT_USD: z.coerce.number().positive().default(25000),
+  KAMIYO_MEISHI_HUMAN_APPROVAL_USD: z.coerce.number().positive().default(250),
+  KAMIYO_MEISHI_FINDINGS_PREFIX: z.string().min(1).default('urn:kamiyo:meishi:kyoshin'),
+  KAMIYO_MEISHI_CATEGORY_WHITELIST_HEX: optionalNonEmptyString,
+  KAMIYO_MEISHI_MERCHANT_WHITELIST_HEX: optionalNonEmptyString,
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
   KAMIYO_RUN_ONCE: z
