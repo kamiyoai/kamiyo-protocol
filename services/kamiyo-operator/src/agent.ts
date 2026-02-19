@@ -76,17 +76,13 @@ function redactObject(input: unknown): unknown {
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number, msg?: string): Promise<T> {
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    return Promise.race([
-      p,
-      new Promise<T>((_, rej) => {
-        timer = setTimeout(() => rej(new Error(msg ?? `timeout after ${ms}ms`)), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  let timer: NodeJS.Timeout;
+
+  const timeout = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(msg ?? `timeout after ${ms}ms`)), ms);
+  });
+
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }
 
 export class KamiyoAgent {
@@ -103,6 +99,9 @@ export class KamiyoAgent {
       maxOutputTokens: number;
       maxTurnsPerTick: number;
       allowedChannels: string[];
+      temperature?: number;
+      thinking?: Anthropic.ThinkingConfigParam;
+      toolChoice?: Anthropic.ToolChoice;
       requestTimeoutMs?: number;
     }
   ) {
@@ -188,6 +187,9 @@ export class KamiyoAgent {
           system: params.systemPrompt,
           tools: this.anthropicTools,
           messages,
+          ...(this.deps.temperature != null ? { temperature: this.deps.temperature } : {}),
+          ...(this.deps.thinking ? { thinking: this.deps.thinking } : {}),
+          ...(this.deps.toolChoice ? { tool_choice: this.deps.toolChoice } : {}),
         }),
         this.deps.requestTimeoutMs ?? 60_000,
         'Anthropic request timed out'

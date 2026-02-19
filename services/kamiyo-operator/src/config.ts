@@ -3,11 +3,22 @@ import { z } from 'zod';
 
 loadDotenv();
 
+const optionalNonEmptyString = z.preprocess(v => {
+  if (typeof v !== 'string') return v;
+  const trimmed = v.trim();
+  return trimmed ? trimmed : undefined;
+}, z.string().min(1).optional());
+
 const envSchema = z.object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
 
-  KAMIYO_OPERATOR_KEYPAIR_PATH: z.string().min(1).optional(),
-  KAMIYO_OPERATOR_PRIVATE_KEY: z.string().min(1).optional(),
+  KAMIYO_OPERATOR_KEYPAIR_PATH: optionalNonEmptyString,
+  KAMIYO_OPERATOR_PRIVATE_KEY: optionalNonEmptyString,
+
+  KAMIYO_IDENTITY: z
+    .enum(['kamiyo', 'kyoshin', 'kyushin'])
+    .default('kyoshin')
+    .transform(v => (v === 'kyushin' ? 'kyoshin' : v)),
 
   KAMIYO_AGENT_NAME: z.string().min(1).default('kamiyo-operator'),
   KAMIYO_AUTO_CREATE_AGENT: z
@@ -17,8 +28,8 @@ const envSchema = z.object({
   KAMIYO_AGENT_TYPE: z.enum(['Trading', 'Service', 'Oracle', 'Custom']).default('Service'),
   KAMIYO_AGENT_STAKE_SOL: z.coerce.number().positive().default(0.5),
 
-  KAMIYO_TARGET_MINT: z.string().min(1).optional(),
-  KAMIYO_FEE_VAULT: z.string().min(1).optional(),
+  KAMIYO_TARGET_MINT: optionalNonEmptyString,
+  KAMIYO_FEE_VAULT: optionalNonEmptyString,
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
   KAMIYO_RUN_ONCE: z
@@ -30,9 +41,21 @@ const envSchema = z.object({
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
   KAMIYO_MAX_TX_PER_DAY: z.coerce.number().int().positive().default(25),
   KAMIYO_MAX_FEE_CLAIMS_PER_DAY: z.coerce.number().int().positive().default(1),
+  KAMIYO_AUTO_CLAIM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(1_000_000),
 
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
+  ANTHROPIC_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.3),
+  ANTHROPIC_TOOL_CHOICE: z.enum(['auto', 'any', 'none']).default('auto'),
+  ANTHROPIC_DISABLE_PARALLEL_TOOL_USE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  ANTHROPIC_THINKING_BUDGET_TOKENS: z.coerce.number().int().nonnegative().default(0),
   KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN: z.coerce.number().int().positive().default(2048),
   KAMIYO_MAX_TURNS_PER_TICK: z.coerce.number().int().positive().default(6),
 

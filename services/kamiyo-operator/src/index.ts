@@ -4,6 +4,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { AgentType } from '@kamiyo/sdk';
 
 import { env } from './config.js';
+import { identityFromEnv, identityPrompt } from './identity.js';
 import { openDb } from './db.js';
 import { loadOperatorKeypair } from './wallet.js';
 import { KeypairWallet } from './anchorWallet.js';
@@ -22,6 +23,27 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+type FeeVaultBreakdown = Awaited<ReturnType<typeof readFeeVault>>;
+
+function toLamports(value: unknown): bigint {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (!Number.isInteger(value)) throw new Error(`Expected integer lamports, got: ${value}`);
+    return BigInt(value);
+  }
+  if (typeof value === 'string') {
+    if (!/^\d+$/.test(value.trim())) throw new Error(`Invalid lamports string: ${value}`);
+    return BigInt(value);
+  }
+  throw new Error(`Unsupported lamports value: ${String(value)}`);
+}
+
+function getUserUnclaimedLamports(breakdown: FeeVaultBreakdown, address: string): bigint {
+  const user = breakdown.userFees.find(entry => entry.address === address);
+  if (!user) return 0n;
+  return toLamports(user.feeUnclaimed);
+}
+
 function agentTypeFromEnv(value: string): AgentType {
   const key = value as keyof typeof AgentType;
   const parsed = AgentType[key];
@@ -30,6 +52,7 @@ function agentTypeFromEnv(value: string): AgentType {
 }
 
 function buildSystemPrompt(params: {
+  identity: string;
   observation: unknown;
   mode: 'propose' | 'execute';
   allowedChannels: string[];
@@ -46,12 +69,15 @@ function buildSystemPrompt(params: {
 }) {
   const targetLine = params.targetMint ? `Target mint: ${params.targetMint}` : 'Target mint: (not set yet)';
 
-  return `You are Kamiyo Operator: an autonomous agent that operates ONE token over time.
+  return `${params.identity}
+
+You are Kamiyo Operator: an autonomous agent that operates ONE token over time.
 
 NON-NEGOTIABLE CONSTRAINTS:
 - Do NOT mint or launch new tokens.
 - Do NOT propose actions that require discretionary trading.
 - If an action moves funds or changes on-chain state, use propose_action unless it is explicitly safe and within execution mode.
+- Routine fee-vault claims are handled automatically by the runtime in execute mode. Do not create a proposal for routine claims.
 
 Execution mode: ${params.mode}
 Allowed announcement channels: ${params.allowedChannels.join(', ')}
@@ -220,6 +246,31 @@ async function main(): Promise<void> {
 
   const allowedChannels = Array.from(new Set(env.KAMIYO_ANNOUNCE_CHANNELS));
 
+  const identity = identityFromEnv(env.KAMIYO_IDENTITY);
+  const identityBlock = identityPrompt(identity);
+
+  const toolChoice = (() => {
+    const disableParallel = env.ANTHROPIC_DISABLE_PARALLEL_TOOL_USE ? true : undefined;
+    switch (env.ANTHROPIC_TOOL_CHOICE) {
+      case 'auto':
+        return { type: 'auto' as const, ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}) };
+      case 'any':
+        return { type: 'any' as const, ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}) };
+      case 'none':
+        return { type: 'none' as const };
+    }
+  })();
+
+  const thinking = (() => {
+    const budget = env.ANTHROPIC_THINKING_BUDGET_TOKENS;
+    if (budget <= 0) return undefined;
+    if (budget < 1024) throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be >= 1024');
+    if (budget >= env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN) {
+      throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be < KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN');
+    }
+    return { type: 'enabled' as const, budget_tokens: budget };
+  })();
+
   const agent = new KamiyoAgent({
     db,
     outboxDir: env.KAMIYO_OUTBOX_DIR,
@@ -229,6 +280,9 @@ async function main(): Promise<void> {
     maxOutputTokens: env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN,
     maxTurnsPerTick: env.KAMIYO_MAX_TURNS_PER_TICK,
     allowedChannels,
+    temperature: env.ANTHROPIC_TEMPERATURE,
+    thinking,
+    toolChoice,
   });
 
   agent.registerTool(toolTokenStatus({ connection, defaultMint: env.KAMIYO_TARGET_MINT }));
@@ -258,6 +312,7 @@ async function main(): Promise<void> {
       const dayStart = startOfUtcDayIso();
       const llmCallsToday = db.llmCallCountSince(dayStart);
       const llmUsageToday = db.llmUsageSince(dayStart);
+      let feeVaultBreakdown: FeeVaultBreakdown | undefined;
 
       const budgetState = {
         llmCallsToday,
@@ -330,12 +385,109 @@ async function main(): Promise<void> {
       if (env.KAMIYO_FEE_VAULT) {
         try {
           const feeVault = new PublicKey(env.KAMIYO_FEE_VAULT);
+          feeVaultBreakdown = await readFeeVault(connection, feeVault);
           observation.feeVault = {
             address: feeVault.toBase58(),
-            breakdown: await readFeeVault(connection, feeVault),
+            breakdown: feeVaultBreakdown,
           };
         } catch (e) {
           observation.feeVault = { address: env.KAMIYO_FEE_VAULT, error: e instanceof Error ? e.message : String(e) };
+        }
+      }
+
+      if (
+        env.KAMIYO_MODE === 'execute' &&
+        env.KAMIYO_AUTO_CLAIM_ENABLED &&
+        env.KAMIYO_FEE_VAULT &&
+        feeVaultBreakdown
+      ) {
+        const claimsToday = db.actionCountSince(dayStart, 'fee_vault_claim');
+        const thresholdLamports = BigInt(env.KAMIYO_AUTO_CLAIM_MIN_LAMPORTS);
+        const userAddress = keypair.publicKey.toBase58();
+        const unclaimedLamports = getUserUnclaimedLamports(feeVaultBreakdown, userAddress);
+        const autoClaimMeta = {
+          feeVault: env.KAMIYO_FEE_VAULT,
+          user: userAddress,
+          unclaimedLamports: unclaimedLamports.toString(),
+          thresholdLamports: thresholdLamports.toString(),
+          claimsToday,
+          dailyCap: env.KAMIYO_MAX_FEE_CLAIMS_PER_DAY,
+        };
+
+        if (claimsToday >= env.KAMIYO_MAX_FEE_CLAIMS_PER_DAY) {
+          observation.autoClaim = { executed: false, reason: 'daily_claim_cap_reached', ...autoClaimMeta };
+        } else if (balanceLamports < 0.01 * 1e9) {
+          observation.autoClaim = { executed: false, reason: 'low_sol_balance', ...autoClaimMeta };
+        } else if (unclaimedLamports < thresholdLamports) {
+          observation.autoClaim = { executed: false, reason: 'below_threshold', ...autoClaimMeta };
+        } else {
+          try {
+            const feeVault = new PublicKey(env.KAMIYO_FEE_VAULT);
+            const claimResult = await claimFeeVault({
+              connection,
+              feeVault,
+              user: keypair,
+              payer: keypair,
+              dryRun: false,
+            });
+
+            db.addAction(
+              tickId,
+              'fee_vault_claim',
+              {
+                feeVault: feeVault.toBase58(),
+                source: 'runtime_auto_claim',
+                thresholdLamports: thresholdLamports.toString(),
+              },
+              {
+                success: true,
+                data: {
+                  signature: claimResult.signature,
+                  before: claimResult.before,
+                  after: claimResult.after,
+                },
+              }
+            );
+
+            const receiptPath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'fee-claim-receipt', {
+              at: new Date().toISOString(),
+              mode: 'auto',
+              feeVault: feeVault.toBase58(),
+              claimer: userAddress,
+              unclaimedLamportsBefore: unclaimedLamports.toString(),
+              thresholdLamports: thresholdLamports.toString(),
+              signature: claimResult.signature,
+              before: claimResult.before,
+              after: claimResult.after,
+            });
+            db.addAction(tickId, 'write_fee_claim_receipt', {}, { receiptPath });
+
+            feeVaultBreakdown = claimResult.after;
+            observation.feeVault = {
+              address: feeVault.toBase58(),
+              breakdown: feeVaultBreakdown,
+            };
+            observation.autoClaim = {
+              executed: true,
+              signature: claimResult.signature,
+              receiptPath,
+              ...autoClaimMeta,
+            };
+          } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            db.addAction(
+              tickId,
+              'fee_vault_claim',
+              {
+                feeVault: env.KAMIYO_FEE_VAULT,
+                source: 'runtime_auto_claim',
+                thresholdLamports: thresholdLamports.toString(),
+              },
+              null,
+              error
+            );
+            observation.autoClaim = { executed: false, reason: 'claim_failed', error, ...autoClaimMeta };
+          }
         }
       }
 
@@ -360,6 +512,7 @@ async function main(): Promise<void> {
       }
 
       const systemPrompt = buildSystemPrompt({
+        identity: identityBlock,
         observation,
         mode: env.KAMIYO_MODE,
         allowedChannels,
