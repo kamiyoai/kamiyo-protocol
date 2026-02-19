@@ -36,6 +36,7 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
+  KAMIYO_STUCK_TICK_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(70),
 
   KAMIYO_SOL_DAILY_CAP: z.coerce.number().positive().default(0.1),
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
@@ -72,6 +73,9 @@ const envSchema = z.object({
 
   KAMIYO_DB_PATH: z.string().default('output/kamiyo-operator/state.db'),
   KAMIYO_OUTBOX_DIR: z.string().default('output/kamiyo-operator/outbox'),
+  KAMIYO_ALERT_STALE_MINUTES: z.coerce.number().int().positive().default(70),
+  KAMIYO_ALERT_RUNNING_STALE_MINUTES: z.coerce.number().int().positive().default(70),
+  KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS: z.coerce.number().int().positive().default(24),
 });
 
 export type Env = z.infer<typeof envSchema>;

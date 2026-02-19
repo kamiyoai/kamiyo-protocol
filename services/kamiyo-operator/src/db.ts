@@ -42,6 +42,12 @@ export function openDb(dbPath: string) {
   const llmUsageSince = db.prepare(
     `SELECT COALESCE(SUM(input_tokens), 0) AS inTok, COALESCE(SUM(output_tokens), 0) AS outTok FROM llm_usage WHERE at >= ?`
   );
+  const staleRunningTicks = db.prepare(
+    `SELECT id FROM ticks WHERE status = 'running' AND finished_at IS NULL AND started_at <= ? ORDER BY started_at ASC`
+  );
+  const markTickRecovered = db.prepare(
+    `UPDATE ticks SET finished_at = @finished_at, status = 'error', error = @error WHERE id = @id`
+  );
 
   return {
     close: () => db.close(),
@@ -113,6 +119,26 @@ export function openDb(dbPath: string) {
     llmUsageSince: (sinceIso: string): { inputTokens: number; outputTokens: number } => {
       const row = llmUsageSince.get(sinceIso) as { inTok: number; outTok: number };
       return { inputTokens: row.inTok, outputTokens: row.outTok };
+    },
+
+    recoverStaleRunningTicks: (cutoffIso: string, reason: string): string[] => {
+      const rows = staleRunningTicks.all(cutoffIso) as Array<{ id: string }>;
+      if (rows.length === 0) return [];
+
+      const finishedAt = new Date().toISOString();
+      const tx = db.transaction((tickIds: string[]) => {
+        for (const id of tickIds) {
+          markTickRecovered.run({
+            id,
+            finished_at: finishedAt,
+            error: reason,
+          });
+        }
+      });
+
+      const ids = rows.map(row => row.id);
+      tx(ids);
+      return ids;
     },
   };
 }

@@ -32,6 +32,7 @@ function ageMinutes(iso: string, nowMs: number): number {
 function main(): void {
   const dbPath = process.env.KAMIYO_DB_PATH ?? '../../output/kamiyo-operator/state.db';
   const staleMinutes = envNumber('KAMIYO_ALERT_STALE_MINUTES', 70);
+  const runningStaleMinutes = envNumber('KAMIYO_ALERT_RUNNING_STALE_MINUTES', staleMinutes);
   const claimErrorLookbackHours = envNumber('KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS', 24);
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
@@ -59,6 +60,23 @@ function main(): void {
         `last completed ok tick is stale (${minutesSinceOk.toFixed(1)}m > ${staleMinutes}m) id=${latestOkTick.id}`
       );
     }
+  }
+
+  const staleRunningTicks = db
+    .prepare(
+      `SELECT id, started_at, finished_at, status
+       FROM ticks
+       WHERE status = 'running'
+         AND finished_at IS NULL
+       ORDER BY started_at ASC`
+    )
+    .all() as TickRow[];
+
+  const staleRunning = staleRunningTicks.filter(tick => ageMinutes(tick.started_at, nowMs) > runningStaleMinutes);
+  if (staleRunning.length > 0) {
+    alerts.push(
+      `stale running ticks detected (${staleRunning.length}) older than ${runningStaleMinutes}m (oldest id=${staleRunning[0].id})`
+    );
   }
 
   const claimErrors = db
@@ -90,7 +108,7 @@ function main(): void {
   }
 
   console.log(
-    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours}`
+    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} runningStaleThresholdMinutes=${runningStaleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours}`
   );
 }
 

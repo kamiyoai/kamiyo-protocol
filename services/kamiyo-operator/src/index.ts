@@ -19,6 +19,10 @@ function startOfUtcDayIso(now = new Date()): string {
   return d.toISOString();
 }
 
+function minutesAgoIso(minutes: number, now = new Date()): string {
+  return new Date(now.getTime() - minutes * 60_000).toISOString();
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -237,6 +241,16 @@ function toolFeeVaultClaim(params: {
 
 async function main(): Promise<void> {
   const db = openDb(env.KAMIYO_DB_PATH);
+  const staleTickCutoff = minutesAgoIso(env.KAMIYO_STUCK_TICK_TIMEOUT_MINUTES);
+  const recoveredTickIds = db.recoverStaleRunningTicks(
+    staleTickCutoff,
+    `Recovered stale running tick on startup (timeout=${env.KAMIYO_STUCK_TICK_TIMEOUT_MINUTES}m)`
+  );
+  if (recoveredTickIds.length > 0) {
+    console.warn(
+      `[kamiyo-operator] recovered ${recoveredTickIds.length} stale running tick(s): ${recoveredTickIds.join(', ')}`
+    );
+  }
 
   const { keypair } = loadOperatorKeypair(env);
   const wallet = new KeypairWallet(keypair);
