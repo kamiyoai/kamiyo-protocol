@@ -1,5 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { AgentType } from '@kamiyo/sdk';
 
@@ -27,7 +30,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+type ProcessLock = {
+  lockPath: string;
+  fd: number;
+};
+
 type FeeVaultBreakdown = Awaited<ReturnType<typeof readFeeVault>>;
+const SERVICE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function toLamports(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
@@ -46,6 +55,77 @@ function getUserUnclaimedLamports(breakdown: FeeVaultBreakdown, address: string)
   const user = breakdown.userFees.find(entry => entry.address === address);
   if (!user) return 0n;
   return toLamports(user.feeUnclaimed);
+}
+
+function resolvePath(inputPath: string): string {
+  return path.isAbsolute(inputPath) ? inputPath : path.resolve(SERVICE_DIR, inputPath);
+}
+
+function isProcessRunning(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function acquireProcessLock(lockPathInput: string): ProcessLock {
+  const lockPath = resolvePath(lockPathInput);
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+
+  const writeLock = (): ProcessLock => {
+    const fd = fs.openSync(lockPath, 'wx', 0o600);
+    const payload = {
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+      cwd: process.cwd(),
+    };
+    fs.writeFileSync(fd, JSON.stringify(payload));
+    return { lockPath, fd };
+  };
+
+  try {
+    return writeLock();
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'EEXIST') throw err;
+
+    let existingPid: number | undefined;
+    try {
+      const raw = fs.readFileSync(lockPath, 'utf8');
+      const parsed = JSON.parse(raw) as { pid?: number };
+      existingPid = parsed.pid;
+    } catch {
+      existingPid = undefined;
+    }
+
+    if (existingPid && isProcessRunning(existingPid)) {
+      throw new Error(`operator lock already held by pid ${existingPid}`);
+    }
+
+    try {
+      fs.unlinkSync(lockPath);
+    } catch {
+      // Best effort cleanup of stale lock.
+    }
+
+    return writeLock();
+  }
+}
+
+function releaseProcessLock(lock: ProcessLock): void {
+  try {
+    fs.closeSync(lock.fd);
+  } catch {
+    // Best effort.
+  }
+  try {
+    fs.unlinkSync(lock.lockPath);
+  } catch {
+    // Best effort.
+  }
 }
 
 function agentTypeFromEnv(value: string): AgentType {
@@ -240,7 +320,20 @@ function toolFeeVaultClaim(params: {
 }
 
 async function main(): Promise<void> {
-  const db = openDb(env.KAMIYO_DB_PATH);
+  const dbPath = resolvePath(env.KAMIYO_DB_PATH);
+  const outboxDir = resolvePath(env.KAMIYO_OUTBOX_DIR);
+  const processLock = acquireProcessLock(env.KAMIYO_LOCK_PATH);
+  const db = openDb(dbPath);
+  let cleanedUp = false;
+
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    db.close();
+    releaseProcessLock(processLock);
+  };
+
+  process.on('exit', cleanup);
   const staleTickCutoff = minutesAgoIso(env.KAMIYO_STUCK_TICK_TIMEOUT_MINUTES);
   const recoveredTickIds = db.recoverStaleRunningTicks(
     staleTickCutoff,
@@ -287,7 +380,7 @@ async function main(): Promise<void> {
 
   const agent = new KamiyoAgent({
     db,
-    outboxDir: env.KAMIYO_OUTBOX_DIR,
+    outboxDir,
     mode: env.KAMIYO_MODE,
     client: anthropic,
     model: env.ANTHROPIC_MODEL,
@@ -306,11 +399,11 @@ async function main(): Promise<void> {
     user: keypair,
     defaultVault: env.KAMIYO_FEE_VAULT,
     db,
-    outboxDir: env.KAMIYO_OUTBOX_DIR,
+    outboxDir,
   }));
 
   const shutdown = () => {
-    db.close();
+    cleanup();
     process.exit(0);
   };
 
@@ -321,6 +414,21 @@ async function main(): Promise<void> {
     const tickId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now());
     db.startTick(tickId);
+    const tickTimeoutMinutes = env.KAMIYO_TICK_TIMEOUT_MINUTES;
+    const tickTimeoutMs = tickTimeoutMinutes * 60_000;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      const err = `Tick timed out after ${tickTimeoutMinutes}m`;
+      try {
+        db.finishTick(tickId, 'error', err);
+      } catch {
+        // Best effort.
+      }
+      console.error(`[kamiyo-operator] ${err}; exiting for clean restart`);
+      process.exit(1);
+    }, tickTimeoutMs);
+    timeout.unref();
 
     try {
       const dayStart = startOfUtcDayIso();
@@ -463,7 +571,7 @@ async function main(): Promise<void> {
               }
             );
 
-            const receiptPath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'fee-claim-receipt', {
+            const receiptPath = writeOutbox(outboxDir, 'fee-claim-receipt', {
               at: new Date().toISOString(),
               mode: 'auto',
               feeVault: feeVault.toBase58(),
@@ -513,7 +621,7 @@ async function main(): Promise<void> {
         llmUsageToday.outputTokens >= env.KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY;
 
       if (llmOverBudget) {
-        const filePath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'report', {
+        const filePath = writeOutbox(outboxDir, 'report', {
           at: new Date().toISOString(),
           reason: 'LLM daily budget exhausted',
           observation,
@@ -552,7 +660,7 @@ async function main(): Promise<void> {
       });
 
       db.kvSet('last_summary', result.finalText);
-      const reportPath = writeOutbox(env.KAMIYO_OUTBOX_DIR, 'summary', {
+      const reportPath = writeOutbox(outboxDir, 'summary', {
         at: new Date().toISOString(),
         summary: result.finalText,
         warning: 'warning' in result ? result.warning : null,
@@ -563,13 +671,17 @@ async function main(): Promise<void> {
     } catch (e) {
       const err = e instanceof Error ? e.message : String(e);
       db.finishTick(tickId, 'error', err);
+    } finally {
+      if (!timedOut) {
+        clearTimeout(timeout);
+      }
     }
 
     if (env.KAMIYO_RUN_ONCE) break;
     await sleep(env.KAMIYO_LOOP_INTERVAL_SECONDS * 1000);
   }
 
-  db.close();
+  cleanup();
 }
 
 main().catch(err => {

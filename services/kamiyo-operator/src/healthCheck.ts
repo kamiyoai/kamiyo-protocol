@@ -1,7 +1,10 @@
 import { config as loadDotenv } from 'dotenv';
 import Database from 'better-sqlite3';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-loadDotenv();
+const SERVICE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+loadDotenv({ path: path.resolve(SERVICE_DIR, '.env') });
 
 type TickRow = {
   id: string;
@@ -29,8 +32,12 @@ function ageMinutes(iso: string, nowMs: number): number {
   return (nowMs - at) / 60_000;
 }
 
+function resolvePath(inputPath: string): string {
+  return path.isAbsolute(inputPath) ? inputPath : path.resolve(SERVICE_DIR, inputPath);
+}
+
 function main(): void {
-  const dbPath = process.env.KAMIYO_DB_PATH ?? '../../output/kamiyo-operator/state.db';
+  const dbPath = resolvePath(process.env.KAMIYO_DB_PATH ?? 'output/kamiyo-operator/state.db');
   const staleMinutes = envNumber('KAMIYO_ALERT_STALE_MINUTES', 70);
   const runningStaleMinutes = envNumber('KAMIYO_ALERT_RUNNING_STALE_MINUTES', staleMinutes);
   const claimErrorLookbackHours = envNumber('KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS', 24);

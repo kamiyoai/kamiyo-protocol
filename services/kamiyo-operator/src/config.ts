@@ -1,7 +1,10 @@
 import { config as loadDotenv } from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
-loadDotenv();
+const CONFIG_DIR = path.dirname(fileURLToPath(import.meta.url));
+loadDotenv({ path: path.resolve(CONFIG_DIR, '../.env') });
 
 const optionalNonEmptyString = z.preprocess(v => {
   if (typeof v !== 'string') return v;
@@ -36,7 +39,9 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
+  KAMIYO_LOCK_PATH: z.string().default('output/kamiyo-operator/runner.lock'),
   KAMIYO_STUCK_TICK_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(70),
+  KAMIYO_TICK_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(10),
 
   KAMIYO_SOL_DAILY_CAP: z.coerce.number().positive().default(0.1),
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
