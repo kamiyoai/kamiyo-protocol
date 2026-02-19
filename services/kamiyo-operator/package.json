@@ -16,7 +16,7 @@
     "daemon:uninstall": "bash scripts/uninstall-operator-launchd.sh"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
+    "@anthropic-ai/sdk": "^0.77.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/sdk": "workspace:*",

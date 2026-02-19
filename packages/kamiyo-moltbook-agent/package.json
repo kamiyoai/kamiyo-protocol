@@ -26,7 +26,7 @@
   "author": "KAMIYO",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.0",
+    "@anthropic-ai/sdk": "^0.77.0",
     "@kamiyo/dkg-quality-oracle": "workspace:*",
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/paykit": "workspace:*",

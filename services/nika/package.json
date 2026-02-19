@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.31",
-    "@anthropic-ai/sdk": "^0.52.0",
+    "@anthropic-ai/sdk": "^0.77.0",
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/sdk": "workspace:*",
