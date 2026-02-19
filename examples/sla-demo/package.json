@@ -10,7 +10,7 @@
     "dev": "ts-node src/index.ts"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/sdk": "file:../../packages/kamiyo-sdk",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",

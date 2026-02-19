@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@radr/shadowwire": "^1.1.15",
     "@solana/web3.js": "^1.95.3",
     "bs58": "^5.0.0"
