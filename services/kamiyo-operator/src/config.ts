@@ -34,6 +34,10 @@ const envSchema = z.object({
   KAMIYO_TARGET_MINT: optionalNonEmptyString,
   KAMIYO_FEE_VAULT: optionalNonEmptyString,
   KAMIYO_STAKING_POOL: optionalNonEmptyString,
+  KAMIYO_FUNDRY_API_BASE_URL: z.string().url().default('https://fundry.collaterize.com'),
+  KAMIYO_KYOSHIN_STAKING_POOL: optionalNonEmptyString,
+  KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH: optionalNonEmptyString,
+  KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY: optionalNonEmptyString,
   KAMIYO_PRIME_DIRECTIVE: z
     .string()
     .min(1)
@@ -59,6 +63,12 @@ const envSchema = z.object({
     .default('true')
     .transform(v => v === 'true'),
   KAMIYO_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(1_000_000),
+  KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(0),
+  KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN: z.coerce.number().int().positive().default(8),
   KAMIYO_AUTO_STAKE_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

@@ -15,6 +15,12 @@ import { getOrCreateAgentIdentity } from './kamiyo.js';
 import { writeOutbox } from './outbox.js';
 import { KamiyoAgent, type ToolConfig } from './agent.js';
 import { claimFeeVault, readFeeVault } from './tools/feeVault.js';
+import {
+  claimFundryStakingPeriods,
+  getClaimableLamports,
+  readFundryUserPosition,
+  type FundryUserPosition,
+} from './tools/fundryStaking.js';
 import { depositToStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
 
@@ -127,6 +133,194 @@ function getUserUnclaimedLamports(breakdown: FeeVaultBreakdown, address: string)
   const user = breakdown.userFees.find(entry => entry.address === address);
   if (!user) return 0n;
   return toLamports(user.feeUnclaimed);
+}
+
+function parsePeriodNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+  return null;
+}
+
+function getClaimablePeriodNumbers(position: FundryUserPosition, maxPeriods: number): number[] {
+  const raw = Array.isArray(position.rewards?.claimablePeriods) ? position.rewards.claimablePeriods : [];
+  const numbers = raw.flatMap(period => {
+    const payload = period as Record<string, unknown>;
+    const direct = parsePeriodNumber(payload.periodNumber);
+    if (direct != null) return [direct];
+
+    const nestedPayload = payload.period;
+    const nested =
+      nestedPayload && typeof nestedPayload === 'object'
+        ? parsePeriodNumber((nestedPayload as Record<string, unknown>).periodNumber)
+        : null;
+    if (nested != null) return [nested];
+    return [];
+  });
+  return [...new Set(numbers)].slice(0, Math.max(1, maxPeriods));
+}
+
+async function runAutoStakePolicy(params: {
+  connection: Connection;
+  db: ReturnType<typeof openDb>;
+  tickId: string;
+  dayStart: string;
+  outboxDir: string;
+  poolAddress: string;
+  depositor: Keypair;
+  source: string;
+  currentBalanceLamports: bigint;
+}) {
+  const feedsToday = params.db.actionCountSince(params.dayStart, 'staking_period_deposit');
+  const minLamports = BigInt(env.KAMIYO_AUTO_STAKE_MIN_LAMPORTS);
+  const reserveLamports = BigInt(env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
+  const availableBps = BigInt(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
+  const maxLamportsPerTx = BigInt(env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
+  const availableLamports =
+    params.currentBalanceLamports > reserveLamports ? params.currentBalanceLamports - reserveLamports : 0n;
+  const targetLamports = (availableLamports * availableBps) / 10_000n;
+
+  const meta = {
+    source: params.source,
+    wallet: params.depositor.publicKey.toBase58(),
+    pool: params.poolAddress,
+    feedsToday,
+    dailyCap: env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY,
+    minLamports: minLamports.toString(),
+    reserveLamports: reserveLamports.toString(),
+    availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+    maxLamportsPerTx: maxLamportsPerTx.toString(),
+    operatorBalanceLamports: params.currentBalanceLamports.toString(),
+    availableLamports: availableLamports.toString(),
+    targetLamports: targetLamports.toString(),
+  };
+
+  if (feedsToday >= env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY) {
+    return {
+      observation: { executed: false, reason: 'daily_feed_cap_reached', ...meta },
+      nextBalanceLamports: params.currentBalanceLamports,
+      period: null as unknown,
+    };
+  }
+
+  if (availableLamports < minLamports) {
+    return {
+      observation: { executed: false, reason: 'below_threshold', ...meta },
+      nextBalanceLamports: params.currentBalanceLamports,
+      period: null as unknown,
+    };
+  }
+
+  try {
+    const pool = new PublicKey(params.poolAddress);
+    const period = await findLatestOpenStakingPeriod(params.connection, pool);
+    if (!period) {
+      return {
+        observation: { executed: false, reason: 'no_open_period', ...meta },
+        nextBalanceLamports: params.currentBalanceLamports,
+        period: null as unknown,
+      };
+    }
+
+    const stakeLamports = maxLamportsPerTx > 0n && targetLamports > maxLamportsPerTx ? maxLamportsPerTx : targetLamports;
+    if (stakeLamports < minLamports) {
+      return {
+        observation: {
+          executed: false,
+          reason: 'below_threshold_after_policy',
+          period,
+          ...meta,
+        },
+        nextBalanceLamports: params.currentBalanceLamports,
+        period,
+      };
+    }
+
+    const depositResult = await depositToStakingPeriod({
+      connection: params.connection,
+      depositor: params.depositor,
+      pool,
+      stakingPeriod: new PublicKey(period.address),
+      amountLamports: stakeLamports,
+      dryRun: false,
+    });
+
+    params.db.addAction(
+      params.tickId,
+      'staking_period_deposit',
+      {
+        source: params.source,
+        wallet: params.depositor.publicKey.toBase58(),
+        pool: pool.toBase58(),
+        stakingPeriod: period.address,
+        amountLamports: stakeLamports.toString(),
+        reserveLamports: reserveLamports.toString(),
+        minLamports: minLamports.toString(),
+        availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+        targetLamports: targetLamports.toString(),
+      },
+      {
+        success: true,
+        data: depositResult,
+      }
+    );
+
+    const receiptPath = writeOutbox(params.outboxDir, 'staking-deposit-receipt', {
+      at: new Date().toISOString(),
+      mode: 'auto',
+      source: params.source,
+      depositor: params.depositor.publicKey.toBase58(),
+      pool: pool.toBase58(),
+      stakingPeriod: period.address,
+      periodNumber: period.periodNumber,
+      amountLamports: stakeLamports.toString(),
+      amountSol: lamportsToSol(stakeLamports),
+      reserveLamports: reserveLamports.toString(),
+      availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+      targetLamports: targetLamports.toString(),
+      signature: depositResult.signature,
+      periodVault: depositResult.periodVault,
+      beforeBalanceLamports: String(depositResult.beforeBalanceLamports),
+      afterBalanceLamports: String(depositResult.afterBalanceLamports),
+      beforePeriod: depositResult.beforePeriod,
+      afterPeriod: depositResult.afterPeriod,
+    });
+    params.db.addAction(params.tickId, 'write_staking_deposit_receipt', {}, { receiptPath });
+
+    return {
+      observation: {
+        executed: true,
+        signature: depositResult.signature,
+        receiptPath,
+        amountLamports: stakeLamports.toString(),
+        amountSol: lamportsToSol(stakeLamports),
+        stakingPeriod: period.address,
+        periodNumber: period.periodNumber,
+        periodVault: depositResult.periodVault,
+        ...meta,
+      },
+      nextBalanceLamports: BigInt(depositResult.afterBalanceLamports),
+      period: depositResult.afterPeriod ?? period,
+    };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    params.db.addAction(
+      params.tickId,
+      'staking_period_deposit',
+      {
+        source: params.source,
+        wallet: params.depositor.publicKey.toBase58(),
+        pool: params.poolAddress,
+      },
+      null,
+      error
+    );
+
+    return {
+      observation: { executed: false, reason: 'stake_failed', error, ...meta },
+      nextBalanceLamports: params.currentBalanceLamports,
+      period: null as unknown,
+    };
+  }
 }
 
 function resolvePath(inputPath: string): string {
@@ -537,6 +731,14 @@ async function main(): Promise<void> {
   }
 
   const { keypair } = loadOperatorKeypair(env);
+  const kyoshinClaimerKeypair =
+    env.KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH || env.KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY
+      ? loadOperatorKeypair({
+          KAMIYO_OPERATOR_KEYPAIR_PATH: env.KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH,
+          KAMIYO_OPERATOR_PRIVATE_KEY: env.KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY,
+        }).keypair
+      : keypair;
+  const kyoshinClaimerIsOperator = kyoshinClaimerKeypair.publicKey.equals(keypair.publicKey);
   const wallet = new KeypairWallet(keypair);
   const connection = new Connection(env.SOLANA_RPC_URL, { commitment: 'confirmed', disableRetryOnRateLimit: true });
 
@@ -639,6 +841,8 @@ async function main(): Promise<void> {
       };
 
       let operatorBalanceLamports = BigInt(await connection.getBalance(wallet.publicKey, 'confirmed'));
+      let kyoshinClaimerBalanceLamports: bigint | undefined =
+        kyoshinClaimerIsOperator ? operatorBalanceLamports : undefined;
 
       const observation: Record<string, unknown> = {
         at: new Date().toISOString(),
@@ -660,6 +864,14 @@ async function main(): Promise<void> {
             availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
             maxLamportsPerTx: env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX,
           },
+          kyoshinAutoClaim: env.KAMIYO_KYOSHIN_STAKING_POOL
+            ? {
+                enabled: env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED,
+                pool: env.KAMIYO_KYOSHIN_STAKING_POOL,
+                minLamports: env.KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS,
+                maxPeriodsPerRun: env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN,
+              }
+            : null,
           llm: budgetState,
         },
         token: env.KAMIYO_TARGET_MINT ? { mint: env.KAMIYO_TARGET_MINT } : { mint: null },
@@ -785,6 +997,15 @@ async function main(): Promise<void> {
         };
       }
 
+      if (env.KAMIYO_KYOSHIN_STAKING_POOL) {
+        observation.kyoshinStakingSource = {
+          pool: env.KAMIYO_KYOSHIN_STAKING_POOL,
+          claimer: kyoshinClaimerKeypair.publicKey.toBase58(),
+          claimerIsOperator: kyoshinClaimerIsOperator,
+          autoClaimEnabled: env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED,
+        };
+      }
+
       if (
         env.KAMIYO_MODE === 'execute' &&
         env.KAMIYO_AUTO_CLAIM_ENABLED &&
@@ -882,136 +1103,197 @@ async function main(): Promise<void> {
         }
       }
 
+      if (env.KAMIYO_MODE === 'execute' && env.KAMIYO_KYOSHIN_STAKING_POOL) {
+        const kyoshinPool = env.KAMIYO_KYOSHIN_STAKING_POOL;
+        const claimerAddress = kyoshinClaimerKeypair.publicKey.toBase58();
+        const minClaimLamports = BigInt(env.KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS);
+        const maxPeriodsPerRun = env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN;
+
+        if (!env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED) {
+          observation.kyoshinAutoClaim = {
+            executed: false,
+            reason: 'disabled',
+            pool: kyoshinPool,
+            claimer: claimerAddress,
+          };
+        } else {
+          try {
+            const position = await readFundryUserPosition({
+              apiBase: env.KAMIYO_FUNDRY_API_BASE_URL,
+              poolAddress: kyoshinPool,
+              wallet: claimerAddress,
+            });
+            const claimableLamports = getClaimableLamports(position);
+            const periodNumbers = getClaimablePeriodNumbers(position, maxPeriodsPerRun);
+            const claimMeta = {
+              pool: kyoshinPool,
+              claimer: claimerAddress,
+              claimableLamports: claimableLamports.toString(),
+              minClaimLamports: minClaimLamports.toString(),
+              maxPeriodsPerRun,
+              periodNumbers,
+            };
+
+            if (periodNumbers.length === 0) {
+              observation.kyoshinAutoClaim = { executed: false, reason: 'no_claimable_periods', ...claimMeta };
+            } else if (claimableLamports < minClaimLamports) {
+              observation.kyoshinAutoClaim = { executed: false, reason: 'below_threshold', ...claimMeta };
+            } else {
+              kyoshinClaimerBalanceLamports ??= BigInt(await connection.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed'));
+              if (kyoshinClaimerBalanceLamports < 10_000_000n) {
+                observation.kyoshinAutoClaim = { executed: false, reason: 'low_sol_balance', ...claimMeta };
+              } else {
+                const claims = await claimFundryStakingPeriods({
+                  connection,
+                  apiBase: env.KAMIYO_FUNDRY_API_BASE_URL,
+                  poolAddress: kyoshinPool,
+                  signer: kyoshinClaimerKeypair,
+                  periodNumbers,
+                });
+
+                db.addAction(
+                  tickId,
+                  'kyoshin_staking_claim',
+                  {
+                    source: 'runtime_kyoshin_staking_claim',
+                    pool: kyoshinPool,
+                    claimer: claimerAddress,
+                    periodNumbers,
+                    minClaimLamports: minClaimLamports.toString(),
+                    maxPeriodsPerRun,
+                  },
+                  {
+                    success: true,
+                    data: { claims },
+                  }
+                );
+
+                const receiptPath = writeOutbox(outboxDir, 'kyoshin-staking-claim-receipt', {
+                  at: new Date().toISOString(),
+                  mode: 'auto',
+                  source: 'runtime_kyoshin_staking_claim',
+                  pool: kyoshinPool,
+                  claimer: claimerAddress,
+                  claimableLamports: claimableLamports.toString(),
+                  minClaimLamports: minClaimLamports.toString(),
+                  periodNumbers,
+                  claims,
+                });
+                db.addAction(tickId, 'write_kyoshin_staking_claim_receipt', {}, { receiptPath });
+
+                kyoshinClaimerBalanceLamports = BigInt(
+                  await connection.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
+                );
+                if (kyoshinClaimerIsOperator) {
+                  operatorBalanceLamports = kyoshinClaimerBalanceLamports;
+                }
+
+                observation.kyoshinAutoClaim = {
+                  executed: true,
+                  receiptPath,
+                  signatures: claims.map(claim => claim.signature).filter(Boolean),
+                  claimsCount: claims.length,
+                  ...claimMeta,
+                };
+              }
+            }
+          } catch (e) {
+            const error = e instanceof Error ? e.message : String(e);
+            db.addAction(
+              tickId,
+              'kyoshin_staking_claim',
+              {
+                source: 'runtime_kyoshin_staking_claim',
+                pool: kyoshinPool,
+                claimer: claimerAddress,
+              },
+              null,
+              error
+            );
+            observation.kyoshinAutoClaim = {
+              executed: false,
+              reason: 'claim_failed',
+              error,
+              pool: kyoshinPool,
+              claimer: claimerAddress,
+            };
+          }
+        }
+      }
+
       if (env.KAMIYO_MODE === 'execute' && env.KAMIYO_AUTO_STAKE_ENABLED) {
         if (!env.KAMIYO_STAKING_POOL) {
           observation.autoStake = { executed: false, reason: 'staking_pool_not_configured' };
+          if (env.KAMIYO_KYOSHIN_STAKING_POOL) {
+            observation.kyoshinRoute = { executed: false, reason: 'target_staking_pool_not_configured' };
+          }
         } else {
-          const feedsToday = db.actionCountSince(dayStart, 'staking_period_deposit');
-          const minLamports = BigInt(env.KAMIYO_AUTO_STAKE_MIN_LAMPORTS);
-          const reserveLamports = BigInt(env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
-          const availableBps = BigInt(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
-          const maxLamportsPerTx = BigInt(env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
-          const availableLamports =
-            operatorBalanceLamports > reserveLamports ? operatorBalanceLamports - reserveLamports : 0n;
-          const targetLamports = (availableLamports * availableBps) / 10_000n;
+          const operatorStake = await runAutoStakePolicy({
+            connection,
+            db,
+            tickId,
+            dayStart,
+            outboxDir,
+            poolAddress: env.KAMIYO_STAKING_POOL,
+            depositor: keypair,
+            source: 'runtime_auto_stake_operator',
+            currentBalanceLamports: operatorBalanceLamports,
+          });
+          operatorBalanceLamports = operatorStake.nextBalanceLamports;
+          observation.autoStake = operatorStake.observation;
 
-          const autoStakeMeta = {
-            pool: env.KAMIYO_STAKING_POOL,
-            feedsToday,
-            dailyCap: env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY,
-            minLamports: minLamports.toString(),
-            reserveLamports: reserveLamports.toString(),
-            availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
-            maxLamportsPerTx: maxLamportsPerTx.toString(),
-            operatorBalanceLamports: operatorBalanceLamports.toString(),
-            availableLamports: availableLamports.toString(),
-            targetLamports: targetLamports.toString(),
-          };
+          if (operatorStake.period) {
+            observation.stakingPool = {
+              address: env.KAMIYO_STAKING_POOL,
+              autoStakeEnabled: true,
+              period: operatorStake.period,
+            };
+          }
 
-          if (feedsToday >= env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY) {
-            observation.autoStake = { executed: false, reason: 'daily_feed_cap_reached', ...autoStakeMeta };
-          } else if (availableLamports < minLamports) {
-            observation.autoStake = { executed: false, reason: 'below_threshold', ...autoStakeMeta };
-          } else {
-            try {
-              const pool = new PublicKey(env.KAMIYO_STAKING_POOL);
-              const period = await findLatestOpenStakingPeriod(connection, pool);
-              if (!period) {
-                observation.autoStake = { executed: false, reason: 'no_open_period', ...autoStakeMeta };
-              } else {
-                const stakeLamports =
-                  maxLamportsPerTx > 0n && targetLamports > maxLamportsPerTx ? maxLamportsPerTx : targetLamports;
-                if (stakeLamports < minLamports) {
-                  observation.autoStake = {
-                    executed: false,
-                    reason: 'below_threshold_after_policy',
-                    period,
-                    ...autoStakeMeta,
-                  };
-                } else {
-                  const depositResult = await depositToStakingPeriod({
-                    connection,
-                    depositor: keypair,
-                    pool,
-                    stakingPeriod: new PublicKey(period.address),
-                    amountLamports: stakeLamports,
-                    dryRun: false,
-                  });
-
-                  db.addAction(
-                    tickId,
-                    'staking_period_deposit',
-                    {
-                      source: 'runtime_auto_stake',
-                      pool: pool.toBase58(),
-                      stakingPeriod: period.address,
-                      amountLamports: stakeLamports.toString(),
-                      reserveLamports: reserveLamports.toString(),
-                      minLamports: minLamports.toString(),
-                      availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
-                      targetLamports: targetLamports.toString(),
-                    },
-                    {
-                      success: true,
-                      data: depositResult,
-                    }
-                  );
-
-                  const receiptPath = writeOutbox(outboxDir, 'staking-deposit-receipt', {
-                    at: new Date().toISOString(),
-                    mode: 'auto',
-                    pool: pool.toBase58(),
-                    stakingPeriod: period.address,
-                    periodNumber: period.periodNumber,
-                    amountLamports: stakeLamports.toString(),
-                    amountSol: lamportsToSol(stakeLamports),
-                    reserveLamports: reserveLamports.toString(),
-                    availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
-                    targetLamports: targetLamports.toString(),
-                    signature: depositResult.signature,
-                    periodVault: depositResult.periodVault,
-                    beforeBalanceLamports: String(depositResult.beforeBalanceLamports),
-                    afterBalanceLamports: String(depositResult.afterBalanceLamports),
-                    beforePeriod: depositResult.beforePeriod,
-                    afterPeriod: depositResult.afterPeriod,
-                  });
-                  db.addAction(tickId, 'write_staking_deposit_receipt', {}, { receiptPath });
-
-                  operatorBalanceLamports = BigInt(depositResult.afterBalanceLamports);
-                  observation.stakingPool = {
-                    address: pool.toBase58(),
-                    autoStakeEnabled: true,
-                    period: depositResult.afterPeriod ?? period,
-                  };
-                  observation.autoStake = {
-                    executed: true,
-                    signature: depositResult.signature,
-                    receiptPath,
-                    amountLamports: stakeLamports.toString(),
-                    amountSol: lamportsToSol(stakeLamports),
-                    stakingPeriod: period.address,
-                    periodNumber: period.periodNumber,
-                    periodVault: depositResult.periodVault,
-                    ...autoStakeMeta,
-                  };
-                }
-              }
-            } catch (e) {
-              const error = e instanceof Error ? e.message : String(e);
-              db.addAction(
-                tickId,
-                'staking_period_deposit',
-                {
-                  source: 'runtime_auto_stake',
-                  pool: env.KAMIYO_STAKING_POOL,
-                },
-                null,
-                error
+          if (env.KAMIYO_KYOSHIN_STAKING_POOL) {
+            if (kyoshinClaimerIsOperator) {
+              observation.kyoshinRoute = {
+                executed: false,
+                reason: 'same_wallet_as_operator',
+                wallet: kyoshinClaimerKeypair.publicKey.toBase58(),
+                pool: env.KAMIYO_STAKING_POOL,
+              };
+            } else {
+              kyoshinClaimerBalanceLamports ??= BigInt(
+                await connection.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
               );
-              observation.autoStake = { executed: false, reason: 'stake_failed', error, ...autoStakeMeta };
+              const kyoshinRoute = await runAutoStakePolicy({
+                connection,
+                db,
+                tickId,
+                dayStart,
+                outboxDir,
+                poolAddress: env.KAMIYO_STAKING_POOL,
+                depositor: kyoshinClaimerKeypair,
+                source: 'runtime_auto_stake_kyoshin_route',
+                currentBalanceLamports: kyoshinClaimerBalanceLamports,
+              });
+              kyoshinClaimerBalanceLamports = kyoshinRoute.nextBalanceLamports;
+              observation.kyoshinRoute = kyoshinRoute.observation;
             }
           }
         }
+      }
+
+      if (env.KAMIYO_MODE === 'execute' && !env.KAMIYO_AUTO_STAKE_ENABLED && env.KAMIYO_KYOSHIN_STAKING_POOL) {
+        observation.kyoshinRoute = { executed: false, reason: 'auto_stake_disabled' };
+      }
+
+      if (env.KAMIYO_KYOSHIN_STAKING_POOL) {
+        if (kyoshinClaimerIsOperator) {
+          kyoshinClaimerBalanceLamports = operatorBalanceLamports;
+        }
+        kyoshinClaimerBalanceLamports ??= BigInt(await connection.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed'));
+        observation.kyoshinClaimer = {
+          publicKey: kyoshinClaimerKeypair.publicKey.toBase58(),
+          solBalance: lamportsToSol(kyoshinClaimerBalanceLamports),
+          isOperatorWallet: kyoshinClaimerIsOperator,
+        };
       }
 
       observation.operator = {
