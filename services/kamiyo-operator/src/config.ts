@@ -33,6 +33,13 @@ const envSchema = z.object({
 
   KAMIYO_TARGET_MINT: optionalNonEmptyString,
   KAMIYO_FEE_VAULT: optionalNonEmptyString,
+  KAMIYO_STAKING_POOL: optionalNonEmptyString,
+  KAMIYO_PRIME_DIRECTIVE: z
+    .string()
+    .min(1)
+    .default(
+      'Work for $KAMIYO: maximize SOL fees/revenue and route that SOL into the $KAMIYO staking pool so $KAMIYO stakers are paid.'
+    ),
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
   KAMIYO_RUN_ONCE: z
@@ -52,6 +59,15 @@ const envSchema = z.object({
     .default('true')
     .transform(v => v === 'true'),
   KAMIYO_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(1_000_000),
+  KAMIYO_AUTO_STAKE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_AUTO_STAKE_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(50_000_000),
+  KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS: z.coerce.number().int().nonnegative().default(200_000_000),
+  KAMIYO_AUTO_STAKE_AVAILABLE_BPS: z.coerce.number().int().min(1).max(10_000).default(5000),
+  KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX: z.coerce.number().int().nonnegative().default(0),
+  KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY: z.coerce.number().int().positive().default(24),
 
   ANTHROPIC_API_KEY: z.string().min(1),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
@@ -61,7 +77,7 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
-  ANTHROPIC_THINKING_BUDGET_TOKENS: z.coerce.number().int().nonnegative().default(0),
+  ANTHROPIC_THINKING_BUDGET_TOKENS: z.coerce.number().int().nonnegative().default(1024),
   KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN: z.coerce.number().int().positive().default(2048),
   KAMIYO_MAX_TURNS_PER_TICK: z.coerce.number().int().positive().default(6),
 

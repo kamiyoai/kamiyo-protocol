@@ -15,6 +15,7 @@ import { getOrCreateAgentIdentity } from './kamiyo.js';
 import { writeOutbox } from './outbox.js';
 import { KamiyoAgent, type ToolConfig } from './agent.js';
 import { claimFeeVault, readFeeVault } from './tools/feeVault.js';
+import { depositToStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
 
 function startOfUtcDayIso(now = new Date()): string {
@@ -49,6 +50,10 @@ function toLamports(value: unknown): bigint {
     return BigInt(value);
   }
   throw new Error(`Unsupported lamports value: ${String(value)}`);
+}
+
+function lamportsToSol(lamports: bigint): number {
+  return Number(lamports) / 1e9;
 }
 
 function getUserUnclaimedLamports(breakdown: FeeVaultBreakdown, address: string): bigint {
@@ -140,12 +145,14 @@ function buildSystemPrompt(params: {
   observation: unknown;
   mode: 'propose' | 'execute';
   allowedChannels: string[];
+  primeDirective: string;
   targetMint?: string;
   budgets: {
     solDailyCap: number;
     solPerTxCap: number;
     maxTxPerDay: number;
     maxFeeClaimsPerDay: number;
+    maxStakeFeedsPerDay: number;
     llmMaxTurnsPerDay: number;
     llmMaxInputTokensPerDay: number;
     llmMaxOutputTokensPerDay: number;
@@ -161,17 +168,26 @@ NON-NEGOTIABLE CONSTRAINTS:
 - Do NOT mint or launch new tokens.
 - Do NOT propose actions that require discretionary trading.
 - If an action moves funds or changes on-chain state, use propose_action unless it is explicitly safe and within execution mode.
-- Routine fee-vault claims are handled automatically by the runtime in execute mode. Do not create a proposal for routine claims.
+- Routine fee-vault claims and staking-pool feeds are runtime-managed in execute mode. Do not create routine proposals for them.
 
 Execution mode: ${params.mode}
 Allowed announcement channels: ${params.allowedChannels.join(', ')}
 ${targetLine}
+
+PRIMARY DIRECTIVE (single objective):
+${params.primeDirective}
+
+Success is:
+- More realized SOL fees/revenue.
+- More SOL routed to $KAMIYO staking for $KAMIYO stakers.
+- A more reliable repeatable revenue loop.
 
 Budgets (hard limits):
 - SOL/day: ${params.budgets.solDailyCap}
 - SOL/tx: ${params.budgets.solPerTxCap}
 - tx/day: ${params.budgets.maxTxPerDay}
 - fee claims/day: ${params.budgets.maxFeeClaimsPerDay}
+- staking feeds/day: ${params.budgets.maxStakeFeedsPerDay}
 - LLM turns/day: ${params.budgets.llmMaxTurnsPerDay}
 - LLM input tokens/day: ${params.budgets.llmMaxInputTokensPerDay}
 - LLM output tokens/day: ${params.budgets.llmMaxOutputTokensPerDay}
@@ -182,6 +198,8 @@ ${JSON.stringify(params.observation, null, 2)}
 Operating style:
 - Be specific. Prefer measurable actions.
 - Keep announcements concise. No fluff.
+- Run a hypothesis loop every tick: hypothesis -> action/proposal -> measured result -> next step.
+- Call record_learning once per tick with what you learned.
 - Always end with a short operator summary: what changed, what to do next, and what you need from humans.
 `;
 }
@@ -298,6 +316,20 @@ function toolFeeVaultClaim(params: {
       }
 
       const dryRun = normalizeBoolean(input.dryRun);
+      const userAddress = params.user.publicKey.toBase58();
+      const minClaimLamports = BigInt(env.KAMIYO_AUTO_CLAIM_MIN_LAMPORTS);
+
+      if (!dryRun) {
+        const beforeSnapshot = await readFeeVault(params.connection, feeVault);
+        const unclaimedLamports = getUserUnclaimedLamports(beforeSnapshot, userAddress);
+        if (unclaimedLamports < minClaimLamports) {
+          return {
+            success: false,
+            error: `Unclaimed fees below threshold (${unclaimedLamports.toString()} < ${minClaimLamports.toString()} lamports)`,
+          };
+        }
+      }
+
       const result = await claimFeeVault({
         connection: params.connection,
         feeVault,
@@ -306,15 +338,107 @@ function toolFeeVaultClaim(params: {
         dryRun,
       });
 
+      const beforeUserLamports = getUserUnclaimedLamports(result.before, userAddress);
+      const afterUserLamports = getUserUnclaimedLamports(result.after, userAddress);
+      const claimedLamports = beforeUserLamports > afterUserLamports ? beforeUserLamports - afterUserLamports : 0n;
+      const receiptPath = writeOutbox(params.outboxDir, 'fee-claim-receipt', {
+        at: new Date().toISOString(),
+        mode: dryRun ? 'dry-run' : 'tool-execute',
+        feeVault: feeVault.toBase58(),
+        claimer: userAddress,
+        minClaimLamports: minClaimLamports.toString(),
+        unclaimedLamportsBefore: beforeUserLamports.toString(),
+        unclaimedLamportsAfter: afterUserLamports.toString(),
+        claimedLamports: claimedLamports.toString(),
+        signature: result.signature,
+        before: result.before,
+        after: result.after,
+      });
+
       return {
         success: true,
         data: {
           feeVault: feeVault.toBase58(),
           signature: result.signature,
+          receiptPath,
+          claimedLamports: claimedLamports.toString(),
+          claimedSol: Number(claimedLamports) / 1e9,
           before: result.before,
           after: result.after,
         },
       };
+    },
+  };
+}
+
+function toolRecordLearning(params: {
+  db: ReturnType<typeof openDb>;
+  outboxDir: string;
+}): ToolConfig {
+  return {
+    name: 'record_learning',
+    description:
+      'Record one strategic learning from this tick so the operator can evolve toward higher SOL revenue for $KAMIYO stakers.',
+    parameters: {
+      hypothesis: { type: 'string', description: 'What you believed would improve revenue.', required: true },
+      action: { type: 'string', description: 'What you did or proposed.', required: true },
+      result: { type: 'string', description: 'Observed result from the action.', required: true },
+      nextStep: { type: 'string', description: 'Best next step based on the result.', required: true },
+      confidence: { type: 'number', description: 'Confidence in the next step (0-1).' },
+      expectedImpactSol: {
+        type: 'number',
+        description: 'Expected daily SOL impact if nextStep succeeds.',
+      },
+    },
+    handler: async input => {
+      const hypothesis = String(input.hypothesis ?? '').trim();
+      const action = String(input.action ?? '').trim();
+      const result = String(input.result ?? '').trim();
+      const nextStep = String(input.nextStep ?? '').trim();
+
+      if (!hypothesis || !action || !result || !nextStep) {
+        return { success: false, error: 'hypothesis, action, result, and nextStep are required.' };
+      }
+
+      const confidenceInput = input.confidence;
+      const confidence =
+        typeof confidenceInput === 'number' && Number.isFinite(confidenceInput)
+          ? Math.max(0, Math.min(1, confidenceInput))
+          : undefined;
+
+      const expectedImpactInput = input.expectedImpactSol;
+      const expectedImpactSol =
+        typeof expectedImpactInput === 'number' && Number.isFinite(expectedImpactInput)
+          ? expectedImpactInput
+          : undefined;
+
+      const entry = {
+        at: new Date().toISOString(),
+        hypothesis,
+        action,
+        result,
+        nextStep,
+        ...(confidence != null ? { confidence } : {}),
+        ...(expectedImpactSol != null ? { expectedImpactSol } : {}),
+      };
+
+      let history: unknown[] = [];
+      const existing = params.db.kvGet('learning_log');
+      if (existing) {
+        try {
+          const parsed = JSON.parse(existing);
+          if (Array.isArray(parsed)) history = parsed;
+        } catch {
+          history = [];
+        }
+      }
+
+      const nextHistory = [...history, entry].slice(-200);
+      params.db.kvSet('learning_log', JSON.stringify(nextHistory));
+      params.db.kvSet('learning_last', JSON.stringify(entry));
+
+      const filePath = writeOutbox(params.outboxDir, 'learning', entry);
+      return { success: true, data: { filePath, entriesStored: nextHistory.length } };
     },
   };
 }
@@ -401,6 +525,7 @@ async function main(): Promise<void> {
     db,
     outboxDir,
   }));
+  agent.registerTool(toolRecordLearning({ db, outboxDir }));
 
   const shutdown = () => {
     cleanup();
@@ -446,13 +571,13 @@ async function main(): Promise<void> {
         },
       };
 
-      const balanceLamports = await connection.getBalance(wallet.publicKey, 'confirmed');
+      let operatorBalanceLamports = BigInt(await connection.getBalance(wallet.publicKey, 'confirmed'));
 
       const observation: Record<string, unknown> = {
         at: new Date().toISOString(),
         operator: {
           publicKey: wallet.publicKey.toBase58(),
-          solBalance: balanceLamports / 1e9,
+          solBalance: lamportsToSol(operatorBalanceLamports),
         },
         budgets: {
           mode: env.KAMIYO_MODE,
@@ -460,6 +585,14 @@ async function main(): Promise<void> {
           solPerTxCap: env.KAMIYO_SOL_PER_TX_CAP,
           maxTxPerDay: env.KAMIYO_MAX_TX_PER_DAY,
           maxFeeClaimsPerDay: env.KAMIYO_MAX_FEE_CLAIMS_PER_DAY,
+          maxStakeFeedsPerDay: env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY,
+          autoStake: {
+            enabled: env.KAMIYO_AUTO_STAKE_ENABLED,
+            minLamports: env.KAMIYO_AUTO_STAKE_MIN_LAMPORTS,
+            reserveLamports: env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS,
+            availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+            maxLamportsPerTx: env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX,
+          },
           llm: budgetState,
         },
         token: env.KAMIYO_TARGET_MINT ? { mint: env.KAMIYO_TARGET_MINT } : { mint: null },
@@ -517,6 +650,13 @@ async function main(): Promise<void> {
         }
       }
 
+      if (env.KAMIYO_STAKING_POOL) {
+        observation.stakingPool = {
+          address: env.KAMIYO_STAKING_POOL,
+          autoStakeEnabled: env.KAMIYO_AUTO_STAKE_ENABLED,
+        };
+      }
+
       if (
         env.KAMIYO_MODE === 'execute' &&
         env.KAMIYO_AUTO_CLAIM_ENABLED &&
@@ -538,7 +678,7 @@ async function main(): Promise<void> {
 
         if (claimsToday >= env.KAMIYO_MAX_FEE_CLAIMS_PER_DAY) {
           observation.autoClaim = { executed: false, reason: 'daily_claim_cap_reached', ...autoClaimMeta };
-        } else if (balanceLamports < 0.01 * 1e9) {
+        } else if (operatorBalanceLamports < 10_000_000n) {
           observation.autoClaim = { executed: false, reason: 'low_sol_balance', ...autoClaimMeta };
         } else if (unclaimedLamports < thresholdLamports) {
           observation.autoClaim = { executed: false, reason: 'below_threshold', ...autoClaimMeta };
@@ -585,6 +725,7 @@ async function main(): Promise<void> {
             db.addAction(tickId, 'write_fee_claim_receipt', {}, { receiptPath });
 
             feeVaultBreakdown = claimResult.after;
+            operatorBalanceLamports = BigInt(await connection.getBalance(wallet.publicKey, 'confirmed'));
             observation.feeVault = {
               address: feeVault.toBase58(),
               breakdown: feeVaultBreakdown,
@@ -613,6 +754,143 @@ async function main(): Promise<void> {
         }
       }
 
+      if (env.KAMIYO_MODE === 'execute' && env.KAMIYO_AUTO_STAKE_ENABLED) {
+        if (!env.KAMIYO_STAKING_POOL) {
+          observation.autoStake = { executed: false, reason: 'staking_pool_not_configured' };
+        } else {
+          const feedsToday = db.actionCountSince(dayStart, 'staking_period_deposit');
+          const minLamports = BigInt(env.KAMIYO_AUTO_STAKE_MIN_LAMPORTS);
+          const reserveLamports = BigInt(env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
+          const availableBps = BigInt(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
+          const maxLamportsPerTx = BigInt(env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
+          const availableLamports =
+            operatorBalanceLamports > reserveLamports ? operatorBalanceLamports - reserveLamports : 0n;
+          const targetLamports = (availableLamports * availableBps) / 10_000n;
+
+          const autoStakeMeta = {
+            pool: env.KAMIYO_STAKING_POOL,
+            feedsToday,
+            dailyCap: env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY,
+            minLamports: minLamports.toString(),
+            reserveLamports: reserveLamports.toString(),
+            availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+            maxLamportsPerTx: maxLamportsPerTx.toString(),
+            operatorBalanceLamports: operatorBalanceLamports.toString(),
+            availableLamports: availableLamports.toString(),
+            targetLamports: targetLamports.toString(),
+          };
+
+          if (feedsToday >= env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY) {
+            observation.autoStake = { executed: false, reason: 'daily_feed_cap_reached', ...autoStakeMeta };
+          } else if (availableLamports < minLamports) {
+            observation.autoStake = { executed: false, reason: 'below_threshold', ...autoStakeMeta };
+          } else {
+            try {
+              const pool = new PublicKey(env.KAMIYO_STAKING_POOL);
+              const period = await findLatestOpenStakingPeriod(connection, pool);
+              if (!period) {
+                observation.autoStake = { executed: false, reason: 'no_open_period', ...autoStakeMeta };
+              } else {
+                const stakeLamports =
+                  maxLamportsPerTx > 0n && targetLamports > maxLamportsPerTx ? maxLamportsPerTx : targetLamports;
+                if (stakeLamports < minLamports) {
+                  observation.autoStake = {
+                    executed: false,
+                    reason: 'below_threshold_after_policy',
+                    period,
+                    ...autoStakeMeta,
+                  };
+                } else {
+                  const depositResult = await depositToStakingPeriod({
+                    connection,
+                    depositor: keypair,
+                    pool,
+                    stakingPeriod: new PublicKey(period.address),
+                    amountLamports: stakeLamports,
+                    dryRun: false,
+                  });
+
+                  db.addAction(
+                    tickId,
+                    'staking_period_deposit',
+                    {
+                      source: 'runtime_auto_stake',
+                      pool: pool.toBase58(),
+                      stakingPeriod: period.address,
+                      amountLamports: stakeLamports.toString(),
+                      reserveLamports: reserveLamports.toString(),
+                      minLamports: minLamports.toString(),
+                      availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+                      targetLamports: targetLamports.toString(),
+                    },
+                    {
+                      success: true,
+                      data: depositResult,
+                    }
+                  );
+
+                  const receiptPath = writeOutbox(outboxDir, 'staking-deposit-receipt', {
+                    at: new Date().toISOString(),
+                    mode: 'auto',
+                    pool: pool.toBase58(),
+                    stakingPeriod: period.address,
+                    periodNumber: period.periodNumber,
+                    amountLamports: stakeLamports.toString(),
+                    amountSol: lamportsToSol(stakeLamports),
+                    reserveLamports: reserveLamports.toString(),
+                    availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
+                    targetLamports: targetLamports.toString(),
+                    signature: depositResult.signature,
+                    periodVault: depositResult.periodVault,
+                    beforeBalanceLamports: String(depositResult.beforeBalanceLamports),
+                    afterBalanceLamports: String(depositResult.afterBalanceLamports),
+                    beforePeriod: depositResult.beforePeriod,
+                    afterPeriod: depositResult.afterPeriod,
+                  });
+                  db.addAction(tickId, 'write_staking_deposit_receipt', {}, { receiptPath });
+
+                  operatorBalanceLamports = BigInt(depositResult.afterBalanceLamports);
+                  observation.stakingPool = {
+                    address: pool.toBase58(),
+                    autoStakeEnabled: true,
+                    period: depositResult.afterPeriod ?? period,
+                  };
+                  observation.autoStake = {
+                    executed: true,
+                    signature: depositResult.signature,
+                    receiptPath,
+                    amountLamports: stakeLamports.toString(),
+                    amountSol: lamportsToSol(stakeLamports),
+                    stakingPeriod: period.address,
+                    periodNumber: period.periodNumber,
+                    periodVault: depositResult.periodVault,
+                    ...autoStakeMeta,
+                  };
+                }
+              }
+            } catch (e) {
+              const error = e instanceof Error ? e.message : String(e);
+              db.addAction(
+                tickId,
+                'staking_period_deposit',
+                {
+                  source: 'runtime_auto_stake',
+                  pool: env.KAMIYO_STAKING_POOL,
+                },
+                null,
+                error
+              );
+              observation.autoStake = { executed: false, reason: 'stake_failed', error, ...autoStakeMeta };
+            }
+          }
+        }
+      }
+
+      observation.operator = {
+        publicKey: wallet.publicKey.toBase58(),
+        solBalance: lamportsToSol(operatorBalanceLamports),
+      };
+
       db.addObservation(tickId, 'snapshot', observation);
 
       const llmOverBudget =
@@ -638,12 +916,14 @@ async function main(): Promise<void> {
         observation,
         mode: env.KAMIYO_MODE,
         allowedChannels,
+        primeDirective: env.KAMIYO_PRIME_DIRECTIVE,
         targetMint: env.KAMIYO_TARGET_MINT,
         budgets: {
           solDailyCap: env.KAMIYO_SOL_DAILY_CAP,
           solPerTxCap: env.KAMIYO_SOL_PER_TX_CAP,
           maxTxPerDay: env.KAMIYO_MAX_TX_PER_DAY,
           maxFeeClaimsPerDay: env.KAMIYO_MAX_FEE_CLAIMS_PER_DAY,
+          maxStakeFeedsPerDay: env.KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY,
           llmMaxTurnsPerDay: env.KAMIYO_LLM_MAX_TURNS_PER_DAY,
           llmMaxInputTokensPerDay: env.KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY,
           llmMaxOutputTokensPerDay: env.KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY,
@@ -651,7 +931,15 @@ async function main(): Promise<void> {
       });
 
       const last = db.kvGet('last_summary');
-      const userPrompt = `Run one operator tick now.\n\nPrevious summary (if any):\n${last ?? '(none)'}\n`;
+      const userPrompt = `Run one operator tick now.
+
+Priority: maximize net SOL revenue routed to $KAMIYO stakers.
+If a direct execute action is not safe or not allowed, create a concrete proposal with measurable upside.
+Record exactly one learning update with record_learning.
+
+Previous summary (if any):
+${last ?? '(none)'}
+`;
 
       const result = await agent.runTick({
         tickId,
