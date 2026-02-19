@@ -1,29 +1,52 @@
 ## Summary
 
-<!-- Brief description of what this PR does -->
+Describe the problem and the outcome of this PR in 2-5 lines.
 
-## Changes
+## Scope
 
-<!-- List the main changes -->
+- [ ] Feature
+- [ ] Fix
+- [ ] Refactor
+- [ ] Docs
+- [ ] Chore
 
--
+## What Changed
 
-## Testing
+- 
+- 
+- 
 
-<!-- How did you test these changes? -->
+## Risk Assessment
 
-- [ ] Unit tests added/updated
-- [ ] Integration tests pass
-- [ ] Manual testing completed
+- User-facing impact:
+- Backward compatibility impact:
+- Security impact:
+- Operational impact:
+
+## Validation
+
+List exact commands executed locally.
+
+```bash
+# example
+# pnpm run lint:check
+# anchor test
+# cargo test -p kamiyo-trust-layer
+```
+
+## Deployment / Rollout Notes
+
+- [ ] No special rollout required
+- [ ] Migration required (describe)
+- [ ] Config/env changes required (describe)
 
 ## Checklist
 
-- [ ] Code follows project style guidelines
+- [ ] Tests added or updated for behavior changes
+- [ ] Documentation updated for interface/behavior changes
+- [ ] No unrelated files included
 - [ ] Self-review completed
-- [ ] Comments added for complex logic
-- [ ] Documentation updated (if applicable)
-- [ ] No breaking changes (or migration guide provided)
 
-## Related Issues
+## Linked Issues
 
-<!-- Link related issues: Fixes #123, Closes #456 -->
+Closes #

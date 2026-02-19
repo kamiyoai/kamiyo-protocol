@@ -7,8 +7,6 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx src/index.ts",
-    "viral": "tsx src/viral-loop.ts",
-    "viral:prod": "node dist/viral-loop.js",
     "challenge": "tsx src/integration-challenge.ts",
     "challenge:prod": "node dist/integration-challenge.js",
     "dev": "tsx watch src/index.ts",

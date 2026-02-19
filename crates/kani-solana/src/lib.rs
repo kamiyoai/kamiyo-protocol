@@ -23,3 +23,6 @@ pub mod risk;
 
 #[cfg(all(kani, feature = "solana-agent"))]
 pub mod agent;
+
+#[cfg(all(kani, feature = "solana-account-info"))]
+pub mod account_info;

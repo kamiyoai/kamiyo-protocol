@@ -1,6 +1,6 @@
 # @kamiyo/middleware
 
-HTTP 402 Payment Required middleware with Solana Actions (Blinks) integration for agentic payments.
+HTTP 402 Payment Required middleware with Solana Actions (Blinks) integration for automated payment flows.
 
 ## Installation
 
@@ -14,7 +14,7 @@ npm install @kamiyo/middleware
 - **Solana Actions**: Full Blinks support for discoverable payment links
 - **Escrow Protection**: Kamiyo dispute resolution for quality guarantees
 - **SPL Token Support**: SOL, USDC, USDT payments
-- **Agent-Ready**: Programmatic payment discovery and execution
+- **Programmatic Access**: Payment discovery and execution for services and bots
 
 ## Quick Start
 

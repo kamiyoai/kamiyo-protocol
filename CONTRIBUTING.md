@@ -1,19 +1,18 @@
-# Contributing to KAMIYO
+# Contributing to KAMIYO Protocol
 
-Thanks for your interest in contributing. This document covers the process for contributing to the protocol.
+This guide defines contribution standards for code quality and release safety.
 
-## Getting Started
+## Before You Start
 
-### Prerequisites
+### Required Tooling
 
-- Node.js >= 20
+- Node.js 20+
 - pnpm 9+
-- Rust + Cargo (for Solana programs)
+- Rust stable + Cargo
 - Solana CLI 2.x
 - Anchor CLI 0.31.x
-- Foundry (for EVM contracts)
 
-### Setup
+### Initial Setup
 
 ```bash
 git clone https://github.com/kamiyo-ai/kamiyo-protocol.git
@@ -21,86 +20,88 @@ cd kamiyo-protocol
 pnpm install
 ```
 
-### Build
-
-```bash
-# Solana programs
-anchor build
-
-# TypeScript packages
-pnpm run build:sdk
-
-# EVM contracts
-cd contracts/zk-reputation && forge build
-```
-
-### Test
-
-```bash
-# Solana programs
-anchor test
-
-# TypeScript SDK
-pnpm run test:sdk
-
-# EVM contracts
-cd contracts/zk-reputation && forge test
-```
-
 ## Development Workflow
 
-1. Fork the repository
-2. Create a branch from `main`
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
+1. Create a branch from `main`.
+2. Keep your change focused and scoped.
+3. Add tests for behavior changes.
+4. Run local checks before opening a PR.
+5. Open a PR with a clear description and validation notes.
+
+## Branch and Commit Standards
 
 ### Branch Naming
 
-Use descriptive branch names:
+Use one of:
 
-- `feat/agent-staking` — new features
-- `fix/escrow-timeout` — bug fixes
-- `docs/sdk-examples` — documentation
-- `refactor/oracle-consensus` — refactoring
+- `feat/<short-description>`
+- `fix/<short-description>`
+- `refactor/<short-description>`
+- `docs/<short-description>`
+- `chore/<short-description>`
 
 ### Commit Messages
 
-- Use imperative mood: "Add feature" not "Added feature"
-- Be concise but descriptive
-- Reference issues when applicable: "Fix escrow timeout (#123)"
+- Use imperative mood.
+- Keep subject lines concise.
+- Split unrelated work into separate commits.
 
-### Pull Requests
+Examples:
 
-- Fill out the PR template
-- Include a description of what changed and why
-- Add tests for new functionality
-- Ensure CI passes before requesting review
+- `fix trust outbox retry backoff`
+- `add replay mismatch integration test`
+- `docs clarify local build prerequisites`
 
-## Project Structure
+## Local Validation
 
-| Directory | Description |
-|-----------|-------------|
-| `programs/` | Solana programs (Anchor) |
-| `packages/` | TypeScript SDK and integrations |
-| `services/` | Backend services (API, oracle, bots) |
-| `apps/` | Client applications |
-| `contracts/` | EVM contracts (Foundry) |
-| `circuits/` | Circom circuits |
-| `noir/` | Noir circuits |
-| `crates/` | Rust crates |
+Run the relevant subset for your change. At minimum:
 
-## Code Standards
+```bash
+pnpm run lint:check
+pnpm run format:check
+anchor build
+anchor test
+cargo test -p kamiyo-trust-layer
+cargo test -p trust-layer-service
+```
 
-- TypeScript: strict mode, no `any` types
-- Rust: `cargo clippy` clean
-- Solidity: follow OpenZeppelin patterns
-- Tests required for new features and bug fixes
+If you touch formal verification logic:
 
-## Security
+```bash
+cargo kani -p kani-solana
+cargo kani -p kamiyo-trust-layer
+```
 
-If you discover a security vulnerability, do **not** open a public issue. See [SECURITY.md](SECURITY.md) for reporting instructions.
+If you touch trust-layer-service reliability paths:
+
+```bash
+./services/trust-layer-service/e2e/run-fault-injection.sh
+```
+
+## Pull Request Requirements
+
+A PR should include:
+
+- Problem statement and rationale
+- Summary of behavior changes
+- Test plan and exact commands executed
+- Migration notes for breaking changes
+- Docs updates when behavior or interfaces changed
+
+PRs without sufficient test evidence or rollout context can be sent back for revision.
+
+## Code Quality Expectations
+
+- Follow existing patterns and naming conventions.
+- Prefer simple, explicit logic over abstractions that hide behavior.
+- Keep changes minimal and cohesive.
+- Do not include generated artifacts unless required.
+- Do not include unrelated formatting-only edits.
+
+## Security Reporting
+
+Do not open public issues for vulnerabilities. Follow `SECURITY.md`.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
+By contributing, you agree that your contributions are licensed under `LICENSE` (MIT).

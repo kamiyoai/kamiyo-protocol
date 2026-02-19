@@ -1,0 +1,63 @@
+groups:
+  - name: trust-layer-service
+    interval: 30s
+    rules:
+      - alert: TrustLayerInternalErrorRateHigh
+        expr: sum(rate(trust_layer_ingest_internal_error_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: page
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service internal errors are elevated
+          description: Internal error rate has stayed above 0.05 req/s for 5 minutes.
+
+      - alert: TrustLayerDeadLetterBacklog
+        expr: trust_layer_outbox_dead_letter > 0
+        for: 10m
+        labels:
+          severity: page
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service has dead-letter backlog
+          description: Dead-letter backlog has remained above zero for 10 minutes.
+
+      - alert: TrustLayerDeadLetterGrowth
+        expr: increase(trust_layer_outbox_dead_letters_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service is generating new dead letters
+          description: One or more messages were dead-lettered in the last 15 minutes.
+
+      - alert: TrustLayerOutboxPendingHigh
+        expr: trust_layer_outbox_pending > 250
+        for: 10m
+        labels:
+          severity: warning
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service outbox backlog is high
+          description: Pending outbox backlog has been above 250 for at least 10 minutes.
+
+      - alert: TrustLayerRelayRetriesSpike
+        expr: sum(rate(trust_layer_outbox_retries_total[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service relay retries are elevated
+          description: Outbox relay retries are above 1 retry/sec for 10 minutes.
+
+      - alert: TrustLayerAuthFailureSpike
+        expr: sum(increase(trust_layer_auth_failures_total[10m])) > 100
+        for: 10m
+        labels:
+          severity: warning
+          service: trust-layer-service
+        annotations:
+          summary: trust-layer-service auth failures are spiking
+          description: More than 100 auth failures were observed over 10 minutes.

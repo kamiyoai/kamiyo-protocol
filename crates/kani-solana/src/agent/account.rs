@@ -121,8 +121,16 @@ pub fn any_agent_account(config: AgentConfig) -> AgentAccount {
         kani::assume(lamports >= 890_880);
     }
 
-    let is_signer: bool = if config.force_signer { true } else { kani::any() };
-    let is_writable: bool = if config.force_writable { true } else { kani::any() };
+    let is_signer: bool = if config.force_signer {
+        true
+    } else {
+        kani::any()
+    };
+    let is_writable: bool = if config.force_writable {
+        true
+    } else {
+        kani::any()
+    };
 
     let data_len: u64 = kani::any();
     kani::assume(data_len % 8 == 0);

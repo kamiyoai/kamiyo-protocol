@@ -1,128 +1,105 @@
 # KAMIYO Protocol
 
-[![CI](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml/badge.svg)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml)
+[![CI](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/ci.yml)
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![kamiyo](https://github.com/user-attachments/assets/d747576d-b0f5-4e48-9fe4-d03b6bf2f904)
+Monorepo for KAMIYO protocol code.
 
-Trust infrastructure for autonomous agents.
+The repository includes on-chain programs, Rust crates, TypeScript packages, backend services, and verification tooling.
 
-KAMIYO lets agents transact with stake-backed identities, settle payments through escrow, and resolve disputes with commit-reveal oracle consensus.
+## What Is Included
 
-[Website](https://kamiyo.ai) | [Web app](https://app.kamiyo.ai) | [API](https://api.kamiyo.ai) | [Solscan Program](https://solscan.io/account/8sUnNU6WBD2SYapCE12S7LwH1b8zWoniytze7ifWwXCM)
+- Stake-backed identity and trust primitives
+- Escrow and dispute workflows
+- Oracle commit/reveal logic
+- Trust-layer engine with deterministic receipts
+- Transactional outbox service for trust event ingest
+- Kani proof harnesses for selected invariants
 
-## Why this exists
+## Repository Layout
 
-AI agents can call tools, but they still struggle with trust.
+| Path | Purpose |
+|---|---|
+| `programs/` | Solana on-chain programs (Anchor) |
+| `crates/` | Rust libraries (`kamiyo-trust-layer`, `kani-solana`) |
+| `packages/` | TypeScript SDKs and integrations |
+| `services/` | Service runtimes and operators |
+| `examples/` | End-to-end and integration examples |
+| `contracts/` | EVM-side contracts and related artifacts |
+| `circuits/`, `noir/` | ZK circuits |
 
-KAMIYO adds three missing primitives:
-- Stake-backed agent identity
-- Escrowed payments with dispute fallback
-- Verifiable quality and reputation (including ZK threshold proofs)
+## Quick Start
 
-## 5-minute quickstart
+### Prerequisites
 
-Run a working demo locally:
+- Node.js 20+
+- pnpm 9+
+- Rust stable + Cargo
+- Solana CLI 2.x
+- Anchor CLI 0.31.x
+
+### Install and Build
 
 ```bash
 git clone https://github.com/kamiyo-ai/kamiyo-protocol.git
 cd kamiyo-protocol
 pnpm install
-pnpm -F @kamiyo/sdk -F @kamiyo/eliza build
-cd examples/eliza-demo
-pnpm install
-pnpm dev
+anchor build
+pnpm run build:sdk
 ```
 
-## Forkable examples
-
-These are the fastest paths to first success:
-
-| Example | What you get |
-|---|---|
-| `examples/eliza-demo` | Agent-to-agent payments, escrow, SLA dispute flow |
-| `examples/sla-demo` | SLA-aware escrow settlements |
-| `examples/hive-demo` | Multi-agent coordination with trust constraints |
-| `examples/hyperliquid-agent` | Agent workflows with Hyperliquid integration |
-| `examples/dark-forest-demo` | Privacy-oriented trust simulation |
-| `examples/babyagi3-tool-pack` | Tooling integration for agent runtimes |
-
-## Core flow
-
-```text
-Agent -> Create agreement (funds locked)
-Provider -> Deliver service
-
-Happy path:
-Agent -> Release funds
-
-Dispute path:
-Agent -> Mark disputed
-Oracles -> Commit vote hash -> Reveal score
-Protocol -> Settle split using consensus
-```
-
-## Protocol features
-
-- Agent identity with stake collateral
-- Escrow agreements with timeout controls
-- Commit-reveal oracle voting for disputes
-- On-chain reputation with ZK threshold checks
-- Multi-chain footprint (Solana, Base, Monad, Hyperliquid)
-
-## Main Solana programs
-
-| Program | Purpose |
-|---|---|
-| `programs/kamiyo` | Identity, escrow, oracle voting, ZK verification |
-| `programs/kamiyo-escrow` | Companion escrow flows |
-| `programs/kamiyo-governance` | Governance voting |
-| `programs/kamiyo-staking` | Staking primitives |
-| `programs/kamiyo-transfer-hook` | SPL transfer-hook logic |
-| `programs/kamiyo-fast-voting` | MagicBlock ephemeral rollup voting |
-| `programs/hive` | Oracle consensus and multi-agent dispute resolution |
-| `programs/meishi` | DKG-based identity credentials |
-
-## Packages you will likely use first
-
-| Package | Purpose |
-|---|---|
-| `@kamiyo/sdk` | TypeScript SDK for protocol interactions |
-| `@kamiyo/eliza` | ElizaOS integration |
-| `@kamiyo/langchain` | LangChain tools |
-| `@kamiyo/mcp-server` | MCP server integration |
-| `@kamiyo/x402-client` | x402 payment client integration |
-
-## Development
+### Run Core Test Suites
 
 ```bash
-pnpm install
-anchor build
 anchor test
-pnpm -r build
+pnpm run test:sdk
+cargo test -p kamiyo-trust-layer
+cargo test -p trust-layer-service
 ```
 
-For setup details and troubleshooting, see `BUILD.md`.
+## Trust Layer Service
 
-## Security
+The trust layer service provides:
 
-See `SECURITY.md`.
+- idempotent trust-event ingest API
+- exactly-once durable database writes per `event_id`
+- Kafka publish via transactional outbox relay
+- dead-letter re-drive and retention sweep tooling
+- Prometheus metrics output and alert/dashboard assets
 
-Current controls include:
-- Multi-sig controls for sensitive operations
-- Oracle/agent slashing mechanics
-- Timeout and fallback handling for stalled disputes
+Service docs are available in `services/trust-layer-service/README.md`.
+
+## Formal Verification
+
+Kani harnesses are maintained for trust-layer and Solana-related invariants.
+
+```bash
+cargo kani -p kani-solana
+cargo kani -p kamiyo-trust-layer
+```
+
+See `KANI.md` for full verification workflows.
+
+## Documentation
+
+- Build and local setup: `BUILD.md`
+- System architecture: `ARCHITECTURE.md`
+- Development workflows: `docs/DEVELOPMENT.md`
+- Contributor guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Governance model: `GOVERNANCE.md`
+- Support channels: `SUPPORT.md`
+- Public roadmap: `docs/ROADMAP.md`
 
 ## Contributing
 
-PRs are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome. Please read `CONTRIBUTING.md` before opening a pull request.
 
-If you want to help grow adoption, start with:
-- New integration examples under `examples/`
-- DX improvements to `@kamiyo/sdk`
-- Better observability and dispute tooling
+## Security
+
+Report vulnerabilities privately via the process in `SECURITY.md`.
 
 ## License
 
-MIT (`LICENSE`).
+MIT. See `LICENSE`.

@@ -12,14 +12,27 @@ summary="${out_dir}/summary.md"
 
 pkgs=("$@")
 if [ "${#pkgs[@]}" -eq 0 ]; then
-  pkgs=(kani-solana kamiyo hive kamiyo-staking)
+  pkgs=(kani-solana kamiyo-trust-layer kamiyo hive kamiyo-staking)
+fi
+
+features=()
+if [ "${KANI_FULL:-}" = "1" ]; then
+  features+=(kani-full)
+fi
+if [ "${KANI_AGENT:-}" = "1" ]; then
+  features+=(solana-agent)
+fi
+if [ "${KANI_ACCOUNT_INFO:-}" = "1" ]; then
+  features+=(solana-account-info)
 fi
 
 args=()
 mode="default"
-if [ "${KANI_FULL:-}" = "1" ]; then
-  args=(--features kani-full)
-  mode="full"
+if [ "${#features[@]}" -gt 0 ]; then
+  IFS=','
+  args=(--features "${features[*]}")
+  mode="${features[*]}"
+  unset IFS
 fi
 
 sha="${GITHUB_SHA:-}"

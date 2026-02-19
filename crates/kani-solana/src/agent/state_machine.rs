@@ -4,11 +4,7 @@
 ///
 /// A no-op (before == after) is always valid. Otherwise at least one
 /// entry in `valid_edges` must match the (before, after) pair.
-pub fn assert_valid_transition<S: Copy + PartialEq>(
-    before: S,
-    after: S,
-    valid_edges: &[(S, S)],
-) {
+pub fn assert_valid_transition<S: Copy + PartialEq>(before: S, after: S, valid_edges: &[(S, S)]) {
     if before == after {
         return;
     }
@@ -28,11 +24,7 @@ pub fn assert_valid_transition<S: Copy + PartialEq>(
 /// Assert that terminal states have no outgoing transitions.
 ///
 /// If `state` is in `terminal_states`, then `next` must equal `state`.
-pub fn assert_terminal_state<S: Copy + PartialEq>(
-    state: S,
-    next: S,
-    terminal_states: &[S],
-) {
+pub fn assert_terminal_state<S: Copy + PartialEq>(state: S, next: S, terminal_states: &[S]) {
     let mut i = 0;
     let mut is_terminal = false;
     while i < terminal_states.len() {

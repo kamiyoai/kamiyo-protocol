@@ -8,7 +8,10 @@ const MAX_SEED_LEN: usize = 32;
 
 /// Assert that `seed_count` does not exceed the Solana maximum of 16.
 pub fn assert_seed_count_valid(seed_count: usize) {
-    kani::assert(seed_count <= MAX_SEEDS, "seed count exceeds Solana maximum of 16");
+    kani::assert(
+        seed_count <= MAX_SEEDS,
+        "seed count exceeds Solana maximum of 16",
+    );
 }
 
 /// Assert every seed is at most 32 bytes and the total count is valid.

@@ -8,11 +8,11 @@
 pub mod account;
 pub mod cpi;
 pub mod invariants;
-pub mod state_machine;
 pub mod pda;
 pub mod replay;
+pub mod state_machine;
 
-pub use account::{AgentAccount, AgentConfig, any_agent_account};
+pub use account::{any_agent_account, AgentAccount, AgentConfig};
 pub use cpi::{CpiLog, CpiRecord};
 pub use invariants::{
     assert_all_agent_invariants, assert_cpi_authorized, assert_lamport_conservation,

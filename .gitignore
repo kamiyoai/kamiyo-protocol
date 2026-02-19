@@ -96,14 +96,16 @@ output/
 
 # ── Project-specific ─────────────────────────────────────────────────────────
 
-# Internal docs (gitignored — CI blocks tracked docs/)
-docs/
+# Internal-only artifacts
 CLAUDE.md
 CLAUDE2.md
 LAUNCH_CONFIGURATION.md
 **/PRODUCTION_ASSESSMENT.md
 **/NEXT_LEVEL_PLAN.md
 services/kamiyo-companion/DEMO_GUIDE.md
+services/agent-factory/VOTE-BLITZ-STRATEGY.md
+services/agent-factory/vote-campaign/
+services/agent-factory/skill.json
 
 # Private partnership data
 docs/partnerships/

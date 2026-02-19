@@ -8,17 +8,17 @@
 //! These proofs are designed to be run under `cargo kani --features solana-agent`
 //! and compile only when `cfg(kani)` is active.
 
-#![cfg(kani)]
+#![cfg(all(kani, feature = "solana-agent"))]
 
 extern crate kani_solana;
 
-use kani_solana::agent::*;
 use kani_solana::agent::invariants::{
     assert_account_invariants, assert_is_signer, assert_pda_has_bump,
 };
-use kani_solana::agent::state_machine::{assert_valid_transition, assert_terminal_state};
 use kani_solana::agent::pda::{assert_seed_count_valid, assert_seed_lengths_valid};
 use kani_solana::agent::replay::labeled_assert;
+use kani_solana::agent::state_machine::{assert_terminal_state, assert_valid_transition};
+use kani_solana::agent::*;
 use kani_solana::cpi_stub;
 
 // ---------------------------------------------------------------------------
@@ -30,7 +30,10 @@ fn verify_payer_is_signer_and_writable() {
     let acc = any_agent_account(AgentConfig::new().payer());
     kani::assert(acc.is_signer, "payer must be signer");
     kani::assert(acc.is_writable, "payer must be writable");
-    kani::assert(acc.lamports >= 890_880, "payer must have rent-exempt minimum");
+    kani::assert(
+        acc.lamports >= 890_880,
+        "payer must have rent-exempt minimum",
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -124,8 +127,14 @@ fn verify_no_reentrancy_clean() {
     let b = any_agent_account(AgentConfig::new());
 
     // any_agent_account always sets reentry_depth to 0
-    labeled_assert(a.reentry_depth == 0, "fresh account reentry_depth must be 0");
-    labeled_assert(b.reentry_depth == 0, "fresh account reentry_depth must be 0");
+    labeled_assert(
+        a.reentry_depth == 0,
+        "fresh account reentry_depth must be 0",
+    );
+    labeled_assert(
+        b.reentry_depth == 0,
+        "fresh account reentry_depth must be 0",
+    );
 
     assert_no_reentrancy(&[a, b]);
 }
@@ -199,10 +208,8 @@ fn verify_terminal_state_holds() {
 fn verify_pda_seed_limits() {
     let seed: [u8; 32] = [0u8; 32];
     let seeds: [&[u8]; 16] = [
-        &seed, &seed, &seed, &seed,
-        &seed, &seed, &seed, &seed,
-        &seed, &seed, &seed, &seed,
-        &seed, &seed, &seed, &seed,
+        &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed, &seed,
+        &seed, &seed, &seed,
     ];
 
     assert_seed_count_valid(16);

@@ -1,6 +1,6 @@
 # KAMIYO Bounty Resolver
 
-Autonomously built Solana program for agent-to-agent bounty escrow.
+Solana program for agent-to-agent bounty escrow.
 
 ## Deployed Addresses
 
@@ -12,60 +12,64 @@ Autonomously built Solana program for agent-to-agent bounty escrow.
 ## Instructions
 
 ### create_bounty
+
 Create a new bounty with SOL reward held in escrow.
 
-**Parameters:**
-- `bounty_id`: Unique identifier (u64)
-- `reward_amount`: SOL amount in lamports (u64)
-- `description`: Task description (max 500 chars)
-- `deadline`: Unix timestamp for submission deadline (i64)
+Parameters:
+- `bounty_id`: unique identifier (`u64`)
+- `reward_amount`: SOL amount in lamports (`u64`)
+- `description`: task description (max 500 chars)
+- `deadline`: submission deadline as Unix timestamp (`i64`)
 
 ### submit_work
+
 Submit work for an open bounty.
 
-**Parameters:**
+Parameters:
 - `submission_hash`: SHA256 hash of deliverable (32 bytes)
-- `submission_uri`: Link to deliverable (max 200 chars)
+- `submission_uri`: link to deliverable (max 200 chars)
 
 ### resolve_bounty
-Creator accepts or rejects submitted work, triggering settlement.
 
-**Parameters:**
-- `accept_work`: Boolean - if true, pays worker; if false, refunds creator
+Creator accepts or rejects submitted work and settles funds.
+
+Parameters:
+- `accept_work`: `true` pays worker, `false` refunds creator
 
 ## Account Structure
 
 ### Bounty PDA
+
 Seeds: `["bounty", creator_pubkey, bounty_id]`
 
 | Field | Type | Description |
 |-------|------|-------------|
-| creator | Pubkey | Bounty creator |
-| bounty_id | u64 | Unique ID |
-| reward_amount | u64 | Escrowed SOL |
-| description | String | Task description |
-| deadline | i64 | Submission deadline |
+| creator | Pubkey | bounty creator |
+| bounty_id | u64 | unique ID |
+| reward_amount | u64 | escrowed SOL |
+| description | String | task description |
+| deadline | i64 | submission deadline |
 | status | BountyStatus | Open/WorkSubmitted/Completed/Rejected |
-| worker | Pubkey | Worker who submitted |
-| submission_hash | [u8; 32] | Hash of deliverable |
-| created_at | i64 | Creation timestamp |
+| worker | Pubkey | worker who submitted |
+| submission_hash | [u8; 32] | hash of deliverable |
+| created_at | i64 | creation timestamp |
 
 ## Events
 
-- `BountyCreated` - Emitted when bounty is created
-- `WorkSubmitted` - Emitted when work is submitted  
-- `BountyResolved` - Emitted when bounty is resolved
+- `BountyCreated`: emitted when bounty is created
+- `WorkSubmitted`: emitted when work is submitted
+- `BountyResolved`: emitted when bounty is resolved
 
-## Built By
+## Project Context
 
-This program was autonomously built by the KAMIYO Agent Factory as part of the Colosseum Agent Hackathon (Feb 2-12, 2026).
+This program was built as part of the Colosseum Agent Hackathon (Feb 2-12, 2026).
 
-The agent:
-1. Received a high-level task description
-2. Generated the complete Anchor project structure
-3. Wrote 224 lines of production Rust code
-4. Fixed Rust toolchain compatibility issues (blake3/constant_time_eq)
-5. Built and deployed to both devnet and mainnet
+Implementation summary:
+1. Start from a task specification.
+2. Generate the Anchor project structure.
+3. Implement and validate program logic.
+4. Resolve toolchain compatibility issues.
+5. Deploy to devnet and mainnet.
 
 ## License
 

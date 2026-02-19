@@ -50,7 +50,7 @@ User Deposit → KamiyoVault (escrow)
 
 ## ZK Reputation Tiers
 
-Agents unlock higher copy limits by proving their reputation via ZK proofs:
+Agents can access higher copy limits by proving reputation with ZK proofs:
 
 | Tier | Threshold | Max Copy Limit | Max Copiers |
 |------|-----------|----------------|-------------|

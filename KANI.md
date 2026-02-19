@@ -11,24 +11,30 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 
 ## Run
 
-- Run the default set (kani-solana, kamiyo, hive, kamiyo-staking):
+- Run the default set (kani-solana, kamiyo-trust-layer, kamiyo, hive, kamiyo-staking):
   - `./scripts/kani.sh`
 - Run the full set (enables additional harnesses via the `kani-full` feature):
   - `KANI_FULL=1 ./scripts/kani.sh`
 - Run agent verification proofs (solana-agent feature):
   - `KANI_AGENT=1 ./scripts/kani.sh`
+- Run Solana `AccountInfo` generator proofs (solana-account-info feature):
+  - `KANI_ACCOUNT_INFO=1 ./scripts/kani.sh kani-solana`
 - Run both full and agent proofs:
   - `KANI_AGENT=1 KANI_FULL=1 ./scripts/kani.sh`
+- Run everything (full + agent + account-info):
+  - `KANI_AGENT=1 KANI_FULL=1 KANI_ACCOUNT_INFO=1 ./scripts/kani.sh`
 - Run with CI-style output (writes `kani-results/summary.md` + `kani-results/kani.log`):
   - `KANI_OUT_DIR=kani-results ./scripts/kani-ci.sh`
   - also writes per-package logs: `kani-results/kani-<pkg>.log`
 - Run a specific crate:
   - `./scripts/kani.sh kani-solana`
+  - `./scripts/kani.sh kamiyo-trust-layer`
   - `./scripts/kani.sh kamiyo`
   - `./scripts/kani.sh hive`
   - `./scripts/kani.sh kamiyo-staking`
 - Or directly:
   - `cargo kani -p kani-solana`
+  - `cargo kani -p kamiyo-trust-layer`
   - `cargo kani -p kamiyo`
 
 ## CI
@@ -52,12 +58,15 @@ This repo includes lightweight Kani harnesses for a few Solana program crates. T
 Harness modules are gated behind `cfg(kani)` so normal `anchor build/test` is unaffected:
 
 - `crates/kani-solana/src/*.rs`
+- `crates/kamiyo-trust-layer/src/proofs.rs`
 - `crates/kani-solana/tests/self_verify.rs`
 - `programs/kamiyo/src/kani_proofs.rs`
 - `programs/hive/src/kani_proofs.rs`
 - `programs/kamiyo-staking/src/kani_proofs.rs`
 - `crates/kani-solana/src/agent/*.rs` (gated behind `cfg(all(kani, feature = "solana-agent"))`)
 - `crates/kani-solana/tests/agent_verify.rs`
+- `crates/kani-solana/src/account_info.rs` (gated behind `cfg(all(kani, feature = "solana-account-info"))`)
+- `crates/kani-solana/tests/account_info_verify.rs`
 
 ## Scope (Current)
 

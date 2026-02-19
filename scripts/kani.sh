@@ -4,7 +4,7 @@ set -euo pipefail
 
 pkgs=("$@")
 if [ "${#pkgs[@]}" -eq 0 ]; then
-  pkgs=(kani-solana kamiyo hive kamiyo-staking)
+  pkgs=(kani-solana kamiyo-trust-layer kamiyo hive kamiyo-staking)
 fi
 
 features=()
@@ -13,6 +13,9 @@ if [ "${KANI_FULL:-}" = "1" ]; then
 fi
 if [ "${KANI_AGENT:-}" = "1" ]; then
   features+=(solana-agent)
+fi
+if [ "${KANI_ACCOUNT_INFO:-}" = "1" ]; then
+  features+=(solana-account-info)
 fi
 
 args=()

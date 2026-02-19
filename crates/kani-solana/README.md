@@ -43,6 +43,30 @@ cargo kani setup
 cargo kani
 ```
 
+## Solana AccountInfo Generators
+
+`kani-solana` also exposes a Kani-only `AccountInfo` helper module (aligned with the RFC in [Kani issue #4550](https://github.com/model-checking/kani/issues/4550)):
+
+```rust
+#![cfg(kani)]
+
+use kani_solana::account_info::{any_agent_account, AccountConfig, LamportSnapshot};
+
+#[kani::proof]
+fn release_policy_example() {
+    let payer = any_agent_account::<0>(AccountConfig::new().payer());
+    let escrow = any_agent_account::<128>(AccountConfig::new().writable());
+    let before = LamportSnapshot::new(&[&payer, &escrow]);
+    kani::assert(before.unchanged(&[&payer, &escrow]), "unchanged without mutation");
+}
+```
+
+Run these harnesses with:
+
+```bash
+cargo kani -p kani-solana --features solana-account-info
+```
+
 ## License
 
 MIT

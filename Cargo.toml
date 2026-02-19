@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/kani-solana",
+    "crates/kamiyo-trust-layer",
+    "services/trust-layer-service",
     "programs/kamiyo",
     "programs/kamiyo-escrow",
     "programs/kamiyo-staking",

@@ -1,80 +1,54 @@
 # Security Policy
 
-## Reporting Vulnerabilities
+## Supported Scope
 
-**Email:** security@kamiyo.ai
+This policy covers actively maintained code in this repository, including:
 
-Do not open public issues for security vulnerabilities.
+- Solana programs under `programs/`
+- Rust crates under `crates/`
+- Services under `services/`
+- TypeScript packages under `packages/`
 
-### What to Include
+## Reporting a Vulnerability
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Suggested fix (if available)
+Report vulnerabilities privately to:
 
-### Response Timeline
+- security@kamiyo.ai
 
-- Initial response: 48 hours
-- Status update: 7 days
-- Fix timeline: Depends on severity
+Do not file public GitHub issues for vulnerabilities.
 
-## Supported Versions
+## Report Format
 
-| Version | Supported |
-|---------|-----------|
-| 1.x     | Yes       |
-| < 1.0   | No        |
+Include the following:
 
-## Security Features
+- Affected component and path
+- Impact assessment
+- Reproduction steps or proof of concept
+- Suggested remediation (if available)
 
-- Fail-closed design (unauthorized requests return 402)
-- Payment replay prevention
-- Transaction age validation (7 day limit)
-- Minimum payment threshold ($0.10)
-- No credential storage
-- Read-only RPC operations
+## Response Targets
 
-## Best Practices
+- Initial acknowledgment: within 2 business days
+- Triage and severity classification: within 7 business days
+- Remediation timeline: based on severity and exploitability
 
-### Users
+## Disclosure Policy
 
-- Keep dependencies updated
-- Use environment variables for secrets
-- Enable rate limiting
-- Monitor payment activity
+- We prefer coordinated disclosure.
+- Public disclosure should wait until a fix is available or mitigation guidance is published.
 
-### Developers
+## Out of Scope
 
-- Never commit `.env` files
-- Validate all inputs
-- Use TypeScript strict mode and validate inputs with schemas
-- Run security linters before commits
+The following are usually out of scope unless they demonstrate meaningful security impact:
 
-## Known Considerations
-### RPC Endpoints
-- Provider rate limits apply
-- Use dedicated providers with SLAs
-- Implement caching where appropriate
+- Styling or UI-only issues
+- Vulnerabilities in third-party dependencies without a repository-specific exploit path
+- Denial-of-service claims without reproducible resource-exhaustion details
 
-## Bug Bounty
+## Hardening Expectations for Contributors
 
-Scope: Solana programs (kamiyo, kamiyo-escrow, kamiyo-staking, kamiyo-governance, kamiyo-transfer-hook, kamiyo-fast-voting, hive, meishi), ZK circuits, EVM contracts.
+When contributing security-sensitive changes:
 
-| Severity | Bounty | Example |
-|----------|--------|---------|
-| Critical | Up to $5,000 | Fund drain, unauthorized withdrawals |
-| High | Up to $2,000 | Logic errors affecting user funds |
-| Medium | Up to $500 | DoS, griefing attacks |
-| Low | $100 | Informational, best practices |
-
-Exclusions:
-- Frontend/UI issues
-- Third-party dependencies (unless in scope)
-- Known issues documented in code
-
-Contact: security@kamiyo.ai
-
-## Contact
-
-security@kamiyo.ai
+- Add tests that prove the failure mode and the fix
+- Document operational impact and rollback strategy
+- Avoid introducing hidden configuration defaults

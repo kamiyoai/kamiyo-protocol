@@ -1,0 +1,15 @@
+[package]
+name = "kamiyo-trust-layer"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Standalone trust decision layer with tamper-evident receipts and Kani proofs"
+keywords = ["trust", "policy", "kani", "formal-verification"]
+categories = ["algorithms", "development-tools::testing"]
+readme = "README.md"
+
+[dependencies]
+kani-solana = { path = "../kani-solana" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

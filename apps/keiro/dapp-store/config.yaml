@@ -1,0 +1,54 @@
+publisher:
+  name: KAMIYO
+  website: https://kamiyo.ai
+  email: contact@kamiyo.ai
+  support_email: support@kamiyo.ai
+app:
+  name: KAMIYO Keiro
+  address: E3BmsGQz9JP6i9qY8vHR74PxJYgvihhpKiJoQvR6zXA4
+  android_package: ai.kamiyo.keiro
+  urls:
+    license_url: https://kamiyo.ai/terms
+    copyright_url: https://kamiyo.ai/copyright
+    privacy_policy_url: https://kamiyo.ai/privacy
+    website: https://keiro.kamiyo.ai
+  media:
+    - purpose: icon
+      uri: media/app_icon.png
+release:
+  address: 8v6DrYtieUvFfkAGhdbG4KvvYdS5piHwc7zHRgbjfkBL
+  media:
+    - purpose: icon
+      uri: media/release_icon.png
+    - purpose: banner
+      uri: media/banner.png
+    - purpose: screenshot
+      uri: media/screenshot_1.png
+    - purpose: screenshot
+      uri: media/screenshot_2.png
+    - purpose: screenshot
+      uri: media/screenshot_3.png
+    - purpose: screenshot
+      uri: media/screenshot_4.png
+  files:
+    - purpose: install
+      uri: files/app-release.apk
+  catalog:
+    en-US:
+      name: KAMIYO Keiro
+      short_description: AI agent trust on Solana
+      long_description: |
+        KAMIYO Keiro is a KAMIYO mobile client.
+
+        Connect a Solana wallet to explore the trust layer for AI agents.
+      new_in_version: Initial release
+      saga_features: ''
+  android_details:
+    locales:
+      - en-US
+solana_mobile_dapp_publisher_portal:
+  google_store_package: ''
+  testing_instructions: 1. Install the app and open it 2. Connect a Solana wallet 3. Verify main screens load correctly
+  alpha_testers: []
+lastUpdatedVersionOnStore:
+  address: 8v6DrYtieUvFfkAGhdbG4KvvYdS5piHwc7zHRgbjfkBL

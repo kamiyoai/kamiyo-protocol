@@ -10,7 +10,10 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "check:alerts": "node dist/healthCheck.js",
-    "cron:install-alerts": "bash scripts/install-alert-cron.sh"
+    "cron:install-alerts": "bash scripts/install-alert-cron.sh",
+    "daemon:install": "bash scripts/install-operator-launchd.sh",
+    "daemon:status": "bash scripts/status-operator-launchd.sh",
+    "daemon:uninstall": "bash scripts/uninstall-operator-launchd.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",

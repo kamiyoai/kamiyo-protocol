@@ -1,6 +1,7 @@
 //! Percolator-style risk primitives and Kani proofs.
 //!
 //! Reference: https://github.com/aeyakovenko/percolator
+//! Spec reuse integration: https://github.com/aeyakovenko/percolator/pull/19
 
 /// Global haircut ratio `h` as used in Percolator.
 ///
@@ -382,7 +383,10 @@ mod proofs {
 
         let (writeoff, new_insurance) = loss_writeoff(neg_equity, insurance);
 
-        kani::assert(writeoff + new_insurance == insurance, "writeoff + new_insurance == insurance");
+        kani::assert(
+            writeoff + new_insurance == insurance,
+            "writeoff + new_insurance == insurance",
+        );
         kani::assert(writeoff <= neg_equity, "writeoff <= neg_equity");
         kani::assert(writeoff <= insurance, "writeoff <= insurance");
     }
@@ -400,5 +404,4 @@ mod proofs {
 
         kani::assert(ins_after_1 >= ins_after_2, "ins_after_1 >= ins_after_2");
     }
-
 }

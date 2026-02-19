@@ -540,6 +540,102 @@ pub mod kamiyo_staking {
         msg!("Staking pool unpaused");
         Ok(())
     }
+
+    /// Admin force-unstake: return all staked tokens to user (admin only)
+    ///
+    /// Used for migration — returns the full staked amount plus any pending
+    /// rewards to the position owner's token account.
+    pub fn admin_force_unstake(ctx: Context<AdminForceUnstake>) -> Result<()> {
+        let position = &ctx.accounts.position;
+        let amount = position.staked_amount;
+
+        if amount == 0 {
+            msg!("Position already empty, skipping");
+            return Ok(());
+        }
+
+        let clock = Clock::get()?;
+        let pool = &ctx.accounts.pool;
+
+        // Calculate pending rewards
+        let pending = calculate_pending_rewards(pool, position, clock.unix_timestamp)?;
+
+        let seeds = &[b"pool".as_ref(), &[pool.bump]];
+        let signer = &[&seeds[..]];
+
+        // Transfer pending rewards (if any and vault has balance)
+        if pending > 0 {
+            let rewards_balance = ctx.accounts.rewards_vault.amount;
+            let reward_transfer = pending.min(rewards_balance);
+            if reward_transfer > 0 {
+                token_interface::transfer(
+                    CpiContext::new_with_signer(
+                        ctx.accounts.token_program.to_account_info(),
+                        token_interface::Transfer {
+                            from: ctx.accounts.rewards_vault.to_account_info(),
+                            to: ctx.accounts.staker_token_account.to_account_info(),
+                            authority: ctx.accounts.pool.to_account_info(),
+                        },
+                        signer,
+                    ),
+                    reward_transfer,
+                )?;
+            }
+        }
+
+        // Transfer staked tokens back to user
+        token_interface::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                token_interface::Transfer {
+                    from: ctx.accounts.token_vault.to_account_info(),
+                    to: ctx.accounts.staker_token_account.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                signer,
+            ),
+            amount,
+        )?;
+
+        // Capture stake_start_time before mutation for multiplier calc
+        let stake_start_time = ctx.accounts.position.stake_start_time;
+
+        // Update position
+        let position = &mut ctx.accounts.position;
+        position.staked_amount = 0;
+        position.stake_start_time = 0;
+        position.last_claim_time = clock.unix_timestamp;
+        position.total_claimed = position
+            .total_claimed
+            .checked_add(pending)
+            .ok_or(StakingError::MathOverflow)?;
+        position.rewards_debt = 0;
+
+        // Update pool
+        let pool = &mut ctx.accounts.pool;
+        pool.total_staked = pool.total_staked.saturating_sub(amount);
+
+        let multiplier = get_multiplier(clock.unix_timestamp - stake_start_time);
+        let weighted_amount = (amount as u128)
+            .checked_mul(multiplier as u128)
+            .ok_or(StakingError::MathOverflow)?
+            .checked_div(MULTIPLIER_BASE as u128)
+            .ok_or(StakingError::MathOverflow)?;
+        let weighted_amount: u64 = weighted_amount
+            .try_into()
+            .map_err(|_| StakingError::MathOverflow)?;
+        pool.total_weighted_stake = pool.total_weighted_stake.saturating_sub(weighted_amount);
+
+        emit!(Unstaked {
+            user: ctx.accounts.staker.key(),
+            amount,
+            remaining_staked: 0,
+            rewards_claimed: pending,
+            timestamp: clock.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -862,4 +958,51 @@ pub struct AdminAction<'info> {
     pub pool: Account<'info, StakingPool>,
 
     pub admin: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct AdminForceUnstake<'info> {
+    #[account(
+        mut,
+        seeds = [b"pool"],
+        bump = pool.bump,
+        has_one = admin @ StakingError::InvalidAuthority
+    )]
+    pub pool: Account<'info, StakingPool>,
+
+    #[account(
+        mut,
+        seeds = [b"position", staker.key().as_ref()],
+        bump = position.bump,
+    )]
+    pub position: Account<'info, StakePosition>,
+
+    #[account(
+        mut,
+        seeds = [b"vault"],
+        bump
+    )]
+    pub token_vault: InterfaceAccount<'info, TokenAccountInterface>,
+
+    #[account(
+        mut,
+        seeds = [b"rewards"],
+        bump
+    )]
+    pub rewards_vault: InterfaceAccount<'info, TokenAccountInterface>,
+
+    #[account(
+        mut,
+        associated_token::mint = pool.token_mint,
+        associated_token::authority = staker,
+        associated_token::token_program = token_program
+    )]
+    pub staker_token_account: InterfaceAccount<'info, TokenAccountInterface>,
+
+    /// CHECK: the position owner — validated by position PDA seeds derivation
+    pub staker: UncheckedAccount<'info>,
+
+    pub admin: Signer<'info>,
+
+    pub token_program: Interface<'info, TokenInterface>,
 }

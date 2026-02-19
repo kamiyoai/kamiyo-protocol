@@ -1,4 +1,4 @@
-# CDP Agentic Wallets Integration
+# CDP Wallet Automation Integration
 
 ## Goal
 Unify Coinbase CDP Wallet API v2 + Policy Engine with Kamiyo's existing agent commerce stack:
@@ -6,7 +6,7 @@ Unify Coinbase CDP Wallet API v2 + Policy Engine with Kamiyo's existing agent co
 - Solana-native compliance and delegation via Meishi passports + mandates
 - Cross-chain commerce via x402 (Solana-first and Base-first flows)
 - Two wallet models:
-  - Server/agent-controlled wallets (autonomous agents)
+  - Server/agent-controlled wallets (automated services)
   - Embedded/end-user wallets (end users authenticate and own keys)
 
 The end state is a "wallet control plane" that provisions wallets, compiles Meishi mandates into CDP policies, and routes payments across Solana and Base with enforceable limits.

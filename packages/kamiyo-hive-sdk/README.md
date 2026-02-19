@@ -1,12 +1,12 @@
 # @kamiyo/kamiyo-hive
 
-Private reputation proofs for AI agents on Solana.
+Private reputation proofs for agents on Solana.
 
 ## Overview
 
-Agents prove reputation thresholds using zero-knowledge proofs without revealing their transaction history or identity. High reputation unlocks private payment rails through ShadowWire.
+Agents prove reputation thresholds using zero-knowledge proofs without revealing their transaction history or identity. Higher reputation enables private payment rails through ShadowWire.
 
-**Core value**: Trust without identity. Services know an agent is reputable without knowing which agent.
+Services can verify that an agent meets a reputation threshold without learning the agent identity.
 
 ## Installation
 
@@ -101,7 +101,7 @@ const isValid = await client.verifyReputationProof(proof, {
 // Verifier doesn't know: which agent, actual score, transaction history
 ```
 
-### 5. Unlock Private Payments
+### 5. Use Private Payments
 
 ```typescript
 import { ShadowWireClient } from '@kamiyo/radr';
