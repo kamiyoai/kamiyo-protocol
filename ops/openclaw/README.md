@@ -31,6 +31,16 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - Loop state: `~/.openclaw/workspace/runtime/state/autonomy-loop-state.json`
 - Loop log: `~/.openclaw/workspace/runtime/logs/autonomy-loop.jsonl`
 
+## Bootstrap non-empty swarm intake
+
+To force non-empty intake/planning without external marketplace credentials:
+
+```bash
+./install-bootstrap-seed.sh
+```
+
+This installs deterministic seed opportunities and enables `file://` feeds so the loop produces non-zero assignments immediately.
+
 ## Notes
 
 - This loop proves unattended autonomy operation, but it will remain idle until feed URLs and execution credentials are configured.

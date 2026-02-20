@@ -1,0 +1,14 @@
+{
+  "opportunities": [
+    {
+      "id": "relevance-exec-001",
+      "title": "Lead Enrichment + Outreach Automation",
+      "summary": "Execute enrichment and outreach prep for 250 leads with verification scoring.",
+      "confidence": 0.83,
+      "roleHints": ["executor", "ops"],
+      "tags": ["automation", "b2b", "marketplace"],
+      "payoutUsd": 220,
+      "createdAt": "2026-02-20T23:35:00Z"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "feeds": [
+    {
+      "id": "agent_ai_bootstrap",
+      "source": "agent_ai",
+      "enabled": true,
+      "url": "file://$HOME/.openclaw/workspace/runtime/seed/agent_ai.json",
+      "authHeader": "Authorization",
+      "authEnv": "KYO_AGENT_AI_API_KEY",
+      "authPrefix": "Bearer"
+    },
+    {
+      "id": "relevance_bootstrap",
+      "source": "relevance",
+      "enabled": true,
+      "url": "file://$HOME/.openclaw/workspace/runtime/seed/relevance.json",
+      "authHeader": "Authorization",
+      "authEnv": "KYO_RELEVANCE_API_KEY",
+      "authPrefix": "Bearer"
+    },
+    {
+      "id": "kore_bootstrap",
+      "source": "kore",
+      "enabled": true,
+      "url": "file://$HOME/.openclaw/workspace/runtime/seed/kore.json",
+      "authHeader": "Authorization",
+      "authEnv": "KYO_KORE_API_KEY",
+      "authPrefix": "Bearer"
+    }
+  ]
+}

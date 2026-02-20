@@ -102,9 +102,24 @@ Current result:
 - latest loop state is persisted in:
   - `workspace/runtime/state/autonomy-loop-state.json`
 
+### 7) Non-empty swarm cycle validation (implemented)
+
+Enabled a deterministic bootstrap marketplace feed profile (`file://` seed sources) to validate non-empty end-to-end autonomy behavior without external marketplace credentials.
+
+Observed on-host:
+
+- `marketplace intake`: `feedsConfigured=3`, `accepted=4`
+- `swarm planner`: `assignmentCount=4`
+- timer-driven autonomy tick (`cycle=9`) recorded:
+  - `opportunities=4`
+  - `assignments=4`
+  - `agentOk=1`
+
+This confirms the runtime can move from idle loop to active queue processing autonomously when opportunities are present.
+
 ## Remaining blockers for full revenue autonomy
 
-1. Marketplace feeds are configured but disabled (`url`/API keys still empty in `workspace/runtime/marketplace-feeds.json`).
+1. Current non-empty feed profile is bootstrap/synthetic (`file://`) and not live market demand.
 2. No paid job execution endpoints/credentials are wired for live settlement and receipt capture.
 3. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.
 
