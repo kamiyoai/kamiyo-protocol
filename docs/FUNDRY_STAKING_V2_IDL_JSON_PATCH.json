@@ -1,0 +1,367 @@
+[
+  {
+    "op": "add",
+    "path": "/accounts/-",
+    "value": {
+      "name": "UserLockConfig",
+      "discriminator": [
+        192,
+        126,
+        58,
+        73,
+        146,
+        187,
+        148,
+        158
+      ]
+    }
+  },
+  {
+    "op": "add",
+    "path": "/types/-",
+    "value": {
+      "name": "UserLockConfig",
+      "repr": {
+        "kind": "c"
+      },
+      "serialization": "bytemuck",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "cooldown",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_padding1",
+            "type": {
+              "array": [
+                "u8",
+                7
+              ]
+            }
+          },
+          {
+            "docs": [
+              "Reserved for future upgrades (tiers, risk flags, governance hooks)"
+            ],
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "op": "add",
+    "path": "/instructions/-",
+    "value": {
+      "name": "set_user_lock_config",
+      "discriminator": [
+        105,
+        97,
+        228,
+        37,
+        227,
+        90,
+        40,
+        14
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "user_lock_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "cooldown_seconds",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "op": "add",
+    "path": "/instructions/-",
+    "value": {
+      "name": "clear_user_lock_config",
+      "discriminator": [
+        53,
+        99,
+        154,
+        28,
+        153,
+        138,
+        167,
+        199
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "user_lock_config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    }
+  },
+  {
+    "op": "add",
+    "path": "/instructions/-",
+    "value": {
+      "name": "unstake_v2",
+      "discriminator": [
+        88,
+        53,
+        113,
+        37,
+        217,
+        40,
+        248,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "signer": true,
+          "writable": true
+        },
+        {
+          "name": "user_wrapped_token_account",
+          "writable": true
+        },
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "unstake",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  110,
+                  115,
+                  116,
+                  97,
+                  107,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_lock_config",
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  95,
+                  108,
+                  111,
+                  99,
+                  107,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "wrapped_mint",
+          "relations": [
+            "pool"
+          ],
+          "writable": true
+        },
+        {
+          "name": "wrapped_token_program",
+          "relations": [
+            "pool"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  },
+  {
+    "op": "add",
+    "path": "/errors/-",
+    "value": {
+      "code": 6027,
+      "name": "UserCooldownTooLow",
+      "msg": "User cooldown too short"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/errors/-",
+    "value": {
+      "code": 6028,
+      "name": "UserCooldownTooHigh",
+      "msg": "User cooldown too long"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/errors/-",
+    "value": {
+      "code": 6029,
+      "name": "InvalidUserLockConfig",
+      "msg": "Invalid user lock config"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/errors/-",
+    "value": {
+      "code": 6030,
+      "name": "PendingUnlockWouldBeReduced",
+      "msg": "Cannot reduce existing pending unlock timestamp"
+    }
+  }
+]

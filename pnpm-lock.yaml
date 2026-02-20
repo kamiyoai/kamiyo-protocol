@@ -2153,6 +2153,9 @@ importers:
       '@kamiyo/sdk':
         specifier: workspace:*
         version: link:../../packages/kamiyo-sdk
+      '@kamiyo/x402-client':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-x402-client
       '@meteora-ag/dynamic-fee-sharing-sdk':
         specifier: ^1.0.6
         version: 1.0.6(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)

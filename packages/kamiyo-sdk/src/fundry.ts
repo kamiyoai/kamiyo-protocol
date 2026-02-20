@@ -11,6 +11,7 @@ export const FUNDRY_CONFIG_TYPES = [
   'music',
   'whitewhale',
   'kamiyo',
+  'origin',
   'retardchy',
   'illuminati',
   'presales',
@@ -75,6 +76,15 @@ const DEFAULT_ESCROW_SOL = 0.5;
 const MIN_ESCROW_SOL = 0.001;
 const MAX_ESCROW_SOL = 1000;
 const LAMPORTS_PER_SOL = 1_000_000_000;
+const BUILDER_CONFIG_TYPES = new Set<FundryConfigType>([
+  'community',
+  'preseed',
+  'seriesa',
+  'toly',
+  'indie',
+  'kamiyo',
+  'origin',
+]);
 
 export class FundryManager {
   private client: KamiyoClient;
@@ -319,7 +329,7 @@ export class FundryManager {
   listConfigs(): { name: FundryConfigType; category: string }[] {
     return FUNDRY_CONFIG_TYPES.map(name => ({
       name,
-      category: ['community', 'indie', 'music', 'kamiyo'].includes(name) ? 'builder' : 'monkes',
+      category: BUILDER_CONFIG_TYPES.has(name) ? 'builder' : 'monkes',
     }));
   }
 

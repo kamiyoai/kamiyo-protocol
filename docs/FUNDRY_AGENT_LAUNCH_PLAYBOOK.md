@@ -4,6 +4,8 @@ This is the default template for all future Fundry agent launches.
 
 Hard rule: every run routes SOL toward the `$KAMIYO` staking pool.
 
+Swarm standard: Kyoshin is the parent operator, and each subagent has its own coin.
+
 ## Non-Negotiable Defaults
 
 - `KAMIYO_STAKING_POOL=9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d`
@@ -15,10 +17,17 @@ Hard rule: every run routes SOL toward the `$KAMIYO` staking pool.
 
 Policy: route 50% of available SOL each run, keep a 0.2 SOL reserve, no max per tx cap.
 
+Per-subagent coin policy:
+- One subagent = one coin mint.
+- Do not reuse the same coin mint for different subagent mandates.
+- Every subagent coin still routes earned SOL to the shared `$KAMIYO` staking pool.
+
 ## Launch Inputs (Fill Before Launch)
 
-- Agent name
-- Agent token mint
+- Parent controller (`kyoshin`)
+- Subagent name
+- Subagent role/mandate
+- Subagent token mint (unique per subagent)
 - Fundry config address
 - Fundry fee vault address
 - Source staking pool address for this agent
@@ -26,25 +35,36 @@ Policy: route 50% of available SOL each run, keep a 0.2 SOL reserve, no max per 
 
 ## Operator Template (Required)
 
-Set these in `services/kamiyo-operator/.env` for each launch:
+Set these in `services/kamiyo-operator/.env` for each subagent launch profile:
 
 ```bash
 KAMIYO_MODE=execute
 KAMIYO_RUN_ONCE=false
 
-KAMIYO_TARGET_MINT=<agent_mint>
+KAMIYO_AGENT_NAME=<subagent_name>
+KAMIYO_TARGET_MINT=<subagent_unique_mint>
 KAMIYO_FEE_VAULT=<fundry_fee_vault>
 KAMIYO_STAKING_POOL=9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d
 
 KAMIYO_FUNDRY_API_BASE_URL=https://fundry.collaterize.com
 
-# Historical name, current behavior: source staking pool to claim from
+# Historical env key names. Current behavior applies to any subagent source pool/claimer.
 KAMIYO_KYOSHIN_STAKING_POOL=<agent_source_staking_pool>
 KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH=<agent_source_signer_keypair>
 KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED=true
 KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS=0
 KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN=8
+
+KAMIYO_SWARM_ENABLED=true
+KAMIYO_SWARM_PROPOSE_ONLY=true
+KAMIYO_SWARM_REGISTRY_PATH=output/kamiyo-operator/swarm.registry.json
+KAMIYO_SWARM_MISSIONS_PER_TICK=3
+KAMIYO_SWARM_MAX_ACTIVE_AGENTS=5
 ```
+
+Run one profile per subagent coin. Keep signer files and profile values isolated.
+Populate `KAMIYO_SWARM_REGISTRY_PATH` from `docs/KYOSHIN_SWARM_REGISTRY_TEMPLATE.json`.
+`KAMIYO_SWARM_REGISTRY_PATH` is resolved from `services/kamiyo-operator`; use an absolute path if you keep registry data elsewhere.
 
 ## Runbook
 
@@ -117,7 +137,8 @@ tail -n 120 "$HOME/local/kamiyo-protocol/output/kamiyo-operator/launchd.err.log"
 ## Launch Checklist
 
 - Fundry launch is live
-- Agent metadata is correct
+- Subagent metadata is correct
+- Subagent coin mint is unique to this mandate
 - Operator `.env` set with source signer and source pool
 - One-shot verify tick passes
 - Live daemon restarted
