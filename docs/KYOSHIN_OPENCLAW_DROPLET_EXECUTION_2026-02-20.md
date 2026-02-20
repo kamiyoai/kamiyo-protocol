@@ -2,7 +2,7 @@
 
 ## Scope
 
-Provision and harden a dedicated Ubuntu 24.04 droplet for 24/7 OpenClaw runtime under an `openclaw` service account.
+Provision and harden a dedicated Ubuntu 24.04 droplet for 24/7 OpenClaw runtime under an `openclaw` service account, then wire a continuous autonomy loop for swarm intake and task planning.
 
 ## Executed
 
@@ -25,15 +25,19 @@ Provision and harden a dedicated Ubuntu 24.04 droplet for 24/7 OpenClaw runtime 
   - gateway port: `23456`
   - tailscale mode: `off`
 - Rotated gateway token after onboarding.
+- Confirmed embedded Claude execution succeeds under `openclaw` user context.
 
 ### 3) Persistent 24/7 service
 
 - Added systemd unit: `openclaw-gateway.service`.
 - Service runs as `openclaw` and auto-restarts.
 - Current state: `enabled` + `active`.
+- Current gateway config:
+  - bind: `loopback`
+  - tailscale mode: `off` (intentionally disabled because tailnet serve is not enabled)
 - Health check: `openclaw gateway health --json` returns `ok: true`.
 
-### 4) Workspace/autonomy scaffold
+### 4) Workspace/autonomy scaffold (identity + memory)
 
 Created and populated:
 
@@ -49,7 +53,6 @@ Created and populated:
 - `~/.openclaw/workspace/decision-frameworks.md`
 - `~/.openclaw/workspace/writing-voice-guide.md`
 - `~/.openclaw/workspace/startup-rules.md`
-- skills stubs under `~/.openclaw/workspace/skills/*/main.py`
 
 ### 5) Security and maintenance automation
 
@@ -61,24 +64,69 @@ Created and populated:
   - security audit (`00:00 UTC`)
   - backup (`00:15 UTC`, 14-day retention)
 
-## Remaining blockers for full "living AI"
+### 6) Swarm autonomy runtime loop (implemented)
 
-1. `ANTHROPIC_API_KEY` is not set in `~/.openclaw/.env` yet.
-2. Tailscale is installed but not joined to tailnet (`NeedsLogin`).
-3. Gateway is intentionally loopback-only until Tailscale auth is complete.
-4. Marketplace adapters (Agent.ai, Relevance, Kore) are not wired on this host yet.
+Installed runtime scripts under `~/bin`:
 
-## Cutover commands (pending secrets)
+- `kyoshin-marketplace-intake.py`
+  - reads feed config from `workspace/runtime/marketplace-feeds.json`
+  - fetches and normalizes marketplace opportunities
+  - writes:
+    - `workspace/runtime/feeds/opportunities.json`
+    - `workspace/runtime/feeds/opportunities-summary.json`
+    - `workspace/runtime/logs/marketplace-intake.jsonl`
+- `kyoshin-swarm-planner.py`
+  - loads opportunities and a swarm registry
+  - computes agent assignment queue
+  - writes:
+    - `workspace/runtime/queue/assignments.json`
+    - `workspace/runtime/queue/assignments-summary.json`
+    - `workspace/runtime/logs/swarm-planner.jsonl`
+- `kyoshin-autonomy-loop.sh`
+  - runs one control-loop tick:
+    - gateway health probe with retry
+    - marketplace intake
+    - swarm planning
+    - one local OpenClaw agent heartbeat/decision turn
+    - state/log persistence to `workspace/runtime/state` and `workspace/runtime/logs`
+
+Installed scheduler:
+
+- `kyoshin-autonomy-loop.service` (oneshot, runs as `openclaw`)
+- `kyoshin-autonomy-loop.timer` (`OnUnitActiveSec=5min`, persistent)
+
+Current result:
+
+- autonomy cycles are running and producing `status=ok` entries in:
+  - `workspace/runtime/logs/autonomy-loop.jsonl`
+- latest loop state is persisted in:
+  - `workspace/runtime/state/autonomy-loop-state.json`
+
+## Remaining blockers for full revenue autonomy
+
+1. Marketplace feeds are configured but disabled (`url`/API keys still empty in `workspace/runtime/marketplace-feeds.json`).
+2. No paid job execution endpoints/credentials are wired for live settlement and receipt capture.
+3. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.
+
+## Security note (must act)
+
+- The Anthropic API key was exposed during interactive CLI auth in terminal output history and should be treated as compromised.
+- Rotate the Anthropic key and replace `ANTHROPIC_API_KEY` in `~/.openclaw/.env`.
+
+## Operational commands
 
 ```bash
-sudo -u openclaw -H bash -lc 'vim ~/.openclaw/.env'
-sudo -u openclaw -H bash -lc '~/bin/tailscale-init.sh'
-sudo -u openclaw -H bash -lc '~/bin/openclaw-bind-tailnet.sh'
+sudo ~/bin/tailscale-init.sh
+sudo ~/bin/openclaw-bind-tailnet.sh
 sudo systemctl restart openclaw-gateway.service
-sudo -u openclaw -H bash -lc 'openclaw gateway health --json'
+sudo -u openclaw -H bash -lc 'export PATH=$HOME/.npm-global/bin:$PATH && openclaw gateway health --json'
+sudo systemctl start kyoshin-autonomy-loop.service
+sudo systemctl status kyoshin-autonomy-loop.timer --no-pager
+sudo ~/bin/kyoshin-runtime-health.sh
 ```
 
 ## Notes
 
-- This deployment establishes a real autonomous runtime foundation (persistent loop + heartbeat + service recovery), but it is not production-live without provider credentials.
+- This deployment now has a persistent autonomy loop, not only a static scaffold.
+- The runtime currently proves unattended operation and stateful decision cycles; it does not yet prove fee-generating autonomy because external paid feeds/endpoints are still missing.
 - One existing droplet remains inaccessible with current SSH key material and was not modified.

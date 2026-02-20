@@ -1,0 +1,20 @@
+[Unit]
+Description=Kyoshin autonomy control-loop tick
+After=network-online.target openclaw-gateway.service
+Wants=network-online.target openclaw-gateway.service
+
+[Service]
+Type=oneshot
+User=openclaw
+Group=openclaw
+WorkingDirectory=%h
+Environment=HOME=%h
+Environment=PATH=%h/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=-%h/.openclaw/.env
+ExecStart=%h/bin/kyoshin-autonomy-loop.sh
+TimeoutStartSec=360
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
