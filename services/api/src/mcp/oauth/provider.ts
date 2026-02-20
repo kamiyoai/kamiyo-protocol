@@ -93,6 +93,10 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     if (!params.codeChallenge) {
       throw new Error('code_challenge required');
     }
+    const codeChallengeMethod = (params as { codeChallengeMethod?: string }).codeChallengeMethod;
+    if (codeChallengeMethod && codeChallengeMethod !== 'S256') {
+      throw new Error('unsupported code_challenge_method');
+    }
 
     if (!client.redirect_uris?.includes(params.redirectUri)) {
       throw new Error('redirect_uri not registered');
@@ -178,6 +182,7 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     const accessToken = randomBytes(32).toString('hex');
     const refreshToken = randomBytes(32).toString('hex');
     const scopes = parseJsonStringArray(record.scopes, 'scopes');
+    assertAllowedScopes(scopes, scopes);
     const requestedResource = resource?.toString();
     if (record.resource && requestedResource && record.resource !== requestedResource) {
       throw new Error('resource mismatch');
@@ -269,11 +274,13 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
 
     const now = Math.floor(Date.now() / 1000);
     if (record.expires_at < now) throw new Error('token expired');
+    const scopes = parseJsonStringArray(record.scopes, 'scopes');
+    assertAllowedScopes(scopes, scopes);
 
     return {
       token,
       clientId: record.client_id,
-      scopes: JSON.parse(record.scopes) as string[],
+      scopes,
       expiresAt: record.expires_at,
       resource: record.resource ? new URL(record.resource) : undefined,
       extra: record.user_wallet ? { wallet: record.user_wallet } : undefined,

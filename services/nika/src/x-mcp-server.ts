@@ -81,9 +81,34 @@ TECH ELEMENTS:
 let xaiApiKey: string | null = null;
 let lastImagePostTimestamp: number | null = null;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const IMAGE_GENERATION_TIMEOUT_MS = 20_000;
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+interface XaiImageGenerationResponse {
+  data: Array<{ url: string }>;
+}
 
 export function setXaiApiKey(key: string) {
   xaiApiKey = key;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isImageGenerationResponse(value: unknown): value is XaiImageGenerationResponse {
+  if (!value || typeof value !== 'object') return false;
+  const data = (value as { data?: unknown }).data;
+  if (!Array.isArray(data) || data.length === 0) return false;
+  const first = data[0];
+  return Boolean(first && typeof first === 'object' && typeof (first as { url?: unknown }).url === 'string');
 }
 
 function canPostImage(): { allowed: boolean; hoursRemaining?: number } {
@@ -123,14 +148,14 @@ async function generateImage(prompt: string): Promise<{ url: string } | { error:
       log.debug('Including Nika reference image in generation request');
     }
 
-    const response = await fetch('https://api.x.ai/v1/images/generations', {
+    const response = await fetchWithTimeout('https://api.x.ai/v1/images/generations', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${xaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-    });
+    }, IMAGE_GENERATION_TIMEOUT_MS);
 
     if (!response.ok) {
       const text = await response.text();
@@ -138,8 +163,22 @@ async function generateImage(prompt: string): Promise<{ url: string } | { error:
       return { error: `Image generation failed: ${response.status}` };
     }
 
-    const data = await response.json() as { data: Array<{ url: string }> };
-    return { url: data.data[0].url };
+    const data = await response.json() as unknown;
+    if (!isImageGenerationResponse(data)) {
+      return { error: 'Image generation returned invalid payload' };
+    }
+
+    const url = data.data[0].url;
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:') {
+        return { error: 'Image generation returned non-https URL' };
+      }
+    } catch {
+      return { error: 'Image generation returned invalid URL' };
+    }
+
+    return { url };
   } catch (error) {
     log.error('Image generation error', { error });
     return { error: error instanceof Error ? error.message : 'Unknown error' };
@@ -147,12 +186,45 @@ async function generateImage(prompt: string): Promise<{ url: string } | { error:
 }
 
 async function uploadMedia(client: TwitterApi, imageUrl: string): Promise<string> {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(imageUrl);
+  } catch {
+    throw new Error('Invalid image URL');
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error('Image URL must use https');
+  }
+
   // Download image from URL
-  const response = await fetch(imageUrl);
+  const response = await fetchWithTimeout(imageUrl, {}, IMAGE_DOWNLOAD_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new Error(`Image download failed: ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.startsWith('image/')) {
+    throw new Error('Downloaded content is not an image');
+  }
+
+  const contentLengthHeader = response.headers.get('content-length');
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES) {
+      throw new Error('Image too large');
+    }
+  }
+
   const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw new Error('Image too large');
+  }
+
+  const mimeType = contentType.split(';')[0] || 'image/png';
 
   // Upload to Twitter
-  const mediaId = await client.v1.uploadMedia(buffer, { mimeType: 'image/png' });
+  const mediaId = await client.v1.uploadMedia(buffer, { mimeType });
   return mediaId;
 }
 
@@ -184,6 +256,7 @@ function getClient(config: XMcpConfig): TwitterApi {
 
 function sanitizeError(error: unknown): string {
   if (error instanceof Error) {
+    if (error.name === 'AbortError') return 'Request timed out';
     if (error.message.includes('Rate limit')) return 'Rate limited - try again later';
     if (error.message.includes('401')) return 'Authentication failed';
     if (error.message.includes('403')) return 'Access forbidden';

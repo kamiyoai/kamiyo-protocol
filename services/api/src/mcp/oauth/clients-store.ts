@@ -34,6 +34,7 @@ function parseJsonStringArray(value: string, fieldName: string): string[] {
 // Allowed redirect URI schemes and patterns
 const ALLOWED_SCHEMES = ['https', 'http'];
 const LOCALHOST_PATTERNS = ['localhost', '127.0.0.1', '[::1]'];
+const ALLOWED_AUTH_METHODS = new Set(['client_secret_basic', 'client_secret_post', 'none']);
 
 function isValidRedirectUri(uri: string): boolean {
   try {
@@ -71,17 +72,27 @@ function isValidRedirectUri(uri: string): boolean {
 }
 
 function toClientInfo(row: McpOAuthClient): OAuthClientInformationFull {
+  const redirectUris = parseJsonStringArray(row.redirect_uris, 'redirect_uris');
+  const grantTypes = parseJsonStringArray(row.grant_types, 'grant_types');
+  const responseTypes = parseJsonStringArray(row.response_types, 'response_types');
   const scopes = parseJsonStringArray(row.scopes, 'scopes');
   const normalizedScopes = scopes.length > 0 ? scopes : ['mcp:tools'];
+
+  if (redirectUris.some((uri) => !isValidRedirectUri(uri))) {
+    throw new Error('invalid redirect_uris');
+  }
+  if (!ALLOWED_AUTH_METHODS.has(row.token_endpoint_auth_method)) {
+    throw new Error('invalid token_endpoint_auth_method');
+  }
 
   return {
     client_id: row.client_id,
     client_secret: undefined,
     client_secret_expires_at: row.client_secret_expires_at ?? undefined,
     client_name: row.client_name,
-    redirect_uris: JSON.parse(row.redirect_uris),
-    grant_types: JSON.parse(row.grant_types),
-    response_types: JSON.parse(row.response_types),
+    redirect_uris: redirectUris,
+    grant_types: grantTypes,
+    response_types: responseTypes,
     scope: normalizedScopes.join(' '),
     token_endpoint_auth_method: row.token_endpoint_auth_method as 'client_secret_basic' | 'client_secret_post' | 'none',
     client_id_issued_at: row.created_at,
@@ -91,7 +102,12 @@ function toClientInfo(row: McpOAuthClient): OAuthClientInformationFull {
 export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
   getClient(clientId: string): OAuthClientInformationFull | undefined {
     const row = getMcpOAuthClient(clientId);
-    return row ? toClientInfo(row) : undefined;
+    if (!row) return undefined;
+    try {
+      return toClientInfo(row);
+    } catch {
+      return undefined;
+    }
   }
 
   registerClient(
@@ -115,6 +131,10 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
     const normalizedScopes = scopes.length > 0 ? scopes : ['mcp:tools'];
     const grantTypes = client.grant_types || ['authorization_code', 'refresh_token'];
     const responseTypes = client.response_types || ['code'];
+    const tokenAuthMethod = client.token_endpoint_auth_method || 'client_secret_basic';
+    if (!ALLOWED_AUTH_METHODS.has(tokenAuthMethod)) {
+      throw new Error(`Invalid token_endpoint_auth_method: ${tokenAuthMethod}`);
+    }
 
     createMcpOAuthClient({
       client_id: clientId,
@@ -124,7 +144,7 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
       grant_types: JSON.stringify(grantTypes),
       response_types: JSON.stringify(responseTypes),
       scopes: JSON.stringify(normalizedScopes),
-      token_endpoint_auth_method: client.token_endpoint_auth_method || 'client_secret_basic',
+      token_endpoint_auth_method: tokenAuthMethod,
       client_secret_expires_at: client.client_secret_expires_at ?? null,
     });
 
@@ -137,7 +157,7 @@ export class KamiyoOAuthClientsStore implements OAuthRegisteredClientsStore {
       grant_types: grantTypes,
       response_types: responseTypes,
       scope: normalizedScopes.join(' '),
-      token_endpoint_auth_method: client.token_endpoint_auth_method || 'client_secret_basic',
+      token_endpoint_auth_method: tokenAuthMethod,
       client_id_issued_at: Math.floor(Date.now() / 1000),
     };
   }

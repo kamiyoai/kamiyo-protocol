@@ -10,6 +10,11 @@ import type { DKGMemory } from './dkg-memory';
 const log = createLogger('nika:protocol-mcp');
 const metrics = getMetrics();
 
+function sanitizeError(error: unknown): string {
+  if (error instanceof Error) return error.message.slice(0, 200);
+  return 'Operation failed';
+}
+
 /**
  * Protocol MCP configuration
  */
@@ -64,7 +69,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
           } catch (error) {
             metrics.incrementCounter('protocol_dkg_store_error');
             return {
-              content: [{ type: 'text', text: `Error: ${String(error)}` }],
+              content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }],
             };
           }
         }
@@ -92,7 +97,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
           } catch (error) {
             metrics.incrementCounter('protocol_dkg_query_error');
             return {
-              content: [{ type: 'text', text: `Query error: ${String(error)}` }],
+              content: [{ type: 'text', text: `Query error: ${sanitizeError(error)}` }],
             };
           }
         }
@@ -114,7 +119,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
             }
             return { content: [{ type: 'text', text: 'Asset not found' }] };
           } catch (error) {
-            return { content: [{ type: 'text', text: `Error: ${String(error)}` }] };
+            return { content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }] };
           }
         }
       ),
@@ -138,7 +143,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
               ],
             };
           } catch (error) {
-            return { content: [{ type: 'text', text: `Error: ${String(error)}` }] };
+            return { content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }] };
           }
         }
       ),
@@ -156,7 +161,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
               content: [{ type: 'text', text: JSON.stringify({ topics, count: topics.length }, null, 2) }],
             };
           } catch (error) {
-            return { content: [{ type: 'text', text: `Error: ${String(error)}` }] };
+            return { content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }] };
           }
         }
       ),

@@ -604,6 +604,11 @@ const TOOL_DEFINITIONS: Tool[] = [
   ...tools.FUNDRY_TOOL_DEFINITIONS,
 ];
 
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'internal error';
+}
+
 /**
  * MCP Server implementation
  */
@@ -654,8 +659,8 @@ class KamiyoMCPServer {
             }
           }
         }
-      } catch (error: any) {
-        console.error(`Warning: Failed to load keypair: ${error.message}. Solana tools will be disabled.`);
+      } catch (error: unknown) {
+        console.error(`Warning: Failed to load keypair: ${safeErrorMessage(error)}. Solana tools will be disabled.`);
       }
     }
 
@@ -667,8 +672,8 @@ class KamiyoMCPServer {
     if (programIdStr && keypair && this.solanaClient) {
       try {
         this.programId = new PublicKey(programIdStr);
-      } catch (error: any) {
-        console.error(`Warning: Invalid KAMIYO_PROGRAM_ID: ${error.message}. Solana tools will be disabled.`);
+      } catch (error: unknown) {
+        console.error(`Warning: Invalid KAMIYO_PROGRAM_ID: ${safeErrorMessage(error)}. Solana tools will be disabled.`);
         this.programId = undefined;
       }
 
@@ -684,11 +689,17 @@ class KamiyoMCPServer {
     // Initialize x402 config with real wallet for signing
     // Initialize x402 config if we have keypair and solana client
     if (keypair && this.solanaClient) {
+      const parsedMaxPriceUsd = Number(process.env.X402_MAX_PRICE_USD ?? '0.10');
+      const maxPriceUsd =
+        Number.isFinite(parsedMaxPriceUsd) && parsedMaxPriceUsd > 0
+          ? parsedMaxPriceUsd
+          : 0.10;
+
       this.x402Config = tools.createX402Config(
         keypair,
         this.solanaClient.connection,
         {
-          maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
+          maxPriceUsd,
           preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
           facilitatorPolicy: process.env.X402_FACILITATOR_POLICY as tools.X402Config['facilitatorPolicy'],
         }
@@ -1040,7 +1051,7 @@ class KamiyoMCPServer {
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Return error as MCP response
         return {
           content: [
@@ -1048,7 +1059,7 @@ class KamiyoMCPServer {
               type: 'text',
               text: JSON.stringify({
                 success: false,
-                error: error.message || 'Tool execution failed',
+                error: safeErrorMessage(error),
               }),
             },
           ],
@@ -1074,8 +1085,8 @@ async function main() {
   try {
     const server = new KamiyoMCPServer();
     await server.start();
-  } catch (error) {
-    console.error('Failed to start MCP server:', error);
+  } catch (error: unknown) {
+    console.error('Failed to start MCP server:', safeErrorMessage(error));
     process.exit(1);
   }
 }

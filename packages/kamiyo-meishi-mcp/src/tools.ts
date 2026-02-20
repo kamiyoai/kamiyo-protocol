@@ -7,8 +7,6 @@ import {
   LiabilityManager,
   generateComplianceReport,
   generateKamonFromPassport,
-  classifyCompliance,
-  fromOnChainScore,
   type MeishiConfig,
 } from '@kamiyo/meishi';
 
@@ -128,6 +126,11 @@ function isValidPubkey(value: unknown): value is string {
   }
 }
 
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'internal error';
+}
+
 export async function handleTool(
   name: string,
   args: Record<string, unknown>,
@@ -216,8 +219,8 @@ async function verifyMeishi(
         disputesLost: passport.disputesLost,
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 
@@ -257,8 +260,8 @@ async function getMeishi(
         trustTier: ctx.passports.getTrustTier(passport),
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 
@@ -295,8 +298,8 @@ async function checkCompliance(
         recommendations: report.recommendations,
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 
@@ -342,8 +345,8 @@ async function checkMandate(
     }
 
     return { success: true, valid, checks };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 
@@ -380,8 +383,8 @@ async function getLiability(
         balanced: ctx.liability.isBalanced(allocation),
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 
@@ -413,8 +416,8 @@ async function getKamon(
         suspended: passport.suspended,
       },
     };
-  } catch (err: any) {
-    return { success: false, error: err.message };
+  } catch (err: unknown) {
+    return { success: false, error: safeErrorMessage(err) };
   }
 }
 

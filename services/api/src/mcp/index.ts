@@ -134,6 +134,7 @@ let cleanupTimer: NodeJS.Timeout | null = null;
 export function startMcpCleanup(): void {
   if (cleanupTimer) return;
   cleanupTimer = setInterval(cleanupStaleSessions, CLEANUP_INTERVAL_MS);
+  cleanupTimer.unref?.();
   logger.info('MCP session cleanup started');
 }
 
@@ -180,7 +181,7 @@ function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: strin
       const authInfo = await provider.verifyAccessToken(authHeader.slice(7));
       req.mcpAuth = authInfo;
       next();
-    } catch (err: any) {
+    } catch {
       res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}", error="invalid_token"`);
       res.status(401).json({ error: 'invalid token' });
     }
@@ -226,6 +227,13 @@ export function createMCPRoutes(): Router {
     json({ limit: '1mb' }),
     mcpBearerAuth(provider, resourceMetadataUrl),
     async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response) => {
+      if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
+        res.setHeader('Allow', 'GET, POST, DELETE');
+        mcpRequestsTotal.inc({ method: req.method, status: '405' });
+        res.status(405).json({ error: 'method not allowed' });
+        return;
+      }
+
       const mcpAuth = req.mcpAuth;
       if (!mcpAuth) {
         res.status(401).json({ error: 'not authenticated' });
@@ -266,6 +274,12 @@ export function createMCPRoutes(): Router {
         }
 
         if (!session && req.method === 'POST') {
+          if (sessionId) {
+            mcpRequestsTotal.inc({ method: 'POST', status: '404' });
+            res.status(404).json({ error: 'session not found' });
+            return;
+          }
+
           // Check session limit
           if (countClientSessions(mcpAuth.clientId) >= MAX_SESSIONS_PER_CLIENT) {
             mcpRequestsTotal.inc({ method: 'POST', status: '429' });
@@ -282,6 +296,10 @@ export function createMCPRoutes(): Router {
 
           const newSessionId = transport.sessionId;
           if (newSessionId) {
+            const wallet =
+              mcpAuth.extra && typeof mcpAuth.extra.wallet === 'string'
+                ? mcpAuth.extra.wallet
+                : null;
             const now = Date.now();
             session = {
               transport,
@@ -292,11 +310,16 @@ export function createMCPRoutes(): Router {
             };
             sessions.set(newSessionId, session);
 
-            createMcpSession({
-              session_id: newSessionId,
-              client_id: mcpAuth.clientId,
-              user_wallet: (mcpAuth.extra?.wallet as string) || null,
-            });
+            try {
+              createMcpSession({
+                session_id: newSessionId,
+                client_id: mcpAuth.clientId,
+                user_wallet: wallet,
+              });
+            } catch (err) {
+              await closeSession(newSessionId, session, 'db_insert_failed');
+              throw err;
+            }
 
             mcpSessionsActive.set(sessions.size);
 
@@ -338,7 +361,7 @@ export function createMCPRoutes(): Router {
         const latencySeconds = (Date.now() - requestStart) / 1000;
         mcpRequestsTotal.inc({ method: req.method, status: String(res.statusCode) });
         mcpRequestLatency.observe({ method: req.method }, latencySeconds);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('MCP request error', { error: err instanceof Error ? err.message : String(err), clientId: mcpAuth.clientId });
         mcpRequestsTotal.inc({ method: req.method, status: '500' });
         if (!res.headersSent) {
@@ -347,6 +370,15 @@ export function createMCPRoutes(): Router {
       }
     }
   );
+
+  router.use('/mcp', (err: unknown, req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof SyntaxError) {
+      mcpRequestsTotal.inc({ method: req.method, status: '400' });
+      res.status(400).json({ error: 'invalid JSON body' });
+      return;
+    }
+    next(err);
+  });
 
   return router;
 }
