@@ -81,7 +81,7 @@
     "eventsource": "^4.1.0",
     "fastestsmallesttextencoderdecoder": "^1.0.22",
     "mocha": "^11.7.5",
-    "prettier": "^3.2.5",
+    "prettier": "^3.8.1",
     "snarkjs": "^0.7.6",
     "ts-mocha": "^11.1.0",
     "ts-node": "^10.9.2",
