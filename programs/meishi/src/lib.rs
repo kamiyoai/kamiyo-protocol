@@ -109,7 +109,7 @@ fn compute_kamon_hash(agent_identity: &Pubkey, issuer: &Pubkey, created_at: i64)
     data[..32].copy_from_slice(agent_identity.as_ref());
     data[32..64].copy_from_slice(issuer.as_ref());
     data[64..72].copy_from_slice(&created_at.to_le_bytes());
-    anchor_lang::solana_program::hash::hash(&data).to_bytes()
+    solana_program::hash::hash(&data).to_bytes()
 }
 
 fn validate_liability_bps(consumer: u16, developer: u16, merchant: u16, platform: u16) -> bool {
@@ -259,7 +259,7 @@ fn compute_mandate_message_hash(
         valid_until.to_le_bytes().as_ref(),
     ]
     .concat();
-    anchor_lang::solana_program::hash::hash(&mandate_data).to_bytes()
+    solana_program::hash::hash(&mandate_data).to_bytes()
 }
 
 fn read_u16(data: &[u8], offset: usize) -> Option<u16> {
@@ -274,7 +274,7 @@ fn verify_ed25519_mandate_signature(
     message_hash: &[u8; 32],
     principal_signature: &[u8; 64],
 ) -> Result<()> {
-    use anchor_lang::solana_program::ed25519_program;
+    use solana_program::ed25519_program;
     use anchor_lang::solana_program::sysvar::instructions::{
         load_current_index_checked, load_instruction_at_checked,
     };

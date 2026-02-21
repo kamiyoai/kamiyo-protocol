@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hash;
 use anchor_spl::token_interface::{
     self, Mint as MintInterface, TokenAccount as TokenAccountInterface, TokenInterface,
 };
+use solana_program::hash::hash;
 
 declare_id!("FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u");
 

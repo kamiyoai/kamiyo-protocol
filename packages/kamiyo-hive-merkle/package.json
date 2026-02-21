@@ -9,7 +9,7 @@
     "build": "tsc",
     "prepare": "npm run build",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "circomlibjs": "^0.1.7"

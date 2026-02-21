@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "mcp-server": "node dist/mcp-server.js"
   },

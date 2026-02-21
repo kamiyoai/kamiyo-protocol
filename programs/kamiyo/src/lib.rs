@@ -71,15 +71,13 @@
 //! - **Permissionless Claim**: Anyone can trigger `claim_expired_escrow` after grace period
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{
-    ed25519_program,
-    sysvar::{
-        instructions::{load_instruction_at_checked, ID as INSTRUCTIONS_ID},
-        rent::Rent,
-    },
+use anchor_lang::solana_program::sysvar::{
+    instructions::{load_instruction_at_checked, ID as INSTRUCTIONS_ID},
+    rent::Rent,
 };
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer as SplTransfer};
+use solana_program::ed25519_program;
 
 pub mod zk;
 
@@ -94,8 +92,8 @@ declare_id!("3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr");
 
 // Known SPL token mints
 pub mod token_mints {
-    use anchor_lang::solana_program::pubkey;
-    use anchor_lang::solana_program::pubkey::Pubkey;
+    use solana_program::pubkey;
+    use solana_program::pubkey::Pubkey;
 
     pub const USDC_MAINNET: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
     pub const USDT_MAINNET: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
@@ -659,7 +657,7 @@ pub fn verify_ed25519_signature(
 /// Compute commitment hash for commit-reveal voting
 /// Hash = SHA256(transaction_id || score || salt)
 fn compute_commitment_hash(transaction_id: &str, score: u8, salt: &[u8; 32]) -> [u8; 32] {
-    use anchor_lang::solana_program::hash::hash;
+    use solana_program::hash::hash;
 
     let mut data = Vec::with_capacity(transaction_id.len() + 1 + 32);
     data.extend_from_slice(transaction_id.as_bytes());
@@ -5314,95 +5312,6 @@ pub struct ResolveLaunchDispute<'info> {
 
     pub signer_one: Signer<'info>,
     pub signer_two: Signer<'info>,
-}
-
-// ============================================================================
-// Trusted Trader Account Validation (Elfa × Hyperliquid)
-// ============================================================================
-
-#[derive(Accounts)]
-#[instruction(elfa_session_id: String)]
-pub struct CreateTraderSession<'info> {
-    #[account(
-        seeds = [b"protocol_config"],
-        bump = protocol_config.bump
-    )]
-    pub protocol_config: Account<'info, ProtocolConfig>,
-
-    #[account(
-        seeds = [b"agent", owner.key().as_ref()],
-        bump = agent_identity.bump,
-        constraint = agent_identity.owner == owner.key() @ KamiyoError::Unauthorized,
-        constraint = agent_identity.is_active @ KamiyoError::AgentNotActive
-    )]
-    pub agent_identity: Account<'info, AgentIdentity>,
-
-    #[account(
-        init,
-        payer = owner,
-        space = 8 + TraderSession::INIT_SPACE,
-        seeds = [b"trader_session", agent_identity.key().as_ref(), elfa_session_id.as_bytes()],
-        bump
-    )]
-    pub trader_session: Account<'info, TraderSession>,
-
-    #[account(mut)]
-    pub owner: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(trade_id: String)]
-pub struct CreateTradeEscrow<'info> {
-    #[account(
-        seeds = [b"protocol_config"],
-        bump = protocol_config.bump
-    )]
-    pub protocol_config: Account<'info, ProtocolConfig>,
-
-    #[account(
-        mut,
-        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
-        bump = trader_session.bump,
-        constraint = trader_session.owner == trader.key() @ KamiyoError::Unauthorized
-    )]
-    pub trader_session: Account<'info, TraderSession>,
-
-    #[account(
-        init,
-        payer = trader,
-        space = 8 + TradeEscrow::INIT_SPACE,
-        seeds = [b"trade_escrow", trader_session.key().as_ref(), trade_id.as_bytes()],
-        bump
-    )]
-    pub trade_escrow: Account<'info, TradeEscrow>,
-
-    #[account(mut)]
-    pub trader: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct CloseTraderSession<'info> {
-    #[account(
-        mut,
-        seeds = [b"trader_session", trader_session.agent.as_ref(), trader_session.elfa_session_id.as_bytes()],
-        bump = trader_session.bump,
-        constraint = trader_session.owner == owner.key() @ KamiyoError::Unauthorized
-    )]
-    pub trader_session: Account<'info, TraderSession>,
-
-    #[account(
-        mut,
-        seeds = [b"agent", owner.key().as_ref()],
-        bump = agent_identity.bump
-    )]
-    pub agent_identity: Account<'info, AgentIdentity>,
-
-    #[account(mut)]
-    pub owner: Signer<'info>,
 }
 
 // ============================================================================

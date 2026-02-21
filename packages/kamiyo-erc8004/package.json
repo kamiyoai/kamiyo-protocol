@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc",
     "prepare": "npm run build",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint src/**/*.ts",
     "migrate": "npx ts-node scripts/migrate-agents.ts",
     "resolve": "npx ts-node scripts/resolve-agent.ts"

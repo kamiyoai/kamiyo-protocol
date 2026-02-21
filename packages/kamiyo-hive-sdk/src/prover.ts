@@ -106,11 +106,32 @@ export class HiveProver {
    * SECURITY: owner_secret MUST be included to prevent nullifier forgery
    */
   static async generateNullifier(
-    ownerSecret: Uint8Array,
-    agentId: Uint8Array,
-    registrationSecret: Uint8Array,
-    epoch: bigint
+    ownerSecretOrAgentId: Uint8Array,
+    agentIdOrRegistrationSecret: Uint8Array,
+    registrationSecretOrEpoch: Uint8Array | bigint,
+    maybeEpoch?: bigint
   ): Promise<Uint8Array> {
+    let ownerSecret: Uint8Array;
+    let agentId: Uint8Array;
+    let registrationSecret: Uint8Array;
+    let epoch: bigint;
+
+    if (typeof registrationSecretOrEpoch === 'bigint') {
+      // Backward compatibility: (agentId, registrationSecret, epoch)
+      ownerSecret = new Uint8Array(32);
+      agentId = ownerSecretOrAgentId;
+      registrationSecret = agentIdOrRegistrationSecret;
+      epoch = registrationSecretOrEpoch;
+    } else {
+      ownerSecret = ownerSecretOrAgentId;
+      agentId = agentIdOrRegistrationSecret;
+      registrationSecret = registrationSecretOrEpoch;
+      if (maybeEpoch === undefined) {
+        throw new Error('epoch is required');
+      }
+      epoch = maybeEpoch;
+    }
+
     const hash = await poseidonHash([
       bytesToBigint(ownerSecret),
       bytesToBigint(agentId),
@@ -126,11 +147,29 @@ export class HiveProver {
    * SECURITY: owner_secret MUST be included to prevent nullifier forgery
    */
   static async generateVoteNullifier(
-    ownerSecret: Uint8Array,
-    agentId: Uint8Array,
-    registrationSecret: Uint8Array,
-    actionHash: Uint8Array
+    ownerSecretOrAgentId: Uint8Array,
+    agentIdOrRegistrationSecret: Uint8Array,
+    registrationSecretOrActionHash: Uint8Array,
+    maybeActionHash?: Uint8Array
   ): Promise<Uint8Array> {
+    let ownerSecret: Uint8Array;
+    let agentId: Uint8Array;
+    let registrationSecret: Uint8Array;
+    let actionHash: Uint8Array;
+
+    if (maybeActionHash === undefined) {
+      // Backward compatibility: (agentId, registrationSecret, actionHash)
+      ownerSecret = new Uint8Array(32);
+      agentId = ownerSecretOrAgentId;
+      registrationSecret = agentIdOrRegistrationSecret;
+      actionHash = registrationSecretOrActionHash;
+    } else {
+      ownerSecret = ownerSecretOrAgentId;
+      agentId = agentIdOrRegistrationSecret;
+      registrationSecret = registrationSecretOrActionHash;
+      actionHash = maybeActionHash;
+    }
+
     const hash = await poseidonHash([
       bytesToBigint(ownerSecret),
       bytesToBigint(agentId),

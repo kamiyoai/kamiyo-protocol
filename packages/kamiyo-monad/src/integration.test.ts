@@ -5,6 +5,7 @@
 
 import { ethers } from 'ethers';
 import { expect } from 'chai';
+import { describe, it } from 'vitest';
 import { createMonadProvider } from './provider';
 import { createReputationBridge, SolanaReputationSource } from './reputation';
 import { createPDAProxy } from './pda-proxy';
