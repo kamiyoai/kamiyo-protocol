@@ -51,6 +51,18 @@ next_cycles=$((cycles + 1))
 
 prev_success_json="$(jq -c '.lastSuccessAt // null' "$STATE_FILE" 2>/dev/null || echo null)"
 
+feed_sync_ok=1
+feed_sync_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-sync-feed-config.py" ]; then
+  if "$HOME/bin/kyoshin-sync-feed-config.py" >/tmp/kyoshin-feed-sync.json 2>/tmp/kyoshin-feed-sync.err; then
+    feed_sync_summary="$(cat /tmp/kyoshin-feed-sync.json)"
+  else
+    feed_sync_ok=0
+    feed_sync_err="$(tr -d '\n' </tmp/kyoshin-feed-sync.err | sed 's/"/\\"/g')"
+    feed_sync_summary="{\"ok\":false,\"error\":\"$feed_sync_err\"}"
+  fi
+fi
+
 gateway_ok=0
 for _ in 1 2 3; do
   if openclaw gateway health --json >/tmp/kyoshin-gateway-health.json 2>/tmp/kyoshin-gateway-health.err; then
@@ -120,7 +132,7 @@ fi
 END_EPOCH="$(date +%s)"
 DURATION_MS=$(((END_EPOCH - START_EPOCH) * 1000))
 
-if [ "$agent_ok" -eq 1 ] && [ "$marketplace_ok" -eq 1 ] && [ "$planner_ok" -eq 1 ]; then
+if [ "$agent_ok" -eq 1 ] && [ "$marketplace_ok" -eq 1 ] && [ "$planner_ok" -eq 1 ] && [ "$feed_sync_ok" -eq 1 ]; then
   cat > "$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null}
 EOF
@@ -137,13 +149,16 @@ else
   if [ "$planner_ok" -ne 1 ]; then
     combined_error+="planner_failed;"
   fi
+  if [ "$feed_sync_ok" -ne 1 ]; then
+    combined_error+="feed_sync_failed;"
+  fi
   cat > "$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error"}
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"gatewayOk":%d,"marketplace":%s,"planner":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$gateway_ok" "$marketplace_summary" "$planner_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"marketplace":%s,"planner":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$marketplace_summary" "$planner_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >> "$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$LOG_FILE"

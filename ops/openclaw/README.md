@@ -6,6 +6,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 
 - `kyoshin-marketplace-intake.py`: marketplace feed polling and normalization.
 - `kyoshin-swarm-planner.py`: opportunity-to-subagent assignment planner.
+- `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
 - `kyoshin-autonomy-loop.service`: systemd oneshot service for a loop tick.
 - `kyoshin-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=5min`).
@@ -15,6 +16,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 ```bash
 sudo install -m 700 -o openclaw -g openclaw kyoshin-marketplace-intake.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.timer /etc/systemd/system/
@@ -40,6 +42,17 @@ To force non-empty intake/planning without external marketplace credentials:
 ```
 
 This installs deterministic seed opportunities and enables `file://` feeds so the loop produces non-zero assignments immediately.
+
+## Live feed cutover
+
+Set these env vars in `~/.openclaw/.env`:
+
+- `KYO_AGENT_AI_FEED_URL`
+- `KYO_RELEVANCE_FEED_URL`
+- `KYO_KORE_FEED_URL`
+- optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
+
+Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
 
 ## Notes
 
