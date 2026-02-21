@@ -100,6 +100,43 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 Restart Claude Desktop after editing.
 
+## Event Horizon Demo
+
+Run a Mars-themed truth-court dispute demo and print a tweet-sized verdict card:
+
+```bash
+npm run demo:event-horizon
+```
+
+Force local-only or Grok-enabled modes:
+
+```bash
+npm run demo:event-horizon:mock
+npm run demo:event-horizon:live
+```
+
+Optional environment overrides:
+
+```bash
+EVENT_HORIZON_MISSION_TAG=mars_ops_comms_relay
+EVENT_HORIZON_QUALITY_SCORE=29
+EVENT_HORIZON_REQUESTED_REFUND=80
+XAI_API_KEY=... # include Grok in committee when set
+```
+
+CLI flags:
+
+```bash
+npm run demo:event-horizon -- --scenario launch-anomaly --mock
+npm run demo:event-horizon -- --scenario habitat-power --live --export-dir output/event-horizon
+npm run demo:event-horizon -- --quality 31 --refund 84 --no-export
+```
+
+Each exported run writes two files (unless `--no-export`):
+
+- `<timestamp>-<scenario>.json` full verdict envelope for logs/integrations
+- `<timestamp>-<scenario>.txt` tweet-sized verdict card
+
 ## Tools
 
 ### create_escrow

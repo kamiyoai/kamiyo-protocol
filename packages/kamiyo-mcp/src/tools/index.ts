@@ -3,6 +3,7 @@
 export * from './escrow.js';
 export * from './quality.js';
 export * from './dispute.js';
+export * from './truth-court.js';
 export * from './reputation.js';
 export * from './unified.js';
 export * from './x402.js';
@@ -97,6 +98,41 @@ export const TOOL_DEFINITIONS: Tool[] = [
         evidence: { type: 'object', description: 'Supporting evidence' },
       },
       required: ['transactionId', 'qualityScore', 'refundPercentage', 'evidence'],
+    },
+  },
+  {
+    name: 'file_dispute_truth_court',
+    description:
+      'Run multi-oracle dispute review (including Grok when configured), emit replayable hashes, and optionally mark dispute on-chain.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        transactionId: { type: 'string', description: 'Escrow transaction ID' },
+        qualityScore: { type: 'number', description: 'Score (0-100)' },
+        refundPercentage: { type: 'number', description: 'Requested refund % (0-100)' },
+        claimant: { type: 'string', description: 'Claimant wallet or agent id' },
+        respondent: { type: 'string', description: 'Respondent wallet or agent id' },
+        missionTag: { type: 'string', description: 'Scenario tag (e.g. mars_ops_power_grid)' },
+        evidence: { type: 'object', description: 'Evidence payload for the case' },
+        featureVector: { type: 'object', description: 'Fixed features for deterministic replay' },
+        context: { type: 'string', description: 'Optional dispute context for analysis' },
+        markOnChain: {
+          type: 'boolean',
+          description: 'Submit dispute status on-chain after committee verdict (default true)',
+        },
+        minValidResponses: {
+          type: 'number',
+          description: 'Minimum valid oracle responses required for quorum (default 2)',
+        },
+      },
+      required: [
+        'transactionId',
+        'qualityScore',
+        'refundPercentage',
+        'claimant',
+        'evidence',
+        'featureVector',
+      ],
     },
   },
   {

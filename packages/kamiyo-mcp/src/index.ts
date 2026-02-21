@@ -159,6 +159,68 @@ const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: 'file_dispute_truth_court',
+    description:
+      'Run multi-oracle dispute review (including Grok when configured), emit replayable hashes, and optionally mark dispute on-chain.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        transactionId: {
+          type: 'string',
+          description: 'Transaction ID of the escrow to dispute',
+        },
+        qualityScore: {
+          type: 'number',
+          description: 'Quality score assessment (0-100)',
+        },
+        refundPercentage: {
+          type: 'number',
+          description: 'Requested refund percentage (0-100)',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Claimant wallet or agent identifier',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Respondent wallet or agent identifier',
+        },
+        missionTag: {
+          type: 'string',
+          description: 'Scenario tag (for example mars_ops_power_grid)',
+        },
+        evidence: {
+          type: 'object',
+          description: 'Evidence supporting the dispute',
+        },
+        featureVector: {
+          type: 'object',
+          description: 'Deterministic feature vector for replay checks',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional contextual summary for the case',
+        },
+        markOnChain: {
+          type: 'boolean',
+          description: 'If true, mark dispute on-chain after committee verdict (default true)',
+        },
+        minValidResponses: {
+          type: 'number',
+          description: 'Minimum valid oracle responses needed for quorum (default 2)',
+        },
+      },
+      required: [
+        'transactionId',
+        'qualityScore',
+        'refundPercentage',
+        'claimant',
+        'evidence',
+        'featureVector',
+      ],
+    },
+  },
+  {
     name: 'get_api_reputation',
     description: 'Get reputation score and transaction history for an API provider.',
     inputSchema: {
@@ -779,6 +841,19 @@ class KamiyoMCPServer {
             }
             result = await tools.fileDispute(args as any, this.program);
             break;
+
+          case 'file_dispute_truth_court': {
+            const markOnChain = (args as any)?.markOnChain !== false;
+            if (markOnChain && !this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key). Set markOnChain=false for evaluation-only mode.' };
+              break;
+            }
+            result = await tools.fileDisputeWithTruthCourt(
+              args as any,
+              this.program
+            );
+            break;
+          }
 
           case 'get_api_reputation':
             if (!this.program) {
