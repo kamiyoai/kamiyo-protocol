@@ -7,7 +7,12 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-marketplace-intake.py`: marketplace feed polling and normalization.
 - `kyoshin-swarm-planner.py`: opportunity-to-subagent assignment planner.
 - `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
+- `kyoshin-context-guard.py`: brain-dump and mission-context completeness guard.
+- `kyoshin-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
+- `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
+- `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
+- `install-context-pack.sh`: scaffolds mission/profile/goals/tool-registry baseline files.
 - `kyoshin-autonomy-loop.service`: systemd oneshot service for a loop tick.
 - `kyoshin-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=30min`).
 
@@ -17,9 +22,15 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 sudo install -m 700 -o openclaw -g openclaw kyoshin-marketplace-intake.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.timer /etc/systemd/system/
+sudo -u openclaw -H bash -lc '~/bin/install-context-pack.sh'
 sudo systemctl daemon-reload
 sudo systemctl enable --now kyoshin-autonomy-loop.timer
 sudo systemctl start kyoshin-autonomy-loop.service
@@ -30,8 +41,17 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - Feed config: `~/.openclaw/workspace/runtime/marketplace-feeds.json`
 - Feed output: `~/.openclaw/workspace/runtime/feeds/opportunities.json`
 - Assignment output: `~/.openclaw/workspace/runtime/queue/assignments.json`
+- Tool health output: `~/.openclaw/workspace/runtime/tools/tool-health.json`
+- Governor output: `~/.openclaw/workspace/runtime/state/swarm-governor.json`
+- Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
+- Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
+- Context guard output: `~/.openclaw/workspace/runtime/state/context-guard.json`
+- Nightly mission state: `~/.openclaw/workspace/runtime/state/nightly-mission-state.json`
+- Execution receipts input: `~/.openclaw/workspace/runtime/receipts/execution-receipts.jsonl`
 - Loop state: `~/.openclaw/workspace/runtime/state/autonomy-loop-state.json`
 - Loop log: `~/.openclaw/workspace/runtime/logs/autonomy-loop.jsonl`
+
+Use `board.json` + `backlog.json` as the data contract for a Next.js Mission Control UI.
 
 ## Bootstrap non-empty swarm intake
 
@@ -63,6 +83,21 @@ Set these env vars in `~/.openclaw/.env`:
 - optional loop cost controls:
   - `KYO_AGENT_TIMEOUT_SECONDS=120` (default `120`)
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
+- autonomy guard controls:
+  - `KYO_REQUIRE_RUNTIME_GUARDS=true|false` (default `true`)
+  - `KYO_HEARTBEAT_MAX_ASSIGNMENTS=3`
+- nightly proactive controls:
+  - `KYO_ENABLE_PROACTIVE_NIGHTLY=true|false` (default `true`)
+  - `KYO_PROACTIVE_HOUR_UTC=2`
+  - `KYO_PROACTIVE_TIMEOUT_SECONDS=180`
+- work-or-die policy controls:
+  - `KYO_GOVERNOR_WINDOW_DAYS=7`
+  - `KYO_GOVERNOR_MIN_ATTEMPTS=3`
+  - `KYO_GOVERNOR_MIN_SUCCESS_RATE=0.45`
+  - `KYO_GOVERNOR_MIN_NET_SOL=0`
+  - `KYO_GOVERNOR_MAX_LOSS_STREAK=3`
+- tool-health controls:
+  - `KYO_TOOL_HEALTH_TIMEOUT_SECONDS=8`
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
 
@@ -76,6 +111,38 @@ export KYO_DIRECT_API_FEED_URL='https://api.github.com/search/issues?q=is%3Aissu
 
 This gives non-synthetic external opportunities right away. Replace it with your paid endpoint when available.
 
+## Living-AI baseline (required)
+
+These files are enforced by `kyoshin-context-guard.py`:
+
+- `MISSION_STATEMENT.md`
+- `USER_PROFILE.md`
+- `GOALS.md`
+- `AMBITIONS.md`
+- `TOOLS.md`
+- `WORKING-MEMORY.md`
+
+If these are empty/placeholder, the cycle is marked `degraded`.
+
+## ClawWork-style subagent policy
+
+`kyoshin-swarm-governor.py` applies `work / earn / or die` policy from execution receipts:
+
+- weak agents are auto-paused (`status=paused`) when success/profit/loss-streak thresholds fail.
+- strong agents get priority boosts.
+- one fallback agent is always kept active to avoid total stall.
+
+Write execution outcomes as JSON lines to:
+
+- `~/.openclaw/workspace/runtime/receipts/execution-receipts.jsonl`
+
+Expected fields per line:
+
+- `agentId` (string)
+- `status` (`completed|success|ok|paid|settled|failed`)
+- `profitSol` (number, can be negative)
+- `executedAt` (ISO timestamp)
+
 ## Notes
 
 - This loop proves unattended autonomy operation, but it will remain idle until feed URLs and execution credentials are configured.
@@ -83,4 +150,5 @@ This gives non-synthetic external opportunities right away. Replace it with your
 - Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
 - The loop uses a host-local file lock to prevent overlapping control-loop executions.
 - Provider-level model rejections (for example exhausted credits) are treated as degraded cycles, not successful ticks.
+- The loop now enforces: context completeness, tool-health critical checks, mission-control generation, and nightly proactive execution.
 - Keep gateway bind on loopback by default; use private-network access paths only.

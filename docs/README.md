@@ -12,6 +12,7 @@ Public documentation for KAMIYO Protocol.
 - `KYOSHIN_LIVING_AI_24_7_ACCELERATION_PLAN.md` — live failure analysis and immediate runtime hardening plan to move Kyoshin toward true 24/7 autonomy
 - `KYOSHIN_AI_PROOF_24H_RUNBOOK.md` — accelerated 24h autonomy qualification workflow and proof bundle publication rules
 - `KYOSHIN_OPENCLAW_DROPLET_EXECUTION_2026-02-20.md` — executed OpenClaw droplet provisioning, hardening status, and cutover blockers/commands
+- `KYOSHIN_OPENCLAW_LIVING_AI_UPGRADE_2026-02-21.md` — implemented living-AI runtime upgrades (context guard, mission control, proactive nightly run, and work-or-die governor)
 - `production-audit-kyoshin.md` — production-readiness assessment for Kyoshin swarm autonomy with prioritized gaps and action plan
 - `FUNDRY_LIVE_CONFIG_SNAPSHOT_2026-02-20.json` — machine-fetched Fundry config metadata snapshot used for launch-config selection
 - `KYOSHIN_SWARM_JOB_FEED_TEMPLATE.json` — starter opportunity feed format for autonomous subagent job intake

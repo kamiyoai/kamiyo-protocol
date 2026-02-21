@@ -154,9 +154,29 @@ This confirms the runtime can move from idle loop to active queue processing aut
   - intake/planner runtime artifacts now enforce `0600` files in `0700` runtime directories
   - lock contention emits explicit `status=skipped, reason=lock_busy` log entries
   - applied runtime cost defaults after rapid credit burn:
-    - `OPENCLAW_MODEL=claude-sonnet-4-20250514`
-    - `KYO_AGENT_TIMEOUT_SECONDS=120`
-    - `kyoshin-autonomy-loop.timer` cadence moved from `5min` to `30min`
+  - `OPENCLAW_MODEL=claude-sonnet-4-20250514`
+  - `KYO_AGENT_TIMEOUT_SECONDS=120`
+  - `kyoshin-autonomy-loop.timer` cadence moved from `5min` to `30min`
+
+### 9) Living-AI runtime upgrade (2026-02-21)
+
+Implemented in repo and ready for droplet deployment:
+
+- Added enforced context/brain-dump guard:
+  - `ops/openclaw/kyoshin-context-guard.py`
+- Added tool connectivity health checks:
+  - `ops/openclaw/kyoshin-tool-health.py`
+- Added ClawWork-style subagent policy governor (`work/earn/die`):
+  - `ops/openclaw/kyoshin-swarm-governor.py`
+- Added Mission Control board/backlog generator:
+  - `ops/openclaw/kyoshin-mission-control.py`
+- Added context bootstrap installer:
+  - `ops/openclaw/install-context-pack.sh`
+- Updated loop behavior in:
+  - `ops/openclaw/kyoshin-autonomy-loop.sh`
+  - now runs context/tool/governor/mission-control stages each cycle
+  - now executes one nightly proactive mission at configurable UTC hour
+  - now marks cycle `degraded` if required autonomy guards fail
 
 ## Remaining blockers for full revenue autonomy
 

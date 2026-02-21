@@ -1,0 +1,15 @@
+{
+  "opportunities": [
+    {
+      "id": "direct-api-bounty-001",
+      "title": "External Bounty Triage and Routing",
+      "summary": "Triage live bounty feed items, score feasibility, and route top three with execution checklist.",
+      "confidence": 0.84,
+      "roleHints": ["signal", "executor"],
+      "tags": ["direct_api", "bounty", "triage"],
+      "payoutUsd": 110,
+      "payoutSol": 0.3,
+      "createdAt": "2026-02-21T07:00:00Z"
+    }
+  ]
+}
