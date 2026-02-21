@@ -33,8 +33,9 @@ QUEUE_DIR="$RUNTIME_DIR/queue"
 FEEDS_DIR="$RUNTIME_DIR/feeds"
 TOOLS_DIR="$RUNTIME_DIR/tools"
 MISSION_CONTROL_DIR="$RUNTIME_DIR/mission-control"
-mkdir -p "$STATE_DIR" "$LOG_DIR" "$QUEUE_DIR" "$FEEDS_DIR" "$TOOLS_DIR" "$MISSION_CONTROL_DIR"
-chmod 700 "$RUNTIME_DIR" "$STATE_DIR" "$LOG_DIR" "$QUEUE_DIR" "$FEEDS_DIR" "$TOOLS_DIR" "$MISSION_CONTROL_DIR"
+LEARNINGS_DIR="$WORKSPACE_DIR/.learnings"
+mkdir -p "$STATE_DIR" "$LOG_DIR" "$QUEUE_DIR" "$FEEDS_DIR" "$TOOLS_DIR" "$MISSION_CONTROL_DIR" "$LEARNINGS_DIR"
+chmod 700 "$RUNTIME_DIR" "$STATE_DIR" "$LOG_DIR" "$QUEUE_DIR" "$FEEDS_DIR" "$TOOLS_DIR" "$MISSION_CONTROL_DIR" "$LEARNINGS_DIR"
 
 STATE_FILE="$STATE_DIR/autonomy-loop-state.json"
 NIGHTLY_STATE_FILE="$STATE_DIR/nightly-mission-state.json"
@@ -58,6 +59,7 @@ HEARTBEAT_MAX_ASSIGNMENTS="${KYO_HEARTBEAT_MAX_ASSIGNMENTS:-3}"
 REQUIRE_RUNTIME_GUARDS="${KYO_REQUIRE_RUNTIME_GUARDS:-true}"
 ENABLE_PROACTIVE_NIGHTLY="${KYO_ENABLE_PROACTIVE_NIGHTLY:-true}"
 PROACTIVE_HOUR_RAW="${KYO_PROACTIVE_HOUR_UTC:-2}"
+REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
 
 if ! [[ "$PROACTIVE_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$PROACTIVE_HOUR_RAW" -lt 0 ] || [ "$PROACTIVE_HOUR_RAW" -gt 23 ]; then
   PROACTIVE_HOUR_RAW=2
@@ -239,12 +241,13 @@ read -r -d '' HEARTBEAT_MSG <<'EOF' || true
 Autonomy heartbeat run.
 
 Execute one Kyoshin control-loop tick with the following rules:
-- Read MISSION_STATEMENT.md, USER_PROFILE.md, GOALS.md, AMBITIONS.md, WORKING-MEMORY.md and memory/TODAY.md.
+- Read soul.md, identity.md, heartbeat.md, MISSION_STATEMENT.md, USER_PROFILE.md, GOALS.md, AMBITIONS.md, WORKING-MEMORY.md, .learnings/LEARNINGS.md and memory/TODAY.md.
 - Read runtime/feeds/opportunities.json, runtime/queue/assignments.json and runtime/mission-control/board.json.
 - Process up to HEARTBEAT_MAX assignments that are safe, compliant, and auditable.
 - If credentials or external endpoints are missing, do not fake success. Record blockers and next concrete action.
 - Update WORKING-MEMORY.md with current state, blockers, and next cycle priorities.
 - Append one concise log line to memory/TODAY.md.
+- If any failure/degraded condition is detected, append mistake/correction/rule to .learnings/LEARNINGS.md.
 - If a required tool is missing, propose or scaffold the minimal tool needed in Mission Control backlog.
 - Keep responses concise and factual.
 - If no safe action exists, reply HEARTBEAT_OK with reason.
@@ -323,6 +326,8 @@ fi
 END_EPOCH="$(date +%s)"
 DURATION_MS=$(((END_EPOCH - START_EPOCH) * 1000))
 
+combined_error=""
+
 if [ "$agent_ok" -eq 1 ] \
   && [ "$proactive_ok" -eq 1 ] \
   && [ "$marketplace_ok" -eq 1 ] \
@@ -339,7 +344,6 @@ EOF
   status="ok"
 else
   status="degraded"
-  combined_error=""
   if [ "$agent_ok" -ne 1 ]; then
     combined_error+="agent:$agent_error;"
   fi
@@ -375,8 +379,33 @@ else
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"context":%s,"toolHealth":%s,"marketplace":%s,"governor":%s,"planner":%s,"missionControl":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+learning_ok=1
+learning_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-learnings.py" ]; then
+  if "$HOME/bin/kyoshin-learnings.py" --status "$status" --cycle "$next_cycles" --error "$combined_error" --at "$NOW_ISO" >"$TMP_DIR/learnings.json" 2>"$TMP_DIR/learnings.err"; then
+    learning_summary="$(as_json_line "$TMP_DIR/learnings.json")"
+  else
+    learning_ok=0
+    learning_err="$(tr -d '\n' <"$TMP_DIR/learnings.err" | sed 's/"/\\"/g')"
+    learning_summary="{\"ok\":false,\"error\":\"$learning_err\"}"
+  fi
+else
+  learning_summary='{"ok":false,"error":"missing_learnings_script"}'
+  if is_true "$REQUIRE_LEARNINGS"; then
+    learning_ok=0
+  fi
+fi
+
+if [ "$status" = "ok" ] && [ "$learning_ok" -ne 1 ]; then
+  status="degraded"
+  combined_error+="learnings_failed;"
+  cat >"$STATE_FILE" <<EOF
+{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date"}
+EOF
+fi
+
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"context":%s,"toolHealth":%s,"marketplace":%s,"governor":%s,"planner":%s,"missionControl":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$LOG_FILE"

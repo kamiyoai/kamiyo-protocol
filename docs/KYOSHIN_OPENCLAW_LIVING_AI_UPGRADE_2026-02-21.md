@@ -9,6 +9,7 @@ This upgrade applies five hard requirements for a real 24/7 agent runtime:
 3. mission control must exist as a live execution hub.
 4. one mission statement must anchor every cycle.
 5. proactive behavior must run on schedule without manual prompting.
+6. every mistake must become a durable rule in `.learnings/LEARNINGS.md`.
 
 It also adds a ClawWork-style subagent policy: `work / earn / or die`.
 
@@ -44,6 +45,11 @@ Runtime scripts added in `ops/openclaw`:
   - writes to `runtime/mission-control/board.json` and `runtime/mission-control/backlog.json`
 - `install-context-pack.sh`
   - scaffolds the required mission/profile/goals/memory/tool-registry baseline files
+  - now also scaffolds `soul.md`, `identity.md`, `heartbeat.md`, and `.learnings/LEARNINGS.md`
+- `kyoshin-learnings.py`
+  - reads cycle status + loop error signatures
+  - appends normalized mistake/correction/rule entries into `.learnings/LEARNINGS.md`
+  - deduplicates repeated failures using signature state in `runtime/state/learnings-state.json`
 
 Runtime loop integration updated in:
 
@@ -61,6 +67,7 @@ New behavior in every tick:
 8. mission-control board generation
 9. heartbeat agent decision turn
 10. nightly proactive run at `KYO_PROACTIVE_HOUR_UTC` (default `02:00 UTC`, once/day)
+11. learnings flywheel run (`kyoshin-learnings.py`) to convert degraded ticks into durable rules
 
 Cycle status is `degraded` if any required guard fails.
 
@@ -81,6 +88,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo -u openclaw -H bash -lc '~/bin/install-context-pack.sh'
@@ -95,7 +103,8 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - mission-control board and backlog update every cycle.
 - nightly proactive run appears exactly once per UTC day.
 - swarm governor updates registry statuses/priorities from receipt evidence.
-- autonomy log includes `context`, `toolHealth`, `governor`, `missionControl`, and `proactive` objects.
+- autonomy log includes `context`, `toolHealth`, `governor`, `missionControl`, `learning`, and `proactive` objects.
+- `.learnings/LEARNINGS.md` grows only with unique failure signatures and includes actionable prevention rules.
 
 ## Hard truth
 

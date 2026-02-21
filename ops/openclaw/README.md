@@ -11,6 +11,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
 - `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
 - `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
+- `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
 - `install-context-pack.sh`: scaffolds mission/profile/goals/tool-registry baseline files.
 - `kyoshin-autonomy-loop.service`: systemd oneshot service for a loop tick.
@@ -26,6 +27,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
@@ -45,6 +47,8 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - Governor output: `~/.openclaw/workspace/runtime/state/swarm-governor.json`
 - Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
 - Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
+- Learnings file: `~/.openclaw/workspace/.learnings/LEARNINGS.md`
+- Learnings state: `~/.openclaw/workspace/runtime/state/learnings-state.json`
 - Context guard output: `~/.openclaw/workspace/runtime/state/context-guard.json`
 - Nightly mission state: `~/.openclaw/workspace/runtime/state/nightly-mission-state.json`
 - Execution receipts input: `~/.openclaw/workspace/runtime/receipts/execution-receipts.jsonl`
@@ -90,6 +94,10 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_ENABLE_PROACTIVE_NIGHTLY=true|false` (default `true`)
   - `KYO_PROACTIVE_HOUR_UTC=2`
   - `KYO_PROACTIVE_TIMEOUT_SECONDS=180`
+- learnings flywheel controls:
+  - `KYO_REQUIRE_LEARNINGS=true|false` (default `true`)
+  - `KYO_LEARNINGS_MAX_ENTRIES=661`
+  - `KYO_LEARNINGS_RECENT_SIGNATURES=200`
 - work-or-die policy controls:
   - `KYO_GOVERNOR_WINDOW_DAYS=7`
   - `KYO_GOVERNOR_MIN_ATTEMPTS=3`
@@ -115,12 +123,16 @@ This gives non-synthetic external opportunities right away. Replace it with your
 
 These files are enforced by `kyoshin-context-guard.py`:
 
+- `soul.md`
+- `identity.md`
+- `heartbeat.md`
 - `MISSION_STATEMENT.md`
 - `USER_PROFILE.md`
 - `GOALS.md`
 - `AMBITIONS.md`
 - `TOOLS.md`
 - `WORKING-MEMORY.md`
+- `.learnings/LEARNINGS.md`
 
 If these are empty/placeholder, the cycle is marked `degraded`.
 
@@ -150,5 +162,5 @@ Expected fields per line:
 - Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
 - The loop uses a host-local file lock to prevent overlapping control-loop executions.
 - Provider-level model rejections (for example exhausted credits) are treated as degraded cycles, not successful ticks.
-- The loop now enforces: context completeness, tool-health critical checks, mission-control generation, and nightly proactive execution.
+- The loop now enforces: context completeness, tool-health critical checks, mission-control generation, nightly proactive execution, and learnings capture on degraded cycles.
 - Keep gateway bind on loopback by default; use private-network access paths only.
