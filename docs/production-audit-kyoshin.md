@@ -1,87 +1,84 @@
-# Production Audit: Kyoshin Swarm Autonomy
+# Production Audit: Kyoshin Runtime (OpenClaw Swarm)
 
 ## Executive Summary
 
-The Kyoshin swarm runtime now has a materially stronger production posture: channel-gated assignments, lead conversion, margin circuit breaking, lane-level revenue accounting, SLO reporting, and alerting are implemented and compiling. The main blocker is not missing code paths; it is missing elapsed-time evidence for the 99% autonomy claim under live operation.
+Kyoshin now runs unattended with real external intake (`direct_api`) and deterministic assignment output, but it is still not release-ready for the full "autonomous revenue engine" claim. The hard blockers are paid settlement rails and long-window autonomy proof, not basic runtime wiring. This pass fixed concrete runtime safety defects (lockless loop execution, shared `/tmp` artifacts, weak feed URL policy, oversized payload risk, and weak file permissions) and tightened operational behavior without changing the runtime architecture.
 
 ## Critical Issues (P0 - Block Release)
 
-- [ ] 30-day autonomy proof is not yet complete | Impact: cannot credibly claim `>=99%` non-intervention in production | Current evidence (2026-02-20): `1.57` elapsed days, autonomy `0.8182`, route success `0.8333` | Fix: run uninterrupted 30-day benchmark with SLO receipts and post-run verification report.
+- [ ] Paid execution and settlement rails are not live | Impact: no defensible "earns fees autonomously" claim in production | Fix: wire live authenticated endpoints for `agent_ai` / `relevance` / `kore` / `x402`, then validate receipt-backed payout flow to treasury/staking.
+- [ ] Long-window autonomy proof missing | Impact: cannot credibly claim `>=99%` autonomy | Fix: run continuous 24h and then 30-day proof windows with published uptime/error/MTTR artifacts.
 
 ## High Priority (P1 - Fix Before Launch)
 
-- [x] Opportunity assignment did not account for per-source realized quality | Impact: weak channels could consume mission budget | Fix: source-feedback weighting added to assignment scoring.
-- [x] Negative-margin failures had no automatic execution pause | Impact: repeated loss loops possible | Fix: per-agent/per-source margin circuit breaker with cooldown and receipts.
-- [x] Revenue visibility lacked lane-level accounting | Impact: no deterministic attribution for job vs trading returns | Fix: `swarm_revenue_events` ledger + periodic lane reports.
-- [x] Discovery leads had no autonomous conversion path | Impact: marketplace funnel could stall before executable work | Fix: lead converter added with optional simulation mode.
-- [x] New autonomy modules lacked dedicated regression tests | Impact: higher chance of silent regressions under refactor | Fix: tests added for conversion/scoring, circuit state transitions, rollback policy, and SLO math.
+- [x] Loop used shared `/tmp` files across runs | Impact: race conditions, stale reads, and potential symlink/file-clobber risk | Fix: switched to per-run temp directory with trap cleanup.
+- [x] No single-run guard in control loop | Impact: overlapping executions can corrupt state/queue semantics | Fix: added host-local non-blocking `flock` lock with explicit `skipped(lock_busy)` event.
+- [x] Gateway health did not affect loop status | Impact: cycle could be marked healthy with failed gateway probe | Fix: gateway health now participates in degraded-state gating and error payload.
+- [x] Claude billing/provider rejection could be logged as successful cycle | Impact: false-positive autonomy health while model execution is unavailable | Fix: explicit failure-pattern detection now marks the cycle degraded when provider rejects requests.
+- [x] Feed intake accepted insecure/unsupported schemes by default | Impact: SSRF-like or misconfigured source risk | Fix: strict scheme policy (`https`/`file` default, `http` only via explicit opt-in env).
 
 ## Medium Priority (P2 - Fix Soon After Launch)
 
-- [x] Add signed/authenticated webhook delivery for SLO alerts | Impact: alert endpoint spoofing risk if deployed on open network | Fix: HMAC signature + timestamp headers added for webhook calls.
-- [x] Add per-source schema validation for converted leads before execution | Impact: malformed partner payloads can reduce conversion quality | Fix: source-specific lead contract validation now gates conversion.
-- [x] Add automated rollback policy on sustained negative weekly net SOL | Impact: weak strategies may continue too long | Fix: weekly evaluator now auto-disables weak source groups for cooldown windows.
+- [x] Large external payloads could bloat memory and runtime artifacts | Impact: instability and unbounded disk growth | Fix: added response-size cap, summary truncation, and metadata compaction.
+- [x] Runtime artifact permissions were inconsistent | Impact: local data exposure risk on multi-user hosts | Fix: enforced `0700` runtime dirs and `0600` generated artifacts/logs.
+- [x] Planner accepted malformed registry agents too loosely | Impact: runtime exceptions or uneven assignment quality under bad config | Fix: active-agent selection now validates required `id` and normalized active status.
 
 ## Low Priority (P3 - Technical Debt)
 
-- [x] Expand observability with explicit metric exports (Prometheus/OpenTelemetry) | Impact: deeper external monitoring still relies on receipts/DB reads | Fix: optional Prometheus-compatible metrics endpoint added.
-- [ ] Add fuzz-style tests for assignment and ranking edge cases | Impact: lower confidence on extreme feed payload diversity | Fix: add randomized fixture corpus.
+- [ ] Add fuzz/property tests for intake normalization and planner ranking | Impact: lower confidence on pathological marketplace payloads | Fix: add randomized fixture corpus and deterministic regression snapshots.
+- [ ] Add end-to-end CI smoke for shell+python runtime bundle | Impact: regressions can slip between script-level checks | Fix: add CI job that runs sync -> intake -> planner -> loop dry run.
 
 ## Security Assessment
 
-- Positive:
-  - Runtime has bounded guardrails on execution costs and expected reward.
-  - Circuit breaker now prevents repeated negative-margin loops.
-  - Marketplace auth header support exists per source.
-  - SLO webhook alerts can now be signed with HMAC + timestamp headers.
-- Remaining concerns:
-  - Webhook signature verification and replay protection still depend on receiver-side enforcement.
-  - Converted lead payload normalization still relies on upstream marketplace data quality.
+- Fixed:
+  - Removed shared temp-file usage from control loop.
+  - Enforced loop mutual exclusion with lock file.
+  - Enforced strict feed URL scheme policy and explicit insecure-http opt-in.
+  - Enforced restrictive file permissions for runtime outputs/logs.
+- Remaining:
+  - Secret rotation lifecycle still depends on manual operator process.
+  - Paid rails are not yet fully credentialed in production, so end-to-end settlement security cannot be validated.
 
 ## Performance Assessment
 
-- Positive:
-  - Assignment/ranking and source feedback are lightweight and bounded by intake caps.
-  - New DB queries are indexed and windowed.
-  - Synthetic soak harness now provides repeatable high-cardinality throughput checks.
-- Remaining concerns:
-  - Need multi-day live-feed soak validation beyond synthetic fixtures.
+- Fixed:
+  - Added bounded intake response size and bounded summary/metadata persistence.
+  - Kept planner assignment cap configurable (`KYO_SWARM_MAX_ASSIGNMENTS`) with sane limits.
+- Remaining:
+  - No sustained multi-day load benchmark on mixed live sources.
+  - No explicit p95/p99 latency/error budget dashboards published for loop stages.
 
 ## Observability Assessment
 
-- Positive:
-  - Receipts now cover intake, execution, circuit state, revenue lanes, SLO reports, and alerts.
-  - Weekly decision summary receipt added.
-  - Optional Prometheus metrics endpoint added for external dashboards and alerting.
-- Remaining concerns:
-  - No OpenTelemetry trace export yet; current external view is metric-level only.
+- Fixed:
+  - Loop now emits explicit skip reason when lock prevents overlap.
+  - Degraded-state error composition now includes gateway failure reasons.
+  - Feed-sync summary exposes URL validity in addition to URL presence.
+- Remaining:
+  - No single consolidated SLO dashboard for intake/planner/dispatch success ratios.
+  - Alerting/notification policy for repeated degraded cycles is still manual.
 
 ## Recommended Architecture Changes
 
-- Keep machine-pay lane (`x402`, direct API) as primary revenue control path.
-- Continue treating marketplaces as distribution/funnel, not settlement source of truth.
-- Add receiver-side signature verification and replay protection in alert consumers.
+- Treat marketplaces as lead/intake channels only; keep settlement proof on machine-pay rails.
+- Add a payout receipt normalizer that writes a canonical "fee realized" ledger entry for every completed mission.
+- Add automated degraded-cycle alerting with escalation thresholds (for example: 3 consecutive degraded ticks).
 
 ## Test Coverage Gaps
 
-- Current targeted tests cover:
-  - lead conversion policy (schema gating, simulation mode)
-  - source feedback scoring impact on assignment selection
-  - circuit open/close/prune transitions
-  - rollback trigger/recovery/prune transitions
-  - SLO non-intervention and MTTR calculations
-- Remaining test gap:
-  - randomized/fuzz fixture coverage for extreme payload diversity.
+- Current checks completed in this pass:
+  - shell syntax check for `kyoshin-autonomy-loop.sh`
+  - python compile checks for sync/intake/planner scripts
+  - end-to-end local smoke run for `sync -> intake -> planner`
+  - runtime permission assertions on generated artifacts
+- Missing:
+  - unit tests for URL scheme enforcement and response-size caps
+  - deterministic regression tests for metadata compaction behavior
+  - integration test for lock-busy skip behavior in loop script
 
 ## Action Plan
 
-1. Run 30-day unattended benchmark with current reporting stack enabled.
-2. Keep metrics endpoint enabled during the benchmark window and enforce SLO alerts from exported gauges.
-3. Validate webhook signature replay protection in downstream alert consumers.
-4. Publish recurring `proof:24h` bundle artifacts during the 30-day run.
-
-Latest benchmark snapshot:
-
-- `services/kamiyo-operator/output/kamiyo-operator/autonomy-benchmark-30d.json`
-- `services/kamiyo-operator/output/kamiyo-operator/swarm-soak-2500x10.json`
-- `services/kamiyo-operator/output/kamiyo-operator/public-proof/<run-id>/proof-summary.json`
+1. Enable paid live feed URLs and API keys for prioritized rails (`x402`, then marketplace channels).
+2. Add automated alerting for consecutive degraded cycles and stalled assignment output.
+3. Add CI runtime smoke job covering sync/intake/planner and lock behavior.
+4. Run 24h continuous proof window, publish artifacts, then scale to 30-day proof window.

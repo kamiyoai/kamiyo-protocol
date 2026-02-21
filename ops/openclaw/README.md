@@ -58,6 +58,8 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_KORE_API_KEY`
   - `KYO_X402_API_KEY`
   - `KYO_DIRECT_API_KEY`
+- optional transport policy:
+  - `KYO_ALLOW_INSECURE_HTTP_FEEDS=true|false` (default `false`)
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
@@ -75,4 +77,8 @@ This gives non-synthetic external opportunities right away. Replace it with your
 ## Notes
 
 - This loop proves unattended autonomy operation, but it will remain idle until feed URLs and execution credentials are configured.
+- Feed sync rejects unsupported URL schemes and only allows `https://` by default (`http://` requires explicit opt-in).
+- Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
+- The loop uses a host-local file lock to prevent overlapping control-loop executions.
+- Provider-level model rejections (for example exhausted credits) are treated as degraded cycles, not successful ticks.
 - Keep gateway bind on loopback by default; use private-network access paths only.

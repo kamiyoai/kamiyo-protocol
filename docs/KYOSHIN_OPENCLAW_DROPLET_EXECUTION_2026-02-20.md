@@ -146,6 +146,13 @@ This confirms the runtime can move from idle loop to active queue processing aut
 - Enabled real external intake on `direct_api` rail:
   - `KYO_DIRECT_API_FEED_URL=https://api.github.com/search/issues?q=is%3Aissue+is%3Aopen+label%3Abounty&per_page=25`
   - loop now ingests non-bootstrap opportunities each cycle without requiring marketplace credentials.
+- Hardened control loop and intake runtime:
+  - added single-run lock (`flock`) to prevent overlapping loop executions
+  - replaced shared `/tmp` artifacts with per-cycle temp directory + trap cleanup
+  - gateway health and provider-rejection replies now participate in degraded/ok cycle status
+  - feed sync + intake now enforce strict URL schemes (`https`/`file` default; `http` only with `KYO_ALLOW_INSECURE_HTTP_FEEDS=true`)
+  - intake/planner runtime artifacts now enforce `0600` files in `0700` runtime directories
+  - lock contention emits explicit `status=skipped, reason=lock_busy` log entries
 
 ## Remaining blockers for full revenue autonomy
 
@@ -153,6 +160,7 @@ This confirms the runtime can move from idle loop to active queue processing aut
 2. Marketplace API credentials for paid job execution/settlement (`KYO_*_API_KEY`) are placeholders.
 3. No payout/receipt connector is wired yet to route realized fees into SOL and onward to staking.
 4. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.
+5. Anthropic provider balance is currently depleted on host, so agent step degrades until credits are restored.
 
 ## Security note
 

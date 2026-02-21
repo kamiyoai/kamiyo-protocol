@@ -14,7 +14,7 @@ ASSIGNMENTS_PATH = QUEUE_DIR / 'assignments.json'
 SUMMARY_PATH = QUEUE_DIR / 'assignments-summary.json'
 LOG_PATH = RUNTIME_DIR / 'logs' / 'swarm-planner.jsonl'
 REGISTRY_PATH = RUNTIME_DIR / 'swarm-registry.json'
-MAX_ASSIGNMENTS = 12
+MAX_ASSIGNMENTS = max(1, min(50, int(os.getenv('KYO_SWARM_MAX_ASSIGNMENTS', '12'))))
 
 
 DEFAULT_REGISTRY = {
@@ -76,11 +76,13 @@ def load_json(path: Path, fallback: Any) -> Any:
 
 def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + '\n', encoding='utf-8')
+    path.chmod(0o600)
 
 
 def append_log(payload: dict[str, Any]) -> None:
     with LOG_PATH.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(payload, ensure_ascii=True) + '\n')
+    LOG_PATH.chmod(0o600)
 
 
 def source_matches(agent: dict[str, Any], opportunity: dict[str, Any]) -> float:
@@ -169,6 +171,7 @@ def mission_objective(opportunity: dict[str, Any]) -> str:
 def run() -> int:
     for path in (RUNTIME_DIR, QUEUE_DIR, RUNTIME_DIR / 'logs'):
         path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o700)
 
     if not REGISTRY_PATH.exists():
         write_json(REGISTRY_PATH, DEFAULT_REGISTRY)
@@ -183,7 +186,14 @@ def run() -> int:
     if not isinstance(agents, list):
         agents = []
 
-    active_agents = [a for a in agents if isinstance(a, dict) and str(a.get('status', 'active')) == 'active']
+    active_agents = [
+        a
+        for a in agents
+        if isinstance(a, dict)
+        and isinstance(a.get('id'), str)
+        and a.get('id', '').strip()
+        and str(a.get('status', 'active')).lower() == 'active'
+    ]
 
     ranked_opps = sorted(
         [o for o in opportunities if isinstance(o, dict)],
@@ -208,7 +218,8 @@ def run() -> int:
         agent = best_agent(active_agents, opportunity, counters)
         counters[agent['id']] = counters.get(agent['id'], 0) + 1
 
-        mission_id = f"swarm-{tick.replace(':', '').replace('-', '').replace('.', '')}-{idx + 1:02d}-{agent['id']}"
+        tick_token = ''.join(ch for ch in tick if ch.isdigit())
+        mission_id = f"swarm-{tick_token}-{idx + 1:02d}-{agent['id']}"
         assignments.append(
             {
                 'missionId': mission_id,

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -50,6 +51,23 @@ def parse_bool(raw: str | None, default: bool) -> bool:
 def ensure_runtime_dirs() -> None:
     for path in (RUNTIME_DIR, SEED_DIR):
         path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o700)
+
+
+def normalize_live_url(raw: str, allow_insecure_http: bool) -> tuple[str, bool]:
+    candidate = raw.strip()
+    if not candidate:
+        return '', False
+
+    parsed = urllib.parse.urlparse(candidate)
+    scheme = parsed.scheme.lower()
+    if scheme == 'https':
+        return candidate, True
+    if scheme == 'http' and allow_insecure_http:
+        return candidate, True
+    if scheme == 'file':
+        return candidate, True
+    return '', False
 
 
 def source_definition() -> list[dict[str, str]]:
@@ -103,12 +121,17 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
         env_value('KYO_BOOTSTRAP_FEED_FALLBACK', file_env.get('KYO_BOOTSTRAP_FEED_FALLBACK', 'true')),
         True,
     )
+    allow_insecure_http = parse_bool(
+        env_value('KYO_ALLOW_INSECURE_HTTP_FEEDS', file_env.get('KYO_ALLOW_INSECURE_HTTP_FEEDS', 'false')),
+        False,
+    )
 
     feeds: list[dict[str, Any]] = []
     summary_items: list[dict[str, Any]] = []
 
     for source in source_definition():
-        live_url = env_value(source['live_url_key'], file_env.get(source['live_url_key'], ''))
+        live_url_raw = env_value(source['live_url_key'], file_env.get(source['live_url_key'], ''))
+        live_url, live_url_valid = normalize_live_url(live_url_raw, allow_insecure_http)
         auth_header = env_value(source['auth_header_key'], file_env.get(source['auth_header_key'], 'Authorization'))
         auth_prefix = env_value(source['auth_prefix_key'], file_env.get(source['auth_prefix_key'], 'Bearer'))
         seed_path = (SEED_DIR / source['seed_file']).resolve()
@@ -156,11 +179,12 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
                 'enabled': entry['enabled'],
                 'url': entry['url'],
                 'hasSeed': has_seed,
-                'liveUrlSet': bool(live_url),
+                'liveUrlSet': bool(live_url_raw),
+                'liveUrlValid': live_url_valid,
             }
         )
 
-    return {'feeds': feeds}, {'fallbackEnabled': fallback_enabled, 'sources': summary_items}
+    return {'feeds': feeds}, {'fallbackEnabled': fallback_enabled, 'allowInsecureHttpFeeds': allow_insecure_http, 'sources': summary_items}
 
 
 def write_config(payload: dict[str, Any]) -> None:

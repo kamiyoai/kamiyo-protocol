@@ -2,6 +2,7 @@
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,11 @@ SUMMARY_PATH = FEEDS_DIR / 'opportunities-summary.json'
 LOG_PATH = LOGS_DIR / 'marketplace-intake.jsonl'
 TIMEOUT_SECONDS = float(os.getenv('KYO_MARKETPLACE_TIMEOUT_SECONDS', '20'))
 MAX_OPPORTUNITIES = int(os.getenv('KYO_MARKETPLACE_MAX_OPPORTUNITIES', '200'))
+MAX_RESPONSE_BYTES = int(os.getenv('KYO_MARKETPLACE_MAX_RESPONSE_BYTES', '2000000'))
+MAX_SUMMARY_CHARS = int(os.getenv('KYO_MARKETPLACE_MAX_SUMMARY_CHARS', '2000'))
+MAX_METADATA_JSON_BYTES = int(os.getenv('KYO_MARKETPLACE_MAX_METADATA_JSON_BYTES', '5000'))
+ALLOW_INSECURE_HTTP = os.getenv('KYO_ALLOW_INSECURE_HTTP_FEEDS', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+USER_AGENT = os.getenv('KYO_MARKETPLACE_USER_AGENT', 'kyoshin-marketplace-intake/1.0')
 
 
 def now_iso() -> str:
@@ -28,6 +34,7 @@ def now_iso() -> str:
 def ensure_dirs() -> None:
     for path in (RUNTIME_DIR, FEEDS_DIR, STATE_DIR, LOGS_DIR):
         path.mkdir(parents=True, exist_ok=True)
+        path.chmod(0o700)
 
 
 def load_json(path: Path, fallback: Any) -> Any:
@@ -41,11 +48,13 @@ def load_json(path: Path, fallback: Any) -> Any:
 
 def write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + '\n', encoding='utf-8')
+    path.chmod(0o600)
 
 
 def append_log(payload: dict[str, Any]) -> None:
     with LOG_PATH.open('a', encoding='utf-8') as handle:
         handle.write(json.dumps(payload, ensure_ascii=True) + '\n')
+    LOG_PATH.chmod(0o600)
 
 
 def default_config() -> dict[str, Any]:
@@ -123,6 +132,31 @@ def normalize_array_of_strings(value: Any) -> list[str]:
     return out
 
 
+def truncate_text(text: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    if max_chars <= 3:
+        return text[:max_chars]
+    return text[: max_chars - 3].rstrip() + '...'
+
+
+def compact_metadata(value: dict[str, Any]) -> Any:
+    try:
+        serialized = json.dumps(value, ensure_ascii=True, separators=(',', ':'))
+    except Exception:
+        return {'truncated': True, 'reason': 'unserializable'}
+
+    if len(serialized) <= MAX_METADATA_JSON_BYTES:
+        return value
+
+    preview = truncate_text(serialized, MAX_METADATA_JSON_BYTES)
+    return {
+        'truncated': True,
+        'bytes': len(serialized),
+        'preview': preview,
+    }
+
+
 def normalize_label_names(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -165,6 +199,7 @@ def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
             or normalize_text(item.get('content'))
             or 'No summary provided.'
         )
+        summary = truncate_text(summary, MAX_SUMMARY_CHARS)
         opp_id = (
             normalize_identifier(item.get('id'))
             or normalize_identifier(item.get('opportunityId'))
@@ -214,7 +249,7 @@ def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
                 'payoutSol': payout_sol,
                 'createdAt': created,
                 'expiresAt': expires,
-                'metadata': item,
+                'metadata': compact_metadata(item),
             }
         )
 
@@ -222,7 +257,7 @@ def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
 
 
 def auth_headers(feed: dict[str, Any]) -> dict[str, str]:
-    headers = {'accept': 'application/json'}
+    headers = {'accept': 'application/json', 'user-agent': USER_AGENT}
     env_name = normalize_text(feed.get('authEnv'))
     token = os.getenv(env_name) if env_name else None
     if token:
@@ -232,10 +267,26 @@ def auth_headers(feed: dict[str, Any]) -> dict[str, str]:
     return headers
 
 
+def is_supported_feed_url(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme == 'file':
+        return True
+    if scheme == 'https':
+        return True
+    if scheme == 'http':
+        return ALLOW_INSECURE_HTTP
+    return False
+
+
 def fetch_json(url: str, headers: dict[str, str]) -> Any:
+    if not is_supported_feed_url(url):
+        raise ValueError('unsupported_url_scheme')
     req = urllib.request.Request(url, headers=headers, method='GET')
     with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
-        raw = response.read()
+        raw = response.read(MAX_RESPONSE_BYTES + 1)
+        if len(raw) > MAX_RESPONSE_BYTES:
+            raise ValueError('response_too_large')
         return json.loads(raw.decode('utf-8'))
 
 
