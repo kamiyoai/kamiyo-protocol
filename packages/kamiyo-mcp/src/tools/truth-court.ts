@@ -1,13 +1,16 @@
 import type { X402Program } from '../solana/anchor.js';
 import {
   buildTruthCourtCommittee,
+  executeTruthCourtGauntlet,
   TruthCourtEngine,
   type TruthCourtCaseInput,
   type TruthCourtCommitteeOptions,
+  type TruthCourtGauntletResult,
   type TruthCourtOracle,
   type TruthCourtOracleResponse,
   type TruthCourtReplayBundle,
   type TruthCourtReplayReport,
+  type TruthCourtScenarioName,
   type TruthCourtVerdict,
   verifyTruthCourtReplayBundle,
 } from '../truth-court/index.js';
@@ -30,6 +33,19 @@ export interface FileDisputeWithTruthCourtParams {
 export interface FileDisputeWithTruthCourtOptions extends TruthCourtCommitteeOptions {
   oracles?: TruthCourtOracle[];
 }
+
+export interface RunTruthCourtGauntletParams {
+  rounds?: number;
+  seed?: number;
+  scenarioMix?: TruthCourtScenarioName[];
+  counterfactualsPerRound?: number;
+  claimant?: string;
+  respondent?: string;
+  includeGrok?: boolean;
+  minValidResponses?: number;
+}
+
+export interface RunTruthCourtGauntletResult extends TruthCourtGauntletResult {}
 
 export interface FileDisputeWithTruthCourtResult {
   success: boolean;
@@ -239,4 +255,23 @@ export function verifyTruthCourtReplay(
   oracleResponses: TruthCourtOracleResponse[]
 ): TruthCourtReplayReport {
   return verifyTruthCourtReplayBundle(caseInput, replayBundle, oracleResponses);
+}
+
+export async function runTruthCourtGauntlet(
+  params: RunTruthCourtGauntletParams = {},
+  options: FileDisputeWithTruthCourtOptions = {}
+): Promise<RunTruthCourtGauntletResult> {
+  return executeTruthCourtGauntlet(
+    {
+      rounds: params.rounds,
+      seed: params.seed,
+      scenarioMix: params.scenarioMix,
+      counterfactualsPerRound: params.counterfactualsPerRound,
+      claimant: params.claimant,
+      respondent: params.respondent,
+      includeGrok: params.includeGrok,
+      minValidResponses: params.minValidResponses,
+    },
+    options
+  );
 }

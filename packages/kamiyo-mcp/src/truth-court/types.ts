@@ -59,6 +59,14 @@ export interface TruthCourtSlashingRecommendation {
   reason: string;
 }
 
+export interface TruthCourtOracleMetric {
+  oracle: string;
+  provider: 'xai' | 'local' | 'openai' | 'anthropic' | 'custom';
+  status: 'accepted' | 'rejected';
+  reason?: TruthCourtRejectedResponse['reason'];
+  latencyMs: number;
+}
+
 export interface TruthCourtReplayDigest {
   oracle: string;
   responseHash: string;
@@ -88,6 +96,7 @@ export interface TruthCourtDecision {
   voteBreakdown: Record<TruthCourtVerdict, number>;
   acceptedResponses: TruthCourtOracleResponse[];
   rejectedResponses: TruthCourtRejectedResponse[];
+  oracleMetrics: TruthCourtOracleMetric[];
   slashingRecommendations: TruthCourtSlashingRecommendation[];
   replayBundle?: TruthCourtReplayBundle;
   summary?: string;

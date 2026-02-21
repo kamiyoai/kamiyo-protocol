@@ -3,10 +3,12 @@ import {
   hashCommitteeDigest,
   hashOracleResponse,
 } from './hash.js';
+import { performance } from 'node:perf_hooks';
 import type {
   TruthCourtCaseInput,
   TruthCourtDecision,
   TruthCourtOracle,
+  TruthCourtOracleMetric,
   TruthCourtOracleResponse,
   TruthCourtReplayBundle,
   TruthCourtReplayDigest,
@@ -266,6 +268,7 @@ export class TruthCourtEngine {
         voteBreakdown,
         acceptedResponses: [],
         rejectedResponses: [],
+        oracleMetrics: [],
         slashingRecommendations: [],
         error: 'at least one oracle is required',
       };
@@ -282,6 +285,7 @@ export class TruthCourtEngine {
         voteBreakdown,
         acceptedResponses: [],
         rejectedResponses: [],
+        oracleMetrics: [],
         slashingRecommendations: [],
         error: inputError,
       };
@@ -292,12 +296,15 @@ export class TruthCourtEngine {
     const request = { caseHash, evidenceHash, featureHash, input };
     const acceptedResponses: TruthCourtOracleResponse[] = [];
     const rejectedResponses: TruthCourtDecision['rejectedResponses'] = [];
+    const oracleMetrics: TruthCourtOracleMetric[] = [];
     const slashingRecommendations: TruthCourtSlashingRecommendation[] = [];
 
     await Promise.all(
       this.oracles.map(async (oracle) => {
+        const started = performance.now();
         try {
           const response = await oracle.evaluate(request);
+          const latencyMs = Number((performance.now() - started).toFixed(3));
           const validationError = validateOracleResponse(
             response,
             evidenceHash,
@@ -312,6 +319,13 @@ export class TruthCourtEngine {
               reason,
               detail: validationError,
             });
+            oracleMetrics.push({
+              oracle: oracle.name,
+              provider: response.provider,
+              status: 'rejected',
+              reason,
+              latencyMs,
+            });
             slashingRecommendations.push(
               buildSlashing(oracle.name, reason, validationError)
             );
@@ -319,13 +333,27 @@ export class TruthCourtEngine {
           }
 
           acceptedResponses.push(response);
+          oracleMetrics.push({
+            oracle: oracle.name,
+            provider: response.provider,
+            status: 'accepted',
+            latencyMs,
+          });
           voteBreakdown[response.verdict] += 1;
         } catch (error: any) {
+          const latencyMs = Number((performance.now() - started).toFixed(3));
           const detail = error?.message || 'oracle evaluation failed';
           rejectedResponses.push({
             oracle: oracle.name,
             reason: 'runtime_error',
             detail,
+          });
+          oracleMetrics.push({
+            oracle: oracle.name,
+            provider: 'custom',
+            status: 'rejected',
+            reason: 'runtime_error',
+            latencyMs,
           });
           slashingRecommendations.push(
             buildSlashing(oracle.name, 'runtime_error', detail)
@@ -345,6 +373,9 @@ export class TruthCourtEngine {
         voteBreakdown,
         acceptedResponses,
         rejectedResponses,
+        oracleMetrics: oracleMetrics
+          .slice()
+          .sort((left, right) => left.oracle.localeCompare(right.oracle)),
         slashingRecommendations,
         error: `insufficient valid oracle responses: ${acceptedResponses.length}/${minValidResponses}`,
       };
@@ -386,6 +417,9 @@ export class TruthCourtEngine {
         .slice()
         .sort((left, right) => left.oracle.localeCompare(right.oracle)),
       rejectedResponses: rejectedResponses
+        .slice()
+        .sort((left, right) => left.oracle.localeCompare(right.oracle)),
+      oracleMetrics: oracleMetrics
         .slice()
         .sort((left, right) => left.oracle.localeCompare(right.oracle)),
       slashingRecommendations: slashingRecommendations

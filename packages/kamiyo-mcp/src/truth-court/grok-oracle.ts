@@ -25,6 +25,7 @@ export interface GrokDisputeOracleConfig {
   baseUrl?: string;
   timeoutMs?: number;
   maxInputChars?: number;
+  maxOutputChars?: number;
   maxRetries?: number;
   retryDelayMs?: number;
   fetchImpl?: typeof fetch;
@@ -188,6 +189,7 @@ export class GrokDisputeOracle implements TruthCourtOracle {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
   private readonly maxInputChars: number;
+  private readonly maxOutputChars: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
   private readonly fetchImpl: typeof fetch;
@@ -201,6 +203,7 @@ export class GrokDisputeOracle implements TruthCourtOracle {
     this.baseUrl = (config.baseUrl ?? 'https://api.x.ai/v1').replace(/\/+$/, '');
     this.timeoutMs = config.timeoutMs ?? 15000;
     this.maxInputChars = config.maxInputChars ?? 20000;
+    this.maxOutputChars = config.maxOutputChars ?? 30000;
     this.maxRetries = config.maxRetries ?? 1;
     this.retryDelayMs = config.retryDelayMs ?? 400;
     this.fetchImpl = config.fetchImpl ?? fetch;
@@ -276,7 +279,18 @@ export class GrokDisputeOracle implements TruthCourtOracle {
 
       const response = await this.requestCompletion(prompt, controller.signal);
       const payload = (await response.json()) as GrokCompletionResponse;
+      if (!payload.choices?.length) {
+        throw new Error('xAI response did not include choices');
+      }
+
       const rawContent = extractTextContent(payload.choices?.[0]?.message?.content);
+      if (!rawContent) {
+        throw new Error('xAI response content was empty');
+      }
+      if (rawContent.length > this.maxOutputChars) {
+        throw new Error(`response exceeds maxOutputChars (${this.maxOutputChars})`);
+      }
+
       const parsed = parseJsonFromText(rawContent);
 
       const verdict = toVerdict(parsed.verdict);
@@ -305,6 +319,11 @@ export class GrokDisputeOracle implements TruthCourtOracle {
         generatedAt: Date.now(),
         rawOutput: rawContent,
       };
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error(`xAI request timed out after ${this.timeoutMs}ms`);
+      }
+      throw error;
     } finally {
       clearTimeout(timeout);
     }

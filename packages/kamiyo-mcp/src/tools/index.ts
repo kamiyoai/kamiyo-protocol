@@ -136,6 +136,37 @@ export const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: 'run_truth_court_gauntlet',
+    description:
+      'Run deterministic multi-round truth-court stress campaign with replay/tamper/counterfactual metrics and integrity root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rounds: { type: 'number', description: 'Number of rounds (default 12, max 100)' },
+        seed: { type: 'number', description: 'Deterministic seed for reproducible runs' },
+        scenarioMix: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Scenario mix (e.g. ["habitat-power","launch-anomaly"])',
+        },
+        counterfactualsPerRound: {
+          type: 'number',
+          description: 'Counterfactual probes per round (default 2, max 8)',
+        },
+        claimant: { type: 'string', description: 'Claimant agent id (default agent-red)' },
+        respondent: { type: 'string', description: 'Respondent agent id (default agent-blue)' },
+        includeGrok: {
+          type: 'boolean',
+          description: 'Force Grok inclusion when available (default auto)',
+        },
+        minValidResponses: {
+          type: 'number',
+          description: 'Minimum valid oracle responses for quorum (default 2)',
+        },
+      },
+    },
+  },
+  {
     name: 'get_api_reputation',
     description: 'Get API provider reputation',
     inputSchema: {

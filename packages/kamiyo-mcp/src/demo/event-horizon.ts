@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileDisputeWithTruthCourt } from '../tools/truth-court.js';
+import {
+  getTruthCourtScenario,
+  listTruthCourtScenarios,
+} from '../truth-court/index.js';
 
 dotenv.config();
 
@@ -20,15 +24,6 @@ interface VerdictCardInput {
   slashes: number;
 }
 
-interface ScenarioPreset {
-  missionTag: string;
-  qualityScore: number;
-  refundPercentage: number;
-  evidence: Record<string, unknown>;
-  featureVector: Record<string, unknown>;
-  context: string;
-}
-
 interface CliOptions {
   mode: DemoMode;
   scenario: string;
@@ -37,66 +32,6 @@ interface CliOptions {
   qualityScore?: number;
   refundPercentage?: number;
 }
-
-const SCENARIOS: Record<string, ScenarioPreset> = {
-  'habitat-power': {
-    missionTag: 'mars_ops_habitat_power',
-    qualityScore: 34,
-    refundPercentage: 72,
-    evidence: {
-      telemetry: {
-        habitatPowerDeficitKw: 18.4,
-        batteryReserveMinutes: 11,
-        commsLatencyMs: 2400,
-      },
-      executionLog: [
-        'fallback_controller_triggered',
-        'priority_load_shedding_enabled',
-        'manual_override_requested',
-      ],
-      observedAt: new Date().toISOString(),
-    },
-    featureVector: {
-      timeliness: 0.22,
-      completeness: 0.48,
-      reliability: 0.31,
-      adversarialRisk: 0.61,
-    },
-    context:
-      'Round simulates delayed relay near dust storm conditions. Task was grid stabilization with strict outage budget.',
-  },
-  'launch-anomaly': {
-    missionTag: 'launch_ops_stage_separation_anomaly',
-    qualityScore: 41,
-    refundPercentage: 58,
-    evidence: {
-      telemetry: {
-        stageSepDeltaMs: 170,
-        navDriftMeters: 83,
-        engineRelightSuccessRate: 0.67,
-      },
-      sensorDiffs: {
-        imuVsStarTracker: 0.38,
-        pressureVariance: 0.44,
-      },
-      executionLog: [
-        'stage_sep_late_trigger',
-        'guidance_correction_burn_executed',
-        'payload_fairing_temp_spike',
-      ],
-      observedAt: new Date().toISOString(),
-    },
-    featureVector: {
-      timeliness: 0.39,
-      completeness: 0.63,
-      reliability: 0.42,
-      anomalySeverity: 0.71,
-      safetyMargin: 0.34,
-    },
-    context:
-      'Simulated launch reliability dispute where handoff timing and correction burn quality determine mission outcome and payout.',
-  },
-};
 
 function shortHash(value?: string): string {
   if (!value) {
@@ -122,7 +57,7 @@ function buildVerdictCard(input: VerdictCardInput): string {
 
 function printUsage(): void {
   console.log('Usage: npm run demo:event-horizon -- [--live|--mock] [--scenario <name>] [--quality <0-100>] [--refund <0-100>] [--export-dir <dir>] [--no-export]');
-  console.log('Scenarios: habitat-power, launch-anomaly');
+  console.log(`Scenarios: ${listTruthCourtScenarios().join(', ')}`);
 }
 
 function parseNumber(value: string, flag: string): number {
@@ -243,7 +178,7 @@ async function writeArtifacts(
 
 async function main(): Promise<void> {
   const cli = parseCli(process.argv.slice(2));
-  const preset = SCENARIOS[cli.scenario];
+  const preset = getTruthCourtScenario(cli.scenario);
   if (!preset) {
     throw new Error(`unknown scenario: ${cli.scenario}`);
   }
@@ -272,8 +207,13 @@ async function main(): Promise<void> {
       claimant: process.env.EVENT_HORIZON_CLAIMANT ?? 'agent-red',
       respondent: process.env.EVENT_HORIZON_RESPONDENT ?? 'agent-blue',
       missionTag,
-      evidence: preset.evidence,
-      featureVector: preset.featureVector,
+      evidence: {
+        ...preset.evidence,
+        observedAt: new Date().toISOString(),
+      },
+      featureVector: {
+        ...preset.featureVector,
+      },
       context: preset.context,
       markOnChain: false,
       minValidResponses: 2,

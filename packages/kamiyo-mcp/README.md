@@ -137,6 +137,33 @@ Each exported run writes two files (unless `--no-export`):
 - `<timestamp>-<scenario>.json` full verdict envelope for logs/integrations
 - `<timestamp>-<scenario>.txt` tweet-sized verdict card
 
+## Event Horizon Gauntlet
+
+Run deterministic multi-round stress campaigns with replay/tamper/counterfactual metrics:
+
+```bash
+npm run demo:event-horizon:gauntlet:mock
+```
+
+With Grok enabled:
+
+```bash
+XAI_API_KEY=... npm run demo:event-horizon:gauntlet:live
+```
+
+Advanced options:
+
+```bash
+npm run demo:event-horizon:gauntlet -- --mock --rounds 24 --seed 424242 --scenario-mix habitat-power,launch-anomaly,surface-rover
+npm run demo:event-horizon:gauntlet -- --mock --counterfactuals 3 --export-dir output/event-horizon-gauntlet
+```
+
+Each gauntlet run exports:
+
+- `<timestamp>-<runId>.json` full campaign payload
+- `<timestamp>-<runId>.txt` headline card
+- `<timestamp>-<runId>.md` 5-post thread pack
+
 ## Tools
 
 ### create_escrow
