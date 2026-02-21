@@ -9,7 +9,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
 - `kyoshin-autonomy-loop.service`: systemd oneshot service for a loop tick.
-- `kyoshin-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=5min`).
+- `kyoshin-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=30min`).
 
 ## Install on host
 
@@ -60,6 +60,8 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_DIRECT_API_KEY`
 - optional transport policy:
   - `KYO_ALLOW_INSECURE_HTTP_FEEDS=true|false` (default `false`)
+- optional loop cost controls:
+  - `KYO_AGENT_TIMEOUT_SECONDS=120` (default `120`)
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.

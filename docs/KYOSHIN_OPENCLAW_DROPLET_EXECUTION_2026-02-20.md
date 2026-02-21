@@ -153,6 +153,10 @@ This confirms the runtime can move from idle loop to active queue processing aut
   - feed sync + intake now enforce strict URL schemes (`https`/`file` default; `http` only with `KYO_ALLOW_INSECURE_HTTP_FEEDS=true`)
   - intake/planner runtime artifacts now enforce `0600` files in `0700` runtime directories
   - lock contention emits explicit `status=skipped, reason=lock_busy` log entries
+  - applied runtime cost defaults after rapid credit burn:
+    - `OPENCLAW_MODEL=claude-sonnet-4-20250514`
+    - `KYO_AGENT_TIMEOUT_SECONDS=120`
+    - `kyoshin-autonomy-loop.timer` cadence moved from `5min` to `30min`
 
 ## Remaining blockers for full revenue autonomy
 

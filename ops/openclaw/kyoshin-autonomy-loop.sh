@@ -36,6 +36,7 @@ exec 9>"$LOCK_FILE"
 NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TODAY="$(date -u +%Y-%m-%d)"
 START_EPOCH="$(date +%s)"
+AGENT_TIMEOUT_SECONDS="${KYO_AGENT_TIMEOUT_SECONDS:-120}"
 
 if ! flock -n 9; then
   printf '{"at":"%s","event":"autonomy_tick","status":"skipped","reason":"lock_busy"}\n' "$NOW_ISO" >>"$LOG_FILE"
@@ -141,7 +142,7 @@ agent_ok=1
 agent_reply=""
 agent_error=""
 
-if openclaw agent --agent main --local --message "$heartbeat_msg" --timeout 300 --json >"$run_json_file" 2>"$TMP_DIR/agent.err"; then
+if openclaw agent --agent main --local --message "$heartbeat_msg" --timeout "$AGENT_TIMEOUT_SECONDS" --json >"$run_json_file" 2>"$TMP_DIR/agent.err"; then
   agent_reply="$(jq -r '.payloads[0].text // ""' "$run_json_file" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-1800)"
   if printf '%s' "$agent_reply" | grep -Eq '^(LLM request rejected:|Provider request failed:|Authentication error:|Insufficient credits:)'; then
     agent_ok=0

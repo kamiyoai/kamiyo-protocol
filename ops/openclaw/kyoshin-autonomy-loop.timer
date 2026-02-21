@@ -1,9 +1,9 @@
 [Unit]
-Description=Run Kyoshin autonomy loop every 5 minutes
+Description=Run Kyoshin autonomy loop every 30 minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+OnUnitActiveSec=30min
 RandomizedDelaySec=20s
 AccuracySec=10s
 Persistent=true
