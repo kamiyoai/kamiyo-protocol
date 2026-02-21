@@ -4,10 +4,18 @@ import dotenv from 'dotenv';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileDisputeWithTruthCourt } from '../tools/truth-court.js';
+import { getTruthCourtScenario, listTruthCourtScenarios } from '../truth-court/index.js';
 import {
-  getTruthCourtScenario,
-  listTruthCourtScenarios,
-} from '../truth-court/index.js';
+  formatMetric,
+  formatStatus,
+  isRichUiEnabled,
+  printBootSequence,
+  printEventHorizonHeader,
+  printFatal,
+  printPanel,
+  printSuccess,
+  withSpinner,
+} from './terminal-ui.js';
 
 dotenv.config();
 
@@ -56,7 +64,9 @@ function buildVerdictCard(input: VerdictCardInput): string {
 }
 
 function printUsage(): void {
-  console.log('Usage: npm run demo:event-horizon -- [--live|--mock] [--scenario <name>] [--quality <0-100>] [--refund <0-100>] [--export-dir <dir>] [--no-export]');
+  console.log(
+    'Usage: npm run demo:event-horizon -- [--live|--mock] [--scenario <name>] [--quality <0-100>] [--refund <0-100>] [--export-dir <dir>] [--no-export]'
+  );
   console.log(`Scenarios: ${listTruthCourtScenarios().join(', ')}`);
 }
 
@@ -123,6 +133,7 @@ function parseCli(argv: string[]): CliOptions {
       case '-h':
         printUsage();
         process.exit(0);
+        return options;
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
@@ -143,7 +154,10 @@ function resolveMode(mode: DemoMode): { includeGrok: boolean; label: 'live' | 'm
     return { includeGrok: false, label: 'mock' };
   }
 
-  return { includeGrok: Boolean(process.env.XAI_API_KEY), label: process.env.XAI_API_KEY ? 'live' : 'mock' };
+  return {
+    includeGrok: Boolean(process.env.XAI_API_KEY),
+    label: process.env.XAI_API_KEY ? 'live' : 'mock',
+  };
 }
 
 function clampPercentage(value: number, flag: string): number {
@@ -184,6 +198,7 @@ async function main(): Promise<void> {
   }
 
   const mode = resolveMode(cli.mode);
+  const richUi = isRichUiEnabled();
   const missionTag = process.env.EVENT_HORIZON_MISSION_TAG ?? preset.missionTag;
   const qualityScore = clampPercentage(
     cli.qualityScore ??
@@ -192,39 +207,52 @@ async function main(): Promise<void> {
   );
   const refundPercentage = clampPercentage(
     cli.refundPercentage ??
-      Number(
-        process.env.EVENT_HORIZON_REQUESTED_REFUND ?? String(preset.refundPercentage)
-      ),
+      Number(process.env.EVENT_HORIZON_REQUESTED_REFUND ?? String(preset.refundPercentage)),
     'requested refund'
   );
   const transactionId = `event-horizon-${Date.now()}`;
 
-  const result = await fileDisputeWithTruthCourt(
-    {
-      transactionId,
-      qualityScore,
-      refundPercentage,
-      claimant: process.env.EVENT_HORIZON_CLAIMANT ?? 'agent-red',
-      respondent: process.env.EVENT_HORIZON_RESPONDENT ?? 'agent-blue',
-      missionTag,
-      evidence: {
-        ...preset.evidence,
-        observedAt: new Date().toISOString(),
+  if (richUi) {
+    printEventHorizonHeader({
+      activeTab: 'compliance',
+      mode: mode.label,
+    });
+    await printBootSequence([
+      `mission profile loaded: ${missionTag}`,
+      `scenario selected: ${cli.scenario}`,
+      `launching committee (${mode.includeGrok ? 'grok + local' : 'local'})`,
+    ]);
+  }
+
+  const result = await withSpinner('running meishi compliance verdict', () =>
+    fileDisputeWithTruthCourt(
+      {
+        transactionId,
+        qualityScore,
+        refundPercentage,
+        claimant: process.env.EVENT_HORIZON_CLAIMANT ?? 'agent-red',
+        respondent: process.env.EVENT_HORIZON_RESPONDENT ?? 'agent-blue',
+        missionTag,
+        evidence: {
+          ...preset.evidence,
+          observedAt: new Date().toISOString(),
+        },
+        featureVector: {
+          ...preset.featureVector,
+        },
+        context: preset.context,
+        markOnChain: false,
+        minValidResponses: 2,
       },
-      featureVector: {
-        ...preset.featureVector,
-      },
-      context: preset.context,
-      markOnChain: false,
-      minValidResponses: 2,
-    },
-    undefined,
-    {
-      includeGrok: mode.includeGrok,
-    }
+      undefined,
+      {
+        includeGrok: mode.includeGrok,
+      }
+    )
   );
 
   if (!result.success || !result.committee || !result.committee.finalVerdict) {
+    printFatal(result.error ?? 'event horizon demo failed');
     console.error('event horizon demo failed');
     console.error(result.error ?? 'unknown error');
     process.exit(1);
@@ -251,21 +279,51 @@ async function main(): Promise<void> {
     verdict: result,
   };
 
-  console.log('=== Event Horizon Dispute Demo ===');
-  console.log(JSON.stringify(envelope, null, 2));
-  console.log('\n=== Verdict Card (tweet-sized) ===');
-  console.log(card);
-  console.log(`\ncard_length=${card.length}`);
+  if (richUi) {
+    printPanel('Meishi Compliance Verdict', [
+      `${formatMetric('mission', missionTag)} ${formatStatus('live', 'live')}`,
+      `${formatMetric('scenario', cli.scenario)} ${formatStatus('dkg', 'info')}`,
+      formatMetric('mode', mode.label),
+      formatMetric('verdict', result.committee.finalVerdict),
+      formatMetric('committee', result.committee.includesGrok ? 'grok + local' : 'local only'),
+      formatMetric('confidence', (result.committee.confidence ?? 0).toFixed(3)),
+      formatMetric('slashes', String(result.committee.slashingRecommendations.length)),
+      formatMetric('committee hash', shortHash(result.committee.committeeHash)),
+      formatMetric('case hash', shortHash(result.committee.caseHash)),
+    ]);
+
+    printPanel('Verdict Card', [card, formatMetric('card length', `${card.length}/280`)]);
+
+    if (process.env.EVENT_HORIZON_SHOW_JSON === '1') {
+      printPanel('Raw Envelope', [JSON.stringify(envelope)]);
+    }
+  } else {
+    console.log('=== Event Horizon Dispute Demo ===');
+    console.log(JSON.stringify(envelope, null, 2));
+    console.log('\n=== Verdict Card (tweet-sized) ===');
+    console.log(card);
+    console.log(`\ncard_length=${card.length}`);
+  }
 
   if (cli.exportEnabled) {
-    const paths = await writeArtifacts(cli.exportDir, cli.scenario, envelope, card);
-    console.log('\n=== Exported Artifacts ===');
+    const paths = await withSpinner('writing export artifacts', () =>
+      writeArtifacts(cli.exportDir, cli.scenario, envelope, card)
+    );
+    if (richUi) {
+      printPanel('Exported Artifacts', [
+        formatMetric('json', paths.jsonPath),
+        formatMetric('card', paths.cardPath),
+      ]);
+      printSuccess('export completed');
+    } else {
+      console.log('\n=== Exported Artifacts ===');
+    }
     console.log(`json=${paths.jsonPath}`);
     console.log(`card=${paths.cardPath}`);
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('event horizon demo crashed:', error);
   process.exit(1);
 });

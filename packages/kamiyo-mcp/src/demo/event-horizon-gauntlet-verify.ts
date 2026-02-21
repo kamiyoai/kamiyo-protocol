@@ -2,11 +2,19 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type {
-  EventHorizonArtifactInput,
-  EventHorizonAttestation,
-} from '../truth-court/index.js';
+import type { EventHorizonArtifactInput, EventHorizonAttestation } from '../truth-court/index.js';
 import { verifyEventHorizonAttestation } from '../truth-court/index.js';
+import {
+  formatMetric,
+  formatStatus,
+  isRichUiEnabled,
+  printBootSequence,
+  printEventHorizonHeader,
+  printFatal,
+  printPanel,
+  printSuccess,
+  withSpinner,
+} from './terminal-ui.js';
 
 interface CliOptions {
   attestationPath: string;
@@ -37,6 +45,7 @@ function parseCli(argv: string[]): CliOptions {
       case '-h':
         printUsage();
         process.exit(0);
+        return { attestationPath };
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
@@ -68,32 +77,77 @@ async function toArtifactInputs(
 
 async function main(): Promise<void> {
   const cli = parseCli(process.argv.slice(2));
+  const richUi = isRichUiEnabled();
+  if (richUi) {
+    printEventHorizonHeader({
+      activeTab: 'verify',
+      mode: 'verify',
+    });
+    await printBootSequence([
+      `loading attestation: ${cli.attestationPath}`,
+      'rebuilding artifact digest map',
+      'verifying detached signatures',
+    ]);
+  }
+
   const absolutePath = path.resolve(process.cwd(), cli.attestationPath);
   const raw = JSON.parse(await readFile(absolutePath, 'utf8')) as EventHorizonAttestation;
   const baseDir = path.dirname(absolutePath);
   const artifacts = await toArtifactInputs(raw, baseDir);
-  const verification = verifyEventHorizonAttestation({
-    attestation: raw,
-    artifacts,
-  });
-
-  console.log(
-    JSON.stringify(
-      {
-        attestationPath: absolutePath,
-        verification,
-      },
-      null,
-      2
-    )
+  const verification = await withSpinner('checking attestation signatures', async () =>
+    verifyEventHorizonAttestation({
+      attestation: raw,
+      artifacts,
+    })
   );
 
+  if (richUi) {
+    printPanel('Attestation Verification', [
+      `${formatMetric('attestation', absolutePath)} ${
+        verification.success ? formatStatus('pass', 'pass') : formatStatus('fail', 'fail')
+      }`,
+      formatMetric('run id', verification.runId),
+      formatMetric('signer', verification.signerPublicKey),
+      formatMetric('checks', `${verification.checks.length}`),
+      formatMetric(
+        'verified',
+        `${verification.checks.filter(entry => entry.verified).length}/${verification.checks.length}`
+      ),
+      verification.error
+        ? formatMetric('error', verification.error)
+        : formatMetric('error', 'none'),
+    ]);
+
+    printPanel(
+      'Artifact Checks',
+      verification.checks.map(entry => {
+        const status = entry.verified ? formatStatus('pass', 'pass') : formatStatus('fail', 'fail');
+        return `${entry.file} ${status} found=${entry.found} hash=${entry.hashMatches} sig=${entry.signatureValid}`;
+      })
+    );
+    if (verification.success) {
+      printSuccess('all artifact signatures verified');
+    }
+  } else {
+    console.log(
+      JSON.stringify(
+        {
+          attestationPath: absolutePath,
+          verification,
+        },
+        null,
+        2
+      )
+    );
+  }
+
   if (!verification.success) {
+    printFatal('attestation verification failed');
     process.exit(1);
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('gauntlet attestation verification failed:', error);
   process.exit(1);
 });

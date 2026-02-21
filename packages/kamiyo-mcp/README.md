@@ -145,6 +145,10 @@ Run deterministic multi-round stress campaigns with replay/tamper/counterfactual
 npm run demo:event-horizon:gauntlet:mock
 ```
 
+The CLI now ships with a Meishi-style terminal UI (ASCII logo, tab framing, status badges, boot/spinner animation) when running in a TTY.
+Set `EVENT_HORIZON_PLAIN_UI=1` to disable rich UI and keep raw JSON output style.
+Set `EVENT_HORIZON_NO_ANIM=1` to keep the rich UI without animation.
+
 With Grok enabled:
 
 ```bash

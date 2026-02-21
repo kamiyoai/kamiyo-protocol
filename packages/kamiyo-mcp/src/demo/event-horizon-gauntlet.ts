@@ -12,6 +12,18 @@ import {
   verifyEventHorizonAttestation,
   type TruthCourtScenarioName,
 } from '../truth-court/index.js';
+import {
+  formatMetric,
+  formatStatus,
+  isRichUiEnabled,
+  printBootSequence,
+  printEventHorizonHeader,
+  printFatal,
+  printPanel,
+  printSuccess,
+  printThreadPack,
+  withSpinner,
+} from './terminal-ui.js';
 
 dotenv.config();
 
@@ -79,16 +91,13 @@ function parseCli(argv: string[]): CliOptions {
       : undefined,
     scenarioMix: process.env.EVENT_HORIZON_GAUNTLET_SCENARIO_MIX
       ? process.env.EVENT_HORIZON_GAUNTLET_SCENARIO_MIX.split(',')
-          .map((value) => value.trim())
+          .map(value => value.trim())
           .filter(Boolean)
       : undefined,
-    counterfactualsPerRound: Number(
-      process.env.EVENT_HORIZON_GAUNTLET_COUNTERFACTUALS ?? 2
-    ),
+    counterfactualsPerRound: Number(process.env.EVENT_HORIZON_GAUNTLET_COUNTERFACTUALS ?? 2),
     policyMode: parsePolicyMode(process.env.EVENT_HORIZON_GAUNTLET_POLICY_MODE),
     exportEnabled: true,
-    exportDir:
-      process.env.EVENT_HORIZON_GAUNTLET_EXPORT_DIR ?? 'output/event-horizon-gauntlet',
+    exportDir: process.env.EVENT_HORIZON_GAUNTLET_EXPORT_DIR ?? 'output/event-horizon-gauntlet',
     signArtifacts: parseBooleanEnv(process.env.EVENT_HORIZON_GAUNTLET_SIGN) ?? false,
     signerSecretKey: process.env.EVENT_HORIZON_GAUNTLET_SIGNER_SECRET_KEY,
   };
@@ -125,7 +134,7 @@ function parseCli(argv: string[]): CliOptions {
         }
         options.scenarioMix = argv[index + 1]
           .split(',')
-          .map((value) => value.trim())
+          .map(value => value.trim())
           .filter(Boolean);
         index += 1;
         break;
@@ -133,10 +142,7 @@ function parseCli(argv: string[]): CliOptions {
         if (!argv[index + 1]) {
           throw new Error('--counterfactuals requires a value');
         }
-        options.counterfactualsPerRound = parseNumber(
-          argv[index + 1],
-          '--counterfactuals'
-        );
+        options.counterfactualsPerRound = parseNumber(argv[index + 1], '--counterfactuals');
         index += 1;
         break;
       case '--policy':
@@ -177,6 +183,7 @@ function parseCli(argv: string[]): CliOptions {
       case '-h':
         printUsage();
         process.exit(0);
+        return options;
       default:
         throw new Error(`unknown argument: ${arg}`);
     }
@@ -204,7 +211,7 @@ function resolveScenarioMix(value?: string[]): TruthCourtScenarioName[] | undefi
   }
 
   const available = new Set(listTruthCourtScenarios());
-  const invalid = value.find((entry) => !available.has(entry as TruthCourtScenarioName));
+  const invalid = value.find(entry => !available.has(entry as TruthCourtScenarioName));
   if (invalid) {
     throw new Error(`unknown scenario in --scenario-mix: ${invalid}`);
   }
@@ -212,9 +219,7 @@ function resolveScenarioMix(value?: string[]): TruthCourtScenarioName[] | undefi
   return value as TruthCourtScenarioName[];
 }
 
-function resolveSignerSecretKey(
-  cli: CliOptions
-): Uint8Array | undefined {
+function resolveSignerSecretKey(cli: CliOptions): Uint8Array | undefined {
   if (!cli.signArtifacts) {
     return undefined;
   }
@@ -268,8 +273,7 @@ async function exportArtifacts(
     ? (payload.threadPack as string[]).join('\n\n')
     : '';
   const result = (payload.result as { prometheusMetrics?: unknown } | undefined) ?? {};
-  const metrics =
-    typeof result.prometheusMetrics === 'string' ? result.prometheusMetrics : '';
+  const metrics = typeof result.prometheusMetrics === 'string' ? result.prometheusMetrics : '';
 
   const jsonContent = `${JSON.stringify(payload, null, 2)}\n`;
   const cardContent = `${card}\n`;
@@ -326,17 +330,34 @@ async function main(): Promise<void> {
   const cli = parseCli(process.argv.slice(2));
   const includeGrok = resolveMode(cli.mode);
   const signerSecretKey = resolveSignerSecretKey(cli);
+  const richUi = isRichUiEnabled();
 
-  const result = await runTruthCourtGauntlet({
-    rounds: cli.rounds,
-    seed: cli.seed,
-    scenarioMix: resolveScenarioMix(cli.scenarioMix),
-    counterfactualsPerRound: cli.counterfactualsPerRound,
-    includeGrok,
-    policyMode: cli.policyMode,
-  });
+  if (richUi) {
+    printEventHorizonHeader({
+      activeTab: 'trust',
+      mode: includeGrok === true ? 'live' : includeGrok === false ? 'mock' : 'auto',
+      policy: cli.policyMode,
+    });
+    await printBootSequence([
+      `seed lock: ${cli.seed ?? 'auto'}`,
+      `rounds x counterfactuals: ${cli.rounds} x ${cli.counterfactualsPerRound}`,
+      `committee mode: ${includeGrok === true ? 'grok + local' : includeGrok === false ? 'local only' : 'auto'}`,
+    ]);
+  }
+
+  const result = await withSpinner('executing event horizon gauntlet', () =>
+    runTruthCourtGauntlet({
+      rounds: cli.rounds,
+      seed: cli.seed,
+      scenarioMix: resolveScenarioMix(cli.scenarioMix),
+      counterfactualsPerRound: cli.counterfactualsPerRound,
+      includeGrok,
+      policyMode: cli.policyMode,
+    })
+  );
 
   if (!result.success) {
+    printFatal(result.error ?? 'event horizon gauntlet failed');
     console.error('event horizon gauntlet failed');
     console.error(result.error ?? 'unknown error');
     process.exit(1);
@@ -350,25 +371,69 @@ async function main(): Promise<void> {
     result,
   };
 
-  console.log('=== Event Horizon Gauntlet ===');
-  console.log(JSON.stringify(envelope, null, 2));
-  console.log('\n=== Headline Card ===');
-  console.log(result.headlineCard);
-  console.log(`\nheadline_length=${result.headlineCard.length}`);
+  if (richUi) {
+    printPanel('Campaign Summary', [
+      `${formatMetric('run id', result.runId)} ${formatStatus(result.success ? 'pass' : 'fail', result.success ? 'pass' : 'fail')}`,
+      formatMetric('seed', String(result.seed)),
+      formatMetric('policy', result.config.policyMode),
+      formatMetric('rounds', `${result.summary.roundsCompleted}/${result.summary.roundsRequested}`),
+      formatMetric('mode', includeGrok === true ? 'live' : includeGrok === false ? 'mock' : 'auto'),
+      formatMetric('committee', result.config.includeGrok ? 'grok + local' : 'local only'),
+      formatMetric('cosmic trust index', result.summary.cosmicTrustIndex.toFixed(3)),
+      formatMetric('replay integrity', `${(result.summary.replayIntegrityRate * 100).toFixed(1)}%`),
+      formatMetric('tamper detection', `${(result.summary.tamperDetectionRate * 100).toFixed(1)}%`),
+      formatMetric(
+        'counterfactual stability',
+        `${(result.summary.counterfactualStability * 100).toFixed(1)}%`
+      ),
+      formatMetric('oracle failure/round', result.summary.oracleFailureRate.toFixed(3)),
+      formatMetric('oracle latency ms', result.summary.averageOracleLatencyMs.toFixed(3)),
+      formatMetric('verdict entropy', result.summary.verdictEntropy.toFixed(3)),
+      formatMetric('merkle root', result.summary.merkleRoot),
+    ]);
+    printPanel('Headline Card', [
+      result.headlineCard,
+      formatMetric('headline length', `${result.headlineCard.length}/280`),
+    ]);
+    printThreadPack(result.threadPack);
 
-  console.log('\n=== Thread Pack ===');
-  for (const [index, post] of result.threadPack.entries()) {
-    console.log(`[${index + 1}] (${post.length}) ${post}`);
+    if (process.env.EVENT_HORIZON_SHOW_JSON === '1') {
+      printPanel('Raw Envelope', [JSON.stringify(envelope)]);
+    }
+  } else {
+    console.log('=== Event Horizon Gauntlet ===');
+    console.log(JSON.stringify(envelope, null, 2));
+    console.log('\n=== Headline Card ===');
+    console.log(result.headlineCard);
+    console.log(`\nheadline_length=${result.headlineCard.length}`);
+
+    console.log('\n=== Thread Pack ===');
+    for (const [index, post] of result.threadPack.entries()) {
+      console.log(`[${index + 1}] (${post.length}) ${post}`);
+    }
   }
 
   if (cli.exportEnabled) {
-    const paths = await exportArtifacts(
-      cli.exportDir,
-      result.runId,
-      envelope,
-      signerSecretKey
+    const paths = await withSpinner('writing gauntlet export artifacts', () =>
+      exportArtifacts(cli.exportDir, result.runId, envelope, signerSecretKey)
     );
-    console.log('\n=== Exported Artifacts ===');
+    if (richUi) {
+      printPanel('Exported Artifacts', [
+        formatMetric('json', paths.jsonPath),
+        formatMetric('card', paths.cardPath),
+        formatMetric('thread', paths.threadPath),
+        formatMetric('metrics', paths.metricsPath),
+        paths.attestationPath
+          ? formatMetric('attestation', paths.attestationPath)
+          : formatMetric('attestation', 'disabled'),
+        paths.signerPublicKey
+          ? formatMetric('signer', paths.signerPublicKey)
+          : formatMetric('signer', 'n/a'),
+      ]);
+      printSuccess('gauntlet artifacts exported');
+    } else {
+      console.log('\n=== Exported Artifacts ===');
+    }
     console.log(`json=${paths.jsonPath}`);
     console.log(`card=${paths.cardPath}`);
     console.log(`thread=${paths.threadPath}`);
@@ -380,7 +445,7 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
+main().catch(error => {
   console.error('event horizon gauntlet crashed:', error);
   process.exit(1);
 });
