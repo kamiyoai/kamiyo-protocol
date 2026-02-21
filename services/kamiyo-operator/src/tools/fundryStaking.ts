@@ -1,6 +1,8 @@
 import { Connection, Keypair, Transaction } from '@solana/web3.js';
 
 type JsonObject = Record<string, unknown>;
+const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
+const DEFAULT_CONFIRM_TIMEOUT_MS = 30_000;
 
 export type FundryClaimablePeriod = {
   periodNumber: number;
@@ -31,16 +33,45 @@ function normalizeApiBase(apiBase: string): string {
   return apiBase.replace(/\/+$/, '');
 }
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  const payload = (await response.json().catch(() => ({}))) as JsonObject;
+async function fetchJson<T>(
+  url: string,
+  init?: RequestInit & { timeoutMs?: number }
+): Promise<T> {
+  const { timeoutMs = DEFAULT_HTTP_TIMEOUT_MS, ...requestInit } = init ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...requestInit,
+      signal: controller.signal,
+    });
+    const payload = (await response.json().catch(() => ({}))) as JsonObject;
 
-  if (!response.ok) {
-    const error = typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`;
-    throw new Error(error);
+    if (!response.ok) {
+      const error = typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`;
+      throw new Error(error);
+    }
+
+    return payload as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
+}
 
-  return payload as T;
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  if (timeoutMs <= 0) return promise;
+  let timer: NodeJS.Timeout | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function extractSignature(result: unknown): string | null {
@@ -97,11 +128,14 @@ export async function readFundryUserPosition(params: {
   apiBase: string;
   poolAddress: string;
   wallet: string;
+  timeoutMs?: number;
 }): Promise<FundryUserPosition> {
-  const { apiBase, poolAddress, wallet } = params;
+  const { apiBase, poolAddress, wallet, timeoutMs } = params;
   const base = normalizeApiBase(apiBase);
   const query = new URLSearchParams({ wallet }).toString();
-  return fetchJson<FundryUserPosition>(`${base}/api/staking/pools/${poolAddress}/user-position?${query}`);
+  return fetchJson<FundryUserPosition>(`${base}/api/staking/pools/${poolAddress}/user-position?${query}`, {
+    timeoutMs,
+  });
 }
 
 export async function claimFundryStakingPeriods(params: {
@@ -110,8 +144,17 @@ export async function claimFundryStakingPeriods(params: {
   poolAddress: string;
   signer: Keypair;
   periodNumbers: number[];
+  requestTimeoutMs?: number;
+  confirmTimeoutMs?: number;
 }): Promise<FundryClaimResult[]> {
-  const { connection, apiBase, poolAddress, signer } = params;
+  const {
+    connection,
+    apiBase,
+    poolAddress,
+    signer,
+    requestTimeoutMs,
+    confirmTimeoutMs = DEFAULT_CONFIRM_TIMEOUT_MS,
+  } = params;
   const base = normalizeApiBase(apiBase);
   const claims: FundryClaimResult[] = [];
   const uniquePeriods = [...new Set(params.periodNumbers)].filter(n => Number.isInteger(n) && n >= 0);
@@ -127,6 +170,7 @@ export async function claimFundryStakingPeriods(params: {
           poolAddress,
           periodNumber,
         }),
+        timeoutMs: requestTimeoutMs,
       }
     );
 
@@ -138,11 +182,16 @@ export async function claimFundryStakingPeriods(params: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transaction: signedTxBase64 }),
+      timeoutMs: requestTimeoutMs,
     });
 
     const signature = extractSignature(submitResult);
     if (signature) {
-      await connection.confirmTransaction(signature, 'confirmed').catch(() => null);
+      await withTimeout(
+        connection.confirmTransaction(signature, 'confirmed').catch(() => null),
+        confirmTimeoutMs,
+        `confirm transaction timed out after ${confirmTimeoutMs}ms`
+      ).catch(() => null);
     }
 
     claims.push({

@@ -21,6 +21,11 @@ import { MEISHI_TOOL_DEFINITIONS, createToolContext, handleTool } from './tools.
 
 dotenv.config();
 
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'internal error';
+}
+
 class MeishiMCPServer {
   private server: Server;
   private ctx: ReturnType<typeof createToolContext>;
@@ -34,12 +39,14 @@ class MeishiMCPServer {
     const rpcUrl = process.env.SOLANA_RPC_URL ?? 'https://api.devnet.solana.com';
     const connection = new Connection(rpcUrl, 'confirmed');
 
-    let keypair: Keypair;
+    let keypair = Keypair.generate();
     const secretKey = process.env.SOLANA_PRIVATE_KEY;
     if (secretKey) {
-      keypair = Keypair.fromSecretKey(bs58.decode(secretKey));
-    } else {
-      keypair = Keypair.generate();
+      try {
+        keypair = Keypair.fromSecretKey(bs58.decode(secretKey));
+      } catch {
+        console.error('Warning: Invalid SOLANA_PRIVATE_KEY, using ephemeral keypair');
+      }
     }
 
     this.ctx = createToolContext({
@@ -49,6 +56,19 @@ class MeishiMCPServer {
     });
 
     this.setupHandlers();
+
+    this.server.onerror = (error) => {
+      console.error('[Meishi MCP Error]', safeErrorMessage(error));
+    };
+
+    const shutdown = async (signal: string) => {
+      console.error(`[Meishi MCP] shutting down (${signal})`);
+      await this.server.close();
+      process.exit(0);
+    };
+
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
   }
 
   private setupHandlers() {
@@ -70,14 +90,14 @@ class MeishiMCPServer {
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           content: [
             {
               type: 'text' as const,
               text: JSON.stringify({
                 success: false,
-                error: error.message,
+                error: safeErrorMessage(error),
               }),
             },
           ],
@@ -94,4 +114,7 @@ class MeishiMCPServer {
 }
 
 const server = new MeishiMCPServer();
-server.run().catch(console.error);
+server.run().catch((error) => {
+  console.error('Failed to start Meishi MCP server:', safeErrorMessage(error));
+  process.exit(1);
+});

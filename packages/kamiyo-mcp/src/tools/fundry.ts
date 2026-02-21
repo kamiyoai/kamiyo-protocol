@@ -58,7 +58,7 @@ export const FUNDRY_TOOL_DEFINITIONS: Tool[] = [
         configType: {
           type: 'string',
           description:
-            'Fundry bonding curve config: community, preseed, seriesa, toly, indie, music, whitewhale, kamiyo, retardchy, illuminati, presales, aiagents, nitro',
+            'Fundry bonding curve config: community, preseed, seriesa, toly, indie, music, whitewhale, kamiyo, origin, retardchy, illuminati, presales, aiagents, nitro',
         },
         initialBuySol: {
           type: 'number',
@@ -116,12 +116,22 @@ const VALID_CONFIG_TYPES = [
   'music',
   'whitewhale',
   'kamiyo',
+  'origin',
   'retardchy',
   'illuminati',
   'presales',
   'aiagents',
   'nitro',
 ];
+const BUILDER_CONFIG_TYPES = new Set([
+  'community',
+  'preseed',
+  'seriesa',
+  'toly',
+  'indie',
+  'kamiyo',
+  'origin',
+]);
 
 const DEFAULT_MIGRATION_TARGET_SOL = 40;
 const DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS = [
@@ -350,7 +360,7 @@ export function listFundryConfigs(): FundryToolResult {
     data: {
       configs: VALID_CONFIG_TYPES.map(name => ({
         name,
-        category: ['community', 'indie', 'music', 'kamiyo'].includes(name) ? 'builder' : 'monkes',
+        category: BUILDER_CONFIG_TYPES.has(name) ? 'builder' : 'monkes',
       })),
     },
   };

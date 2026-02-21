@@ -100,6 +100,86 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 Restart Claude Desktop after editing.
 
+## Event Horizon Demo
+
+Run a Mars-themed truth-court dispute demo and print a tweet-sized verdict card:
+
+```bash
+npm run demo:event-horizon
+```
+
+Force local-only or Grok-enabled modes:
+
+```bash
+npm run demo:event-horizon:mock
+npm run demo:event-horizon:live
+```
+
+Optional environment overrides:
+
+```bash
+EVENT_HORIZON_MISSION_TAG=mars_ops_comms_relay
+EVENT_HORIZON_QUALITY_SCORE=29
+EVENT_HORIZON_REQUESTED_REFUND=80
+XAI_API_KEY=... # include Grok in committee when set
+```
+
+CLI flags:
+
+```bash
+npm run demo:event-horizon -- --scenario launch-anomaly --mock
+npm run demo:event-horizon -- --scenario habitat-power --live --export-dir output/event-horizon
+npm run demo:event-horizon -- --quality 31 --refund 84 --no-export
+```
+
+Each exported run writes two files (unless `--no-export`):
+
+- `<timestamp>-<scenario>.json` full verdict envelope for logs/integrations
+- `<timestamp>-<scenario>.txt` tweet-sized verdict card
+
+## Event Horizon Gauntlet
+
+Run deterministic multi-round stress campaigns with replay/tamper/counterfactual metrics:
+
+```bash
+npm run demo:event-horizon:gauntlet:mock
+```
+
+The CLI now ships with a Meishi-style terminal UI (ASCII logo, tab framing, status badges, boot/spinner animation) when running in a TTY.
+Set `EVENT_HORIZON_PLAIN_UI=1` to disable rich UI and keep raw JSON output style.
+Set `EVENT_HORIZON_NO_ANIM=1` to keep the rich UI without animation.
+
+With Grok enabled:
+
+```bash
+XAI_API_KEY=... npm run demo:event-horizon:gauntlet:live
+```
+
+Advanced options:
+
+```bash
+npm run demo:event-horizon:gauntlet -- --mock --rounds 24 --seed 424242 --scenario-mix habitat-power,launch-anomaly,surface-rover
+npm run demo:event-horizon:gauntlet -- --mock --counterfactuals 3 --export-dir output/event-horizon-gauntlet
+npm run demo:event-horizon:gauntlet -- --live --strict --rounds 24
+npm run demo:event-horizon:gauntlet -- --mock --sign --signer-key <base58-secret-key>
+```
+
+`--policy strict` requires provider diversity and quorum guarantees. In practice this means at least two oracle providers (for example local + Grok).
+
+Each gauntlet run exports:
+
+- `<timestamp>-<runId>.json` full campaign payload
+- `<timestamp>-<runId>.txt` headline card
+- `<timestamp>-<runId>.md` 5-post thread pack
+- `<timestamp>-<runId>.prom` Prometheus metrics for dashboards/SLO alerts
+- `<timestamp>-<runId>.attestation.json` detached Ed25519 signatures for artifact provenance (when `--sign` is enabled)
+
+Verify signed artifacts:
+
+```bash
+npm run demo:event-horizon:gauntlet:verify -- --attestation output/event-horizon-gauntlet/<timestamp>-<runId>.attestation.json
+```
+
 ## Tools
 
 ### create_escrow

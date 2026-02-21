@@ -1,0 +1,24 @@
+{
+  "opportunities": [
+    {
+      "id": "agent-ai-signal-001",
+      "title": "Alpha Signal Curation Sprint",
+      "summary": "Curate 20 high-confidence on-chain signal candidates and publish ranked execution briefs.",
+      "confidence": 0.88,
+      "roleHints": ["signal", "research"],
+      "tags": ["alpha", "signals", "solana"],
+      "payoutUsd": 180,
+      "createdAt": "2026-02-20T23:35:00Z"
+    },
+    {
+      "id": "agent-ai-research-002",
+      "title": "Protocol Due Diligence Packet",
+      "summary": "Produce structured risk and opportunity packet for two ecosystem integrations.",
+      "confidence": 0.79,
+      "roleHints": ["research"],
+      "tags": ["due_diligence", "integration"],
+      "payoutUsd": 140,
+      "createdAt": "2026-02-20T23:35:00Z"
+    }
+  ]
+}

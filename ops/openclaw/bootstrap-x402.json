@@ -1,0 +1,15 @@
+{
+  "opportunities": [
+    {
+      "id": "x402-paid-api-001",
+      "title": "Paid Data Endpoint Integration",
+      "summary": "Integrate one x402-paid data endpoint and publish signed response verification receipts.",
+      "confidence": 0.91,
+      "roleHints": ["executor", "ops"],
+      "tags": ["x402", "api", "machine_pay"],
+      "payoutUsd": 300,
+      "payoutSol": 0.95,
+      "createdAt": "2026-02-21T07:00:00Z"
+    }
+  ]
+}

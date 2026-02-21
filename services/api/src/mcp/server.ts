@@ -195,7 +195,7 @@ function validateArgs(args: unknown, schema: { required?: string[]; properties?:
     if (spec.type === 'string' && typeof value !== 'string') {
       return `${key} must be a string`;
     }
-    if (spec.type === 'number' && typeof value !== 'number') {
+    if (spec.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) {
       return `${key} must be a number`;
     }
     if (spec.type === 'object' && (typeof value !== 'object' || value === null)) {
@@ -352,14 +352,19 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 async function x402CheckPricing(args: { url: string }): Promise<{ success: boolean; free?: boolean; options?: unknown[]; error?: string }> {
+  let parsedUrl: URL;
   try {
-    new URL(args.url);
+    parsedUrl = new URL(args.url);
   } catch {
     return { success: false, error: 'invalid URL' };
   }
 
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return { success: false, error: 'url must use http or https' };
+  }
+
   try {
-    const response = await fetchWithTimeout(args.url, {
+    const response = await fetchWithTimeout(parsedUrl.toString(), {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     }, 10_000);

@@ -1,0 +1,14 @@
+{
+  "opportunities": [
+    {
+      "id": "kore-enterprise-001",
+      "title": "Enterprise Agent QA Harness",
+      "summary": "Build and run QA harness for enterprise conversation flows and escalation paths.",
+      "confidence": 0.76,
+      "roleHints": ["ops", "executor"],
+      "tags": ["enterprise", "qa", "workflow"],
+      "payoutUsd": 260,
+      "createdAt": "2026-02-20T23:35:00Z"
+    }
+  ]
+}

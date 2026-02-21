@@ -159,6 +159,117 @@ const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
+    name: 'file_dispute_truth_court',
+    description:
+      'Run multi-oracle dispute review (including Grok when configured), emit replayable hashes, and optionally mark dispute on-chain.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        transactionId: {
+          type: 'string',
+          description: 'Transaction ID of the escrow to dispute',
+        },
+        qualityScore: {
+          type: 'number',
+          description: 'Quality score assessment (0-100)',
+        },
+        refundPercentage: {
+          type: 'number',
+          description: 'Requested refund percentage (0-100)',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Claimant wallet or agent identifier',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Respondent wallet or agent identifier',
+        },
+        missionTag: {
+          type: 'string',
+          description: 'Scenario tag (for example mars_ops_power_grid)',
+        },
+        evidence: {
+          type: 'object',
+          description: 'Evidence supporting the dispute',
+        },
+        featureVector: {
+          type: 'object',
+          description: 'Deterministic feature vector for replay checks',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional contextual summary for the case',
+        },
+        markOnChain: {
+          type: 'boolean',
+          description: 'If true, mark dispute on-chain after committee verdict (default true)',
+        },
+        minValidResponses: {
+          type: 'number',
+          description: 'Minimum valid oracle responses needed for quorum (default 2)',
+        },
+      },
+      required: [
+        'transactionId',
+        'qualityScore',
+        'refundPercentage',
+        'claimant',
+        'evidence',
+        'featureVector',
+      ],
+    },
+  },
+  {
+    name: 'run_truth_court_gauntlet',
+    description:
+      'Run deterministic multi-round truth-court stress campaign with replay/tamper/counterfactual metrics and integrity root.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        rounds: {
+          type: 'number',
+          description: 'Number of rounds (default 12, max 100)',
+        },
+        seed: {
+          type: 'number',
+          description: 'Deterministic seed for reproducible runs',
+        },
+        scenarioMix: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Scenario mix (for example ["habitat-power","launch-anomaly"])',
+        },
+        counterfactualsPerRound: {
+          type: 'number',
+          description: 'Counterfactual probes per round (default 2, max 8)',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Claimant agent id (default agent-red)',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Respondent agent id (default agent-blue)',
+        },
+        includeGrok: {
+          type: 'boolean',
+          description: 'Force Grok inclusion when available (default auto)',
+        },
+        policyMode: {
+          type: 'string',
+          enum: ['default', 'strict'],
+          description:
+            'strict requires committee diversity and stronger quorum guarantees',
+        },
+        minValidResponses: {
+          type: 'number',
+          description: 'Minimum valid oracle responses for quorum (default 2)',
+        },
+      },
+    },
+  },
+  {
     name: 'get_api_reputation',
     description: 'Get reputation score and transaction history for an API provider.',
     inputSchema: {
@@ -604,6 +715,11 @@ const TOOL_DEFINITIONS: Tool[] = [
   ...tools.FUNDRY_TOOL_DEFINITIONS,
 ];
 
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'internal error';
+}
+
 /**
  * MCP Server implementation
  */
@@ -654,8 +770,8 @@ class KamiyoMCPServer {
             }
           }
         }
-      } catch (error: any) {
-        console.error(`Warning: Failed to load keypair: ${error.message}. Solana tools will be disabled.`);
+      } catch (error: unknown) {
+        console.error(`Warning: Failed to load keypair: ${safeErrorMessage(error)}. Solana tools will be disabled.`);
       }
     }
 
@@ -667,8 +783,8 @@ class KamiyoMCPServer {
     if (programIdStr && keypair && this.solanaClient) {
       try {
         this.programId = new PublicKey(programIdStr);
-      } catch (error: any) {
-        console.error(`Warning: Invalid KAMIYO_PROGRAM_ID: ${error.message}. Solana tools will be disabled.`);
+      } catch (error: unknown) {
+        console.error(`Warning: Invalid KAMIYO_PROGRAM_ID: ${safeErrorMessage(error)}. Solana tools will be disabled.`);
         this.programId = undefined;
       }
 
@@ -684,11 +800,17 @@ class KamiyoMCPServer {
     // Initialize x402 config with real wallet for signing
     // Initialize x402 config if we have keypair and solana client
     if (keypair && this.solanaClient) {
+      const parsedMaxPriceUsd = Number(process.env.X402_MAX_PRICE_USD ?? '0.10');
+      const maxPriceUsd =
+        Number.isFinite(parsedMaxPriceUsd) && parsedMaxPriceUsd > 0
+          ? parsedMaxPriceUsd
+          : 0.10;
+
       this.x402Config = tools.createX402Config(
         keypair,
         this.solanaClient.connection,
         {
-          maxPriceUsd: parseFloat(process.env.X402_MAX_PRICE_USD || '0.10'),
+          maxPriceUsd,
           preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
           facilitatorPolicy: process.env.X402_FACILITATOR_POLICY as tools.X402Config['facilitatorPolicy'],
         }
@@ -767,6 +889,23 @@ class KamiyoMCPServer {
               break;
             }
             result = await tools.fileDispute(args as any, this.program);
+            break;
+
+          case 'file_dispute_truth_court': {
+            const markOnChain = (args as any)?.markOnChain !== false;
+            if (markOnChain && !this.program) {
+              result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key). Set markOnChain=false for evaluation-only mode.' };
+              break;
+            }
+            result = await tools.fileDisputeWithTruthCourt(
+              args as any,
+              this.program
+            );
+            break;
+          }
+
+          case 'run_truth_court_gauntlet':
+            result = await tools.runTruthCourtGauntlet(args as any);
             break;
 
           case 'get_api_reputation':
@@ -1040,7 +1179,7 @@ class KamiyoMCPServer {
             },
           ],
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Return error as MCP response
         return {
           content: [
@@ -1048,7 +1187,7 @@ class KamiyoMCPServer {
               type: 'text',
               text: JSON.stringify({
                 success: false,
-                error: error.message || 'Tool execution failed',
+                error: safeErrorMessage(error),
               }),
             },
           ],
@@ -1074,8 +1213,8 @@ async function main() {
   try {
     const server = new KamiyoMCPServer();
     await server.start();
-  } catch (error) {
-    console.error('Failed to start MCP server:', error);
+  } catch (error: unknown) {
+    console.error('Failed to start MCP server:', safeErrorMessage(error));
     process.exit(1);
   }
 }

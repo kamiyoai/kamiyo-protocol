@@ -12,8 +12,21 @@ const optionalNonEmptyString = z.preprocess(v => {
   return trimmed ? trimmed : undefined;
 }, z.string().min(1).optional());
 
+const csvList = z
+  .string()
+  .default('')
+  .transform(value =>
+    value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  );
+
 const envSchema = z.object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
+  SOLANA_RPC_FALLBACK_URLS: csvList,
+  KAMIYO_RPC_READ_TIMEOUT_MS: z.coerce.number().int().positive().default(12_000),
+  KAMIYO_RPC_READ_RETRIES: z.coerce.number().int().nonnegative().default(2),
 
   KAMIYO_OPERATOR_KEYPAIR_PATH: optionalNonEmptyString,
   KAMIYO_OPERATOR_PRIVATE_KEY: optionalNonEmptyString,
@@ -99,6 +112,9 @@ const envSchema = z.object({
   KAMIYO_LOCK_PATH: z.string().default('output/kamiyo-operator/runner.lock'),
   KAMIYO_STUCK_TICK_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(70),
   KAMIYO_TICK_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(10),
+  KAMIYO_TICK_SOFT_TIMEOUT_BUFFER_SECONDS: z.coerce.number().int().nonnegative().default(45),
+  KAMIYO_TICK_MIN_REMAINING_MS_FOR_SWARM_AGENT: z.coerce.number().int().positive().default(30_000),
+  KAMIYO_TICK_MIN_REMAINING_MS_FOR_LLM: z.coerce.number().int().positive().default(75_000),
 
   KAMIYO_SOL_DAILY_CAP: z.coerce.number().positive().default(0.1),
   KAMIYO_SOL_PER_TX_CAP: z.coerce.number().positive().default(0.02),
@@ -136,12 +152,135 @@ const envSchema = z.object({
   ANTHROPIC_THINKING_BUDGET_TOKENS: z.coerce.number().int().nonnegative().default(1024),
   KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN: z.coerce.number().int().positive().default(2048),
   KAMIYO_MAX_TURNS_PER_TICK: z.coerce.number().int().positive().default(6),
+  KAMIYO_ANTHROPIC_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
 
   KAMIYO_LLM_MAX_TURNS_PER_DAY: z.coerce.number().int().positive().default(24),
   KAMIYO_LLM_MAX_INPUT_TOKENS_PER_DAY: z.coerce.number().int().positive().default(150_000),
   KAMIYO_LLM_MAX_OUTPUT_TOKENS_PER_DAY: z.coerce.number().int().positive().default(30_000),
 
   KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_METRICS_HTTP_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_METRICS_HTTP_HOST: z.string().min(1).default('127.0.0.1'),
+  KAMIYO_METRICS_HTTP_PORT: z.coerce.number().int().positive().default(9464),
+  KAMIYO_METRICS_HTTP_PATH: z.string().min(1).default('/metrics'),
+  KAMIYO_SWARM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_PROPOSE_ONLY: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_REGISTRY_PATH: z.string().default('output/kamiyo-operator/swarm.registry.json'),
+  KAMIYO_SWARM_MISSIONS_PER_TICK: z.coerce.number().int().positive().default(3),
+  KAMIYO_SWARM_MAX_ACTIVE_AGENTS: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_JOB_INTAKE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_JOB_FEED_PATH: z.string().default('output/kamiyo-operator/swarm.jobs.json'),
+  KAMIYO_SWARM_JOB_FEED_URLS: csvList,
+  KAMIYO_SWARM_RELEVANCE_FEED_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_RELEVANCE_API_KEY: optionalNonEmptyString,
+  KAMIYO_SWARM_RELEVANCE_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_AGENTAI_FEED_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_AGENTAI_API_KEY: optionalNonEmptyString,
+  KAMIYO_SWARM_AGENTAI_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_KORE_FEED_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_KORE_API_KEY: optionalNonEmptyString,
+  KAMIYO_SWARM_KORE_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
+  KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),
+  KAMIYO_SWARM_LEAD_CONVERSION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD: z.coerce.number().nonnegative().default(12),
+  KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS: z.coerce.number().int().positive().default(168),
+  KAMIYO_SWARM_SOURCE_FEEDBACK_MIN_SAMPLES: z.coerce.number().int().positive().default(3),
+  KAMIYO_SWARM_SOL_PRICE_USD: z.coerce.number().positive().default(150),
+  KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  KAMIYO_SWARM_JOB_EXECUTION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK: z.coerce.number().int().positive().default(2),
+  KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+  KAMIYO_SWARM_JOB_MIN_MARGIN_SOL: z.coerce.number().nonnegative().default(0.0005),
+  KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL: z.coerce.number().nonnegative().default(0.00001),
+  KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_X402_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_X402_MAX_PRICE_USD: z.coerce.number().positive().default(2),
+  KAMIYO_SWARM_X402_PREFERRED_NETWORK: z.string().min(1).default('solana:mainnet'),
+  KAMIYO_SWARM_X402_FACILITATOR_POLICY: z
+    .enum(['auto', 'prefer-kamiyo', 'force-kamiyo', 'disable-kamiyo'])
+    .default('prefer-kamiyo'),
+  KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_CIRCUIT_NEG_MARGIN_STREAK: z.coerce.number().int().positive().default(3),
+  KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES: z.coerce.number().int().positive().default(180),
+  KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_SWARM_REVENUE_REPORT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_REVENUE_REPORT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  KAMIYO_SWARM_SLO_REPORT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_SLO_REPORT_WINDOW_DAYS: z.coerce.number().int().positive().default(30),
+  KAMIYO_SWARM_SLO_REPORT_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_SWARM_SLO_ALERT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_SLO_ALERT_COOLDOWN_HOURS: z.coerce.number().int().positive().default(6),
+  KAMIYO_SWARM_SLO_ALERT_WEBHOOK_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_SLO_ALERT_WEBHOOK_SECRET: optionalNonEmptyString,
+  KAMIYO_SWARM_SLO_ALERT_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  KAMIYO_SWARM_ROLLBACK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_ROLLBACK_EVAL_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_SWARM_ROLLBACK_WINDOW_DAYS: z.coerce.number().int().positive().default(7),
+  KAMIYO_SWARM_ROLLBACK_NET_SOL_TRIGGER: z.coerce.number().default(-0.02),
+  KAMIYO_SWARM_ROLLBACK_RECOVERY_NET_SOL: z.coerce.number().default(0),
+  KAMIYO_SWARM_ROLLBACK_MIN_JOBS: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_ROLLBACK_SOURCE_MIN_JOBS: z.coerce.number().int().positive().default(2),
+  KAMIYO_SWARM_ROLLBACK_MAX_DISABLED_SOURCES: z.coerce.number().int().positive().default(2),
+  KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_SWARM_WEEKLY_SUMMARY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_WEEKLY_SUMMARY_INTERVAL_HOURS: z.coerce.number().int().positive().default(168),
   KAMIYO_RETENTION_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
@@ -157,7 +296,12 @@ const envSchema = z.object({
   KAMIYO_ANNOUNCE_CHANNELS: z
     .string()
     .default('x,telegram')
-    .transform(s => s.split(',').map(v => v.trim()).filter(Boolean)),
+    .transform(s =>
+      s
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean)
+    ),
 
   KAMIYO_DB_PATH: z.string().default('output/kamiyo-operator/state.db'),
   KAMIYO_OUTBOX_DIR: z.string().default('output/kamiyo-operator/outbox'),

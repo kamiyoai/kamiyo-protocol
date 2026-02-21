@@ -21,6 +21,10 @@
     "./solana/anchor": {
       "types": "./dist/solana/anchor.d.ts",
       "import": "./dist/solana/anchor.js"
+    },
+    "./truth-court": {
+      "types": "./dist/truth-court/index.d.ts",
+      "import": "./dist/truth-court/index.js"
     }
   },
   "bin": {
@@ -30,11 +34,21 @@
     "build": "tsc && mkdir -p dist/idl && cp src/idl/x402_escrow.json dist/idl/",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
+    "demo:event-horizon": "tsx src/demo/event-horizon.ts",
+    "demo:event-horizon:mock": "tsx src/demo/event-horizon.ts --mock",
+    "demo:event-horizon:live": "tsx src/demo/event-horizon.ts --live",
+    "demo:event-horizon:gauntlet": "tsx src/demo/event-horizon-gauntlet.ts",
+    "demo:event-horizon:gauntlet:mock": "tsx src/demo/event-horizon-gauntlet.ts --mock",
+    "demo:event-horizon:gauntlet:live": "tsx src/demo/event-horizon-gauntlet.ts --live",
+    "demo:event-horizon:gauntlet:verify": "tsx src/demo/event-horizon-gauntlet-verify.ts",
     "test": "npm run test:integration",
     "test:integration": "tsx tests/test-integration.ts",
+    "test:truth-court": "tsx tests/test-truth-court.ts",
+    "test:truth-court:gauntlet": "tsx tests/test-truth-court-gauntlet.ts",
+    "test:truth-court:attestation": "tsx tests/test-truth-court-attestation.ts",
     "test:mcp": "tsx tests/test-mcp-tools.ts",
     "test:kamino": "tsx tests/test-kamino.ts",
-    "test:all": "npm run test:mcp && npm run test:integration",
+    "test:all": "npm run test:mcp && npm run test:integration && npm run test:truth-court && npm run test:truth-court:gauntlet && npm run test:truth-court:attestation",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
   },

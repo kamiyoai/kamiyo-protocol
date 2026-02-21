@@ -10,6 +10,14 @@ RUNNER="$SCRIPT_DIR/run-operator.sh"
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/$LABEL.plist"
 LOG_DIR="$SERVICE_DIR/../../output/kamiyo-operator"
+OVERLAY_ENV_BLOCK=""
+if [ -n "${KAMIYO_ENV_OVERLAY:-}" ]; then
+  OVERLAY_ENV_BLOCK=$(cat <<EOF
+    <key>KAMIYO_ENV_OVERLAY</key>
+    <string>$KAMIYO_ENV_OVERLAY</string>
+EOF
+)
+fi
 
 mkdir -p "$PLIST_DIR" "$LOG_DIR"
 chmod +x "$RUNNER"
@@ -42,6 +50,7 @@ cat > "$PLIST_PATH" <<EOF
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+$OVERLAY_ENV_BLOCK
   </dict>
 </dict>
 </plist>
