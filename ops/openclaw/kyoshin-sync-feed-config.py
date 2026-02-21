@@ -78,6 +78,22 @@ def source_definition() -> list[dict[str, str]]:
             'auth_prefix_key': 'KYO_KORE_AUTH_PREFIX',
             'seed_file': 'kore.json',
         },
+        {
+            'source': 'x402',
+            'live_url_key': 'KYO_X402_FEED_URL',
+            'api_key_env': 'KYO_X402_API_KEY',
+            'auth_header_key': 'KYO_X402_AUTH_HEADER',
+            'auth_prefix_key': 'KYO_X402_AUTH_PREFIX',
+            'seed_file': 'x402.json',
+        },
+        {
+            'source': 'direct_api',
+            'live_url_key': 'KYO_DIRECT_API_FEED_URL',
+            'api_key_env': 'KYO_DIRECT_API_KEY',
+            'auth_header_key': 'KYO_DIRECT_API_AUTH_HEADER',
+            'auth_prefix_key': 'KYO_DIRECT_API_AUTH_PREFIX',
+            'seed_file': 'direct_api.json',
+        },
     ]
 
 

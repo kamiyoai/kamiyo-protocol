@@ -50,6 +50,14 @@ Set these env vars in `~/.openclaw/.env`:
 - `KYO_AGENT_AI_FEED_URL`
 - `KYO_RELEVANCE_FEED_URL`
 - `KYO_KORE_FEED_URL`
+- `KYO_X402_FEED_URL`
+- `KYO_DIRECT_API_FEED_URL`
+- optional auth keys:
+  - `KYO_AGENT_AI_API_KEY`
+  - `KYO_RELEVANCE_API_KEY`
+  - `KYO_KORE_API_KEY`
+  - `KYO_X402_API_KEY`
+  - `KYO_DIRECT_API_KEY`
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.

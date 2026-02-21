@@ -128,13 +128,18 @@ This confirms the runtime can move from idle loop to active queue processing aut
   - `KYO_AGENT_AI_FEED_URL=`
   - `KYO_RELEVANCE_FEED_URL=`
   - `KYO_KORE_FEED_URL=`
+  - `KYO_X402_FEED_URL=`
+  - `KYO_DIRECT_API_FEED_URL=`
   - `KYO_AGENT_AI_API_KEY=`
   - `KYO_RELEVANCE_API_KEY=`
   - `KYO_KORE_API_KEY=`
+  - `KYO_X402_API_KEY=`
+  - `KYO_DIRECT_API_KEY=`
 - Verified healthy loop after rotation and env normalization:
-  - `cycle=20`
+  - `cycle=21`
   - `status=ok`
   - `feedSync.ok=true`
+  - `feedSync` source map now includes `x402` and `direct_api` rails (currently disabled until URLs are set)
   - `opportunities=4`
   - `assignments=4`
   - `agentOk=1`
