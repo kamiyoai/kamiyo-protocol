@@ -20,7 +20,7 @@
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "MIT",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/hive": "workspace:*",
     "@rollup/rollup-darwin-arm64": "^4.55.1",
     "@solana/web3.js": "^1.98.0",

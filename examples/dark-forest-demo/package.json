@@ -8,7 +8,7 @@
     "mainnet": "node --import tsx mainnet-demo.ts"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/hive": "file:../../packages/kamiyo-hive",
     "@solana/web3.js": "^1.87.6",
     "bs58": "^5.0.0",

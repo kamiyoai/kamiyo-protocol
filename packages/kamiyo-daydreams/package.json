@@ -36,7 +36,7 @@
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/middleware": "workspace:*",
     "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.31.1"
+    "@coral-xyz/anchor": "^0.32.1"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

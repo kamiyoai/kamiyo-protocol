@@ -12,7 +12,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/hive-merkle": "workspace:*",
     "@kamiyo/hive-prover": "workspace:*",
     "@solana/web3.js": "^1.98.0",

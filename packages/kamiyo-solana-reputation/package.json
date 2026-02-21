@@ -18,7 +18,7 @@
   "author": "KAMIYO <dev@kamiyo.ai>",
   "license": "MIT",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/solana-common": "workspace:*",
     "@solana/web3.js": "^1.98.0"
   },

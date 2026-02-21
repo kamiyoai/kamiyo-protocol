@@ -12,7 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "0.31.1",
+    "@coral-xyz/anchor": "0.32.1",
     "@hono/node-server": "^1.13.0",
     "@hono/zod-validator": "^0.4.0",
     "@kamiyo/agent-paranet": "workspace:*",

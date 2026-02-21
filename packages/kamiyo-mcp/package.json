@@ -57,7 +57,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.0",
-    "@coral-xyz/anchor": "^0.31.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.21.1",
