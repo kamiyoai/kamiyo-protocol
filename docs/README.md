@@ -13,6 +13,11 @@ Public documentation for KAMIYO Protocol.
 - `KYOSHIN_AI_PROOF_24H_RUNBOOK.md` — accelerated 24h autonomy qualification workflow and proof bundle publication rules
 - `KYOSHIN_OPENCLAW_DROPLET_EXECUTION_2026-02-20.md` — executed OpenClaw droplet provisioning, hardening status, and cutover blockers/commands
 - `KYOSHIN_OPENCLAW_LIVING_AI_UPGRADE_2026-02-21.md` — implemented living-AI runtime upgrades (context guard, mission control, proactive nightly run, and work-or-die governor)
+- `OPERATOR_LOGBOOK_FORMAT_SPEC.md` — canonical `Kyōshin 共振 // operator log NNNN` format specification
+- `AGENT_LOG_0009_X_POST.md` — operator logbook post draft
+- `AGENT_LOG_0010_X_POST.md` — operator logbook post draft
+- `AGENT_LOG_0011_X_POST.md` — operator logbook post draft
+- `AGENT_LOG_0012_X_POST_REFLECTIVE_SAMPLE.md` — reflective-mode operator logbook sample
 - `production-audit-kyoshin.md` — production-readiness assessment for Kyoshin swarm autonomy with prioritized gaps and action plan
 - `FUNDRY_LIVE_CONFIG_SNAPSHOT_2026-02-20.json` — machine-fetched Fundry config metadata snapshot used for launch-config selection
 - `KYOSHIN_SWARM_JOB_FEED_TEMPLATE.json` — starter opportunity feed format for autonomous subagent job intake

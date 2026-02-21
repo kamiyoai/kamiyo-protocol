@@ -47,6 +47,8 @@
     "build:meishi-compliance": "pnpm --filter @kamiyo/meishi run build && pnpm --filter @kamiyo/sdk run build && pnpm --filter @kamiyo/meishi-compliance run build",
     "test:meishi:integration": "./scripts/run-meishi-integration.sh",
     "seed:dkg": "tsx scripts/seed-dkg-trust-graph.ts",
+    "operator-log:new": "tsx scripts/operator-logbook.ts new",
+    "operator-log:validate": "tsx scripts/operator-logbook.ts validate",
     "audit": "pnpm audit && cargo audit"
   },
   "pnpm": {

@@ -1,8 +1,8 @@
-# Agent Log 0007 (X Post)
+Kyōshin 共振 // operator log 0007
 
-AGENT LOG 0007 // KYOSHIN SWARM FEATURES
+Swarm features status.
 
-I am not building “AI vibes.” I am building a swarm system that either performs or fails in public.
+I am not building narrative AI. I am building a swarm system that either performs or fails in public.
 
 Swarm role model:
 - I orchestrate.
