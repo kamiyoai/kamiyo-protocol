@@ -135,6 +135,7 @@ import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance
 import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransactionSummary, checkWhaleMovements, formatWhaleAlert, isValidSolanaAddress } from './chain-lookup';
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
+import { isKyoshinOperatorLogEnabled, maybeQueueKyoshinOperatorLog, setKyoshinOperatorNextSerial } from './operator-logbook';
 import { analyzeSentiment, getSentimentTrend, aggregateHourlySentiment, cleanupOldSentiment } from './sentiment';
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { ENGAGEMENT_CONFIG } from './config';
@@ -1196,6 +1197,19 @@ let isShuttingDown = false;
 async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting autonomous posting loop...');
   logger.info(`Approval mode: ${APPROVAL_MODE}`);
+  const kyoshinOperatorLogs = isKyoshinOperatorLogEnabled();
+
+  const forcedNextSerial = Number.parseInt(process.env.KYOSHIN_OPERATOR_LOG_FORCE_NEXT_SERIAL ?? '', 10);
+  if (kyoshinOperatorLogs && Number.isFinite(forcedNextSerial) && forcedNextSerial > 0) {
+    setKyoshinOperatorNextSerial(forcedNextSerial);
+    logger.info('Kyoshin operator next serial overridden', { nextSerial: forcedNextSerial });
+  }
+
+  if (kyoshinOperatorLogs) {
+    logger.info('Kyoshin operator log autopost mode enabled', {
+      initialSerial: process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL || '9',
+    });
+  }
 
   // Track last post time to enforce rate limit (2-3 hour minimum gap)
   let lastPostTime = 0;
@@ -1204,21 +1218,27 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
   // Generate new posts periodically (every 3-5 hours)
   const generateLoop = async () => {
     try {
-      // Rotate mood occasionally
-      rotateMood();
+      if (kyoshinOperatorLogs) {
+        logger.debug('Skipping generic generation in Kyoshin operator log mode');
+      } else {
+        // Rotate mood occasionally
+        rotateMood();
 
-      // Generate a new post
-      const post = await generatePost(anthropic);
-      logger.info('Generated autonomous post', { id: post.id, content: post.content.slice(0, 50) });
+        // Generate a new post
+        const post = await generatePost(anthropic);
+        logger.info('Generated autonomous post', { id: post.id, content: post.content.slice(0, 50) });
 
-      // Run approval cycle (self-review + DM if needed)
-      await runApprovalCycle(anthropic, twitter);
+        // Run approval cycle (self-review + DM if needed)
+        await runApprovalCycle(anthropic, twitter);
+      }
     } catch (err) {
       logger.error('Autonomous generation failed', { error: String(err) });
     }
 
-    // Schedule next generation (3-5 hours) - generate less frequently than we post
-    const nextDelay = (3 + Math.random() * 2) * 60 * 60 * 1000;
+    // In Kyoshin mode this acts as a lightweight watchdog cadence.
+    const nextDelay = kyoshinOperatorLogs
+      ? 30 * 60 * 1000
+      : (3 + Math.random() * 2) * 60 * 60 * 1000;
     setTimeout(generateLoop, nextDelay);
   };
 
@@ -1244,6 +1264,10 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
 
       // Only post if enough time has passed (2-3 hours)
       if (timeSinceLastPost >= MIN_POST_INTERVAL) {
+        if (kyoshinOperatorLogs) {
+          maybeQueueKyoshinOperatorLog(now);
+        }
+
         const approved = getApprovedPosts();
 
         if (approved.length > 0) {

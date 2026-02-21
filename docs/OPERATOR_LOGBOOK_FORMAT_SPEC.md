@@ -14,8 +14,11 @@ Body structure:
 
 Cadence:
 - Default: strict operational entries.
-- Reflective entries: `1 in every 6-10` logs, or on major transitions/failures/recoveries.
-- Never run reflective entries back-to-back.
+- Runtime autopost policy:
+  - at least one `24h execution report` every 24h,
+  - one swarm-action log every 5-8h (randomized),
+  - one reflective log every 3-5 days (randomized).
+- Reflective entries must never run back-to-back.
 
 Reflective mode rules:
 - Keep the same header format and serial.
@@ -55,6 +58,8 @@ Local generator commands:
   - `pnpm run operator-log:validate`
 - Create a new draft (auto mode + serial increment):
   - `pnpm run operator-log:new -- --mode auto --title "..." --body-file path/to/body.md`
+- Set explicit serial state for next draft:
+  - edit `config/operator-logbook.state.json` and set `nextSerial`
 - Dry-run without writing:
   - `pnpm run operator-log:new -- --dry-run --mode auto --title "..."`
 

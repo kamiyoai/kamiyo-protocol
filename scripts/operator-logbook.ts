@@ -8,6 +8,7 @@ interface CliOptions {
   command: Command;
   mode: Mode;
   outDir: string;
+  stateFile: string;
   title?: string;
   body?: string;
   bodyFile?: string;
@@ -23,6 +24,11 @@ interface LogFileInfo {
 
 const HEADER_PREFIX = 'Kyōshin 共振 // operator log ';
 const FILE_NAME_PATTERN = /^AGENT_LOG_(\d{4})_X_POST(?:_.*)?\.md$/;
+const DEFAULT_STATE_FILE = 'config/operator-logbook.state.json';
+
+interface LogbookState {
+  nextSerial: number;
+}
 
 function fail(message: string): never {
   throw new Error(message);
@@ -43,6 +49,7 @@ function parseArgs(argv: string[]): CliOptions {
     command,
     mode: 'auto',
     outDir: 'docs',
+    stateFile: DEFAULT_STATE_FILE,
     dryRun: false,
   };
 
@@ -66,6 +73,13 @@ function parseArgs(argv: string[]): CliOptions {
         const raw = argv[i + 1];
         if (!raw) fail('--out-dir requires a value');
         options.outDir = raw;
+        i += 1;
+        break;
+      }
+      case '--state-file': {
+        const raw = argv[i + 1];
+        if (!raw) fail('--state-file requires a value');
+        options.stateFile = raw;
         i += 1;
         break;
       }
@@ -145,6 +159,31 @@ function loadLogFiles(outDir: string): LogFileInfo[] {
   return out;
 }
 
+function readStateFile(stateFile: string): LogbookState | null {
+  const resolved = path.resolve(process.cwd(), stateFile);
+  if (!fs.existsSync(resolved)) return null;
+  const raw = fs.readFileSync(resolved, 'utf8');
+  const parsed = JSON.parse(raw) as Partial<LogbookState>;
+  if (!parsed || typeof parsed.nextSerial !== 'number' || !Number.isFinite(parsed.nextSerial) || parsed.nextSerial <= 0) {
+    return null;
+  }
+  return { nextSerial: Math.floor(parsed.nextSerial) };
+}
+
+function writeStateFile(stateFile: string, state: LogbookState): void {
+  const resolved = path.resolve(process.cwd(), stateFile);
+  fs.mkdirSync(path.dirname(resolved), { recursive: true });
+  fs.writeFileSync(resolved, JSON.stringify(state, null, 2) + '\n', 'utf8');
+}
+
+function resolveNextSerial(history: LogFileInfo[], stateFile: string): number {
+  const fromState = readStateFile(stateFile);
+  if (fromState) {
+    return fromState.nextSerial;
+  }
+  return history.length > 0 ? history[history.length - 1].serial + 1 : 1;
+}
+
 function resolveMode(mode: Mode, nextSerial: number, history: LogFileInfo[]): 'operational' | 'reflective' {
   if (mode === 'operational' || mode === 'reflective') {
     return mode;
@@ -215,7 +254,7 @@ Prime directive unchanged: Generate SOL revenue and route it into staking pool f
 
 function createNewLog(options: CliOptions): void {
   const history = loadLogFiles(options.outDir);
-  const nextSerial = history.length > 0 ? history[history.length - 1].serial + 1 : 1;
+  const nextSerial = resolveNextSerial(history, options.stateFile);
   const resolvedMode = resolveMode(options.mode, nextSerial, history);
   const title = titleFor(resolvedMode, options.title);
   const body = readBody(options);
@@ -245,6 +284,7 @@ function createNewLog(options: CliOptions): void {
 
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(filePath, content, 'utf8');
+  writeStateFile(options.stateFile, { nextSerial: nextSerial + 1 });
   process.stdout.write(
     JSON.stringify(
       {
