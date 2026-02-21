@@ -729,7 +729,7 @@ importers:
         version: link:../kamiyo-x402-client
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.0
-        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.12.0)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -1274,7 +1274,7 @@ importers:
         version: link:../kamiyo-x402-client
       '@modelcontextprotocol/sdk':
         specifier: ^1.21.1
-        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.12.0)
       '@solana/spl-token':
         specifier: ^0.4.8
         version: 0.4.14(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -1366,7 +1366,7 @@ importers:
         version: link:../kamiyo-meishi
       '@modelcontextprotocol/sdk':
         specifier: ^1.21.1
-        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.12.0)
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -2027,7 +2027,7 @@ importers:
         version: link:../../packages/kamiyo-x402-client
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.0
-        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.12.0)
       '@sentry/node':
         specifier: ^8.0.0
         version: 8.55.0
@@ -2192,10 +2192,10 @@ importers:
         version: 0.32.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@hono/node-server':
         specifier: ^1.13.0
-        version: 1.19.8(hono@4.11.5)
+        version: 1.19.8(hono@4.12.0)
       '@hono/zod-validator':
         specifier: ^0.4.0
-        version: 0.4.3(hono@4.11.5)(zod@3.25.76)
+        version: 0.4.3(hono@4.12.0)(zod@3.25.76)
       '@kamiyo/agent-paranet':
         specifier: workspace:*
         version: link:../../packages/kamiyo-agent-paranet
@@ -2212,8 +2212,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       hono:
-        specifier: ^4.6.0
-        version: 4.11.5
+        specifier: ^4.12.0
+        version: 4.12.0
       pg:
         specifier: ^8.13.1
         version: 8.17.2
@@ -2411,7 +2411,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: ^1.13.0
-        version: 1.19.8(hono@4.11.5)
+        version: 1.19.8(hono@4.12.0)
       '@kamiyo/cdp':
         specifier: workspace:*
         version: link:../../packages/kamiyo-cdp
@@ -2422,8 +2422,8 @@ importers:
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       hono:
-        specifier: ^4.6.0
-        version: 4.11.5
+        specifier: ^4.12.0
+        version: 4.12.0
       pg:
         specifier: ^8.13.1
         version: 8.17.2
@@ -11253,8 +11253,8 @@ packages:
     resolution: {integrity: sha512-rpGNOfacO4WEPClfkEt1yfl8cbu10uB1lNpiI33AKoiAHwOS8lV748JiLx4b5ozO/u4qLjIvfpFsPXdY5Qjkmg==}
     engines: {node: '>=16.9.0'}
 
-  hono@4.11.5:
-    resolution: {integrity: sha512-WemPi9/WfyMwZs+ZUXdiwcCh9Y+m7L+8vki9MzDw3jJ+W9Lc+12HGsd368Qc1vZi1xwW8BWMMsnK5efYKPdt4g==}
+  hono@4.12.0:
+    resolution: {integrity: sha512-NekXntS5M94pUfiVZ8oXXK/kkri+5WpX2/Ik+LVsl+uvw+soj4roXIsPqO+XsWrAw20mOzaXOZf3Q7PfB9A/IA==}
     engines: {node: '>=16.9.0'}
 
   hoopy@0.1.4:
@@ -18382,13 +18382,13 @@ snapshots:
       '@shikijs/types': 3.21.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@hono/node-server@1.19.8(hono@4.11.5)':
+  '@hono/node-server@1.19.8(hono@4.12.0)':
     dependencies:
-      hono: 4.11.5
+      hono: 4.12.0
 
-  '@hono/zod-validator@0.4.3(hono@4.11.5)(zod@3.25.76)':
+  '@hono/zod-validator@0.4.3(hono@4.12.0)(zod@3.25.76)':
     dependencies:
-      hono: 4.11.5
+      hono: 4.12.0
       zod: 3.25.76
 
   '@humanwhocodes/config-array@0.13.0':
@@ -19476,9 +19476,9 @@ snapshots:
 
   '@mobily/ts-belt@3.13.1': {}
 
-  '@modelcontextprotocol/sdk@1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.5)':
+  '@modelcontextprotocol/sdk@1.25.2(@cfworker/json-schema@4.1.1)(hono@4.12.0)':
     dependencies:
-      '@hono/node-server': 1.19.8(hono@4.11.5)
+      '@hono/node-server': 1.19.8(hono@4.12.0)
       ajv: 8.17.1
       ajv-formats: 3.0.1
       content-type: 1.0.5
@@ -29923,7 +29923,7 @@ snapshots:
 
   hono@4.10.1: {}
 
-  hono@4.11.5: {}
+  hono@4.12.0: {}
 
   hoopy@0.1.4: {}
 
@@ -32229,7 +32229,7 @@ snapshots:
   porto@0.2.35(cc691e9f5ddf24e8bcf02aed3c07eefa):
     dependencies:
       '@wagmi/core': 2.22.1(@types/react@19.2.14)(react@19.1.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.1.0))(viem@2.45.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76))
-      hono: 4.11.5
+      hono: 4.12.0
       idb-keyval: 6.2.2
       mipd: 0.0.7(typescript@5.9.3)
       ox: 0.9.17(typescript@5.9.3)(zod@4.3.6)
