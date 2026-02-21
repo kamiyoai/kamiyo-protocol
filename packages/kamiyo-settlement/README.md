@@ -143,6 +143,129 @@ computeCommitmentHash(settlementId, oracle, score, salt): Uint8Array
 calculateConsensus(scores): ConsensusResult
 ```
 
+### Limitless Commit-Reveal Adapter
+
+```typescript
+import {
+  LimitlessCommitRevealAdapter,
+  computeLimitlessCommitmentHash,
+} from '@kamiyo/settlement';
+import { randomBytes } from 'crypto';
+
+const adapter = new LimitlessCommitRevealAdapter({
+  threshold: 3,
+  onThresholdReached: async ({ settlementId, consensusScore }) => {
+    return settlement.resolveWithOracleScore(settlementId, consensusScore);
+  },
+});
+
+const settlementId = 'settlement-123';
+const oracleId = '0x1111111111111111111111111111111111111111';
+const score = 74;
+const salt = new Uint8Array(randomBytes(32));
+
+adapter.submitCommitment({
+  settlementId,
+  oracleId,
+  commitmentHash: computeLimitlessCommitmentHash(settlementId, oracleId, score, salt),
+});
+
+await adapter.submitAttestation({
+  settlementId,
+  oracleId,
+  score,
+  salt,
+});
+
+// Optional: retry callback-driven settlement if downstream settlement endpoint was unavailable.
+await adapter.finalize(settlementId);
+```
+
+When `threshold` attestations are revealed, the adapter computes a consensus score (median) and calls `onThresholdReached`.
+
+Limitless resources:
+- [Full docs](https://docs.limitless.exchange)
+- [TypeScript SDK (`@limitless-exchange/sdk`)](https://www.npmjs.com/package/@limitless-exchange/sdk)
+- [Python SDK (`limitless-py`)](https://pypi.org/project/limitless-py/)
+
+TypeScript SDK wiring example:
+
+```typescript
+import { ethers } from 'ethers';
+import { HttpClient, MarketFetcher, OrderClient } from '@limitless-exchange/sdk';
+
+const httpClient = new HttpClient({
+  baseURL: 'https://api.limitless.exchange',
+  apiKey: process.env.LIMITLESS_API_KEY,
+});
+const marketFetcher = new MarketFetcher(httpClient);
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!);
+const orderClient = new OrderClient({ httpClient, wallet, marketFetcher });
+```
+
+### Limitless Verdict Court (Production Layer)
+
+`LimitlessVerdictCourt` extends commit-reveal into a production settlement pipeline with:
+- weighted quorum (`threshold` + `minWeight`)
+- provider diversity requirements (`minProviderCount`)
+- deterministic verdict receipts (`attestationRoot`, `transcriptHash`)
+- resumable state snapshots (`exportSnapshot()` / `importSnapshot()`)
+
+```typescript
+import {
+  LimitlessVerdictCourt,
+  computeLimitlessCourtCommitmentHash,
+} from '@kamiyo/settlement';
+
+const court = new LimitlessVerdictCourt({
+  threshold: 3,
+  minWeight: 4,
+  minProviderCount: 2,
+  oracles: [
+    { id: '0x1111111111111111111111111111111111111111', provider: 'primary', weight: 2 },
+    { id: '0x2222222222222222222222222222222222222222', provider: 'primary', weight: 1 },
+    { id: '0x3333333333333333333333333333333333333333', provider: 'backup', weight: 2 },
+  ],
+  onVerdict: async (verdict) => settlement.resolveWithOracleScore(verdict.settlementId, verdict.oracleScore),
+});
+
+const settlementId = 'settlement-123';
+const oracleId = '0x1111111111111111111111111111111111111111';
+const score = 74;
+const confidence = 0.91;
+const evidenceHash = 'a'.repeat(64);
+const salt = new Uint8Array(randomBytes(32));
+
+court.submitCommitment({
+  settlementId,
+  oracleId,
+  commitmentHash: computeLimitlessCourtCommitmentHash(
+    settlementId,
+    oracleId,
+    score,
+    confidence,
+    evidenceHash,
+    salt
+  ),
+});
+
+const result = await court.submitAttestation({
+  settlementId,
+  oracleId,
+  score,
+  confidence,
+  evidenceHash,
+  salt,
+});
+
+if (result.settlementTriggered) {
+  console.log(result.verdict?.attestationRoot);
+}
+
+// Optional: retry finalization after temporary settlement callback failures.
+await court.finalize(settlementId);
+```
+
 ## Constants
 
 ```typescript
