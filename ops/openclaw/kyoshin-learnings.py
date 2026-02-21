@@ -96,8 +96,8 @@ def normalize_error(value: str) -> str:
     return lowered[:600]
 
 
-def make_signature(status: str, error: str, cycle: int) -> str:
-    material = f"{status}|{normalize_error(error)}|{cycle}"
+def make_signature(status: str, error: str) -> str:
+    material = f"{status}|{normalize_error(error)}"
     digest = hashlib.sha256(material.encode('utf-8')).hexdigest()
     return digest[:24]
 
@@ -230,7 +230,7 @@ def run() -> int:
         print(json.dumps(output, ensure_ascii=True))
         return 0
 
-    signature = make_signature(status, error, cycle)
+    signature = make_signature(status, error)
     state = read_json(
         STATE_PATH,
         {'entries': 0, 'lastAppendedAt': None, 'recentSignatures': []},

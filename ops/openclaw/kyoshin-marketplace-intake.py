@@ -24,6 +24,7 @@ MAX_RESPONSE_BYTES = int(os.getenv('KYO_MARKETPLACE_MAX_RESPONSE_BYTES', '200000
 MAX_SUMMARY_CHARS = int(os.getenv('KYO_MARKETPLACE_MAX_SUMMARY_CHARS', '2000'))
 MAX_METADATA_JSON_BYTES = int(os.getenv('KYO_MARKETPLACE_MAX_METADATA_JSON_BYTES', '5000'))
 ALLOW_INSECURE_HTTP = os.getenv('KYO_ALLOW_INSECURE_HTTP_FEEDS', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+ALLOW_FILE_FEEDS_ANYWHERE = os.getenv('KYO_ALLOW_FILE_FEEDS_ANYWHERE', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 USER_AGENT = os.getenv('KYO_MARKETPLACE_USER_AGENT', 'kyoshin-marketplace-intake/1.0')
 
 
@@ -271,12 +272,37 @@ def is_supported_feed_url(url: str) -> bool:
     parsed = urllib.parse.urlparse(url)
     scheme = parsed.scheme.lower()
     if scheme == 'file':
-        return True
+        return is_allowed_file_feed(url)
     if scheme == 'https':
         return True
     if scheme == 'http':
         return ALLOW_INSECURE_HTTP
     return False
+
+
+def is_path_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def is_allowed_file_feed(url: str) -> bool:
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme.lower() != 'file':
+        return False
+
+    if parsed.netloc not in {'', 'localhost'}:
+        return False
+
+    if ALLOW_FILE_FEEDS_ANYWHERE:
+        return True
+
+    raw_path = urllib.request.url2pathname(parsed.path)
+    path = Path(raw_path).expanduser().resolve()
+    runtime_root = RUNTIME_DIR.resolve()
+    return is_path_under(path, runtime_root)
 
 
 def fetch_json(url: str, headers: dict[str, str]) -> Any:

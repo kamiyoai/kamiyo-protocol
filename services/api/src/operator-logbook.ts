@@ -39,6 +39,7 @@ const SWARM_MAX_MS = 8 * 60 * 60 * 1000;
 const REFLECTIVE_MIN_MS = 3 * DAY_MS;
 const REFLECTIVE_MAX_MS = 5 * DAY_MS;
 const DEFAULT_INITIAL_SERIAL = 9;
+const MILLISECOND_EPOCH_THRESHOLD = 10_000_000_000;
 
 function parseBool(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;
@@ -153,6 +154,8 @@ function safeCount(sql: string, ...params: Array<number | string>): number {
 function loadSnapshot(nowMs: number): ExecutionSnapshot {
   const sinceMs = nowMs - DAY_MS;
   const sinceSec = Math.floor(sinceMs / 1000);
+  const swarmRunsSince = resolveTimeThreshold('swarm_runs', 'started_at', sinceMs, sinceSec);
+  const signalsSince = resolveTimeThreshold('swarmteams_signals', 'created_at', sinceMs, sinceSec);
 
   const posted24h = safeCount(
     'SELECT COUNT(*) as count FROM post_queue WHERE status = ? AND posted_at >= ?',
@@ -171,16 +174,15 @@ function loadSnapshot(nowMs: number): ExecutionSnapshot {
         COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completed,
         COALESCE(SUM(CASE WHEN status IN ('failed', 'cancelled', 'timeout') THEN 1 ELSE 0 END), 0) as failed
       FROM swarm_runs
-      WHERE started_at >= ? OR started_at >= ?
-    `).get(sinceMs, sinceSec) as { total: number; completed: number; failed: number };
+      WHERE started_at >= ?
+    `).get(swarmRunsSince) as { total: number; completed: number; failed: number };
   } catch {
     runRow = { total: 0, completed: 0, failed: 0 };
   }
 
   const signals24h = safeCount(
-    'SELECT COUNT(*) as count FROM swarmteams_signals WHERE created_at >= ? OR created_at >= ?',
-    sinceSec,
-    sinceMs
+    'SELECT COUNT(*) as count FROM swarmteams_signals WHERE created_at >= ?',
+    signalsSince
   );
 
   return {
@@ -192,6 +194,24 @@ function loadSnapshot(nowMs: number): ExecutionSnapshot {
     swarmRunsFailed24h: Number(runRow?.failed ?? 0),
     signals24h,
   };
+}
+
+function resolveTimeThreshold(
+  table: 'swarm_runs' | 'swarmteams_signals',
+  column: 'started_at' | 'created_at',
+  sinceMs: number,
+  sinceSec: number
+): number {
+  try {
+    const row = db.prepare(`SELECT MAX(${column}) as maxTs FROM ${table}`).get() as { maxTs?: number } | undefined;
+    const maxTs = Number(row?.maxTs ?? 0);
+    if (!Number.isFinite(maxTs) || maxTs <= 0) {
+      return sinceSec;
+    }
+    return maxTs > MILLISECOND_EPOCH_THRESHOLD ? sinceMs : sinceSec;
+  } catch {
+    return sinceSec;
+  }
 }
 
 function buildDailyContent(serial: number, snapshot: ExecutionSnapshot): string {
@@ -300,39 +320,43 @@ export function maybeQueueKyoshinOperatorLog(nowMs = Date.now()): QueuedKyoshinL
     return null;
   }
 
-  const state = readState(nowMs);
-  const kind = pickDueKind(state, nowMs);
-  if (!kind) {
-    return null;
-  }
+  const queue = db.transaction((tsMs: number): QueuedKyoshinLog | null => {
+    const state = readState(tsMs);
+    const kind = pickDueKind(state, tsMs);
+    if (!kind) {
+      return null;
+    }
 
-  const snapshot = loadSnapshot(nowMs);
-  const serial = state.next_serial;
-  const content = buildContent(kind, serial, snapshot);
+    const snapshot = loadSnapshot(tsMs);
+    const serial = state.next_serial;
+    const content = buildContent(kind, serial, snapshot);
 
-  const insert = db.prepare(`
-    INSERT INTO post_queue (content, post_type, context, generated_at, status, approved_at, image_path)
-    VALUES (?, 'tweet', ?, ?, 'approved', ?, NULL)
-  `).run(content, `kyoshin_log:${kind}`, nowMs, nowMs);
+    const insert = db.prepare(`
+      INSERT INTO post_queue (content, post_type, context, generated_at, status, approved_at, image_path)
+      VALUES (?, 'tweet', ?, ?, 'approved', ?, NULL)
+    `).run(content, `kyoshin_log:${kind}`, tsMs, tsMs);
 
-  const nextState = advanceState(state, kind, nowMs);
-  writeState(nextState);
+    const nextState = advanceState(state, kind, tsMs);
+    writeState(nextState);
 
-  logger.info('Queued Kyoshin operator log', {
-    queueId: insert.lastInsertRowid,
-    kind,
-    serial: formatSerial(serial),
-    nextDailyAt: new Date(nextState.next_daily_at).toISOString(),
-    nextSwarmAt: new Date(nextState.next_swarm_at).toISOString(),
-    nextReflectiveAt: new Date(nextState.next_reflective_at).toISOString(),
+    logger.info('Queued Kyoshin operator log', {
+      queueId: insert.lastInsertRowid,
+      kind,
+      serial: formatSerial(serial),
+      nextDailyAt: new Date(nextState.next_daily_at).toISOString(),
+      nextSwarmAt: new Date(nextState.next_swarm_at).toISOString(),
+      nextReflectiveAt: new Date(nextState.next_reflective_at).toISOString(),
+    });
+
+    return {
+      id: insert.lastInsertRowid as number,
+      kind,
+      serial,
+      content,
+    };
   });
 
-  return {
-    id: insert.lastInsertRowid as number,
-    kind,
-    serial,
-    content,
-  };
+  return queue(nowMs);
 }
 
 export function setKyoshinOperatorNextSerial(nextSerial: number): void {
@@ -340,9 +364,22 @@ export function setKyoshinOperatorNextSerial(nextSerial: number): void {
 
   const nowMs = Date.now();
   const state = readState(nowMs);
+  const requested = Math.floor(nextSerial);
+  if (requested < state.next_serial) {
+    logger.warn('Ignoring Kyoshin serial rewind request', {
+      requested,
+      current: state.next_serial,
+    });
+    return;
+  }
+
+  if (requested === state.next_serial) {
+    return;
+  }
+
   const next = {
     ...state,
-    next_serial: Math.floor(nextSerial),
+    next_serial: requested,
     updated_at: nowMs,
   };
   writeState(next);

@@ -2,6 +2,7 @@
 import json
 import os
 import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +55,27 @@ def ensure_runtime_dirs() -> None:
         path.chmod(0o700)
 
 
-def normalize_live_url(raw: str, allow_insecure_http: bool) -> tuple[str, bool]:
+def is_path_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def is_allowed_file_url(parsed: urllib.parse.ParseResult, allow_file_feeds_anywhere: bool) -> bool:
+    if parsed.netloc not in {'', 'localhost'}:
+        return False
+
+    if allow_file_feeds_anywhere:
+        return True
+
+    raw_path = urllib.request.url2pathname(parsed.path)
+    candidate = Path(raw_path).expanduser().resolve()
+    return is_path_under(candidate, RUNTIME_DIR.resolve())
+
+
+def normalize_live_url(raw: str, allow_insecure_http: bool, allow_file_feeds_anywhere: bool) -> tuple[str, bool]:
     candidate = raw.strip()
     if not candidate:
         return '', False
@@ -65,7 +86,7 @@ def normalize_live_url(raw: str, allow_insecure_http: bool) -> tuple[str, bool]:
         return candidate, True
     if scheme == 'http' and allow_insecure_http:
         return candidate, True
-    if scheme == 'file':
+    if scheme == 'file' and is_allowed_file_url(parsed, allow_file_feeds_anywhere):
         return candidate, True
     return '', False
 
@@ -125,13 +146,17 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
         env_value('KYO_ALLOW_INSECURE_HTTP_FEEDS', file_env.get('KYO_ALLOW_INSECURE_HTTP_FEEDS', 'false')),
         False,
     )
+    allow_file_feeds_anywhere = parse_bool(
+        env_value('KYO_ALLOW_FILE_FEEDS_ANYWHERE', file_env.get('KYO_ALLOW_FILE_FEEDS_ANYWHERE', 'false')),
+        False,
+    )
 
     feeds: list[dict[str, Any]] = []
     summary_items: list[dict[str, Any]] = []
 
     for source in source_definition():
         live_url_raw = env_value(source['live_url_key'], file_env.get(source['live_url_key'], ''))
-        live_url, live_url_valid = normalize_live_url(live_url_raw, allow_insecure_http)
+        live_url, live_url_valid = normalize_live_url(live_url_raw, allow_insecure_http, allow_file_feeds_anywhere)
         auth_header = env_value(source['auth_header_key'], file_env.get(source['auth_header_key'], 'Authorization'))
         auth_prefix = env_value(source['auth_prefix_key'], file_env.get(source['auth_prefix_key'], 'Bearer'))
         seed_path = (SEED_DIR / source['seed_file']).resolve()
@@ -184,7 +209,14 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
             }
         )
 
-    return {'feeds': feeds}, {'fallbackEnabled': fallback_enabled, 'allowInsecureHttpFeeds': allow_insecure_http, 'sources': summary_items}
+    return {
+        'feeds': feeds
+    }, {
+        'fallbackEnabled': fallback_enabled,
+        'allowInsecureHttpFeeds': allow_insecure_http,
+        'allowFileFeedsAnywhere': allow_file_feeds_anywhere,
+        'sources': summary_items,
+    }
 
 
 def write_config(payload: dict[str, Any]) -> None:

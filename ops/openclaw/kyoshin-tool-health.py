@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import urllib.error
@@ -86,15 +87,26 @@ def read_registry() -> list[dict[str, Any]]:
 
 
 def run_command(target: str) -> tuple[bool, str]:
-    base = target.split()
-    if len(base) == 1:
-        resolved = shutil.which(target)
+    try:
+        args = shlex.split(target)
+    except ValueError as exc:
+        return False, f'invalid_command:{str(exc)[:180]}'
+
+    if not args:
+        return False, 'empty_command'
+
+    if len(args) == 1:
+        resolved = shutil.which(args[0])
         return (resolved is not None, resolved or 'command_not_found')
 
+    resolved = shutil.which(args[0])
+    if not resolved:
+        return False, 'command_not_found'
+
+    safe_args = [resolved, *args[1:]]
     try:
         proc = subprocess.run(
-            target,
-            shell=True,
+            safe_args,
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

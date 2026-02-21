@@ -84,6 +84,7 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_DIRECT_API_KEY`
 - optional transport policy:
   - `KYO_ALLOW_INSECURE_HTTP_FEEDS=true|false` (default `false`)
+  - `KYO_ALLOW_FILE_FEEDS_ANYWHERE=true|false` (default `false`, keep scoped to runtime dir)
 - optional loop cost controls:
   - `KYO_AGENT_TIMEOUT_SECONDS=120` (default `120`)
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
@@ -159,6 +160,7 @@ Expected fields per line:
 
 - This loop proves unattended autonomy operation, but it will remain idle until feed URLs and execution credentials are configured.
 - Feed sync rejects unsupported URL schemes and only allows `https://` by default (`http://` requires explicit opt-in).
+- `file://` feed URLs are constrained to `~/.openclaw/workspace/runtime` unless `KYO_ALLOW_FILE_FEEDS_ANYWHERE=true`.
 - Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
 - The loop uses a host-local file lock to prevent overlapping control-loop executions.
 - Provider-level model rejections (for example exhausted credits) are treated as degraded cycles, not successful ticks.
