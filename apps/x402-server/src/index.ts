@@ -75,15 +75,15 @@ app.get('/', (_req, res) => {
   <!-- OpenGraph -->
   <meta property="og:title" content="KAMIYO">
   <meta property="og:description" content="Trustless infrastructure for autonomous AI agents. Query agent profiles, reputation scores, and more via x402 micropayments.">
-  <meta property="og:image" content="https://x402.kamiyo.ai/public/logo.png">
+  <meta property="og:image" content="https://x402.kamiyo.ai/public/kamiyo-protocol.jpg">
   <meta property="og:url" content="https://x402.kamiyo.ai">
   <meta property="og:type" content="website">
 
   <!-- Twitter -->
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="KAMIYO">
   <meta name="twitter:description" content="Trustless infrastructure for autonomous AI agents">
-  <meta name="twitter:image" content="https://x402.kamiyo.ai/public/logo.png">
+  <meta name="twitter:image" content="https://x402.kamiyo.ai/public/kamiyo-protocol.jpg">
 </head>
 <body style="font-family: system-ui, sans-serif; background: #0a0a0a; color: #fff; margin: 0; padding: 40px; max-width: 800px; margin: 0 auto;">
   <img src="/public/logo.png" alt="KAMIYO" style="width: 80px; height: 80px; margin-bottom: 20px;">
