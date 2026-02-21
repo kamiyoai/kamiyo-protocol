@@ -20,7 +20,7 @@
     "chalk": "^5.3.0",
     "circomlibjs": "^0.1.7",
     "gradient-string": "^2.0.2",
-    "inquirer": "^9.2.12",
+    "inquirer": "^13.2.5",
     "ora": "^8.0.1",
     "snarkjs": "^0.7.4"
   },
