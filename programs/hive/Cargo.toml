@@ -22,7 +22,7 @@ anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
 anchor-spl = { version = "0.31.1", features = ["token", "token_2022"] }
 groth16-solana = "0.1"
 solana-poseidon = "4.0"
-constant_time_eq = "=0.3.1"
+constant_time_eq = "=0.4.2"
 kani-solana = { path = "../../crates/kani-solana" }
 
 [lints.rust]
