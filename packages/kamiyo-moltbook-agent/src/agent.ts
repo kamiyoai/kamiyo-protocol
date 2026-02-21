@@ -42,7 +42,7 @@ import { TrustGraphVisualizer } from './visualization/trust-graph-viz.js';
 import { DKGPublisher } from './services/dkg-publisher.js';
 import type { DKGClient } from './services/dkg-publisher.js';
 import { createDKGClient as createRealDKGClient, type DKGLogger, DKGClient as RealDKGClient } from '@kamiyo/dkg-quality-oracle';
-import { SwarmTeamsProver } from '@kamiyo/hive';
+import { HiveProver } from '@kamiyo/hive';
 import type { KamiyoHive } from '@kamiyo/hive';
 import { DEFAULT_MODEL, type AgentConfig, type MoltbookPost, type Job, type WorkResult, type MoltbookComment, type OwnPost } from './types.js';
 
@@ -180,7 +180,7 @@ export class MoltbookJobBridgeAgent {
     }
 
     // Initialize trust services
-    const prover = new SwarmTeamsProver();
+    const prover = new HiveProver();
     const agentsRoot = new Uint8Array(32); // TODO: Fetch from on-chain registry
 
     this.reputationService = new ReputationService({

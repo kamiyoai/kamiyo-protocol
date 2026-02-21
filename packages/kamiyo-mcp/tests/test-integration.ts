@@ -57,10 +57,11 @@ async function main() {
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
 
   if (!programIdStr || !agentPrivateKey) {
-    console.error('Error: Missing environment variables. Please set:');
-    console.error('  - MITAMA_PROGRAM_ID');
-    console.error('  - AGENT_PRIVATE_KEY');
-    process.exit(1);
+    console.log('SKIP: integration tests require environment variables:');
+    console.log('  - MITAMA_PROGRAM_ID');
+    console.log('  - AGENT_PRIVATE_KEY');
+    console.log('Set both to run devnet integration coverage.');
+    process.exit(0);
   }
 
   const programId = new PublicKey(programIdStr);

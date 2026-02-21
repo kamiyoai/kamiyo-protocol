@@ -1,4 +1,4 @@
-import { SwarmTeamsProver, generateOwnerSecret, generateRegistrationSecret } from '@kamiyo/hive';
+import { HiveProver, generateOwnerSecret, generateRegistrationSecret } from '@kamiyo/hive';
 import type { AgentReputationInputs, ReputationProofResult } from '@kamiyo/hive';
 import { TIER_CONFIG, getTierFromScore, type TierConfig } from '../personality.js';
 import type { JobDatabase } from '../db.js';
@@ -30,7 +30,7 @@ export interface ReputationData {
 
 export interface ReputationServiceConfig {
   db: JobDatabase;
-  prover: SwarmTeamsProver;
+  prover: HiveProver;
   dkg?: DKGPublisher;
   agentsRoot: Uint8Array;
   currentEpoch: bigint;
@@ -49,7 +49,7 @@ const PROOF_TIMEOUT_MS = 10000;
 
 export class ReputationService {
   private db: JobDatabase;
-  private prover: SwarmTeamsProver;
+  private prover: HiveProver;
   private dkg?: DKGPublisher;
   private agentsRoot: Uint8Array;
   private currentEpoch: bigint;

@@ -4,12 +4,24 @@ import { KamiyoPaymentMiddleware, getEscrowInfo } from '../src/express';
 
 describe('KamiyoPaymentMiddleware', () => {
   const mockProgramId = Keypair.generate().publicKey;
+  const providerWallet = Keypair.generate().publicKey;
+  const getAccountInfo = jest.fn();
   const mockConnection = {
-    getAccountInfo: jest.fn()
-  } as any as Connection;
+    getAccountInfo
+  } as unknown as Connection;
+
+  const createEscrowData = (agent: PublicKey, api: PublicKey, amountLamports: bigint, status = 0): Buffer => {
+    const data = Buffer.alloc(81);
+    data.set(agent.toBuffer(), 8);
+    data.set(api.toBuffer(), 40);
+    data.writeBigUInt64LE(amountLamports, 72);
+    data.writeUInt8(status, 80);
+    return data;
+  };
 
   const createMockRequest = (paymentProof?: string): any => ({
-    headers: paymentProof ? { 'x-payment-proof': paymentProof } : {}
+    headers: paymentProof ? { 'x-payment-proof': paymentProof } : {},
+    socket: { remoteAddress: '127.0.0.1' }
   });
 
   const createMockResponse = (): any => {
@@ -33,6 +45,7 @@ describe('KamiyoPaymentMiddleware', () => {
         programId: mockProgramId,
         connection: mockConnection,
         price: 0.001,
+        providerWallet,
         qualityGuarantee: true
       });
 
@@ -61,7 +74,8 @@ describe('KamiyoPaymentMiddleware', () => {
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest();
@@ -83,10 +97,11 @@ describe('KamiyoPaymentMiddleware', () => {
   describe('Payment Verification', () => {
     it('accepts valid escrow proof', async () => {
       const validEscrow = Keypair.generate().publicKey;
-      mockConnection.getAccountInfo.mockResolvedValueOnce({
+      const consumer = Keypair.generate().publicKey;
+      getAccountInfo.mockResolvedValueOnce({
         owner: mockProgramId,
         lamports: 1000000,
-        data: Buffer.from([]),
+        data: createEscrowData(consumer, providerWallet, 1_000_000n),
         executable: false,
         rentEpoch: 0
       });
@@ -95,7 +110,8 @@ describe('KamiyoPaymentMiddleware', () => {
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest(validEscrow.toString());
@@ -110,10 +126,11 @@ describe('KamiyoPaymentMiddleware', () => {
 
     it('attaches escrow info to request', async () => {
       const validEscrow = Keypair.generate().publicKey;
-      mockConnection.getAccountInfo.mockResolvedValueOnce({
+      const consumer = Keypair.generate().publicKey;
+      getAccountInfo.mockResolvedValueOnce({
         owner: mockProgramId,
         lamports: 1000000,
-        data: Buffer.from([]),
+        data: createEscrowData(consumer, providerWallet, 1_000_000n),
         executable: false,
         rentEpoch: 0
       });
@@ -122,7 +139,8 @@ describe('KamiyoPaymentMiddleware', () => {
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest(validEscrow.toString());
@@ -137,13 +155,14 @@ describe('KamiyoPaymentMiddleware', () => {
 
     it('rejects non-existent escrow account', async () => {
       const invalidEscrow = Keypair.generate().publicKey;
-      mockConnection.getAccountInfo.mockResolvedValueOnce(null);
+      getAccountInfo.mockResolvedValueOnce(null);
 
       const middleware = KamiyoPaymentMiddleware({
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest(invalidEscrow.toString());
@@ -163,7 +182,7 @@ describe('KamiyoPaymentMiddleware', () => {
       const validEscrow = Keypair.generate().publicKey;
       const wrongOwner = Keypair.generate().publicKey;
 
-      mockConnection.getAccountInfo.mockResolvedValueOnce({
+      getAccountInfo.mockResolvedValueOnce({
         owner: wrongOwner,
         lamports: 1000000,
         data: Buffer.from([]),
@@ -175,7 +194,8 @@ describe('KamiyoPaymentMiddleware', () => {
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest(validEscrow.toString());
@@ -198,7 +218,8 @@ describe('KamiyoPaymentMiddleware', () => {
         realm: 'test-api',
         programId: mockProgramId,
         connection: mockConnection,
-        price: 0.001
+        price: 0.001,
+        providerWallet
       });
 
       const req = createMockRequest('invalid-pubkey');
