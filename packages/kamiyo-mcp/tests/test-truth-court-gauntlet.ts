@@ -58,6 +58,14 @@ async function testMetricsRanges(): Promise<void> {
   assert(run.summary.counterfactualStability >= 0 && run.summary.counterfactualStability <= 1, 'counterfactualStability in [0,1]');
   assert(run.summary.verdictEntropy >= 0 && run.summary.verdictEntropy <= 1, 'verdictEntropy in [0,1]');
   assert(run.summary.cosmicTrustIndex >= 0 && run.summary.cosmicTrustIndex <= 100, 'cosmicTrustIndex in [0,100]');
+  assert(
+    run.prometheusMetrics.includes('event_horizon_cosmic_trust_index'),
+    'prometheus output includes cosmic trust metric'
+  );
+  assert(
+    run.prometheusMetrics.includes('event_horizon_verdict_count'),
+    'prometheus output includes verdict count metric'
+  );
 }
 
 async function testThreadLength(): Promise<void> {
@@ -100,6 +108,17 @@ async function testInvalidConfigGuards(): Promise<void> {
     includeGrok: false,
   });
   assert(!impossibleQuorum.success, 'minValidResponses above committee size is rejected');
+
+  const strictSingleProvider = await executeTruthCourtGauntlet({
+    rounds: 4,
+    seed: 3,
+    includeGrok: false,
+    policyMode: 'strict',
+  });
+  assert(
+    !strictSingleProvider.success,
+    'strict policy rejects committee without provider diversity'
+  );
 }
 
 async function main(): Promise<void> {

@@ -159,6 +159,11 @@ export const TOOL_DEFINITIONS: Tool[] = [
           type: 'boolean',
           description: 'Force Grok inclusion when available (default auto)',
         },
+        policyMode: {
+          type: 'string',
+          enum: ['default', 'strict'],
+          description: 'strict requires committee diversity and stronger quorum guarantees',
+        },
         minValidResponses: {
           type: 'number',
           description: 'Minimum valid oracle responses for quorum (default 2)',

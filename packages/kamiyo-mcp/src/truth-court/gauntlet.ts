@@ -21,6 +21,7 @@ export interface TruthCourtGauntletConfig {
   respondent?: string;
   includeGrok?: boolean;
   minValidResponses?: number;
+  policyMode?: 'default' | 'strict';
 }
 
 export interface TruthCourtGauntletRound {
@@ -72,9 +73,11 @@ export interface TruthCourtGauntletResult {
     scenarioMix: TruthCourtScenarioName[];
     includeGrok: boolean;
     minValidResponses: number;
+    policyMode: 'default' | 'strict';
   };
   rounds: TruthCourtGauntletRound[];
   summary: TruthCourtGauntletSummary;
+  prometheusMetrics: string;
   headlineCard: string;
   threadPack: string[];
   error?: string;
@@ -261,13 +264,47 @@ function summarizeRun(
   };
 }
 
+function toPrometheusMetrics(result: Omit<TruthCourtGauntletResult, 'prometheusMetrics'>): string {
+  const lines = [
+    '# HELP event_horizon_cosmic_trust_index Composite trust index (0-100)',
+    '# TYPE event_horizon_cosmic_trust_index gauge',
+    `event_horizon_cosmic_trust_index{run_id="${result.runId}"} ${result.summary.cosmicTrustIndex}`,
+    '# HELP event_horizon_replay_integrity_rate Replay integrity pass rate (0-1)',
+    '# TYPE event_horizon_replay_integrity_rate gauge',
+    `event_horizon_replay_integrity_rate{run_id="${result.runId}"} ${result.summary.replayIntegrityRate}`,
+    '# HELP event_horizon_tamper_detection_rate Tamper detection pass rate (0-1)',
+    '# TYPE event_horizon_tamper_detection_rate gauge',
+    `event_horizon_tamper_detection_rate{run_id="${result.runId}"} ${result.summary.tamperDetectionRate}`,
+    '# HELP event_horizon_counterfactual_stability Counterfactual stability score (0-1)',
+    '# TYPE event_horizon_counterfactual_stability gauge',
+    `event_horizon_counterfactual_stability{run_id="${result.runId}"} ${result.summary.counterfactualStability}`,
+    '# HELP event_horizon_average_oracle_latency_ms Average oracle latency in milliseconds',
+    '# TYPE event_horizon_average_oracle_latency_ms gauge',
+    `event_horizon_average_oracle_latency_ms{run_id="${result.runId}"} ${result.summary.averageOracleLatencyMs}`,
+    '# HELP event_horizon_oracle_failure_rate Average rejected oracles per round',
+    '# TYPE event_horizon_oracle_failure_rate gauge',
+    `event_horizon_oracle_failure_rate{run_id="${result.runId}"} ${result.summary.oracleFailureRate}`,
+    '# HELP event_horizon_rounds_completed Number of rounds completed',
+    '# TYPE event_horizon_rounds_completed gauge',
+    `event_horizon_rounds_completed{run_id="${result.runId}"} ${result.summary.roundsCompleted}`,
+  ];
+
+  for (const [verdict, count] of Object.entries(result.summary.verdictDistribution)) {
+    lines.push('# HELP event_horizon_verdict_count Count by final verdict');
+    lines.push('# TYPE event_horizon_verdict_count gauge');
+    lines.push(`event_horizon_verdict_count{run_id="${result.runId}",verdict="${verdict}"} ${count}`);
+  }
+
+  return `${lines.join('\n')}\n`;
+}
+
 function buildFailedResult(
   seed: number,
   config: TruthCourtGauntletResult['config'],
   includeGrok: boolean,
   error: string
 ): TruthCourtGauntletResult {
-  return {
+  const base: Omit<TruthCourtGauntletResult, 'prometheusMetrics'> = {
     success: false,
     runId: '',
     seed,
@@ -277,6 +314,10 @@ function buildFailedResult(
     headlineCard: '',
     threadPack: [],
     error,
+  };
+  return {
+    ...base,
+    prometheusMetrics: toPrometheusMetrics(base),
   };
 }
 
@@ -373,6 +414,7 @@ export async function executeTruthCourtGauntlet(
     scenarioMix,
     includeGrok: false,
     minValidResponses,
+    policyMode: config.policyMode ?? 'default',
   };
 
   if (rounds <= 0 || rounds > MAX_ROUNDS) {
@@ -424,6 +466,38 @@ export async function executeTruthCourtGauntlet(
   });
   const includeGrok = committee.some((oracle) => oracle.name === 'grok-dispute-oracle');
   normalizedConfig.includeGrok = includeGrok;
+
+  if (normalizedConfig.policyMode === 'strict') {
+    const providerCount = new Set(
+      committee.map((oracle) =>
+        oracle.name.includes('grok') ? 'xai' : 'local'
+      )
+    ).size;
+    if (committee.length < 3) {
+      return buildFailedResult(
+        seed,
+        normalizedConfig,
+        includeGrok,
+        'strict policy requires committee size >= 3'
+      );
+    }
+    if (providerCount < 2) {
+      return buildFailedResult(
+        seed,
+        normalizedConfig,
+        includeGrok,
+        'strict policy requires at least 2 oracle providers'
+      );
+    }
+    if (minValidResponses < 2) {
+      return buildFailedResult(
+        seed,
+        normalizedConfig,
+        includeGrok,
+        'strict policy requires minValidResponses >= 2'
+      );
+    }
+  }
 
   if (minValidResponses > committee.length) {
     return buildFailedResult(
@@ -558,8 +632,7 @@ export async function executeTruthCourtGauntlet(
   const summary = summarizeRun(rounds, includeGrok, roundsOut);
   const headlineCard = buildHeadlineCard(summary, seed);
   const threadPack = buildThreadPack(summary, seed);
-
-  return {
+  const base: Omit<TruthCourtGauntletResult, 'prometheusMetrics'> = {
     success: true,
     runId,
     seed,
@@ -568,5 +641,9 @@ export async function executeTruthCourtGauntlet(
     summary,
     headlineCard,
     threadPack,
+  };
+  return {
+    ...base,
+    prometheusMetrics: toPrometheusMetrics(base),
   };
 }

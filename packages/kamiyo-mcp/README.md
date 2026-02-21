@@ -156,13 +156,25 @@ Advanced options:
 ```bash
 npm run demo:event-horizon:gauntlet -- --mock --rounds 24 --seed 424242 --scenario-mix habitat-power,launch-anomaly,surface-rover
 npm run demo:event-horizon:gauntlet -- --mock --counterfactuals 3 --export-dir output/event-horizon-gauntlet
+npm run demo:event-horizon:gauntlet -- --live --strict --rounds 24
+npm run demo:event-horizon:gauntlet -- --mock --sign --signer-key <base58-secret-key>
 ```
+
+`--policy strict` requires provider diversity and quorum guarantees. In practice this means at least two oracle providers (for example local + Grok).
 
 Each gauntlet run exports:
 
 - `<timestamp>-<runId>.json` full campaign payload
 - `<timestamp>-<runId>.txt` headline card
 - `<timestamp>-<runId>.md` 5-post thread pack
+- `<timestamp>-<runId>.prom` Prometheus metrics for dashboards/SLO alerts
+- `<timestamp>-<runId>.attestation.json` detached Ed25519 signatures for artifact provenance (when `--sign` is enabled)
+
+Verify signed artifacts:
+
+```bash
+npm run demo:event-horizon:gauntlet:verify -- --attestation output/event-horizon-gauntlet/<timestamp>-<runId>.attestation.json
+```
 
 ## Tools
 

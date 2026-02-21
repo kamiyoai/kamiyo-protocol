@@ -6,14 +6,14 @@
 
 ## Executive Summary
 
-The Event Horizon stack is strong and now includes deterministic gauntlet execution, adversarial replay/tamper checks, and MCP exposure. The main weaknesses found in this pass were around configuration safety, observability depth, and Grok response bounds. Those were fixed. Remaining gaps are mostly operational (artifact signing and production telemetry export plumbing).
+The Event Horizon stack is strong and now includes deterministic gauntlet execution, adversarial replay/tamper checks, MCP exposure, strict policy mode, and signed artifact exports. The remaining gap is long-term telemetry ingestion/alerting infrastructure outside the local exporter.
 
 ### Critical Findings Count
 | Severity | Count | Status |
 |----------|-------|--------|
 | Critical (P0) | 0 | ✅ |
 | High (P1) | 5 | ✅ Fixed |
-| Medium (P2) | 3 | ⚠️ Open |
+| Medium (P2) | 3 | ✅ 2 fixed, 1 open |
 | Low (P3) | 2 | 📝 Noted |
 
 ## Critical Issues (P0 - Block Release)
@@ -35,9 +35,9 @@ The Event Horizon stack is strong and now includes deterministic gauntlet execut
 
 ## Medium Priority (P2 - Fix Soon After Launch)
 
-- [ ] Exported artifacts are unsigned | Impact: off-chain provenance can be spoofed | Fix: add detached signature and verification command for `.json/.txt/.md`.
-- [ ] No persistent telemetry sink for gauntlet metrics | Impact: trend analysis and SLO alerting unavailable | Fix: ship metrics exporter (Prometheus/OpenTelemetry) and dashboard panels.
-- [ ] No policy mode for mandatory provider diversity | Impact: reduced trust if only local oracles are available | Fix: add enforcement mode requiring >=2 providers for “production-grade” verdicts.
+- [x] Exported artifacts are unsigned | Impact: off-chain provenance can be spoofed | Fix: detached signature + verification command shipped for `.json/.txt/.md/.prom`.
+- [ ] No persistent telemetry sink for gauntlet metrics | Impact: trend analysis and SLO alerting unavailable | Fix: `.prom` exporter shipped; still need Prometheus/Grafana ingestion and alert rules.
+- [x] No policy mode for mandatory provider diversity | Impact: reduced trust if only local oracles are available | Fix: strict policy mode now enforces provider diversity and quorum constraints.
 
 ## Low Priority (P3 - Technical Debt)
 
@@ -49,7 +49,7 @@ The Event Horizon stack is strong and now includes deterministic gauntlet execut
 - Input and config guards now reject invalid or unsafe gauntlet settings.
 - Replay and tamper checks remain deterministic and challenge-friendly.
 - Grok adapter now enforces bounded input/output and clearer failure modes.
-- Residual security risk is artifact authenticity outside chain anchoring.
+- Artifact authenticity now supports detached Ed25519 attestation and offline verification.
 
 ## Performance Assessment
 
@@ -61,7 +61,8 @@ The Event Horizon stack is strong and now includes deterministic gauntlet execut
 
 - Per-oracle decision metrics now available in-memory per run.
 - Campaign-level telemetry now includes oracle failure and latency indicators.
-- Still missing external metrics exporter and long-term persistence.
+- Metrics now export as `.prom` artifacts for scraping.
+- Still missing centralized retention, dashboarding, and alerting.
 
 ## Test Coverage Gaps
 
@@ -78,6 +79,5 @@ The Event Horizon stack is strong and now includes deterministic gauntlet execut
 4. Extend gauntlet tests for determinism, bounds, and invalid configs.
 
 ### Next
-1. Sign exported artifacts.
-2. Export metrics to persistent observability backend.
-3. Add strict production policy mode for oracle provider diversity.
+1. Wire `.prom` outputs into Prometheus/Grafana with SLO alerts.
+2. Add integration test for MCP tool route `run_truth_court_gauntlet`.

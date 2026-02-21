@@ -3,15 +3,20 @@
 import dotenv from 'dotenv';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadKeypair } from '../solana/client.js';
 import { runTruthCourtGauntlet } from '../tools/truth-court.js';
 import {
+  createEventHorizonAttestation,
+  decodeEd25519SecretKey,
   listTruthCourtScenarios,
+  verifyEventHorizonAttestation,
   type TruthCourtScenarioName,
 } from '../truth-court/index.js';
 
 dotenv.config();
 
 type DemoMode = 'auto' | 'live' | 'mock';
+type PolicyMode = 'default' | 'strict';
 
 interface CliOptions {
   mode: DemoMode;
@@ -19,13 +24,16 @@ interface CliOptions {
   seed?: number;
   scenarioMix?: string[];
   counterfactualsPerRound: number;
+  policyMode: PolicyMode;
   exportEnabled: boolean;
   exportDir: string;
+  signArtifacts: boolean;
+  signerSecretKey?: string;
 }
 
 function printUsage(): void {
   console.log(
-    'Usage: npm run demo:event-horizon:gauntlet -- [--live|--mock] [--rounds N] [--seed N] [--scenario-mix csv] [--counterfactuals N] [--export-dir dir] [--no-export]'
+    'Usage: npm run demo:event-horizon:gauntlet -- [--live|--mock] [--rounds N] [--seed N] [--scenario-mix csv] [--counterfactuals N] [--policy default|strict] [--sign] [--signer-key base58] [--export-dir dir] [--no-export]'
   );
   console.log(`Scenarios: ${listTruthCourtScenarios().join(', ')}`);
 }
@@ -36,6 +44,30 @@ function parseNumber(raw: string, flag: string): number {
     throw new Error(`${flag} expects a number`);
   }
   return value;
+}
+
+function parseBooleanEnv(value?: string): boolean | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+  throw new Error(`invalid boolean value: ${value}`);
+}
+
+function parsePolicyMode(raw?: string): PolicyMode {
+  if (!raw || raw === 'default') {
+    return 'default';
+  }
+  if (raw === 'strict') {
+    return 'strict';
+  }
+  throw new Error(`invalid policy mode: ${raw}`);
 }
 
 function parseCli(argv: string[]): CliOptions {
@@ -53,9 +85,12 @@ function parseCli(argv: string[]): CliOptions {
     counterfactualsPerRound: Number(
       process.env.EVENT_HORIZON_GAUNTLET_COUNTERFACTUALS ?? 2
     ),
+    policyMode: parsePolicyMode(process.env.EVENT_HORIZON_GAUNTLET_POLICY_MODE),
     exportEnabled: true,
     exportDir:
       process.env.EVENT_HORIZON_GAUNTLET_EXPORT_DIR ?? 'output/event-horizon-gauntlet',
+    signArtifacts: parseBooleanEnv(process.env.EVENT_HORIZON_GAUNTLET_SIGN) ?? false,
+    signerSecretKey: process.env.EVENT_HORIZON_GAUNTLET_SIGNER_SECRET_KEY,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -104,6 +139,16 @@ function parseCli(argv: string[]): CliOptions {
         );
         index += 1;
         break;
+      case '--policy':
+        if (!argv[index + 1]) {
+          throw new Error('--policy requires a value');
+        }
+        options.policyMode = parsePolicyMode(argv[index + 1]);
+        index += 1;
+        break;
+      case '--strict':
+        options.policyMode = 'strict';
+        break;
       case '--export-dir':
         if (!argv[index + 1]) {
           throw new Error('--export-dir requires a value');
@@ -113,6 +158,20 @@ function parseCli(argv: string[]): CliOptions {
         break;
       case '--no-export':
         options.exportEnabled = false;
+        break;
+      case '--sign':
+        options.signArtifacts = true;
+        break;
+      case '--no-sign':
+        options.signArtifacts = false;
+        break;
+      case '--signer-key':
+        if (!argv[index + 1]) {
+          throw new Error('--signer-key requires a value');
+        }
+        options.signArtifacts = true;
+        options.signerSecretKey = argv[index + 1];
+        index += 1;
         break;
       case '--help':
       case '-h':
@@ -153,37 +212,120 @@ function resolveScenarioMix(value?: string[]): TruthCourtScenarioName[] | undefi
   return value as TruthCourtScenarioName[];
 }
 
+function resolveSignerSecretKey(
+  cli: CliOptions
+): Uint8Array | undefined {
+  if (!cli.signArtifacts) {
+    return undefined;
+  }
+
+  const inlineSecret =
+    cli.signerSecretKey ??
+    process.env.EVENT_HORIZON_GAUNTLET_SIGNER_SECRET_KEY ??
+    process.env.AGENT_PRIVATE_KEY;
+  if (inlineSecret) {
+    return decodeEd25519SecretKey(inlineSecret);
+  }
+
+  if (process.env.AGENT_KEYPAIR_PATH) {
+    return loadKeypair(process.env.AGENT_KEYPAIR_PATH).secretKey;
+  }
+
+  throw new Error(
+    '--sign requires --signer-key, EVENT_HORIZON_GAUNTLET_SIGNER_SECRET_KEY, AGENT_PRIVATE_KEY, or AGENT_KEYPAIR_PATH'
+  );
+}
+
 function stamp(value = new Date()): string {
   return value.toISOString().replace(/[:.]/g, '-');
+}
+
+interface ExportArtifactsResult {
+  jsonPath: string;
+  cardPath: string;
+  threadPath: string;
+  metricsPath: string;
+  attestationPath?: string;
+  signerPublicKey?: string;
 }
 
 async function exportArtifacts(
   outputDir: string,
   runId: string,
-  payload: Record<string, unknown>
-): Promise<{ jsonPath: string; cardPath: string; threadPath: string }> {
+  payload: Record<string, unknown>,
+  signerSecretKey?: Uint8Array
+): Promise<ExportArtifactsResult> {
   const absolute = path.resolve(process.cwd(), outputDir);
   await mkdir(absolute, { recursive: true });
   const base = `${stamp()}-${runId}`;
   const jsonPath = path.join(absolute, `${base}.json`);
   const cardPath = path.join(absolute, `${base}.txt`);
   const threadPath = path.join(absolute, `${base}.md`);
+  const metricsPath = path.join(absolute, `${base}.prom`);
 
   const card = String(payload.headlineCard ?? '');
   const thread = Array.isArray(payload.threadPack)
     ? (payload.threadPack as string[]).join('\n\n')
     : '';
+  const result = (payload.result as { prometheusMetrics?: unknown } | undefined) ?? {};
+  const metrics =
+    typeof result.prometheusMetrics === 'string' ? result.prometheusMetrics : '';
 
-  await writeFile(jsonPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
-  await writeFile(cardPath, `${card}\n`, 'utf8');
-  await writeFile(threadPath, `${thread}\n`, 'utf8');
+  const jsonContent = `${JSON.stringify(payload, null, 2)}\n`;
+  const cardContent = `${card}\n`;
+  const threadContent = `${thread}\n`;
+  const metricsContent = metrics.endsWith('\n') ? metrics : `${metrics}\n`;
 
-  return { jsonPath, cardPath, threadPath };
+  await writeFile(jsonPath, jsonContent, 'utf8');
+  await writeFile(cardPath, cardContent, 'utf8');
+  await writeFile(threadPath, threadContent, 'utf8');
+  await writeFile(metricsPath, metricsContent, 'utf8');
+
+  if (!signerSecretKey) {
+    return { jsonPath, cardPath, threadPath, metricsPath };
+  }
+
+  const artifacts = [
+    { file: path.basename(jsonPath), bytes: Buffer.from(jsonContent, 'utf8') },
+    { file: path.basename(cardPath), bytes: Buffer.from(cardContent, 'utf8') },
+    { file: path.basename(threadPath), bytes: Buffer.from(threadContent, 'utf8') },
+    { file: path.basename(metricsPath), bytes: Buffer.from(metricsContent, 'utf8') },
+  ];
+
+  const attestation = createEventHorizonAttestation({
+    runId,
+    signerSecretKey,
+    artifacts,
+  });
+  const verification = verifyEventHorizonAttestation({
+    attestation,
+    artifacts,
+  });
+  if (!verification.success) {
+    throw new Error(
+      `generated attestation failed verification: ${
+        verification.error ?? 'artifact verification mismatch'
+      }`
+    );
+  }
+
+  const attestationPath = path.join(absolute, `${base}.attestation.json`);
+  await writeFile(attestationPath, `${JSON.stringify(attestation, null, 2)}\n`, 'utf8');
+
+  return {
+    jsonPath,
+    cardPath,
+    threadPath,
+    metricsPath,
+    attestationPath,
+    signerPublicKey: attestation.signerPublicKey,
+  };
 }
 
 async function main(): Promise<void> {
   const cli = parseCli(process.argv.slice(2));
   const includeGrok = resolveMode(cli.mode);
+  const signerSecretKey = resolveSignerSecretKey(cli);
 
   const result = await runTruthCourtGauntlet({
     rounds: cli.rounds,
@@ -191,6 +333,7 @@ async function main(): Promise<void> {
     scenarioMix: resolveScenarioMix(cli.scenarioMix),
     counterfactualsPerRound: cli.counterfactualsPerRound,
     includeGrok,
+    policyMode: cli.policyMode,
   });
 
   if (!result.success) {
@@ -202,6 +345,8 @@ async function main(): Promise<void> {
   const envelope = {
     generatedAt: new Date().toISOString(),
     mode: includeGrok === false ? 'mock' : includeGrok === true ? 'live' : 'auto',
+    policyMode: cli.policyMode,
+    signed: Boolean(signerSecretKey),
     result,
   };
 
@@ -217,11 +362,21 @@ async function main(): Promise<void> {
   }
 
   if (cli.exportEnabled) {
-    const paths = await exportArtifacts(cli.exportDir, result.runId, envelope);
+    const paths = await exportArtifacts(
+      cli.exportDir,
+      result.runId,
+      envelope,
+      signerSecretKey
+    );
     console.log('\n=== Exported Artifacts ===');
     console.log(`json=${paths.jsonPath}`);
     console.log(`card=${paths.cardPath}`);
     console.log(`thread=${paths.threadPath}`);
+    console.log(`metrics=${paths.metricsPath}`);
+    if (paths.attestationPath) {
+      console.log(`attestation=${paths.attestationPath}`);
+      console.log(`signer=${paths.signerPublicKey}`);
+    }
   }
 }
 

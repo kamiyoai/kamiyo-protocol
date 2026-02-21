@@ -6,3 +6,4 @@ export * from './grok-oracle.js';
 export * from './factory.js';
 export * from './scenarios.js';
 export * from './gauntlet.js';
+export * from './attestation.js';

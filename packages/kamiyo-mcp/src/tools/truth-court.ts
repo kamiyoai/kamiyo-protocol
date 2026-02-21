@@ -42,6 +42,7 @@ export interface RunTruthCourtGauntletParams {
   claimant?: string;
   respondent?: string;
   includeGrok?: boolean;
+  policyMode?: 'default' | 'strict';
   minValidResponses?: number;
 }
 
@@ -270,6 +271,7 @@ export async function runTruthCourtGauntlet(
       claimant: params.claimant,
       respondent: params.respondent,
       includeGrok: params.includeGrok,
+      policyMode: params.policyMode,
       minValidResponses: params.minValidResponses,
     },
     options
