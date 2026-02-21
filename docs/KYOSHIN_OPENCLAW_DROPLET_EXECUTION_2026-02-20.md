@@ -136,17 +136,20 @@ This confirms the runtime can move from idle loop to active queue processing aut
   - `KYO_X402_API_KEY=`
   - `KYO_DIRECT_API_KEY=`
 - Verified healthy loop after rotation and env normalization:
-  - `cycle=21`
+  - `cycle=24`
   - `status=ok`
   - `feedSync.ok=true`
-  - `feedSync` source map now includes `x402` and `direct_api` rails (currently disabled until URLs are set)
-  - `opportunities=4`
-  - `assignments=4`
+  - `feedSync` source map now includes `x402` and `direct_api` rails (`direct_api` live, `x402` disabled pending URL)
+  - `opportunities=29`
+  - `assignments=12`
   - `agentOk=1`
+- Enabled real external intake on `direct_api` rail:
+  - `KYO_DIRECT_API_FEED_URL=https://api.github.com/search/issues?q=is%3Aissue+is%3Aopen+label%3Abounty&per_page=25`
+  - loop now ingests non-bootstrap opportunities each cycle without requiring marketplace credentials.
 
 ## Remaining blockers for full revenue autonomy
 
-1. `KYO_*_FEED_URL` values are still unset, so intake remains bootstrap (`file://`) instead of live market demand.
+1. `agent_ai`, `relevance`, `kore`, and `x402` live feed URLs remain unset; only `direct_api` is live.
 2. Marketplace API credentials for paid job execution/settlement (`KYO_*_API_KEY`) are placeholders.
 3. No payout/receipt connector is wired yet to route realized fees into SOL and onward to staking.
 4. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.

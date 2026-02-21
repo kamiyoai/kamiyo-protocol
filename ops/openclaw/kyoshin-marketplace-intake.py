@@ -90,6 +90,16 @@ def normalize_text(value: Any, fallback: str = '') -> str:
     return fallback
 
 
+def normalize_identifier(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return ''
+
+
 def normalize_number(value: Any) -> float | None:
     if isinstance(value, (int, float)):
         return float(value)
@@ -113,6 +123,22 @@ def normalize_array_of_strings(value: Any) -> list[str]:
     return out
 
 
+def normalize_label_names(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        if isinstance(item, dict):
+            name = normalize_text(item.get('name')).lower()
+        elif isinstance(item, str):
+            name = item.strip().lower()
+        else:
+            name = ''
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
     records: list[dict[str, Any]]
     if isinstance(payload, list):
@@ -132,11 +158,17 @@ def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for idx, item in enumerate(records):
         title = normalize_text(item.get('title')) or normalize_text(item.get('name')) or f'opportunity-{idx + 1}'
-        summary = normalize_text(item.get('summary')) or normalize_text(item.get('description')) or 'No summary provided.'
+        summary = (
+            normalize_text(item.get('summary'))
+            or normalize_text(item.get('description'))
+            or normalize_text(item.get('body'))
+            or normalize_text(item.get('content'))
+            or 'No summary provided.'
+        )
         opp_id = (
-            normalize_text(item.get('id'))
-            or normalize_text(item.get('opportunityId'))
-            or normalize_text(item.get('listingId'))
+            normalize_identifier(item.get('id'))
+            or normalize_identifier(item.get('opportunityId'))
+            or normalize_identifier(item.get('listingId'))
             or f'{source}-{idx + 1}'
         )
         payout_usd = (
@@ -154,11 +186,19 @@ def parse_items(source: str, payload: Any) -> list[dict[str, Any]]:
             confidence = 0.6
         confidence = max(0.0, min(1.0, confidence))
 
-        created = normalize_text(item.get('createdAt')) or now_iso()
-        expires = normalize_text(item.get('expiresAt')) or None
+        created = normalize_text(item.get('createdAt')) or normalize_text(item.get('created_at')) or now_iso()
+        expires = normalize_text(item.get('expiresAt')) or normalize_text(item.get('expires_at')) or None
         tags = normalize_array_of_strings(item.get('tags'))
+        if not tags:
+            tags = normalize_label_names(item.get('labels'))
         role_hints = normalize_array_of_strings(item.get('roleHints'))
-        url = normalize_text(item.get('url')) or normalize_text(item.get('marketplaceUrl')) or None
+        url = (
+            normalize_text(item.get('html_url'))
+            or normalize_text(item.get('marketplaceUrl'))
+            or normalize_text(item.get('url'))
+            or normalize_text(item.get('link'))
+            or None
+        )
 
         out.append(
             {

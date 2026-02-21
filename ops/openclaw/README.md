@@ -62,6 +62,16 @@ Set these env vars in `~/.openclaw/.env`:
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
 
+### Fast live proof (no paid API key required)
+
+Use a public `direct_api` source immediately:
+
+```bash
+export KYO_DIRECT_API_FEED_URL='https://api.github.com/search/issues?q=is%3Aissue+is%3Aopen+label%3Abounty&per_page=25'
+```
+
+This gives non-synthetic external opportunities right away. Replace it with your paid endpoint when available.
+
 ## Notes
 
 - This loop proves unattended autonomy operation, but it will remain idle until feed URLs and execution credentials are configured.
