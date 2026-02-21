@@ -11,8 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
-    "@coral-xyz/anchor": "^0.32.1",
+    "@anthropic-ai/sdk": "^0.77.0",
+    "@coral-xyz/anchor": "^0.31.1",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/agents": "workspace:*",
