@@ -84,6 +84,7 @@ Installed runtime scripts under `~/bin`:
     - `workspace/runtime/logs/swarm-planner.jsonl`
 - `kyoshin-autonomy-loop.sh`
   - runs one control-loop tick:
+    - feed config sync (live URLs from env, bootstrap fallback)
     - gateway health probe with retry
     - marketplace intake
     - swarm planning
@@ -117,16 +118,38 @@ Observed on-host:
 
 This confirms the runtime can move from idle loop to active queue processing autonomously when opportunities are present.
 
+### 8) Post-deploy hardening + live-cutover prep (2026-02-21)
+
+- Deployed `kyoshin-sync-feed-config.py` to runtime host and wired it into each autonomy tick.
+- Rotated runtime `ANTHROPIC_API_KEY` in `~/.openclaw/.env` and restarted `openclaw-gateway.service`.
+- Verified runtime key replacement by hash comparison (local configured key == remote active key).
+- Normalized runtime env keys for live feed cutover:
+  - `KYO_BOOTSTRAP_FEED_FALLBACK=true`
+  - `KYO_AGENT_AI_FEED_URL=`
+  - `KYO_RELEVANCE_FEED_URL=`
+  - `KYO_KORE_FEED_URL=`
+  - `KYO_AGENT_AI_API_KEY=`
+  - `KYO_RELEVANCE_API_KEY=`
+  - `KYO_KORE_API_KEY=`
+- Verified healthy loop after rotation and env normalization:
+  - `cycle=20`
+  - `status=ok`
+  - `feedSync.ok=true`
+  - `opportunities=4`
+  - `assignments=4`
+  - `agentOk=1`
+
 ## Remaining blockers for full revenue autonomy
 
-1. Current non-empty feed profile is bootstrap/synthetic (`file://`) and not live market demand.
-2. No paid job execution endpoints/credentials are wired for live settlement and receipt capture.
-3. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.
+1. `KYO_*_FEED_URL` values are still unset, so intake remains bootstrap (`file://`) instead of live market demand.
+2. Marketplace API credentials for paid job execution/settlement (`KYO_*_API_KEY`) are placeholders.
+3. No payout/receipt connector is wired yet to route realized fees into SOL and onward to staking.
+4. Tailnet serve is not enabled at the tailnet policy level, so gateway remains loopback-only by design.
 
-## Security note (must act)
+## Security note
 
-- The Anthropic API key was exposed during interactive CLI auth in terminal output history and should be treated as compromised.
-- Rotate the Anthropic key and replace `ANTHROPIC_API_KEY` in `~/.openclaw/.env`.
+- Runtime `ANTHROPIC_API_KEY` has been rotated in `~/.openclaw/.env`.
+- The previously exposed key should still be revoked upstream in the Anthropic console if not already revoked.
 
 ## Operational commands
 
