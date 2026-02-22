@@ -94,6 +94,11 @@ impl TrustLayer {
                     "journal event sequence does not match receipt sequence",
                 ));
             }
+            if entry.receipt.policy_version != snapshot.policy_version {
+                return Err(TrustLayerError::SnapshotCorrupted(
+                    "journal receipt policy_version must equal snapshot policy_version",
+                ));
+            }
 
             let decision_id = decision_id_hash(
                 entry.receipt.policy_version,
@@ -174,6 +179,14 @@ impl TrustLayer {
                     "receipt state_hash mismatch while replaying",
                 ));
             }
+            validate_replayed_receipt(
+                &snapshot.policy,
+                snapshot.policy_version,
+                &entry.subject,
+                state,
+                &entry.event,
+                &entry.receipt,
+            )?;
 
             event_index.insert(
                 entry.event.event_id.clone(),
@@ -424,6 +437,13 @@ impl TrustLayer {
             return false;
         }
 
+        let Some(existing) = self.event_index.get(receipt.event_id.as_str()) else {
+            return false;
+        };
+        if existing.subject != receipt.subject || existing.receipt != *receipt {
+            return false;
+        }
+
         let Some(state) = self.subjects.get(receipt.subject.as_str()) else {
             return false;
         };
@@ -447,19 +467,47 @@ impl TrustLayer {
         if expected_decision_id != receipt.decision_id {
             return false;
         }
-
-        let Some(existing) = self.event_index.get(receipt.event_id.as_str()) else {
-            return false;
-        };
-
-        existing.subject == receipt.subject
-            && existing.receipt.event_hash == receipt.event_hash
-            && existing.receipt.sequence == receipt.sequence
+        true
     }
 }
 
 fn validate_event(event: &TrustEvent) -> Result<(), TrustLayerError> {
     event.validate()
+}
+
+fn validate_replayed_receipt(
+    policy: &TrustPolicy,
+    policy_version: u64,
+    subject: &str,
+    state: &SubjectState,
+    event: &TrustEvent,
+    receipt: &TrustReceipt,
+) -> Result<(), TrustLayerError> {
+    if receipt.policy_version != policy_version {
+        return Err(TrustLayerError::SnapshotCorrupted(
+            "journal receipt policy_version must equal snapshot policy_version",
+        ));
+    }
+    if receipt.issued_at != event.observed_at {
+        return Err(TrustLayerError::SnapshotCorrupted(
+            "receipt issued_at must match event observed_at",
+        ));
+    }
+
+    let expected = evaluate_state(policy, state, event.observed_at);
+    if receipt.evaluation != expected {
+        return Err(TrustLayerError::SnapshotCorrupted(
+            "journal receipt evaluation mismatch while replaying",
+        ));
+    }
+
+    if receipt.subject != subject {
+        return Err(TrustLayerError::SnapshotCorrupted(
+            "journal subject does not match receipt subject",
+        ));
+    }
+
+    Ok(())
 }
 
 pub(crate) fn passes_allow_gate(policy: &TrustPolicy, state: &SubjectState, now: i64) -> bool {
