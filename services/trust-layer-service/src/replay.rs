@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use kamiyo_trust_layer::{TrustLayer, TrustLayerSnapshot, TrustReceipt};
+use kamiyo_trust_layer::{TrustLayer, TrustLayerSnapshot};
 use sqlx::PgPool;
 use tracing::{error, info};
 
@@ -105,7 +105,7 @@ fn replay_one(layer: &mut TrustLayer, stored: &StoredEvent) -> Result<()> {
         .apply_event(stored.subject.clone(), stored.event.clone())
         .with_context(|| format!("failed to apply event {}", stored.event.event_id))?;
 
-    if !receipts_match(&produced, &stored.receipt) {
+    if produced != stored.receipt {
         bail!(
             "receipt mismatch for event {} at offset {}",
             stored.event.event_id,
@@ -114,19 +114,6 @@ fn replay_one(layer: &mut TrustLayer, stored: &StoredEvent) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn receipts_match(left: &TrustReceipt, right: &TrustReceipt) -> bool {
-    left.subject == right.subject
-        && left.event_id == right.event_id
-        && left.sequence == right.sequence
-        && left.prev_hash == right.prev_hash
-        && left.event_hash == right.event_hash
-        && left.state_hash == right.state_hash
-        && left.policy_version == right.policy_version
-        && left.decision_id == right.decision_id
-        && left.issued_at == right.issued_at
-        && left.evaluation == right.evaluation
 }
 
 async fn rewrite_subject_state(pool: &PgPool, layer: &TrustLayer) -> Result<()> {

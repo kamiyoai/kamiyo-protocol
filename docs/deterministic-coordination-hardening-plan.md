@@ -68,3 +68,11 @@ Harden deterministic coordination logic and replay verifiability for core trust/
 - Truth-court rejects malformed verdicts and duplicate-oracle replay bundles.
 - Deterministic summary content is stable for equivalent accepted oracle sets.
 - All targeted tests pass.
+
+## Execution Status
+
+- [x] Plan authored before code changes.
+- [x] Trust-layer hardening implemented.
+- [x] Truth-court hardening implemented.
+- [x] Cleanup pass completed on replay comparison path.
+- [x] Targeted verification suites passed.
