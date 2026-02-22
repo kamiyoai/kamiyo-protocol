@@ -20,11 +20,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Block tracked docs/
+      - name: Block tracked private docs/partnerships
         run: |
-          if [ -n "$(git ls-files docs)" ]; then
-            echo "::error::docs/ is gitignored; do not commit tracked files under docs/"
-            git ls-files docs
+          if [ -n "$(git ls-files -- docs/partnerships)" ]; then
+            echo "::error::docs/partnerships is private and must remain untracked"
+            git ls-files -- docs/partnerships
             exit 1
           fi
 
