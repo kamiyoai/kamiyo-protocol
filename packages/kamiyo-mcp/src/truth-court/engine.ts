@@ -4,6 +4,7 @@ import {
   hashOracleResponse,
 } from './hash.js';
 import { performance } from 'node:perf_hooks';
+import { TRUTH_COURT_VERDICTS } from './types.js';
 import type {
   TruthCourtCaseInput,
   TruthCourtDecision,
@@ -29,6 +30,24 @@ function emptyVoteBreakdown(): Record<TruthCourtVerdict, number> {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isTruthCourtVerdict(value: unknown): value is TruthCourtVerdict {
+  return (
+    typeof value === 'string' &&
+    (TRUTH_COURT_VERDICTS as readonly string[]).includes(value)
+  );
+}
+
+function duplicateOracleNames(oracles: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const oracle of oracles) {
+    counts.set(oracle, (counts.get(oracle) ?? 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .filter(([, count]) => count > 1)
+    .map(([oracle]) => oracle)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function buildSlashing(
@@ -81,9 +100,18 @@ function validateOracleResponse(
   if (!response.oracle || !response.model || !response.modelHash) {
     return 'oracle response is missing identity fields';
   }
+  if (!isTruthCourtVerdict(response.verdict)) {
+    return 'oracle response verdict is invalid';
+  }
 
   if (!isFiniteNumber(response.confidence) || response.confidence < 0 || response.confidence > 1) {
     return 'oracle response confidence must be in [0, 1]';
+  }
+  if (!isFiniteNumber(response.generatedAt) || response.generatedAt <= 0) {
+    return 'oracle response generatedAt must be a positive number';
+  }
+  if (!response.reasoningRef) {
+    return 'oracle response reasoningRef is required';
   }
 
   if (!Array.isArray(response.factors) || response.factors.length === 0) {
@@ -152,8 +180,16 @@ function buildSummary(
   voteBreakdown: Record<TruthCourtVerdict, number>
 ): string {
   const leadingFactors = responses
+    .slice()
+    .sort((left, right) => left.oracle.localeCompare(right.oracle))
     .filter((entry) => entry.verdict === finalVerdict)
-    .flatMap((entry) => entry.factors)
+    .flatMap((entry) =>
+      entry.factors
+        .slice()
+        .sort((left, right) =>
+          `${left.name}:${left.evidence}`.localeCompare(`${right.name}:${right.evidence}`)
+        )
+    )
     .slice(0, 3)
     .map((factor) => `${factor.name}=${factor.impact.toFixed(2)}`);
 
@@ -191,6 +227,12 @@ export function verifyTruthCourtReplayBundle(
   const observedByOracle = new Map<string, string>(
     responses.map((entry) => [entry.oracle, hashOracleResponse(entry)])
   );
+  const duplicatedExpectedOracles = duplicateOracleNames(
+    replayBundle.oracleDigests.map((entry) => entry.oracle)
+  );
+  const duplicatedObservedOracles = duplicateOracleNames(
+    responses.map((entry) => entry.oracle)
+  );
 
   const missingOracles: string[] = [];
   const mismatchedOracles: string[] = [];
@@ -213,6 +255,13 @@ export function verifyTruthCourtReplayBundle(
     }
   }
 
+  for (const oracle of duplicatedExpectedOracles) {
+    mismatchedOracles.push(oracle);
+  }
+  for (const oracle of duplicatedObservedOracles) {
+    mismatchedOracles.push(oracle);
+  }
+
   const expectedCommitteeHash = hashCommitteeDigest(
     replayBundle.finalVerdict,
     replayBundle.confidence,
@@ -221,6 +270,7 @@ export function verifyTruthCourtReplayBundle(
     )
   );
   const committeeHashMatches = expectedCommitteeHash === replayBundle.committeeHash;
+  const distinctMismatchedOracles = Array.from(new Set(mismatchedOracles)).sort();
 
   return {
     success: true,
@@ -230,14 +280,14 @@ export function verifyTruthCourtReplayBundle(
       featureHashMatches &&
       committeeHashMatches &&
       missingOracles.length === 0 &&
-      mismatchedOracles.length === 0 &&
+      distinctMismatchedOracles.length === 0 &&
       unexpectedOracles.length === 0,
     caseHashMatches,
     evidenceHashMatches,
     featureHashMatches,
     committeeHashMatches,
     missingOracles: missingOracles.sort(),
-    mismatchedOracles: mismatchedOracles.sort(),
+    mismatchedOracles: distinctMismatchedOracles,
     unexpectedOracles: unexpectedOracles.sort(),
   };
 }
@@ -381,15 +431,18 @@ export class TruthCourtEngine {
       };
     }
 
-    const finalVerdict = selectFinalVerdict(acceptedResponses, voteBreakdown);
+    const orderedAcceptedResponses = acceptedResponses
+      .slice()
+      .sort((left, right) => left.oracle.localeCompare(right.oracle));
+    const finalVerdict = selectFinalVerdict(orderedAcceptedResponses, voteBreakdown);
     const verdictVotes = voteBreakdown[finalVerdict];
     const avgConfidence =
-      acceptedResponses.reduce((sum, entry) => sum + entry.confidence, 0) /
-      acceptedResponses.length;
-    const agreement = verdictVotes / acceptedResponses.length;
+      orderedAcceptedResponses.reduce((sum, entry) => sum + entry.confidence, 0) /
+      orderedAcceptedResponses.length;
+    const agreement = verdictVotes / orderedAcceptedResponses.length;
     const confidence = Math.min(1, avgConfidence * 0.65 + agreement * 0.35);
 
-    const oracleDigests = replayDigestsFromResponses(acceptedResponses);
+    const oracleDigests = replayDigestsFromResponses(orderedAcceptedResponses);
 
     const committeeHash = hashCommitteeDigest(finalVerdict, confidence, oracleDigests);
     const replayBundle: TruthCourtReplayBundle = {
@@ -413,9 +466,7 @@ export class TruthCourtEngine {
       finalVerdict,
       confidence,
       voteBreakdown,
-      acceptedResponses: acceptedResponses
-        .slice()
-        .sort((left, right) => left.oracle.localeCompare(right.oracle)),
+      acceptedResponses: orderedAcceptedResponses,
       rejectedResponses: rejectedResponses
         .slice()
         .sort((left, right) => left.oracle.localeCompare(right.oracle)),
@@ -426,7 +477,12 @@ export class TruthCourtEngine {
         .slice()
         .sort((left, right) => left.oracle.localeCompare(right.oracle)),
       replayBundle,
-      summary: buildSummary(finalVerdict, confidence, acceptedResponses, voteBreakdown),
+      summary: buildSummary(
+        finalVerdict,
+        confidence,
+        orderedAcceptedResponses,
+        voteBreakdown
+      ),
     };
   }
 
