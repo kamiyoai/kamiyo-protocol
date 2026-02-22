@@ -181,6 +181,85 @@ async function testCommitteeHashTamperDetection(): Promise<void> {
   assert(!replay.committeeHashMatches, 'committee hash mismatch detected');
 }
 
+class InvalidVerdictOracle implements TruthCourtOracle {
+  readonly name = 'invalid-verdict-oracle';
+
+  async evaluate(request: TruthCourtOracleRequest): Promise<TruthCourtOracleResponse> {
+    return {
+      oracle: this.name,
+      provider: 'custom',
+      model: 'malformed-v1',
+      modelHash: 'malformed-hash',
+      verdict: 'not-a-verdict' as any,
+      confidence: 0.5,
+      factors: [
+        {
+          name: 'malformed',
+          impact: 0.1,
+          evidence: 'invalid verdict payload',
+        },
+      ],
+      evidenceHash: request.evidenceHash,
+      featureHash: request.featureHash,
+      reasoningRef: 'mock://invalid-verdict',
+      generatedAt: Date.now(),
+    };
+  }
+}
+
+async function testInvalidVerdictRejection(): Promise<void> {
+  console.log('\n=== invalid verdict rejection ===');
+  const engine = new TruthCourtEngine([
+    new QualityBandOracle(),
+    new InvalidVerdictOracle(),
+  ]);
+  const decision = await engine.evaluate(baseCase, { minValidResponses: 1 });
+
+  assert(decision.success, 'decision still succeeds with one valid oracle');
+
+  const invalidRejected = decision.rejectedResponses.find(
+    (entry) => entry.oracle === 'invalid-verdict-oracle'
+  );
+  assert(Boolean(invalidRejected), 'invalid verdict oracle rejected');
+  assert(
+    invalidRejected?.reason === 'schema_invalid',
+    'invalid verdict classified as schema_invalid'
+  );
+}
+
+async function testDuplicateReplayOracleDetection(): Promise<void> {
+  console.log('\n=== duplicate replay oracle detection ===');
+  const engine = new TruthCourtEngine([
+    new QualityBandOracle(),
+    new EvidenceIntegrityOracle(),
+  ]);
+  const decision = await engine.evaluate(baseCase, { minValidResponses: 2 });
+  if (!decision.success || !decision.replayBundle) {
+    assert(false, 'decision required for duplicate replay oracle detection');
+    return;
+  }
+
+  const duplicatedOracle = decision.replayBundle.oracleDigests[0].oracle;
+  const tamperedBundle = {
+    ...decision.replayBundle,
+    oracleDigests: [
+      ...decision.replayBundle.oracleDigests,
+      { ...decision.replayBundle.oracleDigests[0] },
+    ],
+  };
+
+  const replay = engine.verifyReplay(
+    baseCase,
+    tamperedBundle,
+    decision.acceptedResponses
+  );
+  assert(!replay.replayable, 'duplicate oracle digest breaks replay');
+  assert(
+    replay.mismatchedOracles.includes(duplicatedOracle),
+    'duplicate oracle is reported as mismatched'
+  );
+}
+
 async function testDuplicateOracleProtection(): Promise<void> {
   console.log('\n=== duplicate oracle protection ===');
   let threw = false;
@@ -251,6 +330,8 @@ async function main(): Promise<void> {
   await testReplayIntegrity();
   await testSlashingRecommendation();
   await testCommitteeHashTamperDetection();
+  await testInvalidVerdictRejection();
+  await testDuplicateReplayOracleDetection();
   await testDuplicateOracleProtection();
   await testGrokAdapterParsing();
 

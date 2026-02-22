@@ -295,6 +295,95 @@ fn snapshot_roundtrip_restores_state() {
 }
 
 #[test]
+fn verify_receipt_rejects_tampered_body() {
+    let mut layer = TrustLayer::new(default_policy()).expect("policy should be valid");
+
+    let receipt = layer
+        .apply_event(
+            "agent-alpha",
+            event(
+                "evt-001",
+                1,
+                1_700_000_000,
+                EvidenceKind::ManualCredit,
+                20,
+                10_000,
+            ),
+        )
+        .expect("event should apply");
+
+    let mut tampered = receipt.clone();
+    tampered.evaluation.decision = TrustDecision::Review;
+
+    assert!(!layer.verify_receipt(&tampered));
+}
+
+#[test]
+fn snapshot_rejects_tampered_evaluation() {
+    let mut layer = TrustLayer::new(default_policy()).expect("policy should be valid");
+
+    layer
+        .apply_event(
+            "agent-alpha",
+            event(
+                "evt-001",
+                1,
+                1_700_000_000,
+                EvidenceKind::ManualCredit,
+                20,
+                10_000,
+            ),
+        )
+        .expect("event should apply");
+
+    let mut snapshot = layer.snapshot();
+    snapshot.journal[0].receipt.evaluation.decision = TrustDecision::Deny;
+
+    let err = TrustLayer::from_snapshot(snapshot).expect_err("tampered snapshot must fail");
+    assert_eq!(
+        err,
+        TrustLayerError::SnapshotCorrupted("journal receipt evaluation mismatch while replaying")
+    );
+}
+
+#[test]
+fn snapshot_rejects_policy_version_drift() {
+    let mut layer = TrustLayer::new(default_policy()).expect("policy should be valid");
+
+    layer
+        .apply_event(
+            "agent-alpha",
+            event(
+                "evt-001",
+                1,
+                1_700_000_000,
+                EvidenceKind::ManualCredit,
+                20,
+                10_000,
+            ),
+        )
+        .expect("event should apply");
+
+    let mut snapshot = layer.snapshot();
+    let entry = &mut snapshot.journal[0];
+    entry.receipt.policy_version = 2;
+    entry.receipt.decision_id = decision_id_hash(
+        entry.receipt.policy_version,
+        entry.receipt.sequence,
+        entry.receipt.event_hash,
+        entry.receipt.state_hash,
+    );
+
+    let err = TrustLayer::from_snapshot(snapshot).expect_err("policy version drift must fail");
+    assert_eq!(
+        err,
+        TrustLayerError::SnapshotCorrupted(
+            "journal receipt policy_version must equal snapshot policy_version"
+        )
+    );
+}
+
+#[test]
 fn policy_version_updates_are_strict() {
     let mut layer = TrustLayer::new(default_policy()).expect("policy should be valid");
 
