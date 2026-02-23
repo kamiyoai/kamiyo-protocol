@@ -57,6 +57,10 @@ const TOOL_DEFINITIONS: Tool[] = [
           type: 'number',
           description: 'Escrow expiry in seconds (default: 3600 = 1 hour, max: 2592000 = 30 days)',
         },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional dispute adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['api', 'amount'],
     },
@@ -153,6 +157,26 @@ const TOOL_DEFINITIONS: Tool[] = [
         evidence: {
           type: 'object',
           description: 'Evidence supporting the dispute (API response, assessment details, etc.)',
+        },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional truth-court adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Optional claimant wallet or agent id (defaults to configured agent wallet)',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Optional respondent wallet or agent id',
+        },
+        missionTag: {
+          type: 'string',
+          description: 'Optional mission/scenario tag for truth-court context',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional extra context for truth-court adjudication',
         },
       },
       required: ['transactionId', 'qualityScore', 'refundPercentage', 'evidence'],
@@ -346,6 +370,10 @@ const TOOL_DEFINITIONS: Tool[] = [
           type: 'number',
           description: 'Quality score threshold for auto-dispute (default: 50)',
         },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional truth-court adjudicator preference for auto-disputes: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['apiUrl', 'apiProvider', 'amount'],
     },
@@ -360,6 +388,10 @@ const TOOL_DEFINITIONS: Tool[] = [
         url: {
           type: 'string',
           description: 'The x402-gated API endpoint URL to check pricing for',
+        },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['url'],
@@ -388,6 +420,10 @@ const TOOL_DEFINITIONS: Tool[] = [
         headers: {
           type: 'object',
           description: 'Additional headers as key-value pairs',
+        },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['url'],
@@ -743,6 +779,31 @@ const TOOL_DEFINITIONS: Tool[] = [
   ...tools.FUNDRY_TOOL_DEFINITIONS,
 ];
 
+const CLAW_PROVIDERS = ['openclaw', 'nanoclaw', 'ironclaw'] as const;
+type ClawProvider = (typeof CLAW_PROVIDERS)[number];
+
+function parseClawProvider(value: unknown): ClawProvider | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if ((CLAW_PROVIDERS as readonly string[]).includes(normalized)) {
+    return normalized as ClawProvider;
+  }
+  return null;
+}
+
+function buildClawInclusion(provider: ClawProvider): {
+  includeOpenClaw: boolean;
+  includeNanoClaw: boolean;
+  includeIronClaw: boolean;
+} {
+  return {
+    includeOpenClaw: provider === 'openclaw',
+    includeNanoClaw: provider === 'nanoclaw',
+    includeIronClaw: provider === 'ironclaw',
+  };
+}
+
 function safeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'internal error';
@@ -884,7 +945,21 @@ class KamiyoMCPServer {
               result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
               break;
             }
-            result = await tools.createEscrow(args as any, this.program);
+            {
+              const requestedProvider = parseClawProvider((args as any)?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+
+              result = await tools.createEscrow(args as any, this.program);
+              if (requestedProvider && result && typeof result === 'object') {
+                result = { ...result, adjudicationProvider: requestedProvider };
+              }
+            }
             break;
 
           case 'check_escrow_status':
@@ -916,7 +991,65 @@ class KamiyoMCPServer {
               result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
               break;
             }
-            result = await tools.fileDispute(args as any, this.program);
+            {
+              const disputeArgs = args as any;
+              const requestedProvider = parseClawProvider(disputeArgs?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+
+              if (requestedProvider) {
+                const claimant =
+                  typeof disputeArgs?.claimant === 'string' && disputeArgs.claimant.trim().length > 0
+                    ? disputeArgs.claimant.trim()
+                    : (this.solanaClient?.publicKey.toBase58() ?? 'mcp-agent');
+                const featureVector =
+                  disputeArgs?.featureVector && typeof disputeArgs.featureVector === 'object'
+                    ? disputeArgs.featureVector
+                    : {
+                        qualityScore: disputeArgs?.qualityScore,
+                        refundPercentage: disputeArgs?.refundPercentage,
+                        adjudicationProvider: requestedProvider,
+                      };
+                const evidence =
+                  disputeArgs?.evidence && typeof disputeArgs.evidence === 'object'
+                    ? disputeArgs.evidence
+                    : {};
+
+                result = await tools.fileDisputeWithTruthCourt(
+                  {
+                    transactionId: disputeArgs.transactionId,
+                    qualityScore: disputeArgs.qualityScore,
+                    refundPercentage: disputeArgs.refundPercentage,
+                    claimant,
+                    respondent:
+                      typeof disputeArgs.respondent === 'string'
+                        ? disputeArgs.respondent
+                        : undefined,
+                    missionTag:
+                      typeof disputeArgs.missionTag === 'string'
+                        ? disputeArgs.missionTag
+                        : undefined,
+                    context:
+                      typeof disputeArgs.context === 'string'
+                        ? disputeArgs.context
+                        : undefined,
+                    evidence,
+                    featureVector,
+                    markOnChain: true,
+                    ...buildClawInclusion(requestedProvider),
+                  },
+                  this.program
+                );
+                break;
+              }
+
+              result = await tools.fileDispute(disputeArgs, this.program);
+            }
             break;
 
           case 'file_dispute_truth_court': {
@@ -949,16 +1082,52 @@ class KamiyoMCPServer {
               result = { success: false, error: 'Escrow program not configured (missing KAMIYO_PROGRAM_ID and/or agent key)' };
               break;
             }
-            result = await tools.callApiWithEscrow(args as any, this.program);
+            {
+              const requestedProvider = parseClawProvider((args as any)?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+              result = await tools.callApiWithEscrow(args as any, this.program);
+            }
             break;
 
           case 'check_x402_api_price':
-            result = await tools.x402CheckPricing(args as any, this.x402Config);
+            {
+              const requestedProvider = parseClawProvider((args as any)?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+              result = await tools.x402CheckPricing(args as any, this.x402Config);
+              if (requestedProvider && result && typeof result === 'object') {
+                result = { ...result, adjudicationProvider: requestedProvider };
+              }
+            }
             break;
 
           case 'x402_check_pricing':
             // Backwards-compatible alias.
-            result = await tools.x402CheckPricing(args as any, this.x402Config);
+            {
+              const requestedProvider = parseClawProvider((args as any)?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+              result = await tools.x402CheckPricing(args as any, this.x402Config);
+              if (requestedProvider && result && typeof result === 'object') {
+                result = { ...result, adjudicationProvider: requestedProvider };
+              }
+            }
             break;
 
           case 'x402_fetch':
@@ -966,7 +1135,20 @@ class KamiyoMCPServer {
               result = { success: false, error: 'Solana wallet not configured (set AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH)' };
               break;
             }
-            result = await tools.x402Fetch(args as any, this.x402Config);
+            {
+              const requestedProvider = parseClawProvider((args as any)?.adjudicationProvider);
+              if (requestedProvider === null) {
+                result = {
+                  success: false,
+                  error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+                };
+                break;
+              }
+              result = await tools.x402Fetch(args as any, this.x402Config);
+              if (requestedProvider && result && typeof result === 'object') {
+                result = { ...result, adjudicationProvider: requestedProvider };
+              }
+            }
             break;
 
           // Kamino Earn (KVault) tools

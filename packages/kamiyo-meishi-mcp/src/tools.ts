@@ -20,6 +20,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
         passportAddress: { type: 'string', description: 'Meishi passport PDA address' },
         minComplianceScore: { type: 'number', description: 'Minimum compliance score threshold (0-1000)' },
         requiredJurisdiction: { type: 'number', description: 'Required jurisdiction (0=Global, 1=EU, 2=US, 3=UK, 4=APAC)' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress'],
     },
@@ -31,6 +35,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
       type: 'object',
       properties: {
         agentIdentity: { type: 'string', description: 'Agent identity public key' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['agentIdentity'],
     },
@@ -42,6 +50,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
       type: 'object',
       properties: {
         passportAddress: { type: 'string', description: 'Meishi passport PDA address' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress'],
     },
@@ -55,6 +67,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
         passportAddress: { type: 'string', description: 'Meishi passport PDA address' },
         amountUsd: { type: 'number', description: 'Transaction amount in USD' },
         productCategory: { type: 'number', description: 'Product category code (0-255)' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress'],
     },
@@ -67,6 +83,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
       properties: {
         passportAddress: { type: 'string', description: 'Meishi passport PDA address' },
         counterparty: { type: 'string', description: 'Counterparty public key' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress', 'counterparty'],
     },
@@ -79,6 +99,10 @@ export const MEISHI_TOOL_DEFINITIONS: Tool[] = [
       properties: {
         agentIdentity: { type: 'string', description: 'Agent identity public key' },
         size: { type: 'number', description: 'SVG size in pixels (default: 256)' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['agentIdentity'],
     },
@@ -131,6 +155,26 @@ function safeErrorMessage(error: unknown): string {
   return 'internal error';
 }
 
+const CLAW_PROVIDERS = ['openclaw', 'nanoclaw', 'ironclaw'] as const;
+type ClawProvider = (typeof CLAW_PROVIDERS)[number];
+
+function parseAttestationProvider(args: Record<string, unknown>): {
+  provider?: ClawProvider;
+  error?: string;
+} {
+  const raw = args.attestationProvider;
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== 'string') {
+    return { error: 'attestationProvider must be one of: openclaw, nanoclaw, ironclaw' };
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (!(CLAW_PROVIDERS as readonly string[]).includes(normalized)) {
+    return { error: 'attestationProvider must be one of: openclaw, nanoclaw, ironclaw' };
+  }
+  return { provider: normalized as ClawProvider };
+}
+
 export async function handleTool(
   name: string,
   args: Record<string, unknown>,
@@ -160,6 +204,9 @@ async function verifyMeishi(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const address = args.passportAddress;
   if (!isValidPubkey(address)) return { success: false, error: 'passportAddress must be a valid base58 public key' };
 
@@ -206,6 +253,7 @@ async function verifyMeishi(
 
     return {
       success: true,
+      attestationProvider: providerResolution.provider,
       valid: errors.length === 0,
       errors,
       warnings,
@@ -228,6 +276,9 @@ async function getMeishi(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const agentId = args.agentIdentity;
   if (!isValidPubkey(agentId)) return { success: false, error: 'agentIdentity must be a valid base58 public key' };
 
@@ -241,6 +292,7 @@ async function getMeishi(
 
     return {
       success: true,
+      attestationProvider: providerResolution.provider,
       passport: {
         issuer: passport.issuer.toBase58(),
         principal: passport.principal.toBase58(),
@@ -269,6 +321,9 @@ async function checkCompliance(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const address = args.passportAddress;
   if (!isValidPubkey(address)) return { success: false, error: 'passportAddress must be a valid base58 public key' };
 
@@ -284,6 +339,7 @@ async function checkCompliance(
 
     return {
       success: true,
+      attestationProvider: providerResolution.provider,
       report: {
         overallScore: report.overallScore,
         classification: report.classification,
@@ -307,6 +363,9 @@ async function checkMandate(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const address = args.passportAddress;
   if (!isValidPubkey(address)) return { success: false, error: 'passportAddress must be a valid base58 public key' };
 
@@ -321,7 +380,12 @@ async function checkMandate(
     const mandate = await ctx.mandates.getLatest(passportPk);
 
     if (!mandate) {
-      return { success: true, valid: false, reason: 'No mandate found' };
+      return {
+        success: true,
+        attestationProvider: providerResolution.provider,
+        valid: false,
+        reason: 'No mandate found',
+      };
     }
 
     const valid = ctx.mandates.isValid(mandate);
@@ -344,7 +408,12 @@ async function checkMandate(
       checks.categoryAuthorized = ctx.mandates.checkCategory(mandate, args.productCategory as number);
     }
 
-    return { success: true, valid, checks };
+    return {
+      success: true,
+      attestationProvider: providerResolution.provider,
+      valid,
+      checks,
+    };
   } catch (err: unknown) {
     return { success: false, error: safeErrorMessage(err) };
   }
@@ -354,6 +423,9 @@ async function getLiability(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const address = args.passportAddress;
   const counterparty = args.counterparty;
   if (!isValidPubkey(address) || !isValidPubkey(counterparty)) {
@@ -366,11 +438,16 @@ async function getLiability(
     const allocation = await ctx.liability.get(passportPk, counterpartyPk);
 
     if (!allocation) {
-      return { success: true, found: false };
+      return {
+        success: true,
+        attestationProvider: providerResolution.provider,
+        found: false,
+      };
     }
 
     return {
       success: true,
+      attestationProvider: providerResolution.provider,
       found: true,
       allocation: {
         consumerBps: allocation.consumerLiabilityBps,
@@ -392,6 +469,9 @@ async function getKamon(
   args: Record<string, unknown>,
   ctx: ToolContext
 ): Promise<unknown> {
+  const providerResolution = parseAttestationProvider(args);
+  if (providerResolution.error) return { success: false, error: providerResolution.error };
+
   const agentId = args.agentIdentity;
   if (!isValidPubkey(agentId)) return { success: false, error: 'agentIdentity must be a valid base58 public key' };
 
@@ -409,6 +489,7 @@ async function getKamon(
 
     return {
       success: true,
+      attestationProvider: providerResolution.provider,
       svg,
       params: {
         complianceClass: passport.complianceClass,

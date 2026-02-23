@@ -32,6 +32,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
         api: { type: 'string', description: 'API provider wallet' },
         amount: { type: 'number', description: 'Amount in SOL (min 0.001)' },
         timeLock: { type: 'number', description: 'Expiry in seconds (default 3600, max 2592000)' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional dispute adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['api', 'amount'],
     },
@@ -96,6 +100,26 @@ export const TOOL_DEFINITIONS: Tool[] = [
         qualityScore: { type: 'number', description: 'Score (0-100)' },
         refundPercentage: { type: 'number', description: 'Refund %' },
         evidence: { type: 'object', description: 'Supporting evidence' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional truth-court adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Optional claimant wallet or agent id (defaults to configured agent wallet)',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Optional respondent wallet or agent id',
+        },
+        missionTag: {
+          type: 'string',
+          description: 'Optional mission/scenario tag for truth-court context',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional extra context for truth-court adjudication',
+        },
       },
       required: ['transactionId', 'qualityScore', 'refundPercentage', 'evidence'],
     },
@@ -223,6 +247,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
         timeLock: { type: 'number', description: 'Expiry in seconds (default 3600)' },
         autoDispute: { type: 'boolean', description: 'Auto-dispute if low quality (default true)' },
         qualityThreshold: { type: 'number', description: 'Threshold for auto-dispute (default 50)' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional truth-court adjudicator preference for auto-disputes: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['apiUrl', 'apiProvider', 'amount'],
     },
@@ -234,6 +262,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
       type: 'object',
       properties: {
         url: { type: 'string', description: 'Endpoint URL' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['url'],
     },
@@ -248,6 +280,10 @@ export const TOOL_DEFINITIONS: Tool[] = [
         method: { type: 'string', enum: ['GET', 'POST', 'PUT', 'DELETE'], description: 'HTTP method (default GET)' },
         body: { type: 'string', description: 'JSON body for POST/PUT' },
         headers: { type: 'object', description: 'Additional headers' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['url'],
     },

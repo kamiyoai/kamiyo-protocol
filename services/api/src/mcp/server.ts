@@ -22,8 +22,34 @@ import {
   serializeAudit,
 } from '../meishi/public';
 import { mcpToolCallsTotal } from '../metrics.js';
+import { fileDisputeWithTruthCourt, runTruthCourtGauntlet } from './truth-court.js';
 
 export type McpAuthInfo = AuthInfo;
+
+const CLAW_PROVIDERS = ['openclaw', 'nanoclaw', 'ironclaw'] as const;
+type ClawProvider = (typeof CLAW_PROVIDERS)[number];
+
+function parseClawProvider(value: unknown): ClawProvider | undefined | null {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if ((CLAW_PROVIDERS as readonly string[]).includes(normalized)) {
+    return normalized as ClawProvider;
+  }
+  return null;
+}
+
+function buildClawInclusion(provider: ClawProvider): {
+  includeOpenClaw: boolean;
+  includeNanoClaw: boolean;
+  includeIronClaw: boolean;
+} {
+  return {
+    includeOpenClaw: provider === 'openclaw',
+    includeNanoClaw: provider === 'nanoclaw',
+    includeIronClaw: provider === 'ironclaw',
+  };
+}
 
 const TOOL_DEFINITIONS = [
   {
@@ -33,6 +59,10 @@ const TOOL_DEFINITIONS = [
       type: 'object' as const,
       properties: {
         agentIdentity: { type: 'string', description: 'Agent identity pubkey' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['agentIdentity'],
     },
@@ -44,6 +74,10 @@ const TOOL_DEFINITIONS = [
       type: 'object' as const,
       properties: {
         passportAddress: { type: 'string', description: 'Meishi passport PDA' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress'],
     },
@@ -56,6 +90,10 @@ const TOOL_DEFINITIONS = [
       properties: {
         passportAddress: { type: 'string', description: 'Meishi passport PDA' },
         version: { type: 'number', description: 'Mandate version (u32)' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress', 'version'],
     },
@@ -68,6 +106,10 @@ const TOOL_DEFINITIONS = [
       properties: {
         passportAddress: { type: 'string', description: 'Meishi passport PDA' },
         nonce: { type: 'number', description: 'Audit nonce (u32)' },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['passportAddress', 'nonce'],
     },
@@ -81,6 +123,10 @@ const TOOL_DEFINITIONS = [
         api: { type: 'string', description: 'API provider wallet' },
         amount: { type: 'number', description: 'Amount in SOL' },
         timeLock: { type: 'number', description: 'Expiry in seconds' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional dispute adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['api', 'amount'],
     },
@@ -142,8 +188,95 @@ const TOOL_DEFINITIONS = [
         qualityScore: { type: 'number', description: 'Score (0-100)' },
         refundPercentage: { type: 'number', description: 'Refund %' },
         evidence: { type: 'object', description: 'Supporting evidence' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional truth-court adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        },
+        claimant: {
+          type: 'string',
+          description: 'Optional claimant wallet or agent id (defaults to configured agent wallet)',
+        },
+        respondent: {
+          type: 'string',
+          description: 'Optional respondent wallet or agent id',
+        },
+        missionTag: {
+          type: 'string',
+          description: 'Optional mission/scenario tag for truth-court context',
+        },
+        context: {
+          type: 'string',
+          description: 'Optional extra context for truth-court adjudication',
+        },
       },
       required: ['transactionId', 'qualityScore', 'refundPercentage', 'evidence'],
+    },
+  },
+  {
+    name: 'file_dispute_truth_court',
+    description:
+      'Run multi-oracle truth-court dispute review (xAI/OpenClaw/NanoClaw/IronClaw when configured), emit replay hashes, and optionally mark dispute on-chain.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        transactionId: { type: 'string', description: 'Escrow transaction ID' },
+        qualityScore: { type: 'number', description: 'Score (0-100)' },
+        refundPercentage: { type: 'number', description: 'Requested refund percentage (0-100)' },
+        claimant: { type: 'string', description: 'Claimant wallet or agent identifier' },
+        respondent: { type: 'string', description: 'Respondent wallet or agent identifier' },
+        missionTag: { type: 'string', description: 'Scenario tag' },
+        evidence: { type: 'object', description: 'Supporting evidence' },
+        featureVector: { type: 'object', description: 'Deterministic feature vector for replay checks' },
+        context: { type: 'string', description: 'Optional contextual summary' },
+        markOnChain: {
+          type: 'boolean',
+          description: 'If true, mark dispute on-chain after committee verdict (default true)',
+        },
+        minValidResponses: { type: 'number', description: 'Minimum valid oracle responses needed for quorum (default 2)' },
+        includeGrok: { type: 'boolean', description: 'Include xAI Grok oracle when configured (default auto)' },
+        includeOpenClaw: { type: 'boolean', description: 'Include OpenClaw oracle when configured (default auto)' },
+        includeNanoClaw: { type: 'boolean', description: 'Include NanoClaw oracle when configured (default auto)' },
+        includeIronClaw: { type: 'boolean', description: 'Include IronClaw oracle when configured (default auto)' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional oracle preference override: openclaw, nanoclaw, or ironclaw',
+        },
+      },
+      required: [
+        'transactionId',
+        'qualityScore',
+        'refundPercentage',
+        'claimant',
+        'evidence',
+        'featureVector',
+      ],
+    },
+  },
+  {
+    name: 'run_truth_court_gauntlet',
+    description:
+      'Run deterministic multi-round truth-court stress campaign with replay/tamper/counterfactual metrics and integrity root.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        rounds: { type: 'number', description: 'Number of rounds (default 12, max 100)' },
+        seed: { type: 'number', description: 'Deterministic seed for reproducible runs' },
+        scenarioMix: { type: 'array', description: 'Scenario mix names' },
+        counterfactualsPerRound: { type: 'number', description: 'Counterfactual probes per round (default 2, max 8)' },
+        claimant: { type: 'string', description: 'Claimant agent id (default agent-red)' },
+        respondent: { type: 'string', description: 'Respondent agent id (default agent-blue)' },
+        includeGrok: { type: 'boolean', description: 'Force Grok inclusion when available (default auto)' },
+        includeOpenClaw: { type: 'boolean', description: 'Force OpenClaw inclusion when available (default auto)' },
+        includeNanoClaw: { type: 'boolean', description: 'Force NanoClaw inclusion when available (default auto)' },
+        includeIronClaw: { type: 'boolean', description: 'Force IronClaw inclusion when available (default auto)' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional oracle preference override: openclaw, nanoclaw, or ironclaw',
+        },
+        policyMode: { type: 'string', description: 'Policy mode: default or strict' },
+        minValidResponses: { type: 'number', description: 'Minimum valid oracle responses for quorum (default 2)' },
+      },
+      required: [] as string[],
     },
   },
   {
@@ -164,6 +297,10 @@ const TOOL_DEFINITIONS = [
       type: 'object' as const,
       properties: {
         url: { type: 'string', description: 'Endpoint URL' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['url'],
     },
@@ -403,6 +540,18 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     return value;
   };
 
+  const resolveProvider = (
+    fieldName: 'adjudicationProvider' | 'attestationProvider'
+  ): { provider?: ClawProvider; error?: string } => {
+    const provider = parseClawProvider(args[fieldName]);
+    if (provider === null) {
+      return {
+        error: `${fieldName} must be one of: openclaw, nanoclaw, ironclaw`,
+      };
+    }
+    return { provider };
+  };
+
   // Off-chain tools
   if (name === 'assess_data_quality') {
     return assessDataQuality(args as { apiResponse: Record<string, unknown>; expectedCriteria: string[] });
@@ -413,11 +562,19 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   }
 
   if (name === 'x402_check_pricing') {
-    return x402CheckPricing(args as { url: string });
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    const pricing = await x402CheckPricing(args as { url: string });
+    if (providerResolution.provider && pricing && typeof pricing === 'object') {
+      return { ...pricing, adjudicationProvider: providerResolution.provider };
+    }
+    return pricing;
   }
 
   // Meishi (read-only on-chain)
   if (name === 'meishi_verify_agent') {
+    const providerResolution = resolveProvider('attestationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
     const agentIdentity = parsePubkey(args.agentIdentity as string);
     if (!agentIdentity) return { success: false, error: 'invalid_agent_identity' };
 
@@ -427,11 +584,14 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
       success: true,
       agentIdentity: pk(agentIdentity),
       passportAddress: pk(passportAddress),
+      attestationProvider: providerResolution.provider,
       ...result,
     };
   }
 
   if (name === 'meishi_get_passport') {
+    const providerResolution = resolveProvider('attestationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
     const passportAddress = parsePubkey(args.passportAddress as string);
     if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
 
@@ -442,12 +602,15 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     return {
       success: true,
       passportAddress: pk(passportAddress),
+      attestationProvider: providerResolution.provider,
       passport: serializePassport(passport),
       latestMandate: serializeMandate(latestMandate),
     };
   }
 
   if (name === 'meishi_get_mandate') {
+    const providerResolution = resolveProvider('attestationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
     const passportAddress = parsePubkey(args.passportAddress as string);
     if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
 
@@ -457,10 +620,16 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const mandate = await meishiClient.getMandate(passportAddress, version);
     if (!mandate) return { success: false, error: 'mandate_not_found' };
 
-    return { success: true, mandate: serializeMandate(mandate) };
+    return {
+      success: true,
+      attestationProvider: providerResolution.provider,
+      mandate: serializeMandate(mandate),
+    };
   }
 
   if (name === 'meishi_get_audit') {
+    const providerResolution = resolveProvider('attestationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
     const passportAddress = parsePubkey(args.passportAddress as string);
     if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
 
@@ -470,7 +639,48 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const audit = await meishiClient.getAudit(passportAddress, nonce);
     if (!audit) return { success: false, error: 'audit_not_found' };
 
-    return { success: true, audit: serializeAudit(audit) };
+    return {
+      success: true,
+      attestationProvider: providerResolution.provider,
+      audit: serializeAudit(audit),
+    };
+  }
+
+  if (name === 'run_truth_court_gauntlet') {
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    if (!providerResolution.provider) {
+      return runTruthCourtGauntlet(args as any);
+    }
+    return runTruthCourtGauntlet({
+      ...(args as Record<string, unknown>),
+      ...buildClawInclusion(providerResolution.provider),
+    } as any);
+  }
+
+  if (name === 'file_dispute_truth_court') {
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    const markOnChain = args.markOnChain !== false;
+    const truthCourtArgs = providerResolution.provider
+      ? ({
+          ...(args as Record<string, unknown>),
+          ...buildClawInclusion(providerResolution.provider),
+        } as Record<string, unknown>)
+      : args;
+    if (!markOnChain) {
+      return fileDisputeWithTruthCourt(truthCourtArgs as any);
+    }
+
+    const program = getSolanaProgram();
+    if (!program) {
+      return {
+        success: false,
+        error:
+          'Solana not configured. Set MCP_PROGRAM_ID, MCP_AGENT_KEYPAIR, SOLANA_RPC_URL, or call with markOnChain=false.',
+      };
+    }
+    return fileDisputeWithTruthCourt(truthCourtArgs as any, program);
   }
 
   // Solana tools
@@ -480,10 +690,16 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   }
 
   if (name === 'create_escrow') {
-    return createEscrow(
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    const escrow = await createEscrow(
       { api: args.api as string, amount: args.amount as number, timeLock: args.timeLock as number | undefined },
       program
     );
+    if (providerResolution.provider && escrow && typeof escrow === 'object') {
+      return { ...escrow, adjudicationProvider: providerResolution.provider };
+    }
+    return escrow;
   }
 
   if (name === 'check_escrow_status') {
@@ -498,6 +714,40 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   }
 
   if (name === 'file_dispute') {
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    if (providerResolution.provider) {
+      const claimantPk = program.program.provider.publicKey?.toBase58?.() ?? 'mcp-agent';
+      const featureVector =
+        args.featureVector && typeof args.featureVector === 'object'
+          ? (args.featureVector as Record<string, unknown>)
+          : {
+              qualityScore: args.qualityScore as number,
+              refundPercentage: args.refundPercentage as number,
+              adjudicationProvider: providerResolution.provider,
+            };
+      return fileDisputeWithTruthCourt(
+        {
+          transactionId: args.transactionId as string,
+          qualityScore: args.qualityScore as number,
+          refundPercentage: args.refundPercentage as number,
+          claimant:
+            typeof args.claimant === 'string' && args.claimant.trim().length > 0
+              ? args.claimant
+              : claimantPk,
+          respondent:
+            typeof args.respondent === 'string' ? args.respondent : undefined,
+          missionTag:
+            typeof args.missionTag === 'string' ? args.missionTag : undefined,
+          context: typeof args.context === 'string' ? args.context : undefined,
+          evidence: args.evidence as Record<string, unknown>,
+          featureVector,
+          markOnChain: true,
+          ...buildClawInclusion(providerResolution.provider),
+        },
+        program
+      );
+    }
     return fileDispute(
       {
         transactionId: args.transactionId as string,
@@ -530,7 +780,7 @@ export function createMCPServer(auth: AuthInfo): Server {
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     let tools = TOOL_DEFINITIONS.filter((tool) => {
       if (tool.name.startsWith('x402_')) return hasScope('mcp:tools:x402');
-      if (['create_escrow', 'file_dispute'].includes(tool.name)) {
+      if (['create_escrow', 'file_dispute', 'file_dispute_truth_court'].includes(tool.name)) {
         return hasScope('mcp:tools:escrow');
       }
       return hasScope('mcp:tools');

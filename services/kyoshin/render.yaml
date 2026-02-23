@@ -77,6 +77,32 @@ services:
       - key: ALERT_WEBHOOK_TYPE
         value: slack
 
+      # MCP image generation providers (xAI / OpenClaw / NanoClaw / IronClaw)
+      - key: XAI_API_KEY
+        sync: false
+      - key: XAI_BASE_URL
+        value: https://api.x.ai/v1
+      - key: XAI_IMAGE_MODEL
+        value: grok-2-image
+      - key: OPENCLAW_API_KEY
+        sync: false
+      - key: OPENCLAW_BASE_URL
+        sync: false
+      - key: OPENCLAW_IMAGE_MODEL
+        sync: false
+      - key: NANOCLAW_API_KEY
+        sync: false
+      - key: NANOCLAW_BASE_URL
+        sync: false
+      - key: NANOCLAW_IMAGE_MODEL
+        sync: false
+      - key: IRONCLAW_API_KEY
+        sync: false
+      - key: IRONCLAW_BASE_URL
+        sync: false
+      - key: IRONCLAW_IMAGE_MODEL
+        sync: false
+
       # Autonomous execution (Meishi + OpenClaw)
       - key: AUTONOMY_ENABLED
         value: "false"

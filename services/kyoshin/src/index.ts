@@ -234,14 +234,42 @@ async function main(): Promise<void> {
     19
   );
 
-  // Initialize xAI API key for image generation
-  if (config.XAI_API_KEY) {
+  // Initialize image generation provider credentials for X MCP tools
+  const imageProviderConfigured = Boolean(
+    config.XAI_API_KEY
+      || process.env.OPENCLAW_API_KEY
+      || process.env.NANOCLAW_API_KEY
+      || process.env.IRONCLAW_API_KEY
+  );
+
+  if (imageProviderConfigured) {
     try {
-      const { setXaiApiKey } = await import('./x-mcp-server');
-      setXaiApiKey(config.XAI_API_KEY);
-      log.info('xAI image generation enabled');
+      const { setImageProviderCredentials } = await import('./x-mcp-server');
+      setImageProviderCredentials({
+        xaiApiKey: config.XAI_API_KEY,
+        xaiBaseUrl: process.env.XAI_BASE_URL,
+        xaiModel: process.env.XAI_IMAGE_MODEL,
+        openclawApiKey: process.env.OPENCLAW_API_KEY,
+        openclawBaseUrl: process.env.OPENCLAW_BASE_URL,
+        openclawModel: process.env.OPENCLAW_IMAGE_MODEL || process.env.OPENCLAW_MODEL,
+        nanoclawApiKey: process.env.NANOCLAW_API_KEY,
+        nanoclawBaseUrl: process.env.NANOCLAW_BASE_URL,
+        nanoclawModel: process.env.NANOCLAW_IMAGE_MODEL || process.env.NANOCLAW_MODEL,
+        ironclawApiKey: process.env.IRONCLAW_API_KEY,
+        ironclawBaseUrl: process.env.IRONCLAW_BASE_URL,
+        ironclawModel: process.env.IRONCLAW_IMAGE_MODEL || process.env.IRONCLAW_MODEL,
+      });
+
+      const enabledProviders = [
+        config.XAI_API_KEY ? 'xai' : null,
+        process.env.OPENCLAW_API_KEY ? 'openclaw' : null,
+        process.env.NANOCLAW_API_KEY ? 'nanoclaw' : null,
+        process.env.IRONCLAW_API_KEY ? 'ironclaw' : null,
+      ].filter(Boolean);
+
+      log.info('X MCP image providers configured', { providers: enabledProviders });
     } catch (error) {
-      log.warn('xAI image generation unavailable', { error: String(error) });
+      log.warn('X MCP image provider initialization unavailable', { error: String(error) });
     }
   }
 

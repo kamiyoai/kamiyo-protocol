@@ -2,7 +2,10 @@ import { X402Program } from '../solana/anchor.js';
 import { createEscrow, CreateEscrowParams } from './escrow.js';
 import { assessDataQuality } from './quality.js';
 import { fileDispute } from './dispute.js';
+import { fileDisputeWithTruthCourt } from './truth-court.js';
 import { getApiReputation } from './reputation.js';
+
+type ClawDisputeProvider = 'openclaw' | 'nanoclaw' | 'ironclaw';
 
 export interface CallApiWithEscrowParams {
   apiUrl: string; // API endpoint to call
@@ -12,6 +15,7 @@ export interface CallApiWithEscrowParams {
   timeLock?: number; // Escrow expiry in seconds
   autoDispute?: boolean; // Automatically file dispute if quality is low (default: false)
   qualityThreshold?: number; // Quality score threshold for auto-dispute (default: 50)
+  adjudicationProvider?: ClawDisputeProvider; // Route dispute through selected truth-court oracle
 }
 
 export interface CallApiWithEscrowResult {
@@ -38,6 +42,17 @@ export async function callApiWithEscrow(
   program: X402Program
 ): Promise<CallApiWithEscrowResult> {
   try {
+    if (
+      params.adjudicationProvider !== undefined &&
+      !['openclaw', 'nanoclaw', 'ironclaw'].includes(params.adjudicationProvider)
+    ) {
+      return {
+        success: false,
+        error: 'adjudicationProvider must be one of: openclaw, nanoclaw, ironclaw',
+        finalStatus: 'failed',
+      };
+    }
+
     // Step 1: Check API provider reputation
     console.log('Checking API provider reputation...');
     const reputationResult = await getApiReputation(
@@ -132,20 +147,43 @@ export async function callApiWithEscrow(
         `Quality score (${qualityResult.qualityScore}) below threshold (${qualityThreshold}). Filing dispute...`
       );
 
-      const disputeResult = await fileDispute(
-        {
-          transactionId: escrowResult.transactionId!,
-          qualityScore: qualityResult.qualityScore!,
-          refundPercentage: qualityResult.refundPercentage!,
-          evidence: {
-            apiUrl: params.apiUrl,
-            apiResponse,
-            qualityAssessment: qualityResult,
-            timestamp: Date.now(),
-          },
-        },
-        program
-      );
+      const evidence = {
+        apiUrl: params.apiUrl,
+        apiResponse,
+        qualityAssessment: qualityResult,
+        timestamp: Date.now(),
+      };
+
+      const disputeResult = params.adjudicationProvider
+        ? await fileDisputeWithTruthCourt(
+            {
+              transactionId: escrowResult.transactionId!,
+              qualityScore: qualityResult.qualityScore!,
+              refundPercentage: qualityResult.refundPercentage!,
+              claimant: program.program.provider.publicKey.toBase58(),
+              evidence,
+              featureVector: {
+                qualityScore: qualityResult.qualityScore!,
+                refundPercentage: qualityResult.refundPercentage!,
+                adjudicationProvider: params.adjudicationProvider,
+                expectedCriteriaCount: (params.expectedCriteria || []).length,
+              },
+              markOnChain: true,
+              includeOpenClaw: params.adjudicationProvider === 'openclaw',
+              includeNanoClaw: params.adjudicationProvider === 'nanoclaw',
+              includeIronClaw: params.adjudicationProvider === 'ironclaw',
+            },
+            program
+          )
+        : await fileDispute(
+            {
+              transactionId: escrowResult.transactionId!,
+              qualityScore: qualityResult.qualityScore!,
+              refundPercentage: qualityResult.refundPercentage!,
+              evidence,
+            },
+            program
+          );
 
       if (disputeResult.success) {
         console.log('Dispute filed successfully');

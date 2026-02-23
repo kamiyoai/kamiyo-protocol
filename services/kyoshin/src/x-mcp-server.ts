@@ -11,6 +11,30 @@ import * as path from 'path';
 
 const log = createLogger('kyoshin:x-mcp');
 const metrics = getMetrics();
+type ImageProviderName = 'xai' | 'openclaw' | 'nanoclaw' | 'ironclaw';
+
+type ImageProvider = {
+  name: ImageProviderName;
+  label: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
+type ImageProviderCredentialOverrides = Partial<{
+  xaiApiKey: string;
+  xaiBaseUrl: string;
+  xaiModel: string;
+  openclawApiKey: string;
+  openclawBaseUrl: string;
+  openclawModel: string;
+  nanoclawApiKey: string;
+  nanoclawBaseUrl: string;
+  nanoclawModel: string;
+  ironclawApiKey: string;
+  ironclawBaseUrl: string;
+  ironclawModel: string;
+}>;
 
 // Load Kyoshin reference image for consistent character generation
 let nikaReferenceBase64: string | null = null;
@@ -84,13 +108,129 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const IMAGE_GENERATION_TIMEOUT_MS = 20_000;
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 20_000;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const XAI_DEFAULT_BASE_URL = 'https://api.x.ai/v1';
+const XAI_DEFAULT_IMAGE_MODEL = 'grok-2-image';
+const OPENCLAW_DEFAULT_IMAGE_MODEL = 'openclaw:main';
+const NANOCLAW_DEFAULT_IMAGE_MODEL = 'nanoclaw:main';
+const IRONCLAW_DEFAULT_IMAGE_MODEL = 'ironclaw:main';
+const IMAGE_PROVIDER_MISSING_CREDENTIALS =
+  'No image generation provider configured. Set XAI_API_KEY, or OPENCLAW_API_KEY+OPENCLAW_BASE_URL, or NANOCLAW_API_KEY+NANOCLAW_BASE_URL, or IRONCLAW_API_KEY+IRONCLAW_BASE_URL.';
+const MAX_PROVIDER_ERROR_MESSAGE = 260;
 
 interface XaiImageGenerationResponse {
   data: Array<{ url: string }>;
 }
 
+let imageProviderOverrides: ImageProviderCredentialOverrides = {};
+
+function nonEmpty(value: string | null | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  return baseUrl.trim().replace(/\/+$/, '');
+}
+
+function trimErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/\s+/g, ' ').trim().slice(0, MAX_PROVIDER_ERROR_MESSAGE);
+}
+
+function hasValidHttpsUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function loadImageProviders(): ImageProvider[] {
+  const providers: ImageProvider[] = [];
+
+  const openclawApiKey = nonEmpty(imageProviderOverrides.openclawApiKey) ?? nonEmpty(process.env.OPENCLAW_API_KEY);
+  const openclawBaseUrl = nonEmpty(imageProviderOverrides.openclawBaseUrl) ?? nonEmpty(process.env.OPENCLAW_BASE_URL);
+  if (openclawApiKey && openclawBaseUrl) {
+    providers.push({
+      name: 'openclaw',
+      label: 'OpenClaw',
+      apiKey: openclawApiKey,
+      baseUrl: normalizeBaseUrl(openclawBaseUrl),
+      model:
+        nonEmpty(imageProviderOverrides.openclawModel)
+        ?? nonEmpty(process.env.OPENCLAW_IMAGE_MODEL)
+        ?? nonEmpty(process.env.OPENCLAW_MODEL)
+        ?? OPENCLAW_DEFAULT_IMAGE_MODEL,
+    });
+  }
+
+  const nanoclawApiKey = nonEmpty(imageProviderOverrides.nanoclawApiKey) ?? nonEmpty(process.env.NANOCLAW_API_KEY);
+  const nanoclawBaseUrl = nonEmpty(imageProviderOverrides.nanoclawBaseUrl) ?? nonEmpty(process.env.NANOCLAW_BASE_URL);
+  if (nanoclawApiKey && nanoclawBaseUrl) {
+    providers.push({
+      name: 'nanoclaw',
+      label: 'NanoClaw',
+      apiKey: nanoclawApiKey,
+      baseUrl: normalizeBaseUrl(nanoclawBaseUrl),
+      model:
+        nonEmpty(imageProviderOverrides.nanoclawModel)
+        ?? nonEmpty(process.env.NANOCLAW_IMAGE_MODEL)
+        ?? nonEmpty(process.env.NANOCLAW_MODEL)
+        ?? NANOCLAW_DEFAULT_IMAGE_MODEL,
+    });
+  }
+
+  const ironclawApiKey = nonEmpty(imageProviderOverrides.ironclawApiKey) ?? nonEmpty(process.env.IRONCLAW_API_KEY);
+  const ironclawBaseUrl = nonEmpty(imageProviderOverrides.ironclawBaseUrl) ?? nonEmpty(process.env.IRONCLAW_BASE_URL);
+  if (ironclawApiKey && ironclawBaseUrl) {
+    providers.push({
+      name: 'ironclaw',
+      label: 'IronClaw',
+      apiKey: ironclawApiKey,
+      baseUrl: normalizeBaseUrl(ironclawBaseUrl),
+      model:
+        nonEmpty(imageProviderOverrides.ironclawModel)
+        ?? nonEmpty(process.env.IRONCLAW_IMAGE_MODEL)
+        ?? nonEmpty(process.env.IRONCLAW_MODEL)
+        ?? IRONCLAW_DEFAULT_IMAGE_MODEL,
+    });
+  }
+
+  const xaiKey = nonEmpty(imageProviderOverrides.xaiApiKey) ?? nonEmpty(xaiApiKey) ?? nonEmpty(process.env.XAI_API_KEY);
+  if (xaiKey) {
+    providers.push({
+      name: 'xai',
+      label: 'xAI',
+      apiKey: xaiKey,
+      baseUrl:
+        normalizeBaseUrl(
+          nonEmpty(imageProviderOverrides.xaiBaseUrl)
+          ?? nonEmpty(process.env.XAI_BASE_URL)
+          ?? XAI_DEFAULT_BASE_URL
+        ),
+      model:
+        nonEmpty(imageProviderOverrides.xaiModel)
+        ?? nonEmpty(process.env.XAI_IMAGE_MODEL)
+        ?? nonEmpty(process.env.XAI_GROK_MODEL)
+        ?? XAI_DEFAULT_IMAGE_MODEL,
+    });
+  }
+
+  return providers;
+}
+
+export function setImageProviderCredentials(overrides: ImageProviderCredentialOverrides) {
+  imageProviderOverrides = {
+    ...imageProviderOverrides,
+    ...overrides,
+  };
+}
+
 export function setXaiApiKey(key: string) {
   xaiApiKey = key;
+  setImageProviderCredentials({ xaiApiKey: key });
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
@@ -127,62 +267,70 @@ function recordImagePost() {
   lastImagePostTimestamp = Date.now();
 }
 
-async function generateImage(prompt: string): Promise<{ url: string } | { error: string }> {
-  if (!xaiApiKey) {
-    return { error: 'XAI_API_KEY not configured' };
+async function generateImageFromProvider(provider: ImageProvider, prompt: string): Promise<{ url: string }> {
+  const fullPrompt = `${prompt}\n\n${KAMIYO_STYLE_PROTOCOL}`;
+  const requestBody: Record<string, unknown> = {
+    model: provider.model,
+    prompt: fullPrompt,
+    n: 1,
+  };
+
+  if (provider.name === 'xai' && nikaReferenceBase64) {
+    requestBody.image_url = `data:image/png;base64,${nikaReferenceBase64}`;
+    log.debug('Including Kyoshin reference image in generation request');
   }
 
-  const fullPrompt = `${prompt}\n\n${KAMIYO_STYLE_PROTOCOL}`;
-
-  try {
-    // Build request body with reference image if available
-    const requestBody: Record<string, unknown> = {
-      model: 'grok-2-image',
-      prompt: fullPrompt,
-      n: 1,
-    };
-
-    // Include Kyoshin reference image for character consistency
-    if (nikaReferenceBase64) {
-      requestBody.image_url = `data:image/png;base64,${nikaReferenceBase64}`;
-      log.debug('Including Kyoshin reference image in generation request');
-    }
-
-    const response = await fetchWithTimeout('https://api.x.ai/v1/images/generations', {
+  const response = await fetchWithTimeout(
+    `${provider.baseUrl}/images/generations`,
+    {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${xaiApiKey}`,
+        Authorization: `Bearer ${provider.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-    }, IMAGE_GENERATION_TIMEOUT_MS);
+    },
+    IMAGE_GENERATION_TIMEOUT_MS
+  );
 
-    if (!response.ok) {
-      const text = await response.text();
-      log.error('Image generation failed', { status: response.status, body: text });
-      return { error: `Image generation failed: ${response.status}` };
-    }
-
-    const data = await response.json() as unknown;
-    if (!isImageGenerationResponse(data)) {
-      return { error: 'Image generation returned invalid payload' };
-    }
-
-    const url = data.data[0].url;
-    try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== 'https:') {
-        return { error: 'Image generation returned non-https URL' };
-      }
-    } catch {
-      return { error: 'Image generation returned invalid URL' };
-    }
-
-    return { url };
-  } catch (error) {
-    log.error('Image generation error', { error });
-    return { error: error instanceof Error ? error.message : 'Unknown error' };
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`${provider.label} image generation failed (${response.status}): ${text.slice(0, 300)}`);
   }
+
+  const data = await response.json() as unknown;
+  if (!isImageGenerationResponse(data)) {
+    throw new Error(`${provider.label} image generation returned invalid payload`);
+  }
+
+  const url = data.data[0].url;
+  if (!hasValidHttpsUrl(url)) {
+    throw new Error(`${provider.label} image generation returned invalid URL`);
+  }
+  return { url };
+}
+
+async function generateImage(prompt: string): Promise<{ url: string } | { error: string }> {
+  const providers = loadImageProviders();
+  if (providers.length === 0) {
+    return { error: IMAGE_PROVIDER_MISSING_CREDENTIALS };
+  }
+
+  const errors: string[] = [];
+  for (const provider of providers) {
+    try {
+      const result = await generateImageFromProvider(provider, prompt);
+      return result;
+    } catch (error) {
+      const summary = trimErrorMessage(error);
+      errors.push(`${provider.label}: ${summary}`);
+      log.warn('Image generation provider failed', { provider: provider.name, error: summary });
+    }
+  }
+
+  return {
+    error: `Image generation failed across providers (${errors.join(' | ')})`,
+  };
 }
 
 async function uploadMedia(client: TwitterApi, imageUrl: string): Promise<string> {
@@ -583,7 +731,7 @@ export function createXMcpServer(config: XMcpConfig) {
 
       tool(
         'generate_image',
-        'Generate an image using Grok Imagine. Returns the image URL. The KAMIYO style protocol (cyberpunk, cool tones, no warm colors) is automatically applied.',
+        'Generate an image using configured providers (OpenClaw/NanoClaw/IronClaw/xAI). Returns the image URL. The KAMIYO style protocol is automatically applied.',
         {
           prompt: z.string().min(10).max(1000).describe('Image description - what to generate'),
         },
@@ -606,7 +754,7 @@ export function createXMcpServer(config: XMcpConfig) {
 
       tool(
         'post_tweet_with_image',
-        'Generate an image and post a tweet with it. Limited to once per day. The KAMIYO style protocol is automatically applied to the image.',
+        'Generate an image via configured providers (OpenClaw/NanoClaw/IronClaw/xAI) and post a tweet with it. Limited to once per day. The KAMIYO style protocol is automatically applied.',
         {
           content: z.string().min(1).max(280).describe('Tweet text (max 280 characters)'),
           imagePrompt: z.string().min(10).max(1000).describe('Image description - what to generate'),
