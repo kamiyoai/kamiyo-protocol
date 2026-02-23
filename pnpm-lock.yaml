@@ -2258,9 +2258,6 @@ importers:
       '@solana/web3.js':
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      better-sqlite3:
-        specifier: ^11.0.0
-        version: 11.8.1
       bs58:
         specifier: ^6.0.0
         version: 6.0.0
@@ -2274,9 +2271,6 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.8
-        version: 7.6.13
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
