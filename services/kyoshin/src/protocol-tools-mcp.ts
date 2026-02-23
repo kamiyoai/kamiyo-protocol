@@ -9,6 +9,7 @@ import type { DKGMemory } from './dkg-memory';
 
 const log = createLogger('kyoshin:protocol-mcp');
 const metrics = getMetrics();
+const CLAW_PROVIDER_SCHEMA = z.enum(['openclaw', 'nanoclaw', 'ironclaw']);
 
 function sanitizeError(error: unknown): string {
   if (error instanceof Error) return error.message.slice(0, 200);
@@ -45,6 +46,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
           topics: z.array(z.string()).optional().describe('Topic tags for categorization'),
           confidence: z.number().min(0).max(1).default(0.8).describe('Confidence score (0-1)'),
           source: z.string().optional().describe('Source of the knowledge'),
+          attestationProvider: CLAW_PROVIDER_SCHEMA.optional().describe('Optional attestation provider: openclaw, nanoclaw, or ironclaw'),
         },
         async (args) => {
           log.info('Storing knowledge in DKG', { contentLength: args.content.length });
@@ -59,7 +61,14 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
             if (ual) {
               metrics.incrementCounter('protocol_dkg_store_success');
               return {
-                content: [{ type: 'text', text: `Knowledge stored. UAL: ${ual}` }],
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    ual,
+                    attestationProvider: args.attestationProvider,
+                    status: 'stored',
+                  }, null, 2),
+                }],
               };
             }
 
@@ -80,6 +89,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
         'Query the knowledge graph with SPARQL. Returns matching results.',
         {
           sparql: z.string().min(10).describe('SPARQL query to execute'),
+          attestationProvider: CLAW_PROVIDER_SCHEMA.optional().describe('Optional attestation provider: openclaw, nanoclaw, or ironclaw'),
         },
         async (args) => {
           log.info('Executing DKG query');
@@ -90,7 +100,11 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify({ count: results.length, results: results.slice(0, 20) }, null, 2),
+                  text: JSON.stringify({
+                    count: results.length,
+                    results: results.slice(0, 20),
+                    attestationProvider: args.attestationProvider,
+                  }, null, 2),
                 },
               ],
             };
@@ -108,13 +122,20 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
         'Retrieve a knowledge asset by its UAL.',
         {
           ual: z.string().describe('Universal Asset Locator'),
+          attestationProvider: CLAW_PROVIDER_SCHEMA.optional().describe('Optional attestation provider: openclaw, nanoclaw, or ironclaw'),
         },
         async (args) => {
           try {
             const asset = await config.dkgMemory.get(args.ual);
             if (asset) {
               return {
-                content: [{ type: 'text', text: JSON.stringify(asset, null, 2) }],
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    asset,
+                    attestationProvider: args.attestationProvider,
+                  }, null, 2),
+                }],
               };
             }
             return { content: [{ type: 'text', text: 'Asset not found' }] };
@@ -130,6 +151,7 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
         {
           topic: z.string().min(2).describe('Topic to search for'),
           limit: z.number().min(1).max(50).default(10).describe('Maximum results'),
+          attestationProvider: CLAW_PROVIDER_SCHEMA.optional().describe('Optional attestation provider: openclaw, nanoclaw, or ironclaw'),
         },
         async (args) => {
           try {
@@ -138,7 +160,11 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify({ count: results.length, results }, null, 2),
+                  text: JSON.stringify({
+                    count: results.length,
+                    results,
+                    attestationProvider: args.attestationProvider,
+                  }, null, 2),
                 },
               ],
             };
@@ -153,12 +179,20 @@ export function createProtocolMcpServer(config: ProtocolMcpConfig) {
         "Get Kyoshin's recent tweet topics to avoid repetition.",
         {
           hours: z.number().min(1).max(168).default(24).describe('Hours to look back'),
+          attestationProvider: CLAW_PROVIDER_SCHEMA.optional().describe('Optional attestation provider: openclaw, nanoclaw, or ironclaw'),
         },
         async (args) => {
           try {
             const topics = await config.dkgMemory.getRecentTopics(args.hours);
             return {
-              content: [{ type: 'text', text: JSON.stringify({ topics, count: topics.length }, null, 2) }],
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  topics,
+                  count: topics.length,
+                  attestationProvider: args.attestationProvider,
+                }, null, 2),
+              }],
             };
           } catch (error) {
             return { content: [{ type: 'text', text: `Error: ${sanitizeError(error)}` }] };

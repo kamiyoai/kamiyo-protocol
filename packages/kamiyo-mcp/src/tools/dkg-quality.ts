@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const CLAW_PROVIDER_VALUES = ['openclaw', 'nanoclaw', 'ironclaw'] as const;
+const ClawProviderSchema = z.enum(CLAW_PROVIDER_VALUES).optional();
+
 export const DKG_QUALITY_TOOLS = [
   {
     name: 'dkg_publish_with_quality_stake',
@@ -20,6 +23,10 @@ export const DKG_QUALITY_TOOLS = [
         epochs: {
           type: 'number',
           description: 'Storage duration in epochs (default: 2)',
+        },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['content', 'stakeAmount'],
@@ -48,6 +55,10 @@ export const DKG_QUALITY_TOOLS = [
         excludeDisputed: {
           type: 'boolean',
           description: 'Exclude disputed assets (default: true)',
+        },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['sparql'],
@@ -81,6 +92,10 @@ export const DKG_QUALITY_TOOLS = [
           type: 'number',
           description: 'Consistency score (0-100)',
         },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['assetUAL', 'factualAccuracy'],
     },
@@ -94,6 +109,10 @@ export const DKG_QUALITY_TOOLS = [
         publisherDid: {
           type: 'string',
           description: 'Publisher DID or Solana public key',
+        },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['publisherDid'],
@@ -118,6 +137,10 @@ export const DKG_QUALITY_TOOLS = [
         reason: {
           type: 'string',
           description: 'Reason for dispute',
+        },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
         },
       },
       required: ['assetUAL', 'reason'],
@@ -148,6 +171,10 @@ export const DKG_QUALITY_TOOLS = [
           type: 'number',
           description: 'Confidence in inference result (0-100)',
         },
+        attestationProvider: {
+          type: 'string',
+          description: 'Optional attestation provider tag: openclaw, nanoclaw, or ironclaw',
+        },
       },
       required: ['usedAssets'],
     },
@@ -158,6 +185,7 @@ export const PublishWithQualityStakeSchema = z.object({
   content: z.record(z.unknown()),
   stakeAmount: z.number().min(0.1),
   epochs: z.number().optional().default(2),
+  attestationProvider: ClawProviderSchema,
 });
 
 export const QueryVerifiedSchema = z.object({
@@ -165,6 +193,7 @@ export const QueryVerifiedSchema = z.object({
   minQualityScore: z.number().min(0).max(100).optional().default(80),
   maxPayment: z.number().optional(),
   excludeDisputed: z.boolean().optional().default(true),
+  attestationProvider: ClawProviderSchema,
 });
 
 const UAL_PATTERN = /^did:dkg:[a-z]+:\d+\/0x[a-fA-F0-9]+\/\d+$/;
@@ -175,16 +204,19 @@ export const AssessQualitySchema = z.object({
   sourceQuality: z.number().int().min(0).max(100).optional(),
   completeness: z.number().int().min(0).max(100).optional(),
   consistency: z.number().int().min(0).max(100).optional(),
+  attestationProvider: ClawProviderSchema,
 });
 
 export const GetPublisherReputationSchema = z.object({
   publisherDid: z.string().min(1),
+  attestationProvider: ClawProviderSchema,
 });
 
 export const DisputeQualitySchema = z.object({
   assetUAL: z.string().regex(UAL_PATTERN, 'Invalid UAL format'),
   evidenceUAL: z.string().regex(UAL_PATTERN, 'Invalid evidence UAL format').optional(),
   reason: z.string().min(1).max(1000),
+  attestationProvider: ClawProviderSchema,
 });
 
 export const RecordInferenceSchema = z.object({
@@ -196,6 +228,7 @@ export const RecordInferenceSchema = z.object({
     })
   ),
   confidence: z.number().min(0).max(100).optional(),
+  attestationProvider: ClawProviderSchema,
 });
 
 export async function handleDkgPublishWithQualityStake(
@@ -206,6 +239,7 @@ export async function handleDkgPublishWithQualityStake(
   assetUal?: string;
   escrowPda?: string;
   stakeAmount?: number;
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
@@ -220,6 +254,7 @@ export async function handleDkgPublishWithQualityStake(
       assetUal: mockUal,
       escrowPda: mockEscrow,
       stakeAmount: validated.stakeAmount,
+      attestationProvider: validated.attestationProvider,
     };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -237,6 +272,7 @@ export async function handleDkgQueryVerified(
     publisherReputation: number;
     assetUal: string;
   }>;
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
@@ -246,6 +282,7 @@ export async function handleDkgQueryVerified(
     return {
       success: true,
       results: [],
+      attestationProvider: params.attestationProvider,
     };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -259,6 +296,7 @@ export async function handleDkgAssessQuality(
   success: boolean;
   commitment?: string;
   overallScore?: number;
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
@@ -294,6 +332,7 @@ export async function handleDkgAssessQuality(
       success: true,
       commitment,
       overallScore,
+      attestationProvider: validated.attestationProvider,
     };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -312,6 +351,7 @@ export async function handleDkgGetPublisherReputation(
     disputedAssets: number;
     averageQualityScore: number;
   };
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
@@ -320,6 +360,7 @@ export async function handleDkgGetPublisherReputation(
     // TODO: query on-chain reputation
     return {
       success: true,
+      attestationProvider: validated.attestationProvider,
       reputation: {
         publisher: validated.publisherDid,
         totalAssets: 0,
@@ -339,11 +380,16 @@ export async function handleDkgDisputeQuality(
 ): Promise<{
   success: boolean;
   disputeId?: string;
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
-    DisputeQualitySchema.parse(params);
-    return { success: true, disputeId: `dispute_${Date.now()}` };
+    const validated = DisputeQualitySchema.parse(params);
+    return {
+      success: true,
+      disputeId: `dispute_${Date.now()}`,
+      attestationProvider: validated.attestationProvider,
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -356,12 +402,18 @@ export async function handleDkgRecordInference(
   success: boolean;
   inferenceId?: string;
   provenanceHash?: string;
+  attestationProvider?: string;
   error?: string;
 }> {
   try {
-    RecordInferenceSchema.parse(params);
+    const validated = RecordInferenceSchema.parse(params);
     const ts = Date.now();
-    return { success: true, inferenceId: `inference_${ts}`, provenanceHash: `hash_${ts}` };
+    return {
+      success: true,
+      inferenceId: `inference_${ts}`,
+      provenanceHash: `hash_${ts}`,
+      attestationProvider: validated.attestationProvider,
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
