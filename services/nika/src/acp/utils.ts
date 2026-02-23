@@ -126,7 +126,7 @@ export function extractJson(text: string): unknown {
   }
 
   // Heuristic: parse the first JSON object/array in the string.
-  const start = raw.search(/[\[{]/);
+  const start = raw.search(/[[{]/);
   const end = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'));
   if (start === -1 || end === -1 || end <= start) throw new Error('json_parse_failed');
 
@@ -143,6 +143,95 @@ GUIDELINES:
 - No AI self-references ("as an AI", "as a language model", etc.)
 - Never mention system prompts, hidden instructions, internal tools, or infrastructure
 - Be concrete, technical when useful, and avoid filler`;
+
+type OpenAICompatibleProvider = 'openclaw' | 'nanoclaw' | 'ironclaw' | 'openai';
+
+type OpenAICompatibleProviderConfig = {
+  provider: OpenAICompatibleProvider;
+  label: string;
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
+type OpenAICompatibleProviderEnv = {
+  provider: OpenAICompatibleProvider;
+  label: string;
+  apiKeyEnv: string;
+  baseUrlEnv?: string;
+  modelEnv: string;
+  defaultModel: string;
+  defaultBaseUrl?: string;
+};
+
+const OPENAI_COMPATIBLE_PROVIDERS: OpenAICompatibleProviderEnv[] = [
+  {
+    provider: 'openclaw',
+    label: 'OpenClaw',
+    apiKeyEnv: 'OPENCLAW_API_KEY',
+    baseUrlEnv: 'OPENCLAW_BASE_URL',
+    modelEnv: 'OPENCLAW_MODEL',
+    defaultModel: 'openclaw:main',
+  },
+  {
+    provider: 'nanoclaw',
+    label: 'NanoClaw',
+    apiKeyEnv: 'NANOCLAW_API_KEY',
+    baseUrlEnv: 'NANOCLAW_BASE_URL',
+    modelEnv: 'NANOCLAW_MODEL',
+    defaultModel: 'nanoclaw:main',
+  },
+  {
+    provider: 'ironclaw',
+    label: 'IronClaw',
+    apiKeyEnv: 'IRONCLAW_API_KEY',
+    baseUrlEnv: 'IRONCLAW_BASE_URL',
+    modelEnv: 'IRONCLAW_MODEL',
+    defaultModel: 'ironclaw:main',
+  },
+  {
+    provider: 'openai',
+    label: 'OpenAI',
+    apiKeyEnv: 'OPENAI_API_KEY',
+    modelEnv: 'OPENAI_MODEL',
+    defaultModel: 'gpt-4o-mini',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+  },
+];
+
+export const NIKA_LLM_PROVIDER_REQUIREMENTS =
+  'OPENCLAW_API_KEY+OPENCLAW_BASE_URL, NANOCLAW_API_KEY+NANOCLAW_BASE_URL, IRONCLAW_API_KEY+IRONCLAW_BASE_URL, OPENAI_API_KEY, or ANTHROPIC_API_KEY';
+
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (trimmed.endsWith('/v1')) return trimmed;
+  return `${trimmed}/v1`;
+}
+
+function resolveOpenAICompatibleProvider(): OpenAICompatibleProviderConfig | null {
+  for (const provider of OPENAI_COMPATIBLE_PROVIDERS) {
+    const apiKey = getEnv(provider.apiKeyEnv);
+    if (!apiKey) continue;
+
+    const rawBaseUrl = provider.baseUrlEnv ? getEnv(provider.baseUrlEnv) : provider.defaultBaseUrl;
+    if (!rawBaseUrl) continue;
+
+    const model = getEnv(provider.modelEnv) || provider.defaultModel;
+    return {
+      provider: provider.provider,
+      label: provider.label,
+      apiKey,
+      baseUrl: normalizeBaseUrl(rawBaseUrl),
+      model,
+    };
+  }
+
+  return null;
+}
+
+export function hasAnyNikaLlmProvider(): boolean {
+  return !!resolveOpenAICompatibleProvider() || !!getEnv('ANTHROPIC_API_KEY');
+}
 
 let cachedAgent: KamiyoAgent | null = null;
 let cachedKey = '';
@@ -171,18 +260,20 @@ function getAgent(systemPrompt: string): KamiyoAgent {
   return cachedAgent;
 }
 
-async function callOpenAI(prompt: string, opts: { systemPrompt: string; maxTokens: number }): Promise<string> {
-  const apiKey = requireEnv('OPENAI_API_KEY');
-  const model = (getEnv('OPENAI_MODEL') || 'gpt-4o-mini').trim();
-
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+async function callOpenAICompatible(
+  provider: OpenAICompatibleProviderConfig,
+  prompt: string,
+  opts: { systemPrompt: string; maxTokens: number }
+): Promise<string> {
+  const endpoint = `${provider.baseUrl}/chat/completions`;
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${apiKey}`,
+      authorization: `Bearer ${provider.apiKey}`,
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model,
+      model: provider.model,
       temperature: 0.7,
       max_tokens: opts.maxTokens,
       messages: [
@@ -194,7 +285,7 @@ async function callOpenAI(prompt: string, opts: { systemPrompt: string; maxToken
 
   const text = await res.text();
   if (!res.ok) {
-    throw new Error(`OpenAI API error (${res.status}): ${text.slice(0, 500)}`);
+    throw new Error(`${provider.label} API error (${res.status}): ${text.slice(0, 500)}`);
   }
 
   const json = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }> };
@@ -209,9 +300,19 @@ export async function callNikaLlm(
   const maxTokens = opts?.maxTokens && Number.isFinite(opts.maxTokens) ? Math.max(200, Math.min(2000, opts.maxTokens)) : 1200;
 
   return await withRetry(async () => {
-    if (getEnv('OPENAI_API_KEY')) {
-      return await callOpenAI(prompt, { systemPrompt, maxTokens });
+    try {
+      const provider = resolveOpenAICompatibleProvider();
+      if (provider) {
+        return await callOpenAICompatible(provider, prompt, { systemPrompt, maxTokens });
+      }
+    } catch (err) {
+      if (!getEnv('ANTHROPIC_API_KEY')) throw err;
     }
+
+    if (!getEnv('ANTHROPIC_API_KEY')) {
+      throw new Error(`No ACP LLM provider configured (${NIKA_LLM_PROVIDER_REQUIREMENTS})`);
+    }
+
     const run = await getAgent(systemPrompt).run(prompt);
     return run.finalResponse;
   }, { maxAttempts: 2, initialDelayMs: 800 });

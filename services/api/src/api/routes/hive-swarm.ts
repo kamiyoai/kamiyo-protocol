@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { createHash, randomUUID } from 'crypto';
 import db from '../../db';
-import { createTaskExecutor } from '../../task-executor';
+import { createTaskExecutor, hasTaskExecutorProviders, TASK_EXECUTOR_UNAVAILABLE_REASON } from '../../task-executor';
 import { planDag, sanitizeDagPlan } from '../../swarm/planner';
 import { runDag } from '../../swarm/dag';
 import type { SwarmDagPlan, SwarmTeamMember } from '../../swarm/types';
@@ -10,11 +10,19 @@ import { publishKirokuDrop } from '../../kiroku';
 import { acquireSwarmNodeSlot, clampMaxParallel, getSwarmGlobalActiveNodes, swarmRuntimeConfig } from '../../swarm/runtime';
 import { swarmActiveNodes, swarmNodeDuration, swarmNodesTotal, swarmRunDuration, swarmRunsTotal } from '../../metrics';
 
-const taskExecutor = (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
-  ? createTaskExecutor({
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-    })
+const taskExecutorConfig = {
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openclawApiKey: process.env.OPENCLAW_API_KEY,
+  openclawBaseUrl: process.env.OPENCLAW_BASE_URL,
+  nanoclawApiKey: process.env.NANOCLAW_API_KEY,
+  nanoclawBaseUrl: process.env.NANOCLAW_BASE_URL,
+  ironclawApiKey: process.env.IRONCLAW_API_KEY,
+  ironclawBaseUrl: process.env.IRONCLAW_BASE_URL,
+};
+
+const taskExecutor = hasTaskExecutorProviders(taskExecutorConfig)
+  ? createTaskExecutor(taskExecutorConfig)
   : undefined;
 
 const CANCEL_TTL_MS = 24 * 60 * 60 * 1000;
@@ -357,8 +365,8 @@ async function executeSwarmRun(options: {
         updateNodeRunning.run(runId, n.id);
 
         if (!taskExecutor) {
-          updateNodeDone.run('failed', 0, null, 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)', runId, n.id);
-          return { status: 'failed' as const, error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' };
+          updateNodeDone.run('failed', 0, null, TASK_EXECUTOR_UNAVAILABLE_REASON, runId, n.id);
+          return { status: 'failed' as const, error: TASK_EXECUTOR_UNAVAILABLE_REASON };
         }
 
         const reserve = reserveTeamBudget(options.teamId, n.budget);

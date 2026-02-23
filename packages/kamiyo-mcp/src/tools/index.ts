@@ -103,7 +103,7 @@ export const TOOL_DEFINITIONS: Tool[] = [
   {
     name: 'file_dispute_truth_court',
     description:
-      'Run multi-oracle dispute review (including Grok when configured), emit replayable hashes, and optionally mark dispute on-chain.',
+      'Run multi-oracle dispute review (xAI/OpenClaw/NanoClaw/IronClaw when configured), emit replayable hashes, and optionally mark dispute on-chain.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -123,6 +123,22 @@ export const TOOL_DEFINITIONS: Tool[] = [
         minValidResponses: {
           type: 'number',
           description: 'Minimum valid oracle responses required for quorum (default 2)',
+        },
+        includeGrok: {
+          type: 'boolean',
+          description: 'Include xAI Grok oracle when configured (default auto)',
+        },
+        includeOpenClaw: {
+          type: 'boolean',
+          description: 'Include OpenClaw oracle when configured (default auto)',
+        },
+        includeNanoClaw: {
+          type: 'boolean',
+          description: 'Include NanoClaw oracle when configured (default auto)',
+        },
+        includeIronClaw: {
+          type: 'boolean',
+          description: 'Include IronClaw oracle when configured (default auto)',
         },
       },
       required: [
@@ -158,6 +174,18 @@ export const TOOL_DEFINITIONS: Tool[] = [
         includeGrok: {
           type: 'boolean',
           description: 'Force Grok inclusion when available (default auto)',
+        },
+        includeOpenClaw: {
+          type: 'boolean',
+          description: 'Force OpenClaw inclusion when available (default auto)',
+        },
+        includeNanoClaw: {
+          type: 'boolean',
+          description: 'Force NanoClaw inclusion when available (default auto)',
+        },
+        includeIronClaw: {
+          type: 'boolean',
+          description: 'Force IronClaw inclusion when available (default auto)',
         },
         policyMode: {
           type: 'string',

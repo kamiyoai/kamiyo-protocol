@@ -246,6 +246,31 @@ function isValidPrivateKey(str: string): boolean {
   return /^(0x)?[a-fA-F0-9]{64}$/.test(str);
 }
 
+function validateOptionalClawProviderConfig(
+  providerName: string,
+  apiKeyEnv: string,
+  baseUrlEnv: string,
+  errors: string[],
+  warnings: string[]
+): void {
+  const apiKey = (process.env[apiKeyEnv] || '').trim();
+  const baseUrl = (process.env[baseUrlEnv] || '').trim();
+
+  if (apiKey && !baseUrl) {
+    warnings.push(`${apiKeyEnv} is set but ${baseUrlEnv} is missing; ${providerName} fallback is disabled`);
+    return;
+  }
+
+  if (!apiKey && baseUrl) {
+    warnings.push(`${baseUrlEnv} is set but ${apiKeyEnv} is missing; ${providerName} fallback is disabled`);
+    return;
+  }
+
+  if (baseUrl && !isValidUrl(baseUrl)) {
+    errors.push(`${baseUrlEnv} must be a valid URL`);
+  }
+}
+
 export function validateConfig(): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -401,6 +426,10 @@ export function validateConfig(): ValidationResult {
       if (isNaN(n) || n < 1 || n > 10) errors.push('ACP_MAX_CONCURRENT_JOBS must be an integer between 1 and 10');
     }
   }
+
+  validateOptionalClawProviderConfig('OpenClaw', 'OPENCLAW_API_KEY', 'OPENCLAW_BASE_URL', errors, warnings);
+  validateOptionalClawProviderConfig('NanoClaw', 'NANOCLAW_API_KEY', 'NANOCLAW_BASE_URL', errors, warnings);
+  validateOptionalClawProviderConfig('IronClaw', 'IRONCLAW_API_KEY', 'IRONCLAW_BASE_URL', errors, warnings);
 
   if (process.env.AUTONOMY_TICK_INTERVAL_MS) {
     const tickIntervalMs = parseInt(process.env.AUTONOMY_TICK_INTERVAL_MS, 10);

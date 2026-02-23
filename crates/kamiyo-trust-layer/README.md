@@ -10,13 +10,14 @@ Standalone trust decision layer for KAMIYO. This crate is decoupled from on-chai
 - append-only journal with tamper-evident hash chaining
 - policy version tracking on every decision receipt
 - snapshot/restore for deterministic recovery
-- audit-log record export with trace correlation fields
+- audit-log record export with trace correlation + provider provenance fields
 - Kani proof harnesses behind `cfg(kani)` for core invariants
 
 ## Core types
 
 - `TrustPolicy`: score/stake/failure/inactivity thresholds
 - `TrustEvent`: evidence event envelope (`event_id`, sequence, context)
+- `TrustProvider`: normalized source provider identity (`openclaw`, `nanoclaw`, `ironclaw`, ...)
 - `TrustReceipt`: immutable decision artifact with `policy_version` + `decision_id`
 - `JournalEntry`: append-only event + receipt record
 - `TrustLayerSnapshot`: full in-memory checkpoint for restore/replay

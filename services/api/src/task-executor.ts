@@ -8,12 +8,35 @@ export interface TaskExecutorConfig {
   anthropicApiKey?: string;
   openaiApiKey?: string;
   openaiModel?: string;
+  openclawApiKey?: string;
+  openclawBaseUrl?: string;
+  openclawModel?: string;
+  nanoclawApiKey?: string;
+  nanoclawBaseUrl?: string;
+  nanoclawModel?: string;
+  ironclawApiKey?: string;
+  ironclawBaseUrl?: string;
+  ironclawModel?: string;
   solanaRpcUrl?: string;
   /** Env var name for wallet key (default: SWARM_AGENT_WALLET_KEY) */
   privateKeyEnvVar?: string;
 }
 
 type TaskType = 'research' | 'market_analysis' | 'wallet_lookup' | 'general';
+type OpenAICompatibleProvider = 'openclaw' | 'nanoclaw' | 'ironclaw' | 'openai';
+
+type OpenAIProviderConfig = {
+  provider: OpenAICompatibleProvider;
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+};
+
+type OpenAIProviderRuntime = {
+  provider: OpenAICompatibleProvider;
+  model: string;
+  client: OpenAI;
+};
 
 // $3/MTok input, $15/MTok output for sonnet
 const ANTHROPIC_INPUT_COST_PER_TOKEN = 3 / 1_000_000;
@@ -28,6 +51,13 @@ const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const MAX_TASKS_PER_AGENT_PER_WINDOW = 5;
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 1000;
+const OPENCLAW_DEFAULT_MODEL = 'openclaw:main';
+const NANOCLAW_DEFAULT_MODEL = 'nanoclaw:main';
+const IRONCLAW_DEFAULT_MODEL = 'ironclaw:main';
+const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
+
+export const TASK_EXECUTOR_UNAVAILABLE_REASON =
+  'Task execution not available (missing LLM provider credentials). Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or one of OPENCLAW_API_KEY+OPENCLAW_BASE_URL, NANOCLAW_API_KEY+NANOCLAW_BASE_URL, IRONCLAW_API_KEY+IRONCLAW_BASE_URL.';
 
 const SYSTEM_PROMPTS: Record<TaskType, string> = {
   research: `You are a research analyst with access to Kamiyo protocol tools.
@@ -85,12 +115,112 @@ function clampJsonText(text: string, maxLen: number): string {
   return text.slice(0, Math.max(0, maxLen - 16)) + '... [truncated]';
 }
 
-export function createTaskExecutor(config: TaskExecutorConfig) {
-  const anthropic = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey }) : null;
-  const openai = config.openaiApiKey ? new OpenAI({ apiKey: config.openaiApiKey }) : null;
+function nonEmpty(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
-  if (!anthropic && !openai) {
-    throw new Error('Task executor requires ANTHROPIC_API_KEY or OPENAI_API_KEY');
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (trimmed.endsWith('/v1')) return trimmed;
+  return `${trimmed}/v1`;
+}
+
+function buildOpenAIProviderConfigs(config: TaskExecutorConfig): OpenAIProviderConfig[] {
+  const providers: OpenAIProviderConfig[] = [];
+
+  const openclawApiKey = nonEmpty(config.openclawApiKey) ?? nonEmpty(process.env.OPENCLAW_API_KEY);
+  const openclawBaseUrl = nonEmpty(config.openclawBaseUrl) ?? nonEmpty(process.env.OPENCLAW_BASE_URL);
+  if (openclawApiKey && openclawBaseUrl) {
+    providers.push({
+      provider: 'openclaw',
+      apiKey: openclawApiKey,
+      baseUrl: normalizeBaseUrl(openclawBaseUrl),
+      model:
+        nonEmpty(config.openclawModel)
+        ?? nonEmpty(process.env.SWARM_OPENCLAW_MODEL)
+        ?? nonEmpty(process.env.OPENCLAW_MODEL)
+        ?? OPENCLAW_DEFAULT_MODEL,
+    });
+  }
+
+  const nanoclawApiKey = nonEmpty(config.nanoclawApiKey) ?? nonEmpty(process.env.NANOCLAW_API_KEY);
+  const nanoclawBaseUrl = nonEmpty(config.nanoclawBaseUrl) ?? nonEmpty(process.env.NANOCLAW_BASE_URL);
+  if (nanoclawApiKey && nanoclawBaseUrl) {
+    providers.push({
+      provider: 'nanoclaw',
+      apiKey: nanoclawApiKey,
+      baseUrl: normalizeBaseUrl(nanoclawBaseUrl),
+      model:
+        nonEmpty(config.nanoclawModel)
+        ?? nonEmpty(process.env.SWARM_NANOCLAW_MODEL)
+        ?? nonEmpty(process.env.NANOCLAW_MODEL)
+        ?? NANOCLAW_DEFAULT_MODEL,
+    });
+  }
+
+  const ironclawApiKey = nonEmpty(config.ironclawApiKey) ?? nonEmpty(process.env.IRONCLAW_API_KEY);
+  const ironclawBaseUrl = nonEmpty(config.ironclawBaseUrl) ?? nonEmpty(process.env.IRONCLAW_BASE_URL);
+  if (ironclawApiKey && ironclawBaseUrl) {
+    providers.push({
+      provider: 'ironclaw',
+      apiKey: ironclawApiKey,
+      baseUrl: normalizeBaseUrl(ironclawBaseUrl),
+      model:
+        nonEmpty(config.ironclawModel)
+        ?? nonEmpty(process.env.SWARM_IRONCLAW_MODEL)
+        ?? nonEmpty(process.env.IRONCLAW_MODEL)
+        ?? IRONCLAW_DEFAULT_MODEL,
+    });
+  }
+
+  const openaiApiKey = nonEmpty(config.openaiApiKey) ?? nonEmpty(process.env.OPENAI_API_KEY);
+  if (openaiApiKey) {
+    providers.push({
+      provider: 'openai',
+      apiKey: openaiApiKey,
+      model:
+        nonEmpty(config.openaiModel)
+        ?? nonEmpty(process.env.SWARM_OPENAI_MODEL)
+        ?? OPENAI_DEFAULT_MODEL,
+    });
+  }
+
+  return providers;
+}
+
+function instantiateOpenAIProvider(config: OpenAIProviderConfig): OpenAIProviderRuntime {
+  const client = config.baseUrl
+    ? new OpenAI({ apiKey: config.apiKey, baseURL: config.baseUrl })
+    : new OpenAI({ apiKey: config.apiKey });
+
+  return {
+    provider: config.provider,
+    model: config.model,
+    client,
+  };
+}
+
+function formatProviderError(provider: OpenAICompatibleProvider, err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const compact = message.replace(/\s+/g, ' ').trim().slice(0, 180);
+  return `${provider}:${compact}`;
+}
+
+export function hasTaskExecutorProviders(config: TaskExecutorConfig = {}): boolean {
+  const anthropicKey = nonEmpty(config.anthropicApiKey) ?? nonEmpty(process.env.ANTHROPIC_API_KEY);
+  if (anthropicKey) return true;
+  return buildOpenAIProviderConfigs(config).length > 0;
+}
+
+export function createTaskExecutor(config: TaskExecutorConfig) {
+  const anthropicKey = nonEmpty(config.anthropicApiKey) ?? nonEmpty(process.env.ANTHROPIC_API_KEY);
+  const anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
+  const openaiProviders = buildOpenAIProviderConfigs(config).map(instantiateOpenAIProvider);
+
+  if (!anthropic && openaiProviders.length === 0) {
+    throw new Error(TASK_EXECUTOR_UNAVAILABLE_REASON);
   }
 
   // Concurrency tracking
@@ -128,12 +258,12 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
   }
 
   async function callOpenAIWithRetry(
+    client: OpenAI,
     params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
   ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-    if (!openai) throw new Error('OpenAI client not configured');
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await openai.chat.completions.create(params);
+        return await client.chat.completions.create(params);
       } catch (err: unknown) {
         const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: unknown }).status : undefined;
         const code = typeof status === 'number' ? status : undefined;
@@ -155,8 +285,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
     });
   }
 
-  const anthropicModel = process.env.SWARM_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
-  const openaiModel = config.openaiModel || process.env.SWARM_OPENAI_MODEL || 'gpt-4o-mini';
+  const anthropicModel = nonEmpty(process.env.SWARM_ANTHROPIC_MODEL) ?? 'claude-sonnet-4-20250514';
 
   return async function executeTask(input: TaskInput): Promise<TaskResult> {
     // Concurrency gate
@@ -297,9 +426,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
         };
       };
 
-      const runOpenAI = async (): Promise<TaskResult> => {
-        if (!openai) throw new Error('OpenAI client not configured');
-
+      const runOpenAIProvider = async (provider: OpenAIProviderRuntime): Promise<TaskResult> => {
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
 
@@ -319,8 +446,8 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
             };
           }
 
-          const response = await callOpenAIWithRetry({
-            model: openaiModel,
+          const response = await callOpenAIWithRetry(provider.client, {
+            model: provider.model,
             max_tokens: 2048,
             messages,
             tools: toolsOpenAI,
@@ -398,12 +525,23 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
         try {
           return await runAnthropic();
         } catch (err) {
-          if (openai) return await runOpenAI();
-          throw err;
+          if (openaiProviders.length === 0) throw err;
         }
       }
 
-      return await runOpenAI();
+      const openaiErrors: string[] = [];
+      for (const provider of openaiProviders) {
+        try {
+          return await runOpenAIProvider(provider);
+        } catch (err) {
+          openaiErrors.push(formatProviderError(provider.provider, err));
+        }
+      }
+
+      if (openaiErrors.length > 0) {
+        throw new Error(`All OpenAI-compatible providers failed (${openaiErrors.join(' | ')})`);
+      }
+      throw new Error(TASK_EXECUTOR_UNAVAILABLE_REASON);
     } catch (err) {
       return {
         taskId: input.taskId,

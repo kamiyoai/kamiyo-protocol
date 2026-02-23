@@ -28,6 +28,10 @@ export interface FileDisputeWithTruthCourtParams {
   context?: string;
   markOnChain?: boolean;
   minValidResponses?: number;
+  includeGrok?: boolean;
+  includeOpenClaw?: boolean;
+  includeNanoClaw?: boolean;
+  includeIronClaw?: boolean;
 }
 
 export interface FileDisputeWithTruthCourtOptions extends TruthCourtCommitteeOptions {
@@ -42,6 +46,9 @@ export interface RunTruthCourtGauntletParams {
   claimant?: string;
   respondent?: string;
   includeGrok?: boolean;
+  includeOpenClaw?: boolean;
+  includeNanoClaw?: boolean;
+  includeIronClaw?: boolean;
   policyMode?: 'default' | 'strict';
   minValidResponses?: number;
 }
@@ -54,6 +61,7 @@ export interface FileDisputeWithTruthCourtResult {
   committee?: {
     oracleCount: number;
     includesGrok: boolean;
+    providers: string[];
     finalVerdict?: string;
     confidence?: number;
     caseHash: string;
@@ -141,7 +149,13 @@ export async function fileDisputeWithTruthCourt(
   }
 
   const caseInput = toCaseInput(params);
-  const committee = options.oracles ?? buildTruthCourtCommittee(options);
+  const committee = options.oracles ?? buildTruthCourtCommittee({
+    ...options,
+    includeGrok: params.includeGrok ?? options.includeGrok,
+    includeOpenClaw: params.includeOpenClaw ?? options.includeOpenClaw,
+    includeNanoClaw: params.includeNanoClaw ?? options.includeNanoClaw,
+    includeIronClaw: params.includeIronClaw ?? options.includeIronClaw,
+  });
   const engine = new TruthCourtEngine(committee);
   const decision = await engine.evaluate(caseInput, {
     minValidResponses: params.minValidResponses,
@@ -150,6 +164,9 @@ export async function fileDisputeWithTruthCourt(
   const includesGrok = decision.acceptedResponses.some(
     (entry) => entry.provider === 'xai'
   );
+  const providers = Array.from(
+    new Set(decision.acceptedResponses.map((entry) => entry.provider))
+  ).sort();
 
   const result: FileDisputeWithTruthCourtResult = {
     success: decision.success,
@@ -157,6 +174,7 @@ export async function fileDisputeWithTruthCourt(
     committee: {
       oracleCount: committee.length,
       includesGrok,
+      providers,
       finalVerdict: decision.finalVerdict,
       confidence: decision.confidence,
       caseHash: decision.caseHash,
@@ -262,6 +280,14 @@ export async function runTruthCourtGauntlet(
   params: RunTruthCourtGauntletParams = {},
   options: FileDisputeWithTruthCourtOptions = {}
 ): Promise<RunTruthCourtGauntletResult> {
+  const committeeOptions: FileDisputeWithTruthCourtOptions = {
+    ...options,
+    includeGrok: params.includeGrok ?? options.includeGrok,
+    includeOpenClaw: params.includeOpenClaw ?? options.includeOpenClaw,
+    includeNanoClaw: params.includeNanoClaw ?? options.includeNanoClaw,
+    includeIronClaw: params.includeIronClaw ?? options.includeIronClaw,
+  };
+
   return executeTruthCourtGauntlet(
     {
       rounds: params.rounds,
@@ -274,6 +300,6 @@ export async function runTruthCourtGauntlet(
       policyMode: params.policyMode,
       minValidResponses: params.minValidResponses,
     },
-    options
+    committeeOptions
   );
 }

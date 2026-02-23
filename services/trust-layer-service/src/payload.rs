@@ -20,6 +20,7 @@ pub fn serialize_outbox_payload(
         request_id: Option<&'a str>,
         trace_id: Option<&'a str>,
         span_id: Option<&'a str>,
+        provider: Option<&'a str>,
         receipt: OutboxReceipt<'a>,
     }
 
@@ -53,6 +54,7 @@ pub fn serialize_outbox_payload(
         request_id: event.context.request_id.as_deref(),
         trace_id: event.context.trace_id.as_deref(),
         span_id: event.context.span_id.as_deref(),
+        provider: event.context.provider.map(|provider| provider.as_str()),
         receipt: OutboxReceipt {
             event_id: &receipt.event_id,
             sequence: receipt.sequence,

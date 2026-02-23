@@ -95,7 +95,8 @@ post_event() {
   "context": {
     "request_id": "req-${event_id}",
     "trace_id": "trace-${event_id}",
-    "span_id": "span-${event_id}"
+    "span_id": "span-${event_id}",
+    "provider": "openclaw"
   }
 }
 JSON

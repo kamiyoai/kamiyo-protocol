@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use kamiyo_trust_layer::{
     DecisionReason, EventContext, SubjectState, TrustEvaluation, TrustEvent, TrustPolicy,
-    TrustReceipt,
+    TrustProvider, TrustReceipt,
 };
 use sqlx::{PgPool, Postgres, QueryBuilder, Row, Transaction};
 
@@ -77,6 +77,7 @@ pub async fn ensure_schema(pool: &PgPool) -> Result<()> {
             request_id TEXT,
             trace_id TEXT,
             span_id TEXT,
+            provider TEXT,
             receipt_policy_version BIGINT NOT NULL,
             receipt_decision_id TEXT NOT NULL,
             receipt_prev_hash TEXT NOT NULL,
@@ -163,6 +164,7 @@ pub async fn ensure_schema(pool: &PgPool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    ensure_trust_events_provider_column(pool).await?;
     ensure_length_constraints(pool).await?;
     ensure_policy_row(pool).await
 }
@@ -271,6 +273,7 @@ pub async fn load_existing_event_for_update(
             request_id,
             trace_id,
             span_id,
+            provider,
             receipt_policy_version,
             receipt_decision_id,
             receipt_prev_hash,
@@ -310,6 +313,7 @@ pub async fn load_existing_event(pool: &PgPool, event_id: &str) -> Result<Option
             request_id,
             trace_id,
             span_id,
+            provider,
             receipt_policy_version,
             receipt_decision_id,
             receipt_prev_hash,
@@ -456,6 +460,7 @@ pub async fn insert_event_tx(
             request_id,
             trace_id,
             span_id,
+            provider,
             receipt_policy_version,
             receipt_decision_id,
             receipt_prev_hash,
@@ -471,8 +476,8 @@ pub async fn insert_event_tx(
             created_at
         )
         VALUES (
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
-            $11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+            $12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
         )
         RETURNING id
         "#,
@@ -487,6 +492,7 @@ pub async fn insert_event_tx(
     .bind(event.context.request_id.as_deref())
     .bind(event.context.trace_id.as_deref())
     .bind(event.context.span_id.as_deref())
+    .bind(event.context.provider.map(TrustProvider::as_str))
     .bind(to_i64(receipt.policy_version)?)
     .bind(receipt.decision_id.to_string())
     .bind(receipt.prev_hash.to_string())
@@ -986,6 +992,7 @@ pub async fn fetch_replay_events(
             request_id,
             trace_id,
             span_id,
+            provider,
             receipt_policy_version,
             receipt_decision_id,
             receipt_prev_hash,
@@ -1111,6 +1118,12 @@ fn decode_event_row(row: &sqlx::postgres::PgRow) -> Result<StoredEvent> {
         request_id: row.try_get("request_id")?,
         trace_id: row.try_get("trace_id")?,
         span_id: row.try_get("span_id")?,
+        provider: row
+            .try_get::<Option<String>, _>("provider")?
+            .map(|value| {
+                TrustProvider::from_str(&value).ok_or_else(|| anyhow!("unknown provider: {value}"))
+            })
+            .transpose()?,
     });
 
     let subject = row.try_get::<String, _>("subject")?;
@@ -1152,6 +1165,13 @@ fn decode_event_row(row: &sqlx::postgres::PgRow) -> Result<StoredEvent> {
     })
 }
 
+async fn ensure_trust_events_provider_column(pool: &PgPool) -> Result<()> {
+    sqlx::query("ALTER TABLE trust_events ADD COLUMN IF NOT EXISTS provider TEXT")
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 async fn ensure_length_constraints(pool: &PgPool) -> Result<()> {
     ensure_check_constraint(
         pool,
@@ -1186,6 +1206,13 @@ async fn ensure_length_constraints(pool: &PgPool) -> Result<()> {
         "trust_events",
         "trust_events_span_id_length_ck",
         "span_id IS NULL OR length(span_id) <= 128",
+    )
+    .await?;
+    ensure_check_constraint(
+        pool,
+        "trust_events",
+        "trust_events_provider_allowed_ck",
+        "provider IS NULL OR provider IN ('openclaw','nanoclaw','ironclaw','xai','openai','anthropic','local','custom')",
     )
     .await?;
     ensure_check_constraint(

@@ -6,7 +6,7 @@ import bs58 from 'bs58';
 import db, { deductCredits, usdToCredits } from '../../db';
 // NOTE: @kamiyo/swarm-agents has bun:sqlite dep that breaks on Node.js
 // Using direct task executor instead of orchestrator
-import { createTaskExecutor } from '../../task-executor';
+import { createTaskExecutor, hasTaskExecutorProviders, TASK_EXECUTOR_UNAVAILABLE_REASON } from '../../task-executor';
 import hiveSwarmRoutes from './hive-swarm';
 import { authMiddleware } from '../middleware';
 import { getSolanaConnection } from '../../solana';
@@ -62,11 +62,19 @@ const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
 const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
 const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
-const taskExecutor = (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
-  ? createTaskExecutor({
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      openaiApiKey: process.env.OPENAI_API_KEY,
-    })
+const taskExecutorConfig = {
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  openaiApiKey: process.env.OPENAI_API_KEY,
+  openclawApiKey: process.env.OPENCLAW_API_KEY,
+  openclawBaseUrl: process.env.OPENCLAW_BASE_URL,
+  nanoclawApiKey: process.env.NANOCLAW_API_KEY,
+  nanoclawBaseUrl: process.env.NANOCLAW_BASE_URL,
+  ironclawApiKey: process.env.IRONCLAW_API_KEY,
+  ironclawBaseUrl: process.env.IRONCLAW_BASE_URL,
+};
+
+const taskExecutor = hasTaskExecutorProviders(taskExecutorConfig)
+  ? createTaskExecutor(taskExecutorConfig)
   : undefined;
 
 const router = Router();
@@ -804,7 +812,7 @@ router.post('/:id/tasks', requireTeamOwner, async (req: Request, res: Response) 
         purpose: `task:${taskId}`,
       });
       settled = settlement.ok;
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
+      res.status(503).json({ error: TASK_EXECUTOR_UNAVAILABLE_REASON });
       return;
     }
 
@@ -1192,7 +1200,7 @@ router.post('/:id/execute-proposal', async (req: Request, res: Response) => {
   // Execute the task
   try {
     if (!taskExecutor) {
-      res.status(503).json({ error: 'Task execution not available (missing ANTHROPIC_API_KEY/OPENAI_API_KEY)' });
+      res.status(503).json({ error: TASK_EXECUTOR_UNAVAILABLE_REASON });
       return;
     }
 

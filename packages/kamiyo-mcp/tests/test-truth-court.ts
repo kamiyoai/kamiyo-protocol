@@ -1,6 +1,7 @@
 #!/usr/bin/env ts-node
 
 import {
+  ClawDisputeOracle,
   computeCaseHashes,
   GrokDisputeOracle,
   TruthCourtEngine,
@@ -325,6 +326,55 @@ async function testGrokAdapterParsing(): Promise<void> {
   assert(response.featureHash === hashes.featureHash, 'feature hash preserved');
 }
 
+async function testClawAdapterParsing(): Promise<void> {
+  console.log('\n=== claw adapter parsing ===');
+  const mockFetch: typeof fetch = async () =>
+    new Response(
+      JSON.stringify({
+        id: 'chatcmpl-claw-test',
+        model: 'openclaw:main',
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                verdict: 'provider_wins',
+                confidence: 0.81,
+                factors: [
+                  {
+                    name: 'provider_reliability',
+                    impact: -0.7,
+                    evidence: 'delivery matched SLA and expected schema',
+                  },
+                ],
+                reasoningRef: 'openclaw://reasoning-cid',
+              }),
+            },
+          },
+        ],
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+
+  const oracle = new ClawDisputeOracle({
+    provider: 'openclaw',
+    apiKey: 'test-key',
+    baseUrl: 'https://example.openclaw.local/v1',
+    fetchImpl: mockFetch,
+  });
+
+  const hashes = computeCaseHashes(baseCase);
+  const response = await oracle.evaluate({
+    ...hashes,
+    input: baseCase,
+  });
+
+  assert(response.provider === 'openclaw', 'provider identified as openclaw');
+  assert(response.verdict === 'provider_wins', 'parsed verdict from JSON');
+  assert(response.confidence === 0.81, 'parsed confidence');
+  assert(response.evidenceHash === hashes.evidenceHash, 'evidence hash preserved');
+  assert(response.featureHash === hashes.featureHash, 'feature hash preserved');
+}
+
 async function main(): Promise<void> {
   await testCommitteeConsensus();
   await testReplayIntegrity();
@@ -334,6 +384,7 @@ async function main(): Promise<void> {
   await testDuplicateReplayOracleDetection();
   await testDuplicateOracleProtection();
   await testGrokAdapterParsing();
+  await testClawAdapterParsing();
 
   console.log('\n=== summary ===');
   console.log(`passed=${passed}`);

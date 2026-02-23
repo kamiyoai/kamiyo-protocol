@@ -32,9 +32,19 @@ export interface TruthCourtOracleRequest {
   input: TruthCourtCaseInput;
 }
 
+export type TruthCourtOracleProvider =
+  | 'xai'
+  | 'openclaw'
+  | 'nanoclaw'
+  | 'ironclaw'
+  | 'local'
+  | 'openai'
+  | 'anthropic'
+  | 'custom';
+
 export interface TruthCourtOracleResponse {
   oracle: string;
-  provider: 'xai' | 'local' | 'openai' | 'anthropic' | 'custom';
+  provider: TruthCourtOracleProvider;
   model: string;
   modelHash: string;
   verdict: TruthCourtVerdict;
@@ -61,7 +71,7 @@ export interface TruthCourtSlashingRecommendation {
 
 export interface TruthCourtOracleMetric {
   oracle: string;
-  provider: 'xai' | 'local' | 'openai' | 'anthropic' | 'custom';
+  provider: TruthCourtOracleProvider;
   status: 'accepted' | 'rejected';
   reason?: TruthCourtRejectedResponse['reason'];
   latencyMs: number;

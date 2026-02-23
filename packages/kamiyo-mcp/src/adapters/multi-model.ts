@@ -1,6 +1,6 @@
 export interface LLMAdapter {
   name: string;
-  provider: 'anthropic' | 'openai' | 'local';
+  provider: 'anthropic' | 'openai' | 'openclaw' | 'nanoclaw' | 'ironclaw' | 'local';
   model: string;
   maxTokens: number;
   costPerToken: number;
@@ -47,6 +47,30 @@ export class MultiModelRouter {
       costPerToken: 0.00003,
     });
 
+    this.adapters.set('openclaw-main', {
+      name: 'openclaw-main',
+      provider: 'openclaw',
+      model: 'openclaw:main',
+      maxTokens: 256000,
+      costPerToken: 0.000004,
+    });
+
+    this.adapters.set('nanoclaw-main', {
+      name: 'nanoclaw-main',
+      provider: 'nanoclaw',
+      model: 'nanoclaw:main',
+      maxTokens: 256000,
+      costPerToken: 0.0000025,
+    });
+
+    this.adapters.set('ironclaw-main', {
+      name: 'ironclaw-main',
+      provider: 'ironclaw',
+      model: 'ironclaw:main',
+      maxTokens: 256000,
+      costPerToken: 0.0000035,
+    });
+
     this.adapters.set('llama-3-70b', {
       name: 'llama-3-70b',
       provider: 'local',
@@ -82,7 +106,15 @@ export class MultiModelRouter {
   }
 
   private selectByAccuracy(candidates: LLMAdapter[]): LLMAdapter {
-    const accuracyRanking = ['claude-3-opus', 'gpt-4', 'claude-3-sonnet', 'llama-3-70b'];
+    const accuracyRanking = [
+      'claude-3-opus',
+      'gpt-4',
+      'ironclaw-main',
+      'openclaw-main',
+      'claude-3-sonnet',
+      'nanoclaw-main',
+      'llama-3-70b',
+    ];
     for (const model of accuracyRanking) {
       const adapter = candidates.find((c) => c.name === model);
       if (adapter) return adapter;
@@ -91,7 +123,15 @@ export class MultiModelRouter {
   }
 
   private selectByReasoning(candidates: LLMAdapter[]): LLMAdapter {
-    const reasoningRanking = ['claude-3-opus', 'gpt-4', 'claude-3-sonnet', 'llama-3-70b'];
+    const reasoningRanking = [
+      'claude-3-opus',
+      'gpt-4',
+      'ironclaw-main',
+      'openclaw-main',
+      'claude-3-sonnet',
+      'nanoclaw-main',
+      'llama-3-70b',
+    ];
     for (const model of reasoningRanking) {
       const adapter = candidates.find((c) => c.name === model);
       if (adapter) return adapter;
@@ -100,7 +140,15 @@ export class MultiModelRouter {
   }
 
   private selectBySpeed(candidates: LLMAdapter[]): LLMAdapter {
-    const speedRanking = ['claude-3-sonnet', 'llama-3-70b', 'gpt-4', 'claude-3-opus'];
+    const speedRanking = [
+      'nanoclaw-main',
+      'openclaw-main',
+      'claude-3-sonnet',
+      'llama-3-70b',
+      'ironclaw-main',
+      'gpt-4',
+      'claude-3-opus',
+    ];
     for (const model of speedRanking) {
       const adapter = candidates.find((c) => c.name === model);
       if (adapter) return adapter;
@@ -128,6 +176,15 @@ export class MultiModelRouter {
         break;
       case 'openai':
         content = await this.invokeOpenAI(adapter, prompt, systemPrompt);
+        break;
+      case 'openclaw':
+        content = await this.invokeOpenClaw(adapter, prompt, systemPrompt);
+        break;
+      case 'nanoclaw':
+        content = await this.invokeNanoClaw(adapter, prompt, systemPrompt);
+        break;
+      case 'ironclaw':
+        content = await this.invokeIronClaw(adapter, prompt, systemPrompt);
         break;
       case 'local':
         content = await this.invokeLocal(adapter, prompt, systemPrompt);
@@ -165,6 +222,30 @@ export class MultiModelRouter {
     return `[OpenAI ${adapter.model}] Analysis: ${prompt.slice(0, 100)}... [simulated response]`;
   }
 
+  private async invokeOpenClaw(
+    adapter: LLMAdapter,
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string> {
+    return `[OpenClaw ${adapter.model}] Analysis: ${prompt.slice(0, 100)}... [simulated response]`;
+  }
+
+  private async invokeNanoClaw(
+    adapter: LLMAdapter,
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string> {
+    return `[NanoClaw ${adapter.model}] Analysis: ${prompt.slice(0, 100)}... [simulated response]`;
+  }
+
+  private async invokeIronClaw(
+    adapter: LLMAdapter,
+    prompt: string,
+    systemPrompt?: string
+  ): Promise<string> {
+    return `[IronClaw ${adapter.model}] Analysis: ${prompt.slice(0, 100)}... [simulated response]`;
+  }
+
   private async invokeLocal(
     adapter: LLMAdapter,
     prompt: string,
@@ -185,7 +266,7 @@ export class MultiModelRouter {
     confidence: number;
     models: string[];
   }> {
-    const models = ['claude-3-sonnet', 'gpt-4', 'llama-3-70b'];
+    const models = ['claude-3-sonnet', 'openclaw-main', 'ironclaw-main', 'llama-3-70b'];
     const scores: number[] = [];
     const usedModels: string[] = [];
 

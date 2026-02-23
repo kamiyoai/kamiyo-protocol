@@ -92,9 +92,16 @@ curl -X POST http://127.0.0.1:8095/v1/trust/events \
     "kind": "manual_credit",
     "weight": 20,
     "stake_delta": 10000,
-    "context": {"request_id": "req-1", "trace_id": "trace-1", "span_id": "span-1"}
+    "context": {
+      "request_id": "req-1",
+      "trace_id": "trace-1",
+      "span_id": "span-1",
+      "provider": "openclaw"
+    }
   }'
 ```
+
+Supported `context.provider` values: `openclaw`, `nanoclaw`, `ironclaw`, `xai`, `openai`, `anthropic`, `local`, `custom`.
 
 ## Validation
 

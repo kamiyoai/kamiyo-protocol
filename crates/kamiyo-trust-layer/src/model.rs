@@ -13,6 +13,48 @@ pub const MAX_CONTEXT_FIELD_LEN: usize = 128;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
+pub enum TrustProvider {
+    OpenClaw = 1,
+    NanoClaw = 2,
+    IronClaw = 3,
+    Xai = 4,
+    OpenAi = 5,
+    Anthropic = 6,
+    Local = 7,
+    Custom = 8,
+}
+
+impl TrustProvider {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenClaw => "openclaw",
+            Self::NanoClaw => "nanoclaw",
+            Self::IronClaw => "ironclaw",
+            Self::Xai => "xai",
+            Self::OpenAi => "openai",
+            Self::Anthropic => "anthropic",
+            Self::Local => "local",
+            Self::Custom => "custom",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Option<Self> {
+        match value {
+            "openclaw" => Some(Self::OpenClaw),
+            "nanoclaw" => Some(Self::NanoClaw),
+            "ironclaw" => Some(Self::IronClaw),
+            "xai" => Some(Self::Xai),
+            "openai" => Some(Self::OpenAi),
+            "anthropic" => Some(Self::Anthropic),
+            "local" => Some(Self::Local),
+            "custom" => Some(Self::Custom),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
 pub enum EvidenceKind {
     VerifiedSuccess = 1,
     DisputeWon = 2,
@@ -40,6 +82,7 @@ pub struct EventContext {
     pub request_id: Option<String>,
     pub trace_id: Option<String>,
     pub span_id: Option<String>,
+    pub provider: Option<TrustProvider>,
 }
 
 impl EventContext {
@@ -274,6 +317,7 @@ pub struct AuditLogRecord {
     pub trace_id: Option<String>,
     pub span_id: Option<String>,
     pub request_id: Option<String>,
+    pub provider: Option<TrustProvider>,
 }
 
 impl From<&JournalEntry> for AuditLogRecord {
@@ -292,6 +336,7 @@ impl From<&JournalEntry> for AuditLogRecord {
             trace_id: entry.event.context.trace_id.clone(),
             span_id: entry.event.context.span_id.clone(),
             request_id: entry.event.context.request_id.clone(),
+            provider: entry.event.context.provider,
         }
     }
 }
@@ -420,7 +465,11 @@ pub fn context_fingerprint(context: &EventContext) -> u64 {
 
     hash = hash_optional_string(hash, &context.request_id);
     hash = hash_optional_string(hash, &context.trace_id);
-    hash_optional_string(hash, &context.span_id)
+    hash = hash_optional_string(hash, &context.span_id);
+    if let Some(provider) = context.provider {
+        hash = hash_bytes(hash, &[0xff, provider as u8]);
+    }
+    hash
 }
 
 fn hash_optional_string(seed: u64, value: &Option<String>) -> u64 {

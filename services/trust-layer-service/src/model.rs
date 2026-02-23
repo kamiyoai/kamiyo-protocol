@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use kamiyo_trust_layer::{
     DecisionReason, EventContext, EvidenceKind, TrustDecision, TrustEvaluation, TrustEvent,
-    TrustReceipt,
+    TrustProvider, TrustReceipt,
 };
 use serde::{Deserialize, Serialize};
 
@@ -201,6 +201,7 @@ pub struct EventContextWire {
     pub request_id: Option<String>,
     pub trace_id: Option<String>,
     pub span_id: Option<String>,
+    pub provider: Option<TrustProviderWire>,
 }
 
 impl From<EventContextWire> for EventContext {
@@ -209,6 +210,42 @@ impl From<EventContextWire> for EventContext {
             request_id: value.request_id,
             trace_id: value.trace_id,
             span_id: value.span_id,
+            provider: value.provider.map(Into::into),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub enum TrustProviderWire {
+    #[serde(rename = "openclaw")]
+    OpenClaw,
+    #[serde(rename = "nanoclaw")]
+    NanoClaw,
+    #[serde(rename = "ironclaw")]
+    IronClaw,
+    #[serde(rename = "xai")]
+    Xai,
+    #[serde(rename = "openai")]
+    OpenAi,
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    #[serde(rename = "local")]
+    Local,
+    #[serde(rename = "custom")]
+    Custom,
+}
+
+impl From<TrustProviderWire> for TrustProvider {
+    fn from(value: TrustProviderWire) -> Self {
+        match value {
+            TrustProviderWire::OpenClaw => TrustProvider::OpenClaw,
+            TrustProviderWire::NanoClaw => TrustProvider::NanoClaw,
+            TrustProviderWire::IronClaw => TrustProvider::IronClaw,
+            TrustProviderWire::Xai => TrustProvider::Xai,
+            TrustProviderWire::OpenAi => TrustProvider::OpenAi,
+            TrustProviderWire::Anthropic => TrustProvider::Anthropic,
+            TrustProviderWire::Local => TrustProvider::Local,
+            TrustProviderWire::Custom => TrustProvider::Custom,
         }
     }
 }

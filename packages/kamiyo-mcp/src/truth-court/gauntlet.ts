@@ -93,6 +93,15 @@ const DEFAULT_ROUNDS = 12;
 const DEFAULT_COUNTERFACTUALS = 2;
 const DEFAULT_MIN_VALID_RESPONSES = 2;
 
+function inferOracleProvider(oracleName: string): string {
+  const normalized = oracleName.toLowerCase();
+  if (normalized.includes('grok')) return 'xai';
+  if (normalized.includes('openclaw')) return 'openclaw';
+  if (normalized.includes('nanoclaw')) return 'nanoclaw';
+  if (normalized.includes('ironclaw')) return 'ironclaw';
+  return 'local';
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -464,14 +473,14 @@ export async function executeTruthCourtGauntlet(
     ...options,
     includeGrok: config.includeGrok,
   });
-  const includeGrok = committee.some((oracle) => oracle.name === 'grok-dispute-oracle');
+  const includeGrok = committee.some(
+    (oracle) => inferOracleProvider(oracle.name) === 'xai'
+  );
   normalizedConfig.includeGrok = includeGrok;
 
   if (normalizedConfig.policyMode === 'strict') {
     const providerCount = new Set(
-      committee.map((oracle) =>
-        oracle.name.includes('grok') ? 'xai' : 'local'
-      )
+      committee.map((oracle) => inferOracleProvider(oracle.name))
     ).size;
     if (committee.length < 3) {
       return buildFailedResult(

@@ -6,10 +6,34 @@ import type { SwarmDagNode, SwarmDagPlan, SwarmTeamMember } from './types';
 
 const DEFAULT_MAX_NODES = 12;
 const HARD_MAX_NODES = 24;
+const OPENCLAW_PLANNER_DEFAULT_MODEL = 'openclaw:main';
+const NANOCLAW_PLANNER_DEFAULT_MODEL = 'nanoclaw:main';
+const IRONCLAW_PLANNER_DEFAULT_MODEL = 'ironclaw:main';
+const OPENAI_PLANNER_DEFAULT_MODEL = 'gpt-4o-mini';
+
+type PlannerProviderName = 'openclaw' | 'nanoclaw' | 'ironclaw' | 'openai';
+
+type PlannerProvider = {
+  provider: PlannerProviderName;
+  model: string;
+  client: OpenAI;
+};
 
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, n));
+}
+
+function nonEmpty(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (trimmed.endsWith('/v1')) return trimmed;
+  return `${trimmed}/v1`;
 }
 
 function normalizeId(raw: string, fallback: string): string {
@@ -57,6 +81,75 @@ function ensureFinalNode(nodes: SwarmDagNode[], members: SwarmTeamMember[], miss
 
   final.dependsOn = Array.from(new Set(final.dependsOn.concat(deps)));
   return nodes;
+}
+
+function buildPlannerProviders(): PlannerProvider[] {
+  const providers: PlannerProvider[] = [];
+
+  const openclawKey = nonEmpty(process.env.OPENCLAW_API_KEY);
+  const openclawBaseUrl = nonEmpty(process.env.OPENCLAW_BASE_URL);
+  if (openclawKey && openclawBaseUrl) {
+    providers.push({
+      provider: 'openclaw',
+      model:
+        nonEmpty(process.env.SWARM_OPENCLAW_PLANNER_MODEL)
+        ?? nonEmpty(process.env.SWARM_OPENCLAW_MODEL)
+        ?? nonEmpty(process.env.OPENCLAW_MODEL)
+        ?? OPENCLAW_PLANNER_DEFAULT_MODEL,
+      client: new OpenAI({
+        apiKey: openclawKey,
+        baseURL: normalizeBaseUrl(openclawBaseUrl),
+      }),
+    });
+  }
+
+  const nanoclawKey = nonEmpty(process.env.NANOCLAW_API_KEY);
+  const nanoclawBaseUrl = nonEmpty(process.env.NANOCLAW_BASE_URL);
+  if (nanoclawKey && nanoclawBaseUrl) {
+    providers.push({
+      provider: 'nanoclaw',
+      model:
+        nonEmpty(process.env.SWARM_NANOCLAW_PLANNER_MODEL)
+        ?? nonEmpty(process.env.SWARM_NANOCLAW_MODEL)
+        ?? nonEmpty(process.env.NANOCLAW_MODEL)
+        ?? NANOCLAW_PLANNER_DEFAULT_MODEL,
+      client: new OpenAI({
+        apiKey: nanoclawKey,
+        baseURL: normalizeBaseUrl(nanoclawBaseUrl),
+      }),
+    });
+  }
+
+  const ironclawKey = nonEmpty(process.env.IRONCLAW_API_KEY);
+  const ironclawBaseUrl = nonEmpty(process.env.IRONCLAW_BASE_URL);
+  if (ironclawKey && ironclawBaseUrl) {
+    providers.push({
+      provider: 'ironclaw',
+      model:
+        nonEmpty(process.env.SWARM_IRONCLAW_PLANNER_MODEL)
+        ?? nonEmpty(process.env.SWARM_IRONCLAW_MODEL)
+        ?? nonEmpty(process.env.IRONCLAW_MODEL)
+        ?? IRONCLAW_PLANNER_DEFAULT_MODEL,
+      client: new OpenAI({
+        apiKey: ironclawKey,
+        baseURL: normalizeBaseUrl(ironclawBaseUrl),
+      }),
+    });
+  }
+
+  const openaiKey = nonEmpty(process.env.OPENAI_API_KEY);
+  if (openaiKey) {
+    providers.push({
+      provider: 'openai',
+      model:
+        nonEmpty(process.env.SWARM_OPENAI_PLANNER_MODEL)
+        ?? nonEmpty(process.env.SWARM_OPENAI_MODEL)
+        ?? OPENAI_PLANNER_DEFAULT_MODEL,
+      client: new OpenAI({ apiKey: openaiKey }),
+    });
+  }
+
+  return providers;
 }
 
 export function sanitizeDagPlan(
@@ -168,8 +261,8 @@ export async function planDag(
 ): Promise<SwarmDagPlan> {
   const maxNodes = clamp(options?.maxNodes ?? DEFAULT_MAX_NODES, 1, HARD_MAX_NODES);
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = nonEmpty(process.env.ANTHROPIC_API_KEY);
+  const plannerProviders = buildPlannerProviders();
 
   const membersList = members
     .map((m) => `- memberId: ${m.id} | agentId: ${m.agentId} | role: ${m.role || 'member'} | drawLimit: ${m.drawLimit}`)
@@ -213,20 +306,15 @@ export async function planDag(
       .join('\n')
       .trim();
 
-    try {
-      const parsed = extractJson(text);
-      return sanitizeDagPlan(parsed, members, mission, { maxNodes });
-    } catch {
-      return heuristicDagPlan(mission, members, { maxNodes });
-    }
+    if (!text) throw new Error('empty anthropic planner response');
+
+    const parsed = extractJson(text);
+    return sanitizeDagPlan(parsed, members, mission, { maxNodes });
   };
 
-  const tryOpenAI = async (): Promise<SwarmDagPlan> => {
-    if (!openaiKey) throw new Error('missing OPENAI_API_KEY');
-    const client = new OpenAI({ apiKey: openaiKey });
-
-    const response = await client.chat.completions.create({
-      model: process.env.SWARM_OPENAI_PLANNER_MODEL || process.env.SWARM_OPENAI_MODEL || 'gpt-4o-mini',
+  const tryOpenAIProvider = async (provider: PlannerProvider): Promise<SwarmDagPlan> => {
+    const response = await provider.client.chat.completions.create({
+      model: provider.model,
       max_tokens: 1500,
       response_format: { type: 'json_object' },
       messages: [
@@ -236,14 +324,10 @@ export async function planDag(
     });
 
     const text = response.choices[0]?.message?.content?.trim() ?? '';
-    if (!text) return heuristicDagPlan(mission, members, { maxNodes });
+    if (!text) throw new Error(`empty ${provider.provider} planner response`);
 
-    try {
-      const parsed = extractJson(text);
-      return sanitizeDagPlan(parsed, members, mission, { maxNodes });
-    } catch {
-      return heuristicDagPlan(mission, members, { maxNodes });
-    }
+    const parsed = extractJson(text);
+    return sanitizeDagPlan(parsed, members, mission, { maxNodes });
   };
 
   if (anthropicKey) {
@@ -254,9 +338,9 @@ export async function planDag(
     }
   }
 
-  if (openaiKey) {
+  for (const provider of plannerProviders) {
     try {
-      return await tryOpenAI();
+      return await tryOpenAIProvider(provider);
     } catch {
       // fall through
     }

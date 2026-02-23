@@ -1,6 +1,9 @@
 use kamiyo_trust_layer::{
     decision_id_hash,
-    model::{DecisionReason, EventContext, EvidenceKind, TrustDecision, TrustEvent, TrustPolicy},
+    model::{
+        DecisionReason, EventContext, EvidenceKind, TrustDecision, TrustEvent, TrustPolicy,
+        TrustProvider,
+    },
     TrustLayer, TrustLayerError,
 };
 
@@ -437,6 +440,7 @@ fn audit_records_include_context_fields() {
         request_id: Some("req-123".to_string()),
         trace_id: Some("trace-abc".to_string()),
         span_id: Some("span-xyz".to_string()),
+        provider: Some(TrustProvider::OpenClaw),
     });
 
     layer
@@ -448,6 +452,38 @@ fn audit_records_include_context_fields() {
     assert_eq!(audit[0].request_id.as_deref(), Some("req-123"));
     assert_eq!(audit[0].trace_id.as_deref(), Some("trace-abc"));
     assert_eq!(audit[0].span_id.as_deref(), Some("span-xyz"));
+    assert_eq!(audit[0].provider, Some(TrustProvider::OpenClaw));
+}
+
+#[test]
+fn provider_context_changes_event_hash() {
+    let mut without_provider = TrustLayer::new(default_policy()).expect("policy should be valid");
+    let mut with_provider = TrustLayer::new(default_policy()).expect("policy should be valid");
+
+    let base = event(
+        "evt-provider-hash",
+        1,
+        1_700_000_000,
+        EvidenceKind::ManualCredit,
+        20,
+        10_000,
+    );
+
+    let no_provider_receipt = without_provider
+        .apply_event("agent-alpha", base.clone())
+        .expect("event without provider should apply");
+
+    let provider_receipt = with_provider
+        .apply_event(
+            "agent-alpha",
+            base.with_context(EventContext {
+                provider: Some(TrustProvider::NanoClaw),
+                ..EventContext::default()
+            }),
+        )
+        .expect("event with provider should apply");
+
+    assert_ne!(no_provider_receipt.event_hash, provider_receipt.event_hash);
 }
 
 #[test]

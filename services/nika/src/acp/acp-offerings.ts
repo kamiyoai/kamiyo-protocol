@@ -7,7 +7,14 @@ import { generateNikaReplyPack } from './generate-reply-pack';
 import { generateNikaResearchBrief, type ResearchBriefFormat } from './generate-research-brief';
 import { generateNikaThread } from './generate-thread';
 import { generateNikaTweet } from './generate-tweet';
-import { basicSafetyCheck, callNikaLlm, hasEmoji, LONGFORM_SYSTEM_PROMPT } from './utils';
+import {
+  basicSafetyCheck,
+  callNikaLlm,
+  hasAnyNikaLlmProvider,
+  hasEmoji,
+  LONGFORM_SYSTEM_PROMPT,
+  NIKA_LLM_PROVIDER_REQUIREMENTS,
+} from './utils';
 
 export type Deliverable = string | { type: string; value: unknown };
 
@@ -28,7 +35,7 @@ export interface OfferingHandlers<TRequest> {
 }
 
 function hasAnyLlmKey(): boolean {
-  return !!(process.env.OPENAI_API_KEY?.trim() || process.env.ANTHROPIC_API_KEY?.trim());
+  return hasAnyNikaLlmProvider();
 }
 
 function normalizeZodError(err: z.ZodError): string {
@@ -124,7 +131,9 @@ const MatchmakerRequest = z
   .passthrough();
 
 function parseOrReject<T>(schema: z.ZodSchema<T>, request: unknown): { ok: true; request: T } | { ok: false; reason: string } {
-  if (!hasAnyLlmKey()) return { ok: false, reason: 'Service unavailable (missing OPENAI_API_KEY or ANTHROPIC_API_KEY).' };
+  if (!hasAnyLlmKey()) {
+    return { ok: false, reason: `Service unavailable (missing ${NIKA_LLM_PROVIDER_REQUIREMENTS}).` };
+  }
   const res = schema.safeParse(request);
   if (!res.success) return { ok: false, reason: normalizeZodError(res.error) };
   return { ok: true, request: res.data };
