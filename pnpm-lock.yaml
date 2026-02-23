@@ -2281,7 +2281,7 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  services/nika:
+  services/kyoshin:
     dependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.31

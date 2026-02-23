@@ -15,7 +15,7 @@ Core runtime paths for Kyoshin, swarm/sub-agent execution, and X posting are now
 
 ## Medium Priority (P2 - Fix Soon After Launch)
 - [ ] OpenClaw runtime scripts (`ops/openclaw/*.py`, `ops/openclaw/*.sh`) still rely on smoke tests only | Impact: regression risk in control-loop behavior | Fix: add deterministic unit tests for parsing/scoring/guards and loop integration contract tests.
-- [ ] X posting flows span multiple services (`services/api`, `services/nika`) with independent schedules | Impact: policy drift risk between operators | Fix: add shared posting policy module + single source for cadence/guardrails.
+- [ ] X posting flows span multiple services (`services/api`, `services/kyoshin`) with independent schedules | Impact: policy drift risk between operators | Fix: add shared posting policy module + single source for cadence/guardrails.
 
 ## Low Priority (P3 - Technical Debt)
 - [ ] Add static typing/contract validation for generated JSON artifacts under `~/.openclaw/workspace/runtime/*` | Impact: malformed artifact handling is permissive | Fix: add schema validation before consumption.
@@ -38,7 +38,7 @@ Core runtime paths for Kyoshin, swarm/sub-agent execution, and X posting are now
 - Remaining gap: no SLO alerting on learnings append failure rate.
 
 ## Recommended Architecture Changes
-- Unify X posting policy/cadence into shared library consumed by both `services/api` and `services/nika`.
+- Unify X posting policy/cadence into shared library consumed by both `services/api` and `services/kyoshin`.
 - Introduce schema contracts (zod/jsonschema) for all OpenClaw runtime JSON artifacts.
 - Add explicit lock/leader election if more than one worker process is expected for Kyoshin posting.
 
@@ -58,7 +58,7 @@ Core runtime paths for Kyoshin, swarm/sub-agent execution, and X posting are now
 
 ## Verification
 - `pnpm --filter kamiyo-companion run build` passed.
-- `pnpm --filter @kamiyo/nika run build` and `pnpm --filter @kamiyo/nika run test` passed.
+- `pnpm --filter @kamiyo/kyoshin run build` and `pnpm --filter @kamiyo/kyoshin run test` passed.
 - `pnpm --filter @kamiyo/kamiyo-operator run build` and `pnpm --filter @kamiyo/kamiyo-operator run test` passed.
 - `pnpm run operator-log:validate` passed.
 - `python3 -m py_compile` passed for updated OpenClaw scripts.

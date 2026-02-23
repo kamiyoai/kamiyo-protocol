@@ -5,7 +5,7 @@
 - Hosted MCP API server (`services/api/src/mcp/*`)
 - Local Claude MCP server (`packages/kamiyo-mcp/src/index.ts`)
 - Meishi MCP server (`packages/kamiyo-meishi-mcp/src/*`)
-- Nika Claude MCP wrappers (`services/nika/src/x-mcp-server.ts`, `services/nika/src/protocol-tools-mcp.ts`)  
+- Kyoshin Claude MCP wrappers (`services/kyoshin/src/x-mcp-server.ts`, `services/kyoshin/src/protocol-tools-mcp.ts`)  
 **Verdict**: SHIP WITH FIXES
 
 ## Executive Summary
@@ -35,7 +35,7 @@ Core auth/session hardening for hosted MCP is in place, but there were still rel
 
 - [ ] Move in-memory rate-limit/session maps to shared storage where horizontal scale is required.
 - [ ] Add integration tests for hosted streamable MCP session lifecycle (init/reuse/delete/SSE paths).
-- [ ] Add focused tests for Nika image path timeout and payload guards.
+- [ ] Add focused tests for Kyoshin image path timeout and payload guards.
 
 ## Security Assessment
 
@@ -57,6 +57,6 @@ Residual:
 - Cleanup+hardening: `packages/kamiyo-meishi-mcp/src/index.ts`
 - Cleanup+hardening: `packages/kamiyo-meishi-mcp/src/tools.ts`
 - Cleanup+hardening: `packages/kamiyo-mcp/src/index.ts`
-- Hardened: `services/nika/src/x-mcp-server.ts`
-- Cleanup: `services/nika/src/protocol-tools-mcp.ts`
+- Hardened: `services/kyoshin/src/x-mcp-server.ts`
+- Cleanup: `services/kyoshin/src/protocol-tools-mcp.ts`
 
