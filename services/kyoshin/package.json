@@ -1,34 +1,32 @@
 {
   "name": "@kamiyo/kyoshin",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Kyoshin (二化) - AI agent operating on X/Twitter, powered by KAMIYO protocol",
+  "type": "module",
+  "description": "Kyoshin cloud execution runtime: swarm job sourcing, profitability-gated execution, and SOL routing to staking.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "tsx --test src/**/*.test.ts",
+    "test:watch": "tsx --test --watch src/**/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.31",
-    "@anthropic-ai/sdk": "^0.77.0",
-    "@kamiyo/agents": "workspace:*",
-    "@kamiyo/agent-paranet": "workspace:*",
-    "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/x402-client": "workspace:*",
+    "@meteora-ag/dynamic-fee-sharing-sdk": "^1.0.6",
+    "@solana/web3.js": "^1.98.0",
+    "better-sqlite3": "^11.0.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "prom-client": "^15.1.0",
-    "redis": "^4.7.0",
-    "socket.io-client": "^4.8.1",
-    "twitter-api-v2": "^1.19.0",
-    "zod": "^4.0.0"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.0"
+    "typescript": "^5.7.2"
   }
 }
