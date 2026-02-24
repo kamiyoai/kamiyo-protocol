@@ -65,7 +65,7 @@ const STAGE_CAPS: Record<ExecutionStage, StageCaps> = {
   canary_2: {
     dailyCapSol: 0.05,
     perTxCapSol: 0.01,
-    maxTxPerDay: 10,
+    maxTxPerDay: 60,
     swarmJobExecutionsPerTick: 1,
     minMarginSol: 0.0004,
     allowSwarmExecution: true,
