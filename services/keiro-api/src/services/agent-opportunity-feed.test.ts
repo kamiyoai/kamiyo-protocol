@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { agentService } from './agents.js';
 import { agentOpportunityFeedService } from './agent-opportunity-feed.js';
 import { resetPolymarketStateForTests, setPolymarketRunnerForTests } from './polymarket-cli.js';
+import { getMetricValueForTests, resetMetricsForTests } from './runtime-metrics.js';
 
 describe('agentOpportunityFeedService', () => {
   const wallet = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgCsU';
@@ -10,6 +11,7 @@ describe('agentOpportunityFeedService', () => {
   beforeEach(() => {
     agentOpportunityFeedService.resetForTests();
     agentOpportunityFeedService.setPersistenceForTests(false);
+    resetMetricsForTests();
 
     const existing = agentService.getByWallet(wallet);
     if (existing) {
@@ -25,6 +27,7 @@ describe('agentOpportunityFeedService', () => {
 
     agentOpportunityFeedService.resetForTests();
     resetPolymarketStateForTests();
+    resetMetricsForTests();
   });
 
   it('precomputes and stores opportunity snapshots', async () => {
@@ -64,6 +67,8 @@ describe('agentOpportunityFeedService', () => {
     expect(snapshot?.marketUniverseSize).toBe(2);
     expect(snapshot?.opportunities.length).toBe(1);
     expect(snapshot?.opportunities[0].market.id).toBe('m1');
+    expect(getMetricValueForTests('agent_opportunity_refresh_total', { scope: 'all', status: 'ok' })).toBe(1);
+    expect(getMetricValueForTests('agent_opportunity_last_refresh_success_timestamp_seconds')).toBeGreaterThan(0);
   });
 
   it('refreshes a single agent snapshot on demand', async () => {
@@ -88,5 +93,22 @@ describe('agentOpportunityFeedService', () => {
     expect(snapshot).not.toBeNull();
     expect(snapshot?.opportunities.length).toBe(1);
     expect(snapshot?.opportunities[0].market.id).toBe('m3');
+    expect(getMetricValueForTests('agent_opportunity_refresh_total', { scope: 'single', status: 'ok' })).toBe(1);
+  });
+
+  it('records refresh failures in metrics', async () => {
+    agentService.create({
+      walletAddress: wallet,
+      name: 'Failing Agent',
+      personality: 'balanced',
+      skills: ['crypto research'],
+    });
+
+    setPolymarketRunnerForTests(async () => {
+      throw new Error('simulated refresh failure');
+    });
+
+    await expect(agentOpportunityFeedService.refreshAll()).rejects.toThrow('simulated refresh failure');
+    expect(getMetricValueForTests('agent_opportunity_refresh_total', { scope: 'all', status: 'error' })).toBe(1);
   });
 });

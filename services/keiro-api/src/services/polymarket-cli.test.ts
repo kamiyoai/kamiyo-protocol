@@ -6,10 +6,12 @@ import {
   setPolymarketPolicyForTests,
   setPolymarketRunnerForTests,
 } from './polymarket-cli.js';
+import { getMetricValueForTests, resetMetricsForTests } from './runtime-metrics.js';
 
 describe('polymarketIntelService', () => {
   afterEach(() => {
     resetPolymarketStateForTests();
+    resetMetricsForTests();
   });
 
   it('normalizes list markets payload', async () => {
@@ -29,6 +31,8 @@ describe('polymarketIntelService', () => {
     expect(markets[0].id).toBe('mkt-1');
     expect(markets[0].volumeUsd).toBe(145200000);
     expect(markets[0].liquidityUsd).toBe(1200000);
+    expect(getMetricValueForTests('polymarket_cli_requests_total')).toBe(1);
+    expect(getMetricValueForTests('polymarket_cli_cache_misses_total')).toBe(1);
   });
 
   it('serves stale cache when backend fails after ttl', async () => {
@@ -66,6 +70,8 @@ describe('polymarketIntelService', () => {
     expect(second.length).toBe(1);
     expect(second[0].id).toBe('mkt-1');
     expect(calls).toBe(2);
+    expect(getMetricValueForTests('polymarket_cli_stale_fallback_total')).toBe(1);
+    expect(getMetricValueForTests('polymarket_cli_cache_hits_total', { state: 'stale' })).toBe(1);
   });
 
   it('opens circuit breaker after threshold and short-circuits calls', async () => {
@@ -91,10 +97,13 @@ describe('polymarketIntelService', () => {
       'polymarket-cli circuit breaker is open'
     );
     expect(calls).toBe(2);
+    expect(getMetricValueForTests('polymarket_circuit_breaker_open_total')).toBe(1);
+    expect(getMetricValueForTests('polymarket_circuit_breaker_open')).toBe(1);
 
     now += 1_001;
     await expect(polymarketIntelService.status()).rejects.toThrow('boom');
     expect(calls).toBe(3);
+    expect(getMetricValueForTests('polymarket_circuit_breaker_open')).toBe(0);
   });
 
   it('scores opportunities by skill overlap', () => {

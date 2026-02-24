@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { agentService } from './agents.js';
 import { polymarketIntelService, type AgentOpportunity } from './polymarket-cli.js';
+import { incMetric, observeDurationMs, setMetric } from './runtime-metrics.js';
 
 const DEFAULT_REFRESH_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_MARKET_FETCH_LIMIT = 40;
@@ -158,28 +159,59 @@ export const agentOpportunityFeedService = {
   async refreshAll(): Promise<number> {
     if (refreshInFlight) return refreshInFlight;
 
-    refreshInFlight = refreshAllInternal().finally(() => {
-      refreshInFlight = null;
-    });
+    const startedAtMs = Date.now();
+    refreshInFlight = refreshAllInternal()
+      .then((updatedAgents) => {
+        observeDurationMs('agent_opportunity_refresh_duration_ms', Date.now() - startedAtMs, {
+          scope: 'all',
+        });
+        incMetric('agent_opportunity_refresh_total', 1, { scope: 'all', status: 'ok' });
+        setMetric('agent_opportunity_last_refresh_success_timestamp_seconds', Date.now() / 1000);
+        return updatedAgents;
+      })
+      .catch((error) => {
+        observeDurationMs('agent_opportunity_refresh_duration_ms', Date.now() - startedAtMs, {
+          scope: 'all',
+        });
+        incMetric('agent_opportunity_refresh_total', 1, { scope: 'all', status: 'error' });
+        throw error;
+      })
+      .finally(() => {
+        refreshInFlight = null;
+      });
 
     return refreshInFlight;
   },
 
   async refreshAgent(agentId: string): Promise<AgentOpportunitySnapshot | null> {
+    const startedAtMs = Date.now();
     loadSnapshotsFromDisk();
 
     const agent = agentService.getById(agentId);
     if (!agent || !agent.isActive) return null;
 
-    const markets = await polymarketIntelService.listMarkets({
-      active: true,
-      limit: marketFetchLimit,
-    });
+    try {
+      const markets = await polymarketIntelService.listMarkets({
+        active: true,
+        limit: marketFetchLimit,
+      });
 
-    const snapshot = computeSnapshot(agent.id, agent.skills, markets);
-    snapshots.set(agent.id, snapshot);
-    persistSnapshotsToDisk();
-    return snapshot;
+      const snapshot = computeSnapshot(agent.id, agent.skills, markets);
+      snapshots.set(agent.id, snapshot);
+      persistSnapshotsToDisk();
+      observeDurationMs('agent_opportunity_refresh_duration_ms', Date.now() - startedAtMs, {
+        scope: 'single',
+      });
+      incMetric('agent_opportunity_refresh_total', 1, { scope: 'single', status: 'ok' });
+      setMetric('agent_opportunity_last_refresh_success_timestamp_seconds', Date.now() / 1000);
+      return snapshot;
+    } catch (error) {
+      observeDurationMs('agent_opportunity_refresh_duration_ms', Date.now() - startedAtMs, {
+        scope: 'single',
+      });
+      incMetric('agent_opportunity_refresh_total', 1, { scope: 'single', status: 'error' });
+      throw error;
+    }
   },
 
   getSnapshot(agentId: string): AgentOpportunitySnapshot | null {

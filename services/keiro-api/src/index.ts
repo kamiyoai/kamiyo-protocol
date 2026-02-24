@@ -14,6 +14,7 @@ import { meishiRouter } from './routes/meishi.js';
 import { receiptsRouter } from './routes/receipts.js';
 import { receiptService } from './services/receipts.js';
 import { agentOpportunityFeedService } from './services/agent-opportunity-feed.js';
+import { renderPrometheusMetrics } from './services/runtime-metrics.js';
 
 const app = new Hono();
 
@@ -128,6 +129,20 @@ app.get('/', (c) =>
 app.get('/health', (c) => {
   c.header('cache-control', 'no-store');
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/metrics', (c) => {
+  const token = process.env.METRICS_BEARER_TOKEN;
+  if (token) {
+    const authHeader = c.req.header('Authorization') || '';
+    if (authHeader !== `Bearer ${token}`) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+  }
+
+  c.header('cache-control', 'no-store');
+  c.header('content-type', 'text/plain; version=0.0.4');
+  return c.text(renderPrometheusMetrics());
 });
 
 app.route('/api/agents', agentsRouter);

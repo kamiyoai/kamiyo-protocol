@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { incMetric, observeDurationMs, setMetric } from './runtime-metrics.js';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_BUFFER_BYTES = 2_000_000;
@@ -151,6 +152,7 @@ function circuitIsOpen(nowMs: number): boolean {
   if (nowMs - circuitBreakerState.openedAtMs >= policy.breakerCooldownMs) {
     circuitBreakerState.openedAtMs = null;
     circuitBreakerState.consecutiveFailures = 0;
+    setMetric('polymarket_circuit_breaker_open', 0);
     return false;
   }
 
@@ -160,12 +162,18 @@ function circuitIsOpen(nowMs: number): boolean {
 function recordSuccess(): void {
   circuitBreakerState.consecutiveFailures = 0;
   circuitBreakerState.openedAtMs = null;
+  setMetric('polymarket_circuit_breaker_open', 0);
 }
 
 function recordFailure(nowMs: number): void {
   circuitBreakerState.consecutiveFailures += 1;
-  if (circuitBreakerState.consecutiveFailures >= policy.breakerFailureThreshold) {
+  if (
+    circuitBreakerState.consecutiveFailures >= policy.breakerFailureThreshold
+    && circuitBreakerState.openedAtMs === null
+  ) {
     circuitBreakerState.openedAtMs = nowMs;
+    setMetric('polymarket_circuit_breaker_open', 1);
+    incMetric('polymarket_circuit_breaker_open_total');
   }
 }
 
@@ -326,33 +334,53 @@ async function runWithPolicy(
   const nowMs = nowProvider();
   const key = cacheKey(args);
 
+  incMetric('polymarket_cli_requests_total');
   pruneCache(nowMs);
 
   if (cacheable) {
     const warm = getCached(key, nowMs, false);
-    if (warm) return warm.value;
+    if (warm) {
+      incMetric('polymarket_cli_cache_hits_total', 1, { state: 'fresh' });
+      return warm.value;
+    }
   }
 
   if (circuitIsOpen(nowMs)) {
     if (cacheable) {
       const stale = getCached(key, nowMs, true);
-      if (stale) return stale.value;
+      if (stale) {
+        incMetric('polymarket_cli_cache_hits_total', 1, { state: 'stale' });
+        incMetric('polymarket_cli_stale_fallback_total');
+        return stale.value;
+      }
     }
     throw new Error('polymarket-cli circuit breaker is open');
   }
 
+  if (cacheable) {
+    incMetric('polymarket_cli_cache_misses_total');
+  }
+
+  const startedAtMs = nowProvider();
   try {
     const payload = await currentRunner()(args);
+    observeDurationMs('polymarket_cli_latency_ms', nowProvider() - startedAtMs);
     recordSuccess();
     if (cacheable) {
       setCached(key, payload, nowMs);
     }
     return payload;
   } catch (error) {
+    observeDurationMs('polymarket_cli_latency_ms', nowProvider() - startedAtMs);
+    incMetric('polymarket_cli_failures_total');
     recordFailure(nowMs);
     if (cacheable) {
       const stale = getCached(key, nowMs, true);
-      if (stale) return stale.value;
+      if (stale) {
+        incMetric('polymarket_cli_cache_hits_total', 1, { state: 'stale' });
+        incMetric('polymarket_cli_stale_fallback_total');
+        return stale.value;
+      }
     }
     throw error;
   }
@@ -390,6 +418,7 @@ export function resetPolymarketStateForTests(): void {
   responseCache.clear();
   circuitBreakerState.consecutiveFailures = 0;
   circuitBreakerState.openedAtMs = null;
+  setMetric('polymarket_circuit_breaker_open', 0);
   policy = { ...defaultPolicy };
   nowProvider = () => Date.now();
   runnerOverride = null;

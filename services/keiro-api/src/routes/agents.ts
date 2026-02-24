@@ -7,6 +7,7 @@ import { inferSkills } from '../services/skill-inference.js';
 import { polymarketIntelService } from '../services/polymarket-cli.js';
 import { agentOpportunityFeedService } from '../services/agent-opportunity-feed.js';
 import { verifyWalletSignature } from '../middleware/auth.js';
+import { incMetric } from '../services/runtime-metrics.js';
 
 export const agentsRouter = new Hono();
 
@@ -61,6 +62,7 @@ async function polymarketRateLimit(c: Context, next: Next): Promise<Response | v
   }
 
   if (entry.count >= POLYMARKET_RATE_LIMIT_MAX) {
+    incMetric('polymarket_route_rate_limit_total');
     c.header('Retry-After', String(Math.ceil((entry.resetAt - now) / 1000)));
     return c.json({ error: 'Polymarket route rate limit exceeded' }, 429);
   }
@@ -210,6 +212,9 @@ agentsRouter.get('/:id/polymarket/opportunities', async (c) => {
     }
 
     const opportunities = snapshotState.snapshot?.opportunities.slice(0, limit) ?? [];
+    if (snapshotState.snapshot && snapshotState.stale) {
+      incMetric('agent_opportunity_snapshot_stale_served_total');
+    }
 
     return c.json({
       source: 'polymarket-cli',

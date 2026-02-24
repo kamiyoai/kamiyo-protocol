@@ -89,6 +89,19 @@ All Polymarket-backed endpoints require signed Solana auth:
 - `AGENT_OPPORTUNITY_MARKET_LIMIT`: markets fetched per refresh cycle
 - `AGENT_OPPORTUNITY_PER_AGENT_LIMIT`: top opportunities stored per agent
 - `AGENT_OPPORTUNITY_STORE_PATH`: snapshot persistence file path
+- `METRICS_BEARER_TOKEN`: optional bearer token guard for `/metrics`
+
+## Observability Surface
+
+`GET /metrics` exposes Prometheus text metrics for:
+- adapter request/failure/cache/stale-fallback counters
+- circuit-breaker state and open transitions
+- adapter latency sum/count
+- route-level rate-limit blocks
+- snapshot refresh duration and success/error counters
+- last successful refresh timestamp and stale snapshot serves
+
+This endpoint is intended for infra scraping and alerting, not end-user traffic.
 
 ## Production Next Step
 
