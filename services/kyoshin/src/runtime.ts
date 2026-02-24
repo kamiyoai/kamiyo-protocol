@@ -1034,30 +1034,39 @@ export class KyoshinRuntime {
         x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
         x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
       });
+      const normalizedResult =
+        opportunity.source === 'near_market' && result.status === 'failed' && result.httpStatus === 409
+          ? {
+              ...result,
+              status: 'skipped' as const,
+              reason: 'near_market_bid_already_submitted',
+              error: undefined,
+            }
+          : result;
 
       this.db.addAction(params.tickId, 'swarm_execute_opportunity', {
         agentId: agent.id,
         opportunityId: assignment.opportunityId,
         source: opportunity.source,
-      }, result, result.error);
+      }, normalizedResult, normalizedResult.error);
 
       this.db.recordSwarmJob({
         id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
         agentId: agent.id,
         source: opportunity.source,
-        status: result.status,
-        url: result.endpoint,
-        paid: result.paid,
-        paymentNetwork: result.paymentNetwork,
-        paymentAmountUsd: result.paymentAmountUsd,
-        revenueSol: result.realizedRevenueSol,
-        revenueUsd: result.realizedRevenueUsd,
-        error: result.error ?? result.reason,
+        status: normalizedResult.status,
+        url: normalizedResult.endpoint,
+        paid: normalizedResult.paid,
+        paymentNetwork: normalizedResult.paymentNetwork,
+        paymentAmountUsd: normalizedResult.paymentAmountUsd,
+        revenueSol: normalizedResult.realizedRevenueSol,
+        revenueUsd: normalizedResult.realizedRevenueUsd,
+        error: normalizedResult.error ?? normalizedResult.reason,
         metadata: {
-          reason: result.reason,
-          paymentTransactionId: result.paymentTransactionId,
-          httpStatus: result.httpStatus,
-          output: result.output,
+          reason: normalizedResult.reason,
+          paymentTransactionId: normalizedResult.paymentTransactionId,
+          httpStatus: normalizedResult.httpStatus,
+          output: normalizedResult.output,
         },
       });
       if (intakeJobId) {
@@ -1065,29 +1074,29 @@ export class KyoshinRuntime {
           agentId: agent.id,
           opportunityId: assignment.opportunityId,
           source: opportunity.source,
-          status: result.status,
-          reason: result.reason,
-          error: result.error,
-          realizedRevenueSol: result.realizedRevenueSol,
-          realizedRevenueUsd: result.realizedRevenueUsd,
+          status: normalizedResult.status,
+          reason: normalizedResult.reason,
+          error: normalizedResult.error,
+          realizedRevenueSol: normalizedResult.realizedRevenueSol,
+          realizedRevenueUsd: normalizedResult.realizedRevenueUsd,
           intakeJobId,
         });
       }
 
       if (
         opportunity.source === 'near_market' &&
-        (result.status === 'executed' || result.httpStatus === 409)
+        (normalizedResult.status === 'executed' || normalizedResult.httpStatus === 409)
       ) {
         this.db.kvSet(`near_market_bid_submitted:${opportunity.id}`, new Date().toISOString());
       }
 
-      const paymentCostSol = result.paid && result.paymentAmountUsd
-        ? result.paymentAmountUsd / this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+      const paymentCostSol = normalizedResult.paid && normalizedResult.paymentAmountUsd
+        ? normalizedResult.paymentAmountUsd / this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
         : 0;
-      const feeCostSol = result.status === 'skipped' ? 0 : this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL;
+      const feeCostSol = normalizedResult.status === 'skipped' ? 0 : this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL;
       const totalCostSol = feeCostSol + paymentCostSol;
 
-      if (result.status !== 'skipped') {
+      if (normalizedResult.status !== 'skipped') {
         budget = {
           ...budget,
           ...applyBudget({
@@ -1098,16 +1107,16 @@ export class KyoshinRuntime {
         };
       }
 
-      if (result.realizedRevenueSol > 0) {
+      if (normalizedResult.realizedRevenueSol > 0) {
         this.db.recordRevenueEvent({
           id: `${params.tickId}:job:${agent.id}:${assignment.opportunityId}`,
           tickId: params.tickId,
           agentId: agent.id,
           lane: revenueLaneForOpportunitySource(opportunity.source),
           kind: 'job',
-          amountSol: result.realizedRevenueSol,
-          amountUsd: result.realizedRevenueUsd,
-          metadata: { source: opportunity.source, status: result.status },
+          amountSol: normalizedResult.realizedRevenueSol,
+          amountUsd: normalizedResult.realizedRevenueUsd,
+          metadata: { source: opportunity.source, status: normalizedResult.status },
         });
       }
 
@@ -1124,34 +1133,34 @@ export class KyoshinRuntime {
             source: opportunity.source,
             paymentCostSol,
             feeCostSol,
-            paid: result.paid,
+            paid: normalizedResult.paid,
           },
         });
       }
 
-      if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && result.status !== 'skipped') {
-        const marginSol = result.realizedRevenueSol - totalCostSol;
+      if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && normalizedResult.status !== 'skipped') {
+        const marginSol = normalizedResult.realizedRevenueSol - totalCostSol;
         const circuitUpdate = updateMarginCircuit({
           state: marginCircuitState,
           agentId: agent.id,
           source: opportunity.source,
           marginSol,
-          failed: result.status === 'failed',
-          error: result.error ?? result.reason,
+          failed: normalizedResult.status === 'failed',
+          error: normalizedResult.error ?? normalizedResult.reason,
           negativeMarginThreshold: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_NEG_MARGIN_STREAK,
           cooldownMinutes: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES,
         });
         marginCircuitState = circuitUpdate.state;
       }
 
-      if (result.status === 'executed') executed += 1;
-      if (result.status === 'failed') failed += 1;
-      if (result.status === 'skipped') skipped += 1;
+      if (normalizedResult.status === 'executed') executed += 1;
+      if (normalizedResult.status === 'failed') failed += 1;
+      if (normalizedResult.status === 'skipped') skipped += 1;
 
-      metric.jobExecuted = result.status === 'executed' || result.status === 'failed';
-      metric.jobSucceeded = result.status === 'executed';
-      metric.jobRevenueSol = result.realizedRevenueSol;
-      metric.hadError = result.status === 'failed';
+      metric.jobExecuted = normalizedResult.status === 'executed' || normalizedResult.status === 'failed';
+      metric.jobSucceeded = normalizedResult.status === 'executed';
+      metric.jobRevenueSol = normalizedResult.realizedRevenueSol;
+      metric.hadError = normalizedResult.status === 'failed';
 
       runtimeMetrics.push(metric);
       remainingExecutions -= 1;
