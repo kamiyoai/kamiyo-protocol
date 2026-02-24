@@ -435,6 +435,12 @@ export function openDb(dbPath: string) {
       persist();
     },
 
+    kvKeys: (prefix?: string): string[] => {
+      const keys = Object.keys(state.kv);
+      if (!prefix) return keys;
+      return keys.filter(key => key.startsWith(prefix));
+    },
+
     upsertIntakeJobs: (jobs: Array<{ id?: string; payload: IntakeJobPayload }>): {
       accepted: string[];
       updated: string[];

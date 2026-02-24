@@ -317,3 +317,111 @@ test('near market feed generates bid action with deferred settlement mode', asyn
     globalThis.fetch = originalFetch;
   }
 });
+
+test('excluded opportunity ids are not returned or assigned', async () => {
+  const feedPath = writeFeed({
+    opportunities: [
+      {
+        id: 'exclude-me',
+        source: 'direct',
+        title: 'Already bid',
+        summary: 'Skip this one',
+        confidence: 0.9,
+        roleHints: ['Execution'],
+        tags: [],
+        payoutUsd: 20,
+        url: 'https://example.com/exclude',
+      },
+      {
+        id: 'keep-me',
+        source: 'direct',
+        title: 'Fresh opportunity',
+        summary: 'Should remain',
+        confidence: 0.8,
+        roleHints: ['Execution'],
+        tags: [],
+        payoutUsd: 10,
+        url: 'https://example.com/keep',
+      },
+    ],
+  });
+
+  const intake = await collectSwarmOpportunities({
+    registry: createRegistry(),
+    feedPath,
+    feedUrls: [],
+    excludedOpportunityIds: ['exclude-me'],
+    leadConversionPolicy: {
+      enabled: false,
+      maxConversions: 0,
+      defaultPayoutUsd: 0,
+      requireEndpoint: true,
+      simulateOnly: false,
+      estimatedFeeSol: 0,
+      minConfidence: 0.6,
+      validateSourceContracts: true,
+    },
+    minRewardUsd: 0,
+    maxOpen: 10,
+    assignmentLimit: 2,
+    solPriceUsd: 100,
+    fetchTimeoutMs: 1000,
+  });
+
+  assert.equal(intake.opportunities.some(item => item.id === 'exclude-me'), false);
+  assert.equal(intake.assignments.some(item => item.opportunityId === 'exclude-me'), false);
+  assert.equal(intake.opportunities.some(item => item.id === 'keep-me'), true);
+});
+
+test('ranking prioritizes confidence before payout', async () => {
+  const feedPath = writeFeed({
+    opportunities: [
+      {
+        id: 'high-payout-low-confidence',
+        source: 'direct',
+        title: 'Big reward uncertain job',
+        summary: 'Likely low acceptance',
+        confidence: 0.2,
+        roleHints: ['Execution'],
+        tags: [],
+        payoutUsd: 100,
+        url: 'https://example.com/high-payout',
+      },
+      {
+        id: 'high-confidence-lower-payout',
+        source: 'direct',
+        title: 'Smaller reward reliable job',
+        summary: 'Higher quality signal',
+        confidence: 0.9,
+        roleHints: ['Execution'],
+        tags: [],
+        payoutUsd: 10,
+        url: 'https://example.com/high-confidence',
+      },
+    ],
+  });
+
+  const intake = await collectSwarmOpportunities({
+    registry: createRegistry(),
+    feedPath,
+    feedUrls: [],
+    leadConversionPolicy: {
+      enabled: false,
+      maxConversions: 0,
+      defaultPayoutUsd: 0,
+      requireEndpoint: true,
+      simulateOnly: false,
+      estimatedFeeSol: 0,
+      minConfidence: 0.6,
+      validateSourceContracts: true,
+    },
+    minRewardUsd: 0,
+    maxOpen: 1,
+    assignmentLimit: 1,
+    solPriceUsd: 100,
+    fetchTimeoutMs: 1000,
+  });
+
+  assert.equal(intake.opportunities.length, 1);
+  assert.equal(intake.opportunities[0]?.id, 'high-confidence-lower-payout');
+});

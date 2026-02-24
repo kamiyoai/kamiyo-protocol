@@ -23,6 +23,13 @@ export type NearMarketAcceptedBid = {
   amountNear: number | null;
 };
 
+export type NearMarketTrackedBid = {
+  bidId: string;
+  jobId: string;
+  status: string;
+  amountNear: number | null;
+};
+
 export type NearMarketAssignment = {
   assignmentId: string;
   status: string;
@@ -253,6 +260,34 @@ export async function listNearMarketAcceptedBids(params: {
     timeoutMs: params.timeoutMs,
   });
   return parseAcceptedBids(payload);
+}
+
+export async function listNearMarketTrackedBids(params: {
+  baseUrl: string;
+  apiKey: string;
+  limit: number;
+  timeoutMs: number;
+  statuses?: string[];
+}): Promise<NearMarketTrackedBid[]> {
+  const payload = await fetchJson({
+    url: `${params.baseUrl}/v1/agents/me/bids?limit=${Math.max(1, Math.min(300, params.limit))}`,
+    apiKey: params.apiKey,
+    timeoutMs: params.timeoutMs,
+  });
+  const statusFilter = new Set((params.statuses ?? []).map(status => status.toLowerCase()).filter(Boolean));
+  return parseJobBids(payload)
+    .filter(bid => Boolean(bid.jobId))
+    .filter(bid =>
+      statusFilter.size === 0
+        ? true
+        : statusFilter.has((bid.status ?? '').toLowerCase())
+    )
+    .map(bid => ({
+      bidId: bid.bidId,
+      jobId: bid.jobId as string,
+      status: bid.status ?? 'unknown',
+      amountNear: bid.amountNear ?? null,
+    }));
 }
 
 export async function fetchNearMarketJobDetail(params: {

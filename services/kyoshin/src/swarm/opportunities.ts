@@ -592,10 +592,10 @@ function filterRankedOpportunities(params: {
   });
 
   filtered.sort((a, b) => {
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
     const payoutA = a.payoutSolEstimate ?? -1;
     const payoutB = b.payoutSolEstimate ?? -1;
     if (payoutB !== payoutA) return payoutB - payoutA;
-    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
     return a.id.localeCompare(b.id);
   });
 
@@ -1216,6 +1216,7 @@ export async function collectSwarmOpportunities(params: {
   leadConversionPolicy?: LeadConversionPolicy;
   extraOpportunities?: SwarmOpportunity[];
   disabledSources?: SwarmOpportunitySource[];
+  excludedOpportunityIds?: string[];
   sourceQualityBySource?: Partial<Record<SwarmOpportunitySource, number>>;
   minRewardUsd: number;
   maxOpen: number;
@@ -1350,8 +1351,13 @@ export async function collectSwarmOpportunities(params: {
   const disabledSources = new Set(
     (params.disabledSources ?? []).map(source => source.toLowerCase())
   );
+  const excludedOpportunityIds = new Set(
+    (params.excludedOpportunityIds ?? []).map(id => id.trim()).filter(Boolean)
+  );
   const gated = merged.filter(
-    opportunity => !disabledSources.has(opportunity.source.toLowerCase())
+    opportunity =>
+      !disabledSources.has(opportunity.source.toLowerCase()) &&
+      !excludedOpportunityIds.has(opportunity.id)
   );
   const opportunities = filterRankedOpportunities({
     opportunities: gated,

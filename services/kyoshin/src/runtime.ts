@@ -31,6 +31,7 @@ import {
   collectNearMarketSettlements,
   fetchNearMarketJobDetail,
   listNearMarketAcceptedBids,
+  listNearMarketTrackedBids,
   submitNearMarketDeliverable,
 } from './swarm/nearMarket.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
@@ -518,6 +519,11 @@ export class KyoshinRuntime {
             })
           : [];
       const intakeOpportunities = intakeJobs.map(intakeJobToOpportunity);
+      let excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
+      if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
+        await this.maybeSyncNearMarketBidMarkers({ tickId, nowIso });
+        excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
+      }
 
       if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED || intakeOpportunities.length > 0) {
         const marketplaceFeeds: MarketplaceFeedConfig[] = [];
@@ -590,6 +596,7 @@ export class KyoshinRuntime {
           extraOpportunities: intakeOpportunities,
           sourceQualityBySource,
           disabledSources,
+          excludedOpportunityIds,
           minRewardUsd: this.runtimeEnv.KAMIYO_SWARM_JOB_MIN_REWARD_USD,
           maxOpen: this.runtimeEnv.KAMIYO_SWARM_JOB_MAX_OPEN,
           assignmentLimit: this.runtimeEnv.KAMIYO_SWARM_MISSIONS_PER_TICK,
@@ -1296,6 +1303,77 @@ export class KyoshinRuntime {
       sourceStats,
     });
     this.db.addAction(params.tickId, 'swarm_self_improve', { windowStartIso }, { decision, receiptPath });
+  }
+
+  private getNearMarketBidSubmittedOpportunityIds(): string[] {
+    const prefix = 'near_market_bid_submitted:';
+    return this.db
+      .kvKeys(prefix)
+      .map(key => key.slice(prefix.length).trim())
+      .filter(Boolean);
+  }
+
+  private async maybeSyncNearMarketBidMarkers(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+
+    const lastSyncedAt = this.db.kvGet('near_market_bid_sync_last_at');
+    if (lastSyncedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSyncedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    try {
+      const statuses = ['pending', 'accepted', 'submitted', 'in_progress'];
+      const bids = await listNearMarketTrackedBids({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses,
+      });
+
+      let marked = 0;
+      for (const bid of bids) {
+        const markerKey = `near_market_bid_submitted:${bid.jobId}`;
+        if (this.db.kvGet(markerKey)) continue;
+        this.db.kvSet(markerKey, params.nowIso);
+        marked += 1;
+      }
+
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_marker_sync',
+        {
+          statuses,
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        },
+        {
+          tracked: bids.length,
+          marked,
+        }
+      );
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_marker_sync',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
+    this.db.kvSet('near_market_bid_sync_last_at', params.nowIso);
   }
 
   private async maybeFetchBerlinWeather(): Promise<{
