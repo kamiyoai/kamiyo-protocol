@@ -11,8 +11,32 @@ type NearMarketJob = {
 
 type NearMarketBid = {
   bidId: string;
+  jobId?: string;
+  status?: string;
   bidderAgentId?: string;
   amountNear?: number;
+};
+
+export type NearMarketAcceptedBid = {
+  bidId: string;
+  jobId: string;
+  amountNear: number | null;
+};
+
+export type NearMarketAssignment = {
+  assignmentId: string;
+  status: string;
+  deliverableUrl?: string;
+  deliverableHash?: string;
+};
+
+export type NearMarketJobDetail = {
+  jobId: string;
+  title: string;
+  description: string;
+  status: string;
+  myAssignments: NearMarketAssignment[];
+  raw: Record<string, unknown>;
 };
 
 export type NearMarketSettlement = {
@@ -61,9 +85,7 @@ async function fetchJson(params: {
       method: 'GET',
       headers: {
         accept: 'application/json',
-        authorization: /^bearer\s+/i.test(params.apiKey)
-          ? params.apiKey
-          : `Bearer ${params.apiKey}`,
+        authorization: /^bearer\s+/i.test(params.apiKey) ? params.apiKey : `Bearer ${params.apiKey}`,
       },
       signal: controller.signal,
     });
@@ -73,6 +95,47 @@ async function fetchJson(params: {
     }
 
     return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function postJson(params: {
+  url: string;
+  apiKey: string;
+  timeoutMs: number;
+  body: unknown;
+}): Promise<{ status: number; payload: unknown }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), params.timeoutMs);
+
+  try {
+    const response = await fetch(params.url, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        authorization: /^bearer\s+/i.test(params.apiKey) ? params.apiKey : `Bearer ${params.apiKey}`,
+      },
+      body: JSON.stringify(params.body),
+      signal: controller.signal,
+    });
+
+    const text = await response.text();
+    let payload: unknown = null;
+    if (text.trim()) {
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        payload = { text };
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return { status: response.status, payload };
   } finally {
     clearTimeout(timer);
   }
@@ -121,12 +184,108 @@ function parseJobBids(payload: unknown): NearMarketBid[] {
     if (!bidId) continue;
     bids.push({
       bidId,
+      jobId: asString(row.job_id) ?? asString(row.jobId),
+      status: asString(row.status),
       bidderAgentId: asString(row.bidder_agent_id) ?? asString(row.bidderAgentId),
       amountNear: asNumber(row.amount),
     });
   }
 
   return bids;
+}
+
+function parseAcceptedBids(payload: unknown): NearMarketAcceptedBid[] {
+  return parseJobBids(payload)
+    .filter(bid => bid.status === 'accepted' && bid.jobId)
+    .map(bid => ({
+      bidId: bid.bidId,
+      jobId: bid.jobId as string,
+      amountNear: bid.amountNear ?? null,
+    }));
+}
+
+function parseJobDetail(payload: unknown): NearMarketJobDetail | null {
+  const row = asRecord(payload);
+  if (!row) return null;
+  const jobId = asString(row.job_id) ?? asString(row.jobId);
+  if (!jobId) return null;
+
+  const assignmentsRaw = Array.isArray(row.my_assignments)
+    ? row.my_assignments
+    : Array.isArray(row.myAssignments)
+      ? row.myAssignments
+      : [];
+  const myAssignments: NearMarketAssignment[] = [];
+  for (const item of assignmentsRaw) {
+    const assignment = asRecord(item);
+    if (!assignment) continue;
+    const assignmentId =
+      asString(assignment.assignment_id) ?? asString(assignment.assignmentId) ?? '';
+    const status = asString(assignment.status) ?? 'unknown';
+    if (!assignmentId) continue;
+    myAssignments.push({
+      assignmentId,
+      status,
+      deliverableUrl: asString(assignment.deliverable_url) ?? asString(assignment.deliverableUrl),
+      deliverableHash: asString(assignment.deliverable_hash) ?? asString(assignment.deliverableHash),
+    });
+  }
+
+  return {
+    jobId,
+    title: asString(row.title) ?? 'Untitled job',
+    description: asString(row.description) ?? '',
+    status: asString(row.status) ?? 'unknown',
+    myAssignments,
+    raw: row,
+  };
+}
+
+export async function listNearMarketAcceptedBids(params: {
+  baseUrl: string;
+  apiKey: string;
+  limit: number;
+  timeoutMs: number;
+}): Promise<NearMarketAcceptedBid[]> {
+  const payload = await fetchJson({
+    url: `${params.baseUrl}/v1/agents/me/bids?limit=${Math.max(1, Math.min(300, params.limit))}`,
+    apiKey: params.apiKey,
+    timeoutMs: params.timeoutMs,
+  });
+  return parseAcceptedBids(payload);
+}
+
+export async function fetchNearMarketJobDetail(params: {
+  baseUrl: string;
+  apiKey: string;
+  jobId: string;
+  timeoutMs: number;
+}): Promise<NearMarketJobDetail | null> {
+  const payload = await fetchJson({
+    url: `${params.baseUrl}/v1/jobs/${params.jobId}`,
+    apiKey: params.apiKey,
+    timeoutMs: params.timeoutMs,
+  });
+  return parseJobDetail(payload);
+}
+
+export async function submitNearMarketDeliverable(params: {
+  baseUrl: string;
+  apiKey: string;
+  jobId: string;
+  deliverableUrl: string;
+  deliverableHash: string;
+  timeoutMs: number;
+}): Promise<{ status: number; payload: unknown }> {
+  return postJson({
+    url: `${params.baseUrl}/v1/jobs/${params.jobId}/submit`,
+    apiKey: params.apiKey,
+    timeoutMs: params.timeoutMs,
+    body: {
+      deliverable_url: params.deliverableUrl,
+      deliverable_hash: params.deliverableHash,
+    },
+  });
 }
 
 async function resolveBidAmountNear(params: {

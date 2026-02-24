@@ -143,6 +143,12 @@ const envSchema = z.object({
     .transform(v => v === 'true'),
   KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(10),
   KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT: z.coerce.number().int().positive().default(50),
+  KAMIYO_SWARM_NEAR_MARKET_AUTO_SUBMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT: z.coerce.number().int().positive().default(6),
 
   KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
   KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),
