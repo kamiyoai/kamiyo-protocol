@@ -1146,7 +1146,25 @@ export class KyoshinRuntime {
       }
 
       if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && normalizedResult.status !== 'skipped') {
-        const marginSol = normalizedResult.realizedRevenueSol - totalCostSol;
+        const outputRecord =
+          normalizedResult.output &&
+          typeof normalizedResult.output === 'object' &&
+          !Array.isArray(normalizedResult.output)
+            ? (normalizedResult.output as Record<string, unknown>)
+            : null;
+        const settlementMode =
+          outputRecord && typeof outputRecord.settlementMode === 'string'
+            ? outputRecord.settlementMode
+            : undefined;
+        const deferredNearMarketExpectedRevenue =
+          opportunity.source === 'near_market' && settlementMode === 'deferred'
+            ? assignment.expectedRewardSol ?? opportunity.payoutSolEstimate ?? null
+            : null;
+        const realizedOrExpectedRevenue =
+          deferredNearMarketExpectedRevenue != null
+            ? deferredNearMarketExpectedRevenue
+            : normalizedResult.realizedRevenueSol;
+        const marginSol = realizedOrExpectedRevenue - totalCostSol;
         const circuitUpdate = updateMarginCircuit({
           state: marginCircuitState,
           agentId: agent.id,
@@ -1329,6 +1347,15 @@ export class KyoshinRuntime {
 
     for (const [key, entry] of Object.entries(state.entries)) {
       const openUntilMs = entry.openUntil ? Date.parse(entry.openUntil) : Number.NaN;
+      const staleDeferredNearMarketBlock =
+        entry.source === 'near_market' &&
+        entry.openUntil &&
+        Number.isFinite(openUntilMs) &&
+        openUntilMs > nowMs &&
+        entry.negativeMarginStreak === 0 &&
+        !entry.lastError &&
+        typeof entry.lastMarginSol === 'number' &&
+        entry.lastMarginSol < 0;
       const isTransientNearMarketBlock =
         entry.source === 'near_market' &&
         entry.openUntil &&
@@ -1336,7 +1363,7 @@ export class KyoshinRuntime {
         openUntilMs > nowMs &&
         entry.negativeMarginStreak === 0 &&
         entry.lastError === 'marketplace_apply_failed';
-      if (isTransientNearMarketBlock) {
+      if (isTransientNearMarketBlock || staleDeferredNearMarketBlock) {
         entries[key] = {
           ...entry,
           openUntil: undefined,
