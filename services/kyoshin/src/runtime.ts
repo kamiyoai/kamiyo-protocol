@@ -873,6 +873,27 @@ export class KyoshinRuntime {
           ? String((opportunity.metadata as Record<string, unknown>).intakeJobId)
           : undefined;
 
+      if (
+        opportunity.source === 'near_market' &&
+        this.db.kvGet(`near_market_bid_submitted:${opportunity.id}`)
+      ) {
+        skipped += 1;
+        this.db.recordSwarmJob({
+          id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
+          agentId: agent.id,
+          source: opportunity.source,
+          status: 'skipped',
+          url: opportunity.url,
+          paid: false,
+          revenueSol: 0,
+          revenueUsd: 0,
+          error: 'near_market_bid_already_submitted',
+          metadata: { reason: 'near_market_bid_already_submitted' },
+        });
+        runtimeMetrics.push(metric);
+        continue;
+      }
+
       const rollbackStatus = this.runtimeEnv.KAMIYO_SWARM_ROLLBACK_ENABLED
         ? isRollbackSourceDisabled({ state: rollbackState, source: opportunity.source })
         : { disabled: false };
@@ -1037,6 +1058,13 @@ export class KyoshinRuntime {
           realizedRevenueUsd: result.realizedRevenueUsd,
           intakeJobId,
         });
+      }
+
+      if (
+        opportunity.source === 'near_market' &&
+        (result.status === 'executed' || result.httpStatus === 409)
+      ) {
+        this.db.kvSet(`near_market_bid_submitted:${opportunity.id}`, new Date().toISOString());
       }
 
       const paymentCostSol = result.paid && result.paymentAmountUsd
