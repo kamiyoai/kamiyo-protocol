@@ -15,7 +15,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.32",
     "@solana/web3.js": "^1.95.8",
     "d3": "^7.8.5",
-    "next": "14.2.35",
+    "next": "16.1.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "snarkjs": "^0.7.5",
