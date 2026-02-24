@@ -1649,10 +1649,17 @@ export class KyoshinRuntime {
       for (const bid of bids) {
         const markerKey = `near_market_bid_submitted:${bid.jobId}`;
         const status = (bid.status ?? '').toLowerCase();
-        if (status === 'withdrawn' || status === 'rejected') {
+        if (status === 'rejected') {
           if (this.db.kvGet(markerKey)) {
             this.db.kvSet(markerKey, '');
             cleared += 1;
+          }
+          continue;
+        }
+        if (status === 'withdrawn') {
+          if (!this.db.kvGet(markerKey)) {
+            this.db.kvSet(markerKey, params.nowIso);
+            marked += 1;
           }
           continue;
         }
@@ -1764,7 +1771,6 @@ export class KyoshinRuntime {
           bidId: bid.bidId,
           timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
         });
-        this.db.kvSet(markerKey, '');
         this.db.kvSet(`near_market_bid_withdrawn:${bid.bidId}`, params.nowIso);
         withdrawn += 1;
       } catch (error) {
