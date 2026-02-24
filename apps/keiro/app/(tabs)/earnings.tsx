@@ -52,8 +52,9 @@ export default function EarningsScreen() {
       ]);
       setStats(statsData);
       setEarnings(earningsData);
-    } catch (error) {
-      console.error('Failed to fetch earnings:', error);
+    } catch {
+      setStats(null);
+      setEarnings([]);
     }
   }, [agent?.id]);
 

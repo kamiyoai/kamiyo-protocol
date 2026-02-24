@@ -2,7 +2,7 @@
   "expo": {
     "name": "KAMIYO",
     "slug": "kamiyo",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "kamiyo",
@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "ai.kamiyo.keiro"
@@ -24,6 +26,7 @@
         "backgroundColor": "#000000"
       },
       "package": "ai.kamiyo.keiro",
+      "versionCode": 2,
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -32,9 +35,18 @@
       "favicon": "./assets/favicon.png",
       "unstable_transformProfile": "default"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "74b276b1-3abd-4e06-b051-5a0ce26f72c9"
+      }
+    },
+    "owner": "kamiyo"
   }
 }

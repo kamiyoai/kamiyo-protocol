@@ -93,9 +93,8 @@ export default function CompleteScreen() {
           );
           updatedAgent.agentPda = result.agentPda;
           updatedAgent.onChainSignature = result.signature;
-        } catch (chainError) {
-          console.warn('On-chain registration failed:', chainError);
-          // Continue without on-chain — agent still works off-chain
+        } catch {
+          setStatusText('on-chain registration skipped');
         }
       }
 
@@ -107,8 +106,7 @@ export default function CompleteScreen() {
       successNotification();
       completeOnboarding();
       router.replace('/(tabs)');
-    } catch (error) {
-      console.warn('Failed to activate agent:', error);
+    } catch {
       useAgentStore.setState({
         agent: { ...agent, isActive: true },
       });
@@ -147,8 +145,8 @@ export default function CompleteScreen() {
       } else if (walletAddress) {
         useAgentStore.setState({ walletAddress });
       }
-    } catch (error) {
-      console.warn('Failed to create agent on server:', error);
+    } catch {
+      setStatusText('');
     } finally {
       setActivating(false);
       completeOnboarding();

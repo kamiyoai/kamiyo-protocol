@@ -17,7 +17,7 @@ const KAMIYO_DECIMALS = 6;
 const connection = getSolanaConnection();
 
 // Treasury wallet for hive pool funds
-const HIVE_TREASURY = new PublicKey('F7ZxVjxGvirpvkbcF8HUMofR81TkjHqKKS6ABxQYeEtV');
+const HIVE_TREASURY = new PublicKey('HKveYe5KZ7c617kd9tesk8Vwq1vinJ5nXZ8xdzSr15Et');
 const getTreasuryKeypair = (): Keypair | null => {
   const key = process.env.HIVE_TREASURY_PRIVATE_KEY;
   if (!key) return null;

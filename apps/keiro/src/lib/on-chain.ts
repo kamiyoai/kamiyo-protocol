@@ -7,7 +7,7 @@
  */
 
 import { Platform } from 'react-native';
-import { KAMIYO_PROGRAM_ID, SOLANA_RPC_URL } from './constants';
+import { KAMIYO_PROGRAM_ID, SOLANA_NETWORK, SOLANA_RPC_URL } from './constants';
 
 // --------------------------------------------------------------------------
 // Types for lazy-loaded Solana modules.  Narrow interfaces keep the web
@@ -123,11 +123,9 @@ let modulesLoaded = false;
 
 const MWA_IDENTITY = {
   name: 'KAMIYO',
-  uri: 'https://keiro.kamiyo.ai',
+  uri: 'https://kamiyo.ai',
   icon: 'favicon.ico',
 } as const;
-
-const SOLANA_NETWORK: 'devnet' | 'mainnet-beta' | 'testnet' = 'devnet';
 
 // Anchor discriminators (sha256("global:<name>")[0..8])
 const DISCRIMINATORS = {
@@ -170,8 +168,7 @@ async function loadModules(): Promise<boolean> {
 
     modulesLoaded = true;
     return true;
-  } catch (e) {
-    console.error('Failed to load Solana modules:', e);
+  } catch {
     return false;
   }
 }
@@ -515,11 +512,14 @@ export async function checkAgentOnChain(
 }
 
 /**
- * Get the Solana Explorer URL for a transaction on devnet.
+ * Get the Solana Explorer URL for a transaction.
  */
 export function getExplorerUrl(
   signature: string,
   type: 'tx' | 'address' = 'tx',
 ): string {
-  return `https://explorer.solana.com/${type}/${signature}?cluster=devnet`;
+  if (SOLANA_NETWORK === 'mainnet-beta') {
+    return `https://explorer.solana.com/${type}/${signature}`;
+  }
+  return `https://explorer.solana.com/${type}/${signature}?cluster=${SOLANA_NETWORK}`;
 }

@@ -72,10 +72,9 @@ let PublicKey: PublicKeyConstructor | null = null;
 let LAMPORTS_PER_SOL = 1_000_000_000;
 let transact: TransactFn | null = null;
 let getConnection: (() => SolanaConnection) | null = null;
-let APP_NAME = 'KAMIYO';
 let SOLANA_NETWORK: 'devnet' | 'mainnet-beta' | 'testnet' = 'devnet';
 
-const MWA_IDENTITY = { name: 'KAMIYO', uri: 'https://keiro.kamiyo.ai', icon: 'favicon.ico' };
+const MWA_IDENTITY = { name: 'KAMIYO', uri: 'https://kamiyo.ai', icon: 'favicon.ico' };
 
 async function loadSolanaModules(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
@@ -89,15 +88,13 @@ async function loadSolanaModules(): Promise<boolean> {
     transact = mwa.transact as TransactFn;
 
     const constants = await import('../lib/constants');
-    APP_NAME = constants.APP_NAME;
     SOLANA_NETWORK = constants.SOLANA_NETWORK as typeof SOLANA_NETWORK;
 
     const solana = await import('../lib/solana');
     getConnection = solana.getConnection as () => SolanaConnection;
 
     return true;
-  } catch (e) {
-    console.error('Failed to load Solana modules:', e);
+  } catch {
     return false;
   }
 }
@@ -168,8 +165,7 @@ export const useWalletStore = create<WalletState>()(
 
           void get().refreshBalance();
           return true;
-        } catch (error) {
-          console.error('Wallet connection failed:', error);
+        } catch {
           set({ connecting: false, connected: false, publicKey: null, publicKeyBase58: null });
           return false;
         }
@@ -199,8 +195,8 @@ export const useWalletStore = create<WalletState>()(
           const publicKey = new PublicKey(publicKeyBase58);
           const lamports = await getConnection().getBalance(publicKey);
           set({ balance: lamports / LAMPORTS_PER_SOL });
-        } catch (error) {
-          console.error('Failed to fetch balance:', error);
+        } catch {
+          return;
         }
       },
 
@@ -227,8 +223,7 @@ export const useWalletStore = create<WalletState>()(
           });
 
           return signedTransaction ?? null;
-        } catch (error) {
-          console.error('Transaction signing failed:', error);
+        } catch {
           return null;
         }
       },
@@ -255,8 +250,7 @@ export const useWalletStore = create<WalletState>()(
           });
 
           return signature ?? null;
-        } catch (error) {
-          console.error('Message signing failed:', error);
+        } catch {
           return null;
         }
       },

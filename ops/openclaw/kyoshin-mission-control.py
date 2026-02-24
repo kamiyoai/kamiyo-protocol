@@ -8,9 +8,11 @@ from typing import Any
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
+STATE_DIR = RUNTIME_DIR / 'state'
 QUEUE_PATH = RUNTIME_DIR / 'queue' / 'assignments.json'
 TOOL_HEALTH_PATH = RUNTIME_DIR / 'tools' / 'tool-health.json'
-GOVERNOR_PATH = RUNTIME_DIR / 'state' / 'swarm-governor.json'
+GOVERNOR_PATH = STATE_DIR / 'swarm-governor.json'
+KYOSHIN_RUNTIME_PATH = STATE_DIR / 'kyoshin-runtime.json'
 MISSION_PATH = WORKSPACE / 'MISSION_STATEMENT.md'
 GOALS_PATH = WORKSPACE / 'GOALS.md'
 OUTPUT_DIR = RUNTIME_DIR / 'mission-control'
@@ -25,7 +27,7 @@ def now_iso() -> str:
 
 
 def ensure_dirs() -> None:
-    for path in (WORKSPACE, RUNTIME_DIR, OUTPUT_DIR):
+    for path in (WORKSPACE, RUNTIME_DIR, STATE_DIR, OUTPUT_DIR):
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o700)
 
@@ -74,6 +76,10 @@ def run() -> int:
 
     mission = read_mission()
     goals = read_goal_lines()
+    kyoshin_runtime = read_json(KYOSHIN_RUNTIME_PATH, {'ok': False})
+    if not isinstance(kyoshin_runtime, dict):
+        kyoshin_runtime = {'ok': False}
+    runtime_summary = kyoshin_runtime.get('summary') if isinstance(kyoshin_runtime.get('summary'), dict) else {}
     assignments_payload = read_json(QUEUE_PATH, {'assignments': []})
     assignments = assignments_payload.get('assignments') if isinstance(assignments_payload, dict) else []
     if not isinstance(assignments, list):
@@ -93,7 +99,27 @@ def run() -> int:
     paused_agents = [row for row in decisions if isinstance(row, dict) and str(row.get('status', '')).lower() == 'paused']
 
     backlog: list[dict[str, Any]] = []
+    runtime_ok = bool(kyoshin_runtime.get('ok'))
+    runtime_last_tick_status = runtime_summary.get('lastTickStatus')
+    runtime_mode = runtime_summary.get('mode')
+    runtime_last_error = str(runtime_summary.get('lastError') or '').strip()
+    treasury_near_cap = bool(runtime_summary.get('treasuryNearCap'))
+
+    if not runtime_ok:
+        backlog.append(
+            {
+                'id': 'runtime-stabilize',
+                'type': 'stabilize_runtime',
+                'priority': 'high',
+                'title': 'Recover Kyoshin runtime health',
+                'objective': 'Restore runtime status/health endpoint and clear last tick errors before high-risk execution.',
+                'status': 'todo',
+            }
+        )
+
     for row in critical_failures:
+        if len(backlog) >= MAX_BACKLOG_ITEMS:
+            break
         backlog.append(
             {
                 'id': f"tool-{row.get('id', 'unknown')}",
@@ -121,11 +147,30 @@ def run() -> int:
             }
         )
 
+    if treasury_near_cap and len(backlog) < MAX_BACKLOG_ITEMS:
+        backlog.append(
+            {
+                'id': 'treasury-near-cap',
+                'type': 'treasury_safety',
+                'priority': 'high',
+                'title': 'Treasury near policy cap',
+                'objective': 'Reduce spend pressure and focus only on highest-margin opportunities until utilization falls below 90%.',
+                'status': 'todo',
+            }
+        )
+
     board = {
         'ok': True,
         'at': now_iso(),
         'missionStatement': mission,
         'goals': goals,
+        'runtimeOk': runtime_ok,
+        'runtimeMode': runtime_mode,
+        'runtimeLastTickStatus': runtime_last_tick_status,
+        'runtimeLastError': runtime_last_error,
+        'treasuryCapUsedRatio': runtime_summary.get('treasuryCapUsedRatio'),
+        'treasuryTxUsedRatio': runtime_summary.get('treasuryTxUsedRatio'),
+        'treasuryNearCap': treasury_near_cap,
         'assignmentQueue': len(queued),
         'criticalToolFailures': len(critical_failures),
         'pausedAgents': len(paused_agents),
@@ -147,6 +192,8 @@ def run() -> int:
                 'backlogCount': len(backlog),
                 'criticalToolFailures': len(critical_failures),
                 'pausedAgents': len(paused_agents),
+                'runtimeOk': runtime_ok,
+                'treasuryNearCap': treasury_near_cap,
             },
             ensure_ascii=True,
         )

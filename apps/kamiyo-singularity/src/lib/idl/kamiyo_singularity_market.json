@@ -1,0 +1,3083 @@
+{
+  "address": "98jqxMe88XGjXzCY3bwV1Kuqzj32fcwdhPZa193RUffQ",
+  "metadata": {
+    "name": "polybit_market",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "PolyBit Market Factory - Prediction market creation and resolution"
+  },
+  "instructions": [
+    {
+      "name": "approve_transaction",
+      "docs": [
+        "Approve a pending multisig transaction"
+      ],
+      "discriminator": [
+        224,
+        39,
+        88,
+        181,
+        36,
+        59,
+        155,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "approver",
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "transaction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103,
+                  95,
+                  116,
+                  120
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "transaction.nonce",
+                "account": "MultisigTransaction"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_market",
+      "docs": [
+        "Cancels a market (emergency only)"
+      ],
+      "discriminator": [
+        205,
+        121,
+        84,
+        210,
+        222,
+        71,
+        150,
+        11
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_winnings",
+      "docs": [
+        "Claims winnings after market resolution"
+      ],
+      "discriminator": [
+        161,
+        215,
+        24,
+        59,
+        14,
+        236,
+        242,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "yes_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  101,
+                  115,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "no_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_collateral",
+          "writable": true
+        },
+        {
+          "name": "user_yes_tokens",
+          "writable": true
+        },
+        {
+          "name": "user_no_tokens",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_market",
+      "docs": [
+        "Creates a new prediction market"
+      ],
+      "discriminator": [
+        103,
+        226,
+        97,
+        235,
+        200,
+        188,
+        251,
+        254
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oracle"
+        },
+        {
+          "name": "oracle_registry",
+          "docs": [
+            "Oracle registry for validation (required)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "market",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  97,
+                  114,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "market_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "yes_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  101,
+                  115,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "no_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "collateral_mint"
+        },
+        {
+          "name": "protocol_treasury"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "market_id",
+          "type": "string"
+        },
+        {
+          "name": "question",
+          "type": "string"
+        },
+        {
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "name": "category",
+          "type": "string"
+        },
+        {
+          "name": "resolution_deadline",
+          "type": "i64"
+        },
+        {
+          "name": "trading_end",
+          "type": "i64"
+        },
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "create_multisig",
+      "docs": [
+        "Create a new multisig for admin operations"
+      ],
+      "discriminator": [
+        148,
+        146,
+        240,
+        10,
+        226,
+        215,
+        167,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "signers",
+          "type": {
+            "vec": "pubkey"
+          }
+        },
+        {
+          "name": "threshold",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "execute_transaction",
+      "docs": [
+        "Execute an approved multisig transaction"
+      ],
+      "discriminator": [
+        231,
+        173,
+        49,
+        91,
+        235,
+        24,
+        68,
+        19
+      ],
+      "accounts": [
+        {
+          "name": "executor",
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "transaction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103,
+                  95,
+                  116,
+                  120
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "transaction.nonce",
+                "account": "MultisigTransaction"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "file_dispute",
+      "docs": [
+        "File a dispute against a market resolution"
+      ],
+      "discriminator": [
+        210,
+        63,
+        221,
+        114,
+        212,
+        97,
+        195,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "dispute",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  100,
+                  105,
+                  115,
+                  112,
+                  117,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "disputer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "reason_hash",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "finalize_dispute",
+      "docs": [
+        "Finalize dispute with oracle consensus"
+      ],
+      "discriminator": [
+        190,
+        211,
+        17,
+        122,
+        247,
+        157,
+        27,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "dispute",
+          "writable": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "oracle_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "disputer",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_oracle_registry",
+      "docs": [
+        "Initialize the oracle registry"
+      ],
+      "discriminator": [
+        190,
+        92,
+        228,
+        114,
+        56,
+        71,
+        101,
+        220
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "enforce_validation",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "manage_oracle",
+      "docs": [
+        "Add or remove an oracle from the registry"
+      ],
+      "discriminator": [
+        211,
+        143,
+        138,
+        5,
+        82,
+        84,
+        119,
+        165
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "oracle",
+          "type": "pubkey"
+        },
+        {
+          "name": "action",
+          "type": {
+            "defined": {
+              "name": "OracleAction"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "mint_outcome_tokens",
+      "docs": [
+        "Mints outcome tokens (YES/NO) in exchange for collateral"
+      ],
+      "discriminator": [
+        27,
+        243,
+        237,
+        46,
+        2,
+        226,
+        144,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "yes_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  101,
+                  115,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "no_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_collateral",
+          "writable": true
+        },
+        {
+          "name": "user_yes_tokens",
+          "writable": true
+        },
+        {
+          "name": "user_no_tokens",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "pause_market",
+      "docs": [
+        "Pauses trading on a market"
+      ],
+      "discriminator": [
+        216,
+        238,
+        4,
+        164,
+        65,
+        11,
+        162,
+        91
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "propose_transaction",
+      "docs": [
+        "Propose a new multisig transaction"
+      ],
+      "discriminator": [
+        35,
+        204,
+        169,
+        240,
+        74,
+        70,
+        31,
+        236
+      ],
+      "accounts": [
+        {
+          "name": "proposer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "multisig",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "transaction",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  117,
+                  108,
+                  116,
+                  105,
+                  115,
+                  105,
+                  103,
+                  95,
+                  116,
+                  120
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "multisig.nonce",
+                "account": "Multisig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "instruction_data",
+          "type": "bytes"
+        },
+        {
+          "name": "target",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "redeem_outcome_tokens",
+      "docs": [
+        "Redeems outcome tokens for collateral (before resolution)"
+      ],
+      "discriminator": [
+        170,
+        231,
+        168,
+        151,
+        230,
+        80,
+        206,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "yes_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  101,
+                  115,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "no_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_collateral",
+          "writable": true
+        },
+        {
+          "name": "user_yes_tokens",
+          "writable": true
+        },
+        {
+          "name": "user_no_tokens",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "refund_cancelled",
+      "docs": [
+        "Refunds collateral for cancelled markets (burns paired YES+NO tokens)"
+      ],
+      "discriminator": [
+        103,
+        244,
+        158,
+        83,
+        225,
+        80,
+        56,
+        62
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "yes_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  121,
+                  101,
+                  115,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "no_mint",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  110,
+                  111,
+                  95,
+                  109,
+                  105,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_collateral",
+          "writable": true
+        },
+        {
+          "name": "user_yes_tokens",
+          "writable": true
+        },
+        {
+          "name": "user_no_tokens",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "resolve_market",
+      "docs": [
+        "Resolves a market with the final outcome"
+      ],
+      "discriminator": [
+        155,
+        23,
+        80,
+        173,
+        46,
+        74,
+        23,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "oracle",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "outcome",
+          "type": {
+            "defined": {
+              "name": "Outcome"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "resume_market",
+      "docs": [
+        "Resumes trading on a paused market"
+      ],
+      "discriminator": [
+        198,
+        120,
+        104,
+        87,
+        44,
+        103,
+        108,
+        143
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_enforce_validation",
+      "docs": [
+        "Enable or disable oracle validation enforcement"
+      ],
+      "discriminator": [
+        185,
+        216,
+        205,
+        162,
+        18,
+        205,
+        210,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "enforce",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "submit_dispute_vote",
+      "docs": [
+        "Submit oracle vote on a dispute"
+      ],
+      "discriminator": [
+        49,
+        223,
+        61,
+        66,
+        152,
+        235,
+        72,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "dispute",
+          "writable": true
+        },
+        {
+          "name": "oracle_registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "oracle",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "outcome_vote",
+          "type": "u8"
+        },
+        {
+          "name": "confidence_score",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "update_registry_authority",
+      "docs": [
+        "Update the oracle registry authority"
+      ],
+      "discriminator": [
+        36,
+        103,
+        15,
+        149,
+        117,
+        134,
+        26,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101,
+                  95,
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "new_authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_fees",
+      "docs": [
+        "Withdraws accumulated fees with protocol/creator split"
+      ],
+      "discriminator": [
+        198,
+        212,
+        171,
+        109,
+        144,
+        215,
+        174,
+        89
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "docs": [
+            "Caller - must be either market authority (creator) or protocol treasury owner"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "docs": [
+            "Recipient account to receive fees"
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": [
+        {
+          "name": "recipient_type",
+          "type": {
+            "defined": {
+              "name": "FeeRecipient"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Dispute",
+      "discriminator": [
+        36,
+        49,
+        241,
+        67,
+        40,
+        36,
+        241,
+        74
+      ]
+    },
+    {
+      "name": "Market",
+      "discriminator": [
+        219,
+        190,
+        213,
+        55,
+        0,
+        227,
+        198,
+        154
+      ]
+    },
+    {
+      "name": "Multisig",
+      "discriminator": [
+        224,
+        116,
+        121,
+        186,
+        68,
+        161,
+        79,
+        236
+      ]
+    },
+    {
+      "name": "MultisigTransaction",
+      "discriminator": [
+        37,
+        242,
+        192,
+        200,
+        155,
+        205,
+        171,
+        82
+      ]
+    },
+    {
+      "name": "OracleRegistry",
+      "discriminator": [
+        94,
+        153,
+        19,
+        250,
+        94,
+        0,
+        12,
+        172
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CancelledMarketRefund",
+      "discriminator": [
+        76,
+        229,
+        47,
+        254,
+        9,
+        152,
+        137,
+        215
+      ]
+    },
+    {
+      "name": "EnforceValidationUpdated",
+      "discriminator": [
+        38,
+        247,
+        102,
+        126,
+        220,
+        178,
+        175,
+        39
+      ]
+    },
+    {
+      "name": "FeesWithdrawn",
+      "discriminator": [
+        234,
+        15,
+        0,
+        119,
+        148,
+        241,
+        40,
+        21
+      ]
+    },
+    {
+      "name": "MarketCancelled",
+      "discriminator": [
+        139,
+        163,
+        33,
+        168,
+        19,
+        180,
+        81,
+        170
+      ]
+    },
+    {
+      "name": "MarketCreated",
+      "discriminator": [
+        88,
+        184,
+        130,
+        231,
+        226,
+        84,
+        6,
+        58
+      ]
+    },
+    {
+      "name": "MarketPaused",
+      "discriminator": [
+        174,
+        108,
+        119,
+        17,
+        118,
+        97,
+        185,
+        4
+      ]
+    },
+    {
+      "name": "MarketResolved",
+      "discriminator": [
+        89,
+        67,
+        230,
+        95,
+        143,
+        106,
+        199,
+        202
+      ]
+    },
+    {
+      "name": "MarketResumed",
+      "discriminator": [
+        144,
+        13,
+        227,
+        141,
+        241,
+        104,
+        229,
+        55
+      ]
+    },
+    {
+      "name": "MultisigCreated",
+      "discriminator": [
+        94,
+        25,
+        238,
+        110,
+        95,
+        40,
+        251,
+        66
+      ]
+    },
+    {
+      "name": "OracleAdded",
+      "discriminator": [
+        48,
+        0,
+        207,
+        33,
+        20,
+        56,
+        215,
+        219
+      ]
+    },
+    {
+      "name": "OracleRegistryInitialized",
+      "discriminator": [
+        88,
+        111,
+        7,
+        92,
+        74,
+        14,
+        114,
+        205
+      ]
+    },
+    {
+      "name": "OracleRemoved",
+      "discriminator": [
+        62,
+        112,
+        125,
+        81,
+        128,
+        93,
+        194,
+        96
+      ]
+    },
+    {
+      "name": "OutcomeTokensMinted",
+      "discriminator": [
+        150,
+        95,
+        29,
+        223,
+        33,
+        115,
+        122,
+        97
+      ]
+    },
+    {
+      "name": "OutcomeTokensRedeemed",
+      "discriminator": [
+        35,
+        50,
+        102,
+        171,
+        79,
+        214,
+        67,
+        44
+      ]
+    },
+    {
+      "name": "RegistryAuthorityUpdated",
+      "discriminator": [
+        49,
+        49,
+        137,
+        63,
+        54,
+        195,
+        212,
+        154
+      ]
+    },
+    {
+      "name": "TransactionApproved",
+      "discriminator": [
+        3,
+        59,
+        65,
+        178,
+        78,
+        73,
+        58,
+        108
+      ]
+    },
+    {
+      "name": "TransactionExecuted",
+      "discriminator": [
+        211,
+        227,
+        168,
+        14,
+        32,
+        111,
+        189,
+        210
+      ]
+    },
+    {
+      "name": "TransactionProposed",
+      "discriminator": [
+        101,
+        172,
+        18,
+        160,
+        76,
+        105,
+        205,
+        171
+      ]
+    },
+    {
+      "name": "WinningsClaimed",
+      "discriminator": [
+        187,
+        184,
+        29,
+        196,
+        54,
+        117,
+        70,
+        150
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidThreshold",
+      "msg": "Invalid threshold configuration"
+    },
+    {
+      "code": 6001,
+      "name": "UnauthorizedSigner",
+      "msg": "Signer is not authorized"
+    },
+    {
+      "code": 6002,
+      "name": "AlreadyApproved",
+      "msg": "Signer has already approved"
+    },
+    {
+      "code": 6003,
+      "name": "ThresholdNotMet",
+      "msg": "Threshold not met"
+    },
+    {
+      "code": 6004,
+      "name": "AlreadyExecuted",
+      "msg": "Transaction already executed"
+    },
+    {
+      "code": 6005,
+      "name": "TransactionExpired",
+      "msg": "Transaction expired"
+    },
+    {
+      "code": 6006,
+      "name": "TooManySigners",
+      "msg": "Too many signers (max 10)"
+    },
+    {
+      "code": 6007,
+      "name": "DuplicateSigner",
+      "msg": "Duplicate signer"
+    },
+    {
+      "code": 6008,
+      "name": "NonceOverflow",
+      "msg": "Nonce overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "CancelledMarketRefund",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "refund_amount",
+            "type": "u64"
+          },
+          {
+            "name": "remaining_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Dispute",
+      "docs": [
+        "A dispute against a market resolution"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "docs": [
+              "Market being disputed"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "disputer",
+            "docs": [
+              "Who filed the dispute"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "original_oracle",
+            "docs": [
+              "Original oracle that resolved the market"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "original_outcome",
+            "docs": [
+              "Original resolved outcome (1 = Yes, 2 = No)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Dispute status"
+            ],
+            "type": {
+              "defined": {
+                "name": "DisputeStatus"
+              }
+            }
+          },
+          {
+            "name": "bond_amount",
+            "docs": [
+              "Bond amount locked"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "reason_hash",
+            "docs": [
+              "Dispute reason/evidence hash"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "oracle_submissions",
+            "docs": [
+              "Oracle submissions for this dispute"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "DisputeOracleSubmission"
+                }
+              }
+            }
+          },
+          {
+            "name": "consensus_outcome",
+            "docs": [
+              "Final consensus outcome (if resolved)"
+            ],
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "consensus_score",
+            "docs": [
+              "Final consensus score"
+            ],
+            "type": {
+              "option": "u8"
+            }
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Created timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "first_submission_at",
+            "docs": [
+              "First oracle submission timestamp (for reveal delay)"
+            ],
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "resolved_at",
+            "docs": [
+              "Resolution timestamp"
+            ],
+            "type": {
+              "option": "i64"
+            }
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DisputeOracleSubmission",
+      "docs": [
+        "Oracle submission for a dispute"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "docs": [
+              "Oracle that submitted"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome_vote",
+            "docs": [
+              "Outcome vote (1 = Yes, 2 = No, 3 = Invalid/Cancel)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "confidence_score",
+            "docs": [
+              "Confidence score (0-100)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "submitted_at",
+            "docs": [
+              "Submission timestamp"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DisputeStatus",
+      "docs": [
+        "Status of a dispute"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Voting"
+          },
+          {
+            "name": "Upheld"
+          },
+          {
+            "name": "Rejected"
+          },
+          {
+            "name": "Cancelled"
+          },
+          {
+            "name": "Expired"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EnforceValidationUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enforce",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeRecipient",
+      "docs": [
+        "Fee recipient type for split withdrawals"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Protocol"
+          },
+          {
+            "name": "Creator"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeesWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "recipient_type",
+            "type": {
+              "defined": {
+                "name": "FeeRecipient"
+              }
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fees_withdrawn",
+            "type": "u64"
+          },
+          {
+            "name": "creator_fees_withdrawn",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Market",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market_id",
+            "docs": [
+              "Unique market identifier"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "question",
+            "docs": [
+              "Market question/title"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "description",
+            "docs": [
+              "Market description"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "category",
+            "docs": [
+              "Market category"
+            ],
+            "type": "string"
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "Market creator/authority"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "docs": [
+              "Resolution oracle"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "yes_mint",
+            "docs": [
+              "YES outcome token mint"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "no_mint",
+            "docs": [
+              "NO outcome token mint"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "vault",
+            "docs": [
+              "Collateral vault"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "collateral_mint",
+            "docs": [
+              "Collateral mint (e.g., USDC)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "Market status"
+            ],
+            "type": {
+              "defined": {
+                "name": "MarketStatus"
+              }
+            }
+          },
+          {
+            "name": "resolution_deadline",
+            "docs": [
+              "Resolution deadline (Unix timestamp)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "trading_end",
+            "docs": [
+              "Trading end time (Unix timestamp)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "resolved_outcome",
+            "docs": [
+              "Resolved outcome (0 = unresolved, 1 = Yes, 2 = No)"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "total_collateral",
+            "docs": [
+              "Total collateral deposited"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_yes_supply",
+            "docs": [
+              "Total YES tokens minted"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "total_no_supply",
+            "docs": [
+              "Total NO tokens minted"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "fee_bps",
+            "docs": [
+              "Total fee in basis points (100 = 1%)"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "protocol_fee_share_bps",
+            "docs": [
+              "Protocol's share of fees in basis points (e.g., 2000 = 20% of total fee)",
+              "Remaining (10000 - protocol_fee_share_bps) goes to market creator"
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "protocol_treasury",
+            "docs": [
+              "Protocol treasury address for fee collection"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "accumulated_fees",
+            "docs": [
+              "Accumulated fees (total, before split)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "protocol_fees_withdrawn",
+            "docs": [
+              "Protocol fees already withdrawn"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "creator_fees_withdrawn",
+            "docs": [
+              "Creator fees already withdrawn"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "yes_mint_bump",
+            "docs": [
+              "YES mint bump"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "no_mint_bump",
+            "docs": [
+              "NO mint bump"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "docs": [
+              "Vault bump"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Creation timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "resolved_at",
+            "docs": [
+              "Resolution timestamp"
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "cancelled_at",
+            "type": "i64"
+          },
+          {
+            "name": "total_collateral_to_refund",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market_id",
+            "type": "string"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "question",
+            "type": "string"
+          },
+          {
+            "name": "resolution_deadline",
+            "type": "i64"
+          },
+          {
+            "name": "trading_end",
+            "type": "i64"
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketPaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "paused_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "outcome",
+            "type": {
+              "defined": {
+                "name": "Outcome"
+              }
+            }
+          },
+          {
+            "name": "resolved_at",
+            "type": "i64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketResumed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_status",
+            "type": {
+              "defined": {
+                "name": "MarketStatus"
+              }
+            }
+          },
+          {
+            "name": "resumed_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MarketStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Paused"
+          },
+          {
+            "name": "Closed"
+          },
+          {
+            "name": "Resolved"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Multisig",
+      "docs": [
+        "Multisig configuration for admin operations"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "signers",
+            "docs": [
+              "List of authorized signers"
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "threshold",
+            "docs": [
+              "Number of signatures required to execute"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Nonce for transaction uniqueness"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MultisigCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "multisig",
+            "type": "pubkey"
+          },
+          {
+            "name": "signers",
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MultisigTransaction",
+      "docs": [
+        "Pending multisig transaction"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "multisig",
+            "docs": [
+              "Associated multisig account"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "docs": [
+              "Transaction nonce (prevents replay)"
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "instruction_data",
+            "docs": [
+              "Instruction discriminator (identifies the action)"
+            ],
+            "type": "bytes"
+          },
+          {
+            "name": "target",
+            "docs": [
+              "Target account for the operation"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "approvers",
+            "docs": [
+              "Signers who have approved"
+            ],
+            "type": {
+              "vec": "pubkey"
+            }
+          },
+          {
+            "name": "executed",
+            "docs": [
+              "Whether transaction has been executed"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "docs": [
+              "Creation timestamp"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "docs": [
+              "Expiration timestamp (transactions expire after 7 days)"
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleAction",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Add"
+          },
+          {
+            "name": "Remove"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleAdded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_oracles",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleInfo",
+      "docs": [
+        "Oracle information with weight and status"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pubkey",
+            "docs": [
+              "Oracle public key"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "weight",
+            "docs": [
+              "Oracle weight for consensus (default 100)"
+            ],
+            "type": {
+              "option": "u16"
+            }
+          },
+          {
+            "name": "is_active",
+            "docs": [
+              "Whether the oracle is active"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "resolution_count",
+            "docs": [
+              "Total resolutions by this oracle"
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "dispute_count",
+            "docs": [
+              "Disputes against this oracle"
+            ],
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleRegistry",
+      "docs": [
+        "Oracle Registry - stores list of approved oracles for market resolution"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "docs": [
+              "Registry authority (can add/remove oracles)"
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "oracles",
+            "docs": [
+              "List of approved oracles with metadata"
+            ],
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "OracleInfo"
+                }
+              }
+            }
+          },
+          {
+            "name": "enforce_validation",
+            "docs": [
+              "Whether to enforce oracle validation (can be disabled for testing)"
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "Bump seed for PDA"
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleRegistryInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "enforce_validation",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OracleRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_oracles",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Outcome",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Yes"
+          },
+          {
+            "name": "No"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OutcomeTokensMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OutcomeTokensRedeemed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "net_amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_collateral",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegistryAuthorityUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "old_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "new_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransactionApproved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "transaction",
+            "type": "pubkey"
+          },
+          {
+            "name": "approver",
+            "type": "pubkey"
+          },
+          {
+            "name": "approvals",
+            "type": "u8"
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransactionExecuted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "transaction",
+            "type": "pubkey"
+          },
+          {
+            "name": "executor",
+            "type": "pubkey"
+          },
+          {
+            "name": "target",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransactionProposed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "multisig",
+            "type": "pubkey"
+          },
+          {
+            "name": "transaction",
+            "type": "pubkey"
+          },
+          {
+            "name": "proposer",
+            "type": "pubkey"
+          },
+          {
+            "name": "target",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "WinningsClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "winning_tokens_burned",
+            "type": "u64"
+          },
+          {
+            "name": "losing_tokens_burned",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "payout_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

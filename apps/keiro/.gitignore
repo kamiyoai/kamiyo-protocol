@@ -2,6 +2,7 @@
 .expo/
 dist/
 web-build/
+credentials.json
 
 # Native
 *.orig.*

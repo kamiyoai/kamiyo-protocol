@@ -40,13 +40,19 @@ def default_registry() -> dict[str, Any]:
     return {
         'version': 1,
         'tools': [
-            {'id': 'openclaw_cli', 'kind': 'command', 'target': 'openclaw', 'critical': True},
+            {'id': 'openclaw_cli', 'kind': 'command', 'target': 'openclaw', 'critical': False},
             {'id': 'jq_cli', 'kind': 'command', 'target': 'jq', 'critical': True},
             {'id': 'python3_cli', 'kind': 'command', 'target': 'python3', 'critical': True},
             {
                 'id': 'openclaw_gateway',
                 'kind': 'command',
                 'target': 'openclaw gateway health --json',
+                'critical': False,
+            },
+            {
+                'id': 'kyoshin_runtime_health',
+                'kind': 'http',
+                'target': 'http://127.0.0.1:4020/health',
                 'critical': True,
             },
         ],
@@ -135,7 +141,7 @@ def run_http(target: str, headers: dict[str, Any]) -> tuple[bool, str]:
     scheme = parsed.scheme.lower()
     if scheme not in {'https', 'http'}:
         return False, 'unsupported_scheme'
-    if scheme == 'http' and not ALLOW_INSECURE_HTTP:
+    if scheme == 'http' and not (ALLOW_INSECURE_HTTP or parsed.hostname in {'127.0.0.1', 'localhost'}):
         return False, 'http_blocked'
     safe_headers = {'user-agent': 'kyoshin-tool-health/1.0'}
     for key, value in headers.items():

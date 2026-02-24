@@ -2,7 +2,6 @@ import React from 'react';
 import {
   Pressable,
   Text,
-  View,
   StyleSheet,
   ViewStyle,
   StyleProp,
@@ -10,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, borderRadius, gradient, typography, spacing } from '../../theme';
+import { colors, gradient, typography } from '../../theme';
 
 interface ButtonProps {
   children: React.ReactNode;

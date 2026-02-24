@@ -44,6 +44,11 @@ Copy `.env.example` to `.env` and configure:
 cp .env.example .env
 ```
 
+For release builds, keep:
+- `EXPO_PUBLIC_SOLANA_NETWORK=mainnet-beta`
+- `EXPO_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com`
+- `EXPO_PUBLIC_API_URL=https://api.kamiyo.ai`
+
 ### Project Structure
 
 ```

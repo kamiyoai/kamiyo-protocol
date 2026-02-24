@@ -4,7 +4,7 @@ import os
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 STATE_DIR = HOME_DIR / '.openclaw'
@@ -38,7 +38,7 @@ def env_value(key: str, fallback: str = '') -> str:
     return fallback.strip()
 
 
-def parse_bool(raw: str | None, default: bool) -> bool:
+def parse_bool(raw: Optional[str], default: bool) -> bool:
     if raw is None:
         return default
     value = raw.strip().lower()

@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 
-let Haptics: any = null;
+type ExpoHapticsModule = typeof import('expo-haptics');
+
+let Haptics: ExpoHapticsModule | null = null;
 
 async function loadHaptics() {
   if (Platform.OS === 'web' || Haptics) return;

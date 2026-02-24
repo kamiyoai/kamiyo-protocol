@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { colors, typography, spacing } from '../../theme';
+import { colors, typography } from '../../theme';
 
 interface DotLeaderRowProps {
   label: string;

@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useAgentStore } from '../../src/stores/agent';
 import { useWalletStore, getShortAddress } from '../../src/stores/wallet';
 import { useAppStore } from '../../src/stores/app';
-import { AGENT_PERSONALITIES, APP_VERSION } from '../../src/lib/constants';
+import { AGENT_PERSONALITIES, APP_VERSION, SOLANA_NETWORK } from '../../src/lib/constants';
 import { colors, typography, spacing } from '../../src/theme';
 import {
   TerminalButton,
@@ -49,8 +49,8 @@ export default function SettingsScreen() {
     setTogglingActive(true);
     try {
       await toggleActive();
-    } catch (error) {
-      console.error('Failed to toggle active:', error);
+    } catch {
+      Alert.alert('Error', 'Failed to update agent status');
     } finally {
       setTogglingActive(false);
     }
@@ -234,7 +234,7 @@ export default function SettingsScreen() {
 
         <View style={styles.dataSection}>
           <DotLeaderRow label="version" value={APP_VERSION} />
-          <DotLeaderRow label="network" value="devnet" />
+          <DotLeaderRow label="network" value={SOLANA_NETWORK} />
 
           <View style={styles.linksSection}>
             <Pressable style={styles.linkRow}>

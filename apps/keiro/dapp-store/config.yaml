@@ -1,8 +1,8 @@
 publisher:
   name: KAMIYO
   website: https://kamiyo.ai
-  email: contact@kamiyo.ai
-  support_email: support@kamiyo.ai
+  email: kamiyo-ai@users.noreply.github.com
+  support_email: kamiyo-ai@users.noreply.github.com
 app:
   name: KAMIYO Keiro
   address: E3BmsGQz9JP6i9qY8vHR74PxJYgvihhpKiJoQvR6zXA4
@@ -11,12 +11,12 @@ app:
     license_url: https://kamiyo.ai/terms
     copyright_url: https://kamiyo.ai/copyright
     privacy_policy_url: https://kamiyo.ai/privacy
-    website: https://keiro.kamiyo.ai
+    website: https://kamiyo.ai
   media:
     - purpose: icon
       uri: media/app_icon.png
 release:
-  address: 8v6DrYtieUvFfkAGhdbG4KvvYdS5piHwc7zHRgbjfkBL
+  address: BgpdBR8RiWg4gMRmi1wfJmF7Gxrtk5EwHKvSLVBita1Q
   media:
     - purpose: icon
       uri: media/release_icon.png
@@ -44,11 +44,19 @@ release:
       new_in_version: Initial release
       saga_features: ''
   android_details:
+    cert_fingerprint: 1a5989a39a590cd96de870e600c2977211e8a18c454c0b2aac3716a1e0b5521e
+    min_sdk: 24
+    version: 0.0.2
+    version_code: 2
     locales:
       - en-US
 solana_mobile_dapp_publisher_portal:
   google_store_package: ''
   testing_instructions: 1. Install the app and open it 2. Connect a Solana wallet 3. Verify main screens load correctly
   alpha_testers: []
+lastSubmittedVersionOnChain:
+  address: BgpdBR8RiWg4gMRmi1wfJmF7Gxrtk5EwHKvSLVBita1Q
+  version_code: 2
+  apk_hash: IZEDGnX63cJ7DevT15k5ndtT5XmsZ7vECQAdl+qtKb0=
 lastUpdatedVersionOnStore:
-  address: 8v6DrYtieUvFfkAGhdbG4KvvYdS5piHwc7zHRgbjfkBL
+  address: BgpdBR8RiWg4gMRmi1wfJmF7Gxrtk5EwHKvSLVBita1Q

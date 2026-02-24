@@ -1,8 +1,21 @@
+const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+const DEFAULT_SOLANA_NETWORK = IS_DEV ? 'devnet' : 'mainnet-beta';
+
+export type SolanaNetwork = 'devnet' | 'mainnet-beta' | 'testnet';
+
 // Solana Network Configuration
-export const SOLANA_NETWORK = process.env.EXPO_PUBLIC_SOLANA_NETWORK || 'devnet';
+const networkEnv = process.env.EXPO_PUBLIC_SOLANA_NETWORK;
+
+export const SOLANA_NETWORK: SolanaNetwork =
+  networkEnv === 'devnet' || networkEnv === 'mainnet-beta' || networkEnv === 'testnet'
+    ? networkEnv
+    : DEFAULT_SOLANA_NETWORK;
 
 export const SOLANA_RPC_URL =
-  process.env.EXPO_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  process.env.EXPO_PUBLIC_SOLANA_RPC_URL ||
+  (SOLANA_NETWORK === 'mainnet-beta'
+    ? 'https://api.mainnet-beta.solana.com'
+    : 'https://api.devnet.solana.com');
 
 // KAMIYO Protocol Program IDs
 export const KAMIYO_PROGRAM_ID =
@@ -14,7 +27,9 @@ export const KAMIYO_ESCROW_PROGRAM_ID =
   'FVnvAs8bahMwAvjcLq5ZrXksuu5Qeu2MRkbjwB9mua3u';
 
 // API Configuration
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+export const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  (IS_DEV ? 'http://localhost:3001' : 'https://api.kamiyo.ai');
 
 // App Configuration
 export const APP_NAME = 'KEIRO';

@@ -58,8 +58,8 @@ export default function JobsScreen() {
         const openJobs = await api.getOpenJobs();
         setJobs(openJobs);
       }
-    } catch (error) {
-      console.warn('Failed to fetch jobs:', error);
+    } catch {
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -107,10 +107,8 @@ export default function JobsScreen() {
     mediumTap();
     setAcceptingJobId(job.id);
     try {
-      // Step 1: Accept on API
       const result = await api.acceptJob(job.id, agent.id, publicKey.toString());
 
-      // Step 2: Create on-chain escrow (native only)
       let escrowSig: string | null = null;
       if (Platform.OS !== 'web') {
         try {
@@ -125,8 +123,8 @@ export default function JobsScreen() {
             result.escrowId
           );
           escrowSig = escrowResult.signature;
-        } catch (chainError) {
-          console.warn('On-chain escrow creation failed:', chainError);
+        } catch {
+          escrowSig = null;
         }
       }
 

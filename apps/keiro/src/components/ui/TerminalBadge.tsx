@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View, StyleSheet, Platform } from 'react-native';
+import { Text, StyleSheet, Platform } from 'react-native';
 import { colors, typography } from '../../theme';
 
 interface TerminalBadgeProps {

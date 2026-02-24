@@ -6,7 +6,16 @@ if [ -z "${HOME:-}" ]; then
   HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
   export HOME
 fi
-export PATH="$HOME/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+NVM_BIN=""
+if command -v node >/dev/null 2>&1; then
+  NODE_VERSION="$(node -v 2>/dev/null || true)"
+  if [ -n "$NODE_VERSION" ]; then
+    NVM_BIN="$HOME/.nvm/versions/node/$NODE_VERSION/bin"
+  fi
+fi
+
+export PATH="$HOME/.npm-global/bin:$NVM_BIN:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 is_true() {
   case "${1:-}" in
@@ -21,8 +30,10 @@ as_json_line() {
 
 ENV_FILE="$HOME/.openclaw/.env"
 if [ -f "$ENV_FILE" ]; then
+  set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
+  set +a
 fi
 
 WORKSPACE_DIR="$HOME/.openclaw/workspace"
@@ -47,7 +58,7 @@ touch "$LOG_FILE"
 chmod 600 "$LOG_FILE"
 
 LOCK_FILE="$STATE_DIR/autonomy-loop.lock"
-exec 9>"$LOCK_FILE"
+LOCK_DIR=""
 
 NOW_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TODAY="$(date -u +%Y-%m-%d)"
@@ -58,22 +69,45 @@ PROACTIVE_TIMEOUT_SECONDS="${KYO_PROACTIVE_TIMEOUT_SECONDS:-180}"
 HEARTBEAT_MAX_ASSIGNMENTS="${KYO_HEARTBEAT_MAX_ASSIGNMENTS:-3}"
 REQUIRE_RUNTIME_GUARDS="${KYO_REQUIRE_RUNTIME_GUARDS:-true}"
 ENABLE_PROACTIVE_NIGHTLY="${KYO_ENABLE_PROACTIVE_NIGHTLY:-true}"
+ENABLE_AGENT_HEARTBEAT="${KYO_ENABLE_AGENT_HEARTBEAT:-false}"
+REQUIRE_GATEWAY_HEALTH="${KYO_REQUIRE_GATEWAY_HEALTH:-}"
+REQUIRE_KYOSHIN_RUNTIME="${KYO_REQUIRE_KYOSHIN_RUNTIME:-true}"
 PROACTIVE_HOUR_RAW="${KYO_PROACTIVE_HOUR_UTC:-2}"
 REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
+
+if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
+  if is_true "$ENABLE_AGENT_HEARTBEAT"; then
+    REQUIRE_GATEWAY_HEALTH=true
+  else
+    REQUIRE_GATEWAY_HEALTH=false
+  fi
+fi
 
 if ! [[ "$PROACTIVE_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$PROACTIVE_HOUR_RAW" -lt 0 ] || [ "$PROACTIVE_HOUR_RAW" -gt 23 ]; then
   PROACTIVE_HOUR_RAW=2
 fi
 PROACTIVE_HOUR_UTC="$(printf '%02d' "$PROACTIVE_HOUR_RAW")"
 
-if ! flock -n 9; then
-  printf '{"at":"%s","event":"autonomy_tick","status":"skipped","reason":"lock_busy"}\n' "$NOW_ISO" >>"$LOG_FILE"
-  exit 0
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    printf '{"at":"%s","event":"autonomy_tick","status":"skipped","reason":"lock_busy"}\n' "$NOW_ISO" >>"$LOG_FILE"
+    exit 0
+  fi
+else
+  LOCK_DIR="${LOCK_FILE}.d"
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    printf '{"at":"%s","event":"autonomy_tick","status":"skipped","reason":"lock_busy"}\n' "$NOW_ISO" >>"$LOG_FILE"
+    exit 0
+  fi
 fi
 
 TMP_DIR="$(mktemp -d "$STATE_DIR/tmp.XXXXXX")"
 cleanup() {
   rm -rf "$TMP_DIR"
+  if [ -n "$LOCK_DIR" ]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 
@@ -125,17 +159,26 @@ if [ -x "$HOME/bin/kyoshin-sync-feed-config.py" ]; then
   fi
 fi
 
-gateway_ok=0
+gateway_ok=1
 gateway_error=""
-for _ in 1 2 3; do
-  if openclaw gateway health --json >"$TMP_DIR/gateway-health.json" 2>"$TMP_DIR/gateway-health.err"; then
-    gateway_ok=1
-    break
+gateway_summary='{"ok":true,"status":"skipped"}'
+if is_true "$REQUIRE_GATEWAY_HEALTH"; then
+  gateway_ok=0
+  for _ in 1 2 3; do
+    if openclaw gateway health --json >"$TMP_DIR/gateway-health.json" 2>"$TMP_DIR/gateway-health.err"; then
+      gateway_ok=1
+      break
+    fi
+    sleep 2
+  done
+  if [ "$gateway_ok" -eq 1 ]; then
+    gateway_summary="$(as_json_line "$TMP_DIR/gateway-health.json")"
+  else
+    if [ -f "$TMP_DIR/gateway-health.err" ]; then
+      gateway_error="$(tr -d '\n' <"$TMP_DIR/gateway-health.err" | sed 's/"/\\"/g')"
+    fi
+    gateway_summary="{\"ok\":false,\"error\":\"${gateway_error:-health_check_failed}\"}"
   fi
-  sleep 2
-done
-if [ "$gateway_ok" -ne 1 ] && [ -f "$TMP_DIR/gateway-health.err" ]; then
-  gateway_error="$(tr -d '\n' <"$TMP_DIR/gateway-health.err" | sed 's/"/\\"/g')"
 fi
 
 context_ok=1
@@ -167,6 +210,13 @@ if [ -x "$HOME/bin/kyoshin-tool-health.py" ]; then
     critical_failures="$(jq -r '.criticalFailures | length // 0' "$TMP_DIR/tool-health.json" 2>/dev/null || echo 1)"
     if [ "$critical_failures" -gt 0 ]; then
       tool_health_ok=0
+      if ! is_true "$ENABLE_AGENT_HEARTBEAT"; then
+        non_gateway_critical="$(jq -r '(.criticalFailures // []) | map(select(. != "openclaw_gateway")) | length' "$TMP_DIR/tool-health.json" 2>/dev/null || echo 1)"
+        if [ "$non_gateway_critical" -eq 0 ]; then
+          tool_health_ok=1
+          tool_health_summary="$(jq -c '. + {"ok": true, "downgradedCriticalFailures": ["openclaw_gateway"]}' "$TMP_DIR/tool-health.json" 2>/dev/null || as_json_line "$TMP_DIR/tool-health.json")"
+        fi
+      fi
     fi
   else
     tool_health_ok=0
@@ -217,6 +267,29 @@ else
   planner_summary="{\"ok\":false,\"error\":\"$planner_err\"}"
 fi
 
+runtime_bridge_ok=1
+runtime_bridge_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-runtime-bridge.py" ]; then
+  if "$HOME/bin/kyoshin-runtime-bridge.py" >"$TMP_DIR/runtime-bridge.json" 2>"$TMP_DIR/runtime-bridge.err"; then
+    runtime_bridge_summary="$(as_json_line "$TMP_DIR/runtime-bridge.json")"
+  else
+    if [ -s "$TMP_DIR/runtime-bridge.json" ]; then
+      runtime_bridge_summary="$(as_json_line "$TMP_DIR/runtime-bridge.json")"
+    else
+      runtime_bridge_err="$(tr -d '\n' <"$TMP_DIR/runtime-bridge.err" | sed 's/"/\\"/g')"
+      runtime_bridge_summary="{\"ok\":false,\"error\":\"$runtime_bridge_err\"}"
+    fi
+    if is_true "$REQUIRE_KYOSHIN_RUNTIME"; then
+      runtime_bridge_ok=0
+    fi
+  fi
+else
+  runtime_bridge_summary='{"ok":false,"error":"missing_runtime_bridge"}'
+  if is_true "$REQUIRE_KYOSHIN_RUNTIME"; then
+    runtime_bridge_ok=0
+  fi
+fi
+
 mission_control_ok=1
 mission_control_summary='{"ok":false,"error":"not_run"}'
 if [ -x "$HOME/bin/kyoshin-mission-control.py" ]; then
@@ -264,21 +337,27 @@ agent_ok=1
 agent_reply=""
 agent_error=""
 
-if openclaw agent --agent main --local --message "$heartbeat_msg" --timeout "$AGENT_TIMEOUT_SECONDS" --json >"$run_json_file" 2>"$TMP_DIR/agent.err"; then
-  agent_reply="$(jq -r '.payloads[0].text // ""' "$run_json_file" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-1800)"
-  if printf '%s' "$agent_reply" | grep -Eq '^(LLM request rejected:|Provider request failed:|Authentication error:|Insufficient credits:)'; then
+if is_true "$ENABLE_AGENT_HEARTBEAT"; then
+  if openclaw agent --agent main --local --message "$heartbeat_msg" --timeout "$AGENT_TIMEOUT_SECONDS" --json >"$run_json_file" 2>"$TMP_DIR/agent.err"; then
+    agent_reply="$(jq -r '.payloads[0].text // ""' "$run_json_file" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-1800)"
+    if printf '%s' "$agent_reply" | grep -Eq '^(LLM request rejected:|Provider request failed:|Authentication error:|Insufficient credits:)'; then
+      agent_ok=0
+      agent_error="$agent_reply"
+    fi
+  else
     agent_ok=0
-    agent_error="$agent_reply"
+    agent_error="$(tr -d '\n' <"$TMP_DIR/agent.err" | sed 's/"/\\"/g')"
   fi
 else
-  agent_ok=0
-  agent_error="$(tr -d '\n' <"$TMP_DIR/agent.err" | sed 's/"/\\"/g')"
+  agent_reply="agent_heartbeat_disabled"
 fi
 
 proactive_ok=1
 proactive_summary='{"ok":true,"status":"not_due"}'
 if is_true "$ENABLE_PROACTIVE_NIGHTLY"; then
-  if [ "$CURRENT_HOUR_UTC" = "$PROACTIVE_HOUR_UTC" ] && [ "$last_nightly_run_date" != "$TODAY" ]; then
+  if ! is_true "$ENABLE_AGENT_HEARTBEAT"; then
+    proactive_summary='{"ok":true,"status":"skipped_agent_heartbeat_disabled"}'
+  elif [ "$CURRENT_HOUR_UTC" = "$PROACTIVE_HOUR_UTC" ] && [ "$last_nightly_run_date" != "$TODAY" ]; then
     read -r -d '' PROACTIVE_MSG <<'EOF' || true
 Nightly proactive mission.
 
@@ -334,6 +413,7 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$planner_ok" -eq 1 ] \
   && [ "$feed_sync_ok" -eq 1 ] \
   && [ "$gateway_ok" -eq 1 ] \
+  && [ "$runtime_bridge_ok" -eq 1 ] \
   && [ "$context_ok" -eq 1 ] \
   && [ "$tool_health_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
@@ -361,6 +441,9 @@ else
   fi
   if [ "$gateway_ok" -ne 1 ]; then
     combined_error+="gateway:${gateway_error:-health_check_failed};"
+  fi
+  if [ "$runtime_bridge_ok" -ne 1 ]; then
+    combined_error+="runtime_bridge_failed;"
   fi
   if [ "$context_ok" -ne 1 ]; then
     combined_error+="context_incomplete;"
@@ -404,8 +487,8 @@ if [ "$status" = "ok" ] && [ "$learning_ok" -ne 1 ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"context":%s,"toolHealth":%s,"marketplace":%s,"governor":%s,"planner":%s,"missionControl":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"governor":%s,"planner":%s,"missionControl":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$LOG_FILE"

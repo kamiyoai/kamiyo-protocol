@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -110,7 +110,7 @@ def normalize_identifier(value: Any) -> str:
     return ''
 
 
-def normalize_number(value: Any) -> float | None:
+def normalize_number(value: Any) -> Optional[float]:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):

@@ -123,6 +123,7 @@ create_if_missing "$WORKSPACE/TOOLS.md" \
 "# Tools
 
 - OpenClaw Gateway
+- Kyoshin Execution Runtime HTTP API
 - Kyoshin Swarm Runtime
 - Solana RPC
 - Marketplace Feeds
@@ -153,10 +154,11 @@ create_if_missing "$TOOLS_DIR/tool-registry.json" \
 "{
   \"version\": 1,
   \"tools\": [
-    {\"id\":\"openclaw_cli\",\"kind\":\"command\",\"target\":\"openclaw\",\"critical\":true},
+    {\"id\":\"openclaw_cli\",\"kind\":\"command\",\"target\":\"openclaw\",\"critical\":false},
     {\"id\":\"jq_cli\",\"kind\":\"command\",\"target\":\"jq\",\"critical\":true},
     {\"id\":\"python3_cli\",\"kind\":\"command\",\"target\":\"python3\",\"critical\":true},
-    {\"id\":\"openclaw_gateway\",\"kind\":\"command\",\"target\":\"openclaw gateway health --json\",\"critical\":true}
+    {\"id\":\"openclaw_gateway\",\"kind\":\"command\",\"target\":\"openclaw gateway health --json\",\"critical\":false},
+    {\"id\":\"kyoshin_runtime_health\",\"kind\":\"http\",\"target\":\"http://127.0.0.1:4020/health\",\"critical\":true}
   ]
 }"
 

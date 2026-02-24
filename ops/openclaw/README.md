@@ -9,6 +9,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
 - `kyoshin-context-guard.py`: brain-dump and mission-context completeness guard.
 - `kyoshin-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
+- `kyoshin-runtime-bridge.py`: ingests Kyoshin execution runtime `/health` + `/status` into OpenClaw runtime state.
 - `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
 - `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
 - `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
@@ -25,6 +26,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-runtime-bridge.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
@@ -44,6 +46,7 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - Feed output: `~/.openclaw/workspace/runtime/feeds/opportunities.json`
 - Assignment output: `~/.openclaw/workspace/runtime/queue/assignments.json`
 - Tool health output: `~/.openclaw/workspace/runtime/tools/tool-health.json`
+- Kyoshin runtime bridge output: `~/.openclaw/workspace/runtime/state/kyoshin-runtime.json`
 - Governor output: `~/.openclaw/workspace/runtime/state/swarm-governor.json`
 - Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
 - Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
@@ -87,10 +90,20 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_ALLOW_FILE_FEEDS_ANYWHERE=true|false` (default `false`, keep scoped to runtime dir)
 - optional loop cost controls:
   - `KYO_AGENT_TIMEOUT_SECONDS=120` (default `120`)
+- inference controls:
+  - `KYO_ENABLE_AGENT_HEARTBEAT=true|false` (default `false`)
+  - `KYO_REQUIRE_GATEWAY_HEALTH=true|false` (default follows `KYO_ENABLE_AGENT_HEARTBEAT`)
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
 - autonomy guard controls:
   - `KYO_REQUIRE_RUNTIME_GUARDS=true|false` (default `true`)
+  - `KYO_REQUIRE_KYOSHIN_RUNTIME=true|false` (default `true`)
   - `KYO_HEARTBEAT_MAX_ASSIGNMENTS=3`
+- runtime bridge controls:
+  - `KYO_KYOSHIN_RUNTIME_HEALTH_URL=http://127.0.0.1:4020/health`
+  - `KYO_KYOSHIN_RUNTIME_STATUS_URL=http://127.0.0.1:4020/status`
+  - `KYO_KYOSHIN_RUNTIME_TOKEN=...` (required if Kyoshin status endpoint is token-gated)
+  - `KYO_RUNTIME_BRIDGE_TIMEOUT_SECONDS=8`
+  - `KYO_RUNTIME_BRIDGE_SCRAPE_METRICS=true|false` (default `false`)
 - nightly proactive controls:
   - `KYO_ENABLE_PROACTIVE_NIGHTLY=true|false` (default `true`)
   - `KYO_PROACTIVE_HOUR_UTC=2`
@@ -109,6 +122,18 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_TOOL_HEALTH_TIMEOUT_SECONDS=8`
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
+
+### Zero-inference baseline
+
+If you want zero Anthropic/OpenAI spend in this loop, keep:
+
+```bash
+KYO_ENABLE_AGENT_HEARTBEAT=false
+KYO_REQUIRE_GATEWAY_HEALTH=false
+KYO_REQUIRE_KYOSHIN_RUNTIME=true
+```
+
+This keeps intake/planning/governor/mission-control active while grounding health on the execution runtime instead of LLM heartbeats.
 
 ### Fast live proof (no paid API key required)
 
@@ -163,6 +188,6 @@ Expected fields per line:
 - `file://` feed URLs are constrained to `~/.openclaw/workspace/runtime` unless `KYO_ALLOW_FILE_FEEDS_ANYWHERE=true`.
 - Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
 - The loop uses a host-local file lock to prevent overlapping control-loop executions.
-- Provider-level model rejections (for example exhausted credits) are treated as degraded cycles, not successful ticks.
+- Provider-level model rejections (for example exhausted credits) are treated as degraded cycles only when agent heartbeat is enabled.
 - The loop now enforces: context completeness, tool-health critical checks, mission-control generation, nightly proactive execution, and learnings capture on degraded cycles.
 - Keep gateway bind on loopback by default; use private-network access paths only.

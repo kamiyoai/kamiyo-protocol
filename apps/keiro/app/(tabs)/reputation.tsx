@@ -46,8 +46,8 @@ export default function ReputationScreen() {
     try {
       const reputationData = await api.getReputation(agent.id);
       setReputation(reputationData);
-    } catch (error) {
-      console.error('Failed to fetch reputation:', error);
+    } catch {
+      setReputation(null);
     }
   }, [agent?.id]);
 

@@ -15,6 +15,8 @@ kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
 meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
+kamiyo_singularity_market = "7WXqRhw1n5cVHjFjx9REk7tUdMH8gEjBEZhLJzw1oUgx"
+kamiyo_singularity_orderbook = "59LqZtVU2YBrhv8B2E1iASJMzcyBHWhY2JuaJsCXkAS8"
 
 [programs.localnet]
 kamiyo = "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr"
@@ -25,6 +27,8 @@ kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
 meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
+kamiyo_singularity_market = "7WXqRhw1n5cVHjFjx9REk7tUdMH8gEjBEZhLJzw1oUgx"
+kamiyo_singularity_orderbook = "59LqZtVU2YBrhv8B2E1iASJMzcyBHWhY2JuaJsCXkAS8"
 
 [programs.mainnet]
 kamiyo = "3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr"
@@ -35,6 +39,8 @@ kamiyo_governance = "E3oQcCm55mykVG1A92qGvgWQdxv8TmkpvWwat1NCFGav"
 kamiyo_transfer_hook = "4p9eHUGsx93XC5i6y9fL3cbTs5Zpfqidjjd1e41FQaU6"
 kamiyo_fast_voting = "AakwnBstczs5KC2jKPfBuFLQZADXrx4oPH8FtJbhPxwA"
 meishi = "6uejE3hDz3ZNHW7P4uHQEHS6fHAQ4vLJg7rx4VBYwpyK"
+kamiyo_singularity_market = "7WXqRhw1n5cVHjFjx9REk7tUdMH8gEjBEZhLJzw1oUgx"
+kamiyo_singularity_orderbook = "59LqZtVU2YBrhv8B2E1iASJMzcyBHWhY2JuaJsCXkAS8"
 
 [registry]
 url = "https://api.apr.dev"

@@ -19,17 +19,18 @@ export function GradientText({ children, style, uppercase }: GradientTextProps) 
   };
 
   if (Platform.OS === 'web') {
+    const webGradientStyle = {
+      backgroundImage: gradient.css,
+      WebkitBackgroundClip: 'text',
+      backgroundClip: 'text',
+      color: 'transparent',
+    } as unknown as TextStyle;
+
     return (
       <Text
         style={[
           baseStyle,
-          {
-            // @ts-ignore - web-only CSS properties
-            backgroundImage: gradient.css,
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            color: 'transparent',
-          },
+          webGradientStyle,
           style,
         ]}
       >

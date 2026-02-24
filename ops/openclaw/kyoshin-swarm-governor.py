@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -96,7 +96,7 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.chmod(0o600)
 
 
-def parse_time(value: Any) -> datetime | None:
+def parse_time(value: Any) -> Optional[datetime]:
     if not isinstance(value, str):
         return None
     raw = value.strip()

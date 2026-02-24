@@ -115,6 +115,8 @@ marketing/oracle-business-model.md
 
 # Local launch scripts
 token-launch/
+services/telegram-bridge/
+services/live-show-coach/
 
 # Demo recordings
 examples/*/demo.gif
