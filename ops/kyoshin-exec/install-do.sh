@@ -129,8 +129,10 @@ chmod 600 "$ENV_FILE"
 sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-exec.service" >"$UNIT_FILE"
 chmod 644 "$UNIT_FILE"
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/promote-stage.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage
+install -m 750 "$APP_ROOT/ops/kyoshin-exec/preflight.sh" /usr/local/bin/kamiyo-kyoshin-exec-preflight
 
 systemctl daemon-reload
 systemctl enable --now kamiyo-kyoshin-exec.service
 sleep 2
 systemctl --no-pager --full status kamiyo-kyoshin-exec.service | sed -n '1,30p'
+/usr/local/bin/kamiyo-kyoshin-exec-preflight "$ENV_FILE"

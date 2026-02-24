@@ -9,6 +9,7 @@ This folder contains the source-controlled deployment assets for running
 - `kyoshin-exec.env.example`: hardened baseline config (`canary_0`, `HARD_STOP=true`).
 - `kamiyo-kyoshin-exec.service`: systemd unit template.
 - `promote-stage.sh`: staged promotion helper (`canary_0 -> canary_1 -> canary_2 -> full`).
+- `preflight.sh`: policy preflight for key/staking guard checks before mutation stages.
 
 ## First deploy (run on droplet as root)
 
@@ -31,3 +32,11 @@ sudo /usr/local/bin/kamiyo-kyoshin-exec-stage full false
 ```
 
 Use `true` in the second argument to force hard-stop on that stage.
+
+## Preflight
+
+```bash
+sudo /usr/local/bin/kamiyo-kyoshin-exec-preflight
+```
+
+When `hard-stop=false`, preflight fails if operator key material is missing.

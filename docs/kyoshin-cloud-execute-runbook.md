@@ -55,6 +55,14 @@ sudo /usr/local/bin/kamiyo-kyoshin-exec-stage canary_2 false
 sudo /usr/local/bin/kamiyo-kyoshin-exec-stage full false
 ```
 
+Preflight command:
+
+```bash
+sudo /usr/local/bin/kamiyo-kyoshin-exec-preflight
+```
+
+If `hard-stop=false` and no operator key is configured, promotion now fails by design.
+
 ## Stage caps (runtime enforced)
 
 - `canary_0`
