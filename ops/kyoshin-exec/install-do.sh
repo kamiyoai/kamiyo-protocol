@@ -126,7 +126,8 @@ else
 fi
 
 chmod 600 "$ENV_FILE"
-install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-exec.service" "$UNIT_FILE"
+sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-exec.service" >"$UNIT_FILE"
+chmod 644 "$UNIT_FILE"
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/promote-stage.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage
 
 systemctl daemon-reload
