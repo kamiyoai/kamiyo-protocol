@@ -1029,7 +1029,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -3224,7 +3224,7 @@ dependencies = [
  "ed25519-dalek",
  "groth16-solana 0.2.0",
  "kani-solana",
- "solana-program 2.3.0",
+ "solana-program 4.0.0",
  "solana-program-test",
  "solana-sdk",
  "switchboard-on-demand",
@@ -3237,7 +3237,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "solana-program 2.3.0",
+ "solana-program 4.0.0",
 ]
 
 [[package]]
@@ -3285,7 +3285,7 @@ dependencies = [
 name = "kani-solana"
 version = "0.1.0"
 dependencies = [
- "solana-program 2.3.0",
+ "solana-program 4.0.0",
 ]
 
 [[package]]
@@ -3580,7 +3580,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
- "solana-program 2.3.0",
+ "solana-program 4.0.0",
 ]
 
 [[package]]
@@ -4306,7 +4306,7 @@ version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.14.0",
  "log",
  "multimap",
