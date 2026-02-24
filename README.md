@@ -4,6 +4,8 @@
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+![kamiyo-protocol](https://github.com/user-attachments/assets/707baf74-fdb8-451e-8bc2-931afb143d2a)
+
 Monorepo for KAMIYO protocol code.
 
 The repository includes on-chain programs, Rust crates, TypeScript packages, backend services, and verification tooling.
