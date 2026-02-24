@@ -12,18 +12,48 @@ Run Kyoshin in cloud `execute` mode with explicit safety gates:
 ## Required environment
 
 - `KAMIYO_MODE=execute`
-- `KAMIYO_EXECUTION_STAGE=canary_1` (initial)
-- `KAMIYO_EXECUTION_HARD_STOP=false`
+- `KAMIYO_EXECUTION_STAGE=canary_0` (initial)
+- `KAMIYO_EXECUTION_HARD_STOP=true` (initial bootstrap safety)
 - `KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST=true`
 - `KAMIYO_ALLOWED_STAKING_POOLS=<pool_a>,<pool_b>`
 - `KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD=true`
 
+## DigitalOcean deploy path
+
+Deploy from source on the droplet (not prebuilt artifacts):
+
+```bash
+export KAMIYO_APP_ROOT="$HOME/local/kamiyo-protocol"
+cd "$KAMIYO_APP_ROOT"
+git fetch origin kamiyo/kyoshin-exec-canary
+git checkout kamiyo/kyoshin-exec-canary
+git reset --hard origin/kamiyo/kyoshin-exec-canary
+sudo bash ops/kyoshin-exec/install-do.sh
+```
+
+This installs:
+
+- `/etc/systemd/system/kamiyo-kyoshin-exec.service`
+- `/etc/kamiyo/kyoshin-exec.env`
+- `/usr/local/bin/kamiyo-kyoshin-exec-stage`
+
+The installer forces `canary_0 + HARD_STOP=true` on first deploy.
+
 ## Staged rollout
 
-1. `canary_0` (30-60 min): no mutations, verify health/status/metrics and feed intake quality.
-2. `canary_1` (12-24 h): limited paid-job execution, no route/claim operations.
-3. `canary_2` (24-72 h): controlled route/claim enabled with tighter auto-stake caps.
+1. `canary_0` (30-60 min): keep `HARD_STOP=true`; verify health/status/metrics and feed intake quality.
+2. `canary_1` (12-24 h): first set `canary_1` with `HARD_STOP=true`, then remove hard stop only after policy checks pass.
+3. `canary_2` (24-72 h): controlled route/claim path with tighter auto-stake caps.
 4. `full`: only after sustained positive net SOL and stable SLOs.
+
+Promotion command:
+
+```bash
+sudo /usr/local/bin/kamiyo-kyoshin-exec-stage canary_1 true
+sudo /usr/local/bin/kamiyo-kyoshin-exec-stage canary_1 false
+sudo /usr/local/bin/kamiyo-kyoshin-exec-stage canary_2 false
+sudo /usr/local/bin/kamiyo-kyoshin-exec-stage full false
+```
 
 ## Stage caps (runtime enforced)
 
