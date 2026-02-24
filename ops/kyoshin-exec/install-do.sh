@@ -11,6 +11,8 @@ REPO_URL="${REPO_URL:-https://github.com/kamiyo-ai/kamiyo-protocol.git}"
 BRANCH="${BRANCH:-kamiyo/kyoshin-exec-canary}"
 ENV_FILE="${ENV_FILE:-/etc/kamiyo/kyoshin-exec.env}"
 UNIT_FILE="/etc/systemd/system/kamiyo-kyoshin-exec.service"
+WATCHDOG_SERVICE_FILE="/etc/systemd/system/kamiyo-kyoshin-watchdog.service"
+WATCHDOG_TIMER_FILE="/etc/systemd/system/kamiyo-kyoshin-watchdog.timer"
 
 if ! id "$RUN_USER" >/dev/null 2>&1; then
   echo "missing user: $RUN_USER" >&2
@@ -124,15 +126,52 @@ if grep -q '^KAMIYO_SWARM_REGISTRY_PATH=' "$ENV_FILE"; then
 else
   echo "KAMIYO_SWARM_REGISTRY_PATH=$RUNTIME_DIR/swarm.registry.json" >>"$ENV_FILE"
 fi
+if ! grep -q '^KAMIYO_POLICY_HOT_RELOAD_ENABLED=' "$ENV_FILE"; then
+  echo "KAMIYO_POLICY_HOT_RELOAD_ENABLED=true" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS=' "$ENV_FILE"; then
+  echo "KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS=30" >>"$ENV_FILE"
+fi
+if grep -q '^KAMIYO_POLICY_HOT_RELOAD_ENV_FILE=' "$ENV_FILE"; then
+  sed -i "s|^KAMIYO_POLICY_HOT_RELOAD_ENV_FILE=.*|KAMIYO_POLICY_HOT_RELOAD_ENV_FILE=$ENV_FILE|" "$ENV_FILE"
+else
+  echo "KAMIYO_POLICY_HOT_RELOAD_ENV_FILE=$ENV_FILE" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED=' "$ENV_FILE"; then
+  echo "KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED=true" >>"$ENV_FILE"
+fi
+if grep -q '^KAMIYO_SINGLE_INSTANCE_LOCK_PATH=' "$ENV_FILE"; then
+  sed -i "s|^KAMIYO_SINGLE_INSTANCE_LOCK_PATH=.*|KAMIYO_SINGLE_INSTANCE_LOCK_PATH=$RUNTIME_DIR/db/kyoshin-exec.lock|" "$ENV_FILE"
+else
+  echo "KAMIYO_SINGLE_INSTANCE_LOCK_PATH=$RUNTIME_DIR/db/kyoshin-exec.lock" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED=' "$ENV_FILE"; then
+  echo "KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED=true" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES=' "$ENV_FILE"; then
+  echo "KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES=5" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES=' "$ENV_FILE"; then
+  echo "KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES=30" >>"$ENV_FILE"
+fi
+if ! grep -q '^KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT=' "$ENV_FILE"; then
+  echo "KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT=20" >>"$ENV_FILE"
+fi
 
 chmod 600 "$ENV_FILE"
 sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-exec.service" >"$UNIT_FILE"
 chmod 644 "$UNIT_FILE"
+install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-watchdog.service" "$WATCHDOG_SERVICE_FILE"
+install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-watchdog.timer" "$WATCHDOG_TIMER_FILE"
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/promote-stage.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage
+install -m 750 "$APP_ROOT/ops/kyoshin-exec/guarded-promote.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage-guarded
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/preflight.sh" /usr/local/bin/kamiyo-kyoshin-exec-preflight
+install -m 750 "$APP_ROOT/ops/kyoshin-exec/watchdog.sh" /usr/local/bin/kamiyo-kyoshin-exec-watchdog
 
 systemctl daemon-reload
 systemctl enable --now kamiyo-kyoshin-exec.service
+systemctl enable --now kamiyo-kyoshin-watchdog.timer
+systemctl start kamiyo-kyoshin-watchdog.service
 sleep 2
 systemctl --no-pager --full status kamiyo-kyoshin-exec.service | sed -n '1,30p'
 /usr/local/bin/kamiyo-kyoshin-exec-preflight "$ENV_FILE"

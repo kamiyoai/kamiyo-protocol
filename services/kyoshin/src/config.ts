@@ -42,6 +42,17 @@ const envSchema = z.object({
     .default('false')
     .transform(v => v === 'true'),
   KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(180),
+  KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SINGLE_INSTANCE_LOCK_PATH: optionalNonEmptyString,
+  KAMIYO_POLICY_HOT_RELOAD_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
+  KAMIYO_POLICY_HOT_RELOAD_ENV_FILE: optionalNonEmptyString,
 
   KAMIYO_DB_PATH: z.string().default('output/kyoshin/state.db'),
   KAMIYO_OUTBOX_DIR: z.string().default('output/kyoshin/outbox'),
@@ -155,6 +166,13 @@ const envSchema = z.object({
     .transform(v => v === 'true'),
   KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
   KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT: z.coerce.number().int().positive().default(300),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES: z.coerce.number().int().positive().default(30),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT: z.coerce.number().int().positive().default(20),
 
   KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
   KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),

@@ -323,6 +323,20 @@ export async function submitNearMarketDeliverable(params: {
   });
 }
 
+export async function withdrawNearMarketBid(params: {
+  baseUrl: string;
+  apiKey: string;
+  bidId: string;
+  timeoutMs: number;
+}): Promise<{ status: number; payload: unknown }> {
+  return postJson({
+    url: `${params.baseUrl}/v1/bids/${params.bidId}/withdraw`,
+    apiKey: params.apiKey,
+    timeoutMs: params.timeoutMs,
+    body: {},
+  });
+}
+
 async function resolveBidAmountNear(params: {
   baseUrl: string;
   apiKey: string;

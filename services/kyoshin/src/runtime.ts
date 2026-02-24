@@ -1,5 +1,6 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -39,10 +40,11 @@ import {
   listNearMarketAcceptedBids,
   listNearMarketTrackedBids,
   submitNearMarketDeliverable,
+  withdrawNearMarketBid,
 } from './swarm/nearMarket.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
-import { buildExecutionPolicy, type ExecutionPolicy } from './policy/executeProfile.js';
+import { buildExecutionPolicy, type ExecutionPolicy, type ExecutionPolicyInput } from './policy/executeProfile.js';
 import type { SwarmRegistry } from './swarm/types.js';
 import { createInitialStatus, type RuntimeStatus } from './state.js';
 
@@ -83,6 +85,127 @@ function resolvePath(inputPath: string): string {
 
 function randomId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function parseBooleanLiteral(value: string | undefined): boolean | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return undefined;
+}
+
+function parseFiniteNumber(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseCsv(value: string | undefined): string[] | undefined {
+  if (value == null) return undefined;
+  return value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function readExecutionPolicyEnvOverrides(envFilePath: string): Partial<ExecutionPolicyInput> {
+  if (!envFilePath || !fs.existsSync(envFilePath)) return {};
+
+  const raw = fs.readFileSync(envFilePath, 'utf8');
+  const kv: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separator = trimmed.indexOf('=');
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    kv[key] = value;
+  }
+
+  const overrides: Partial<ExecutionPolicyInput> = {};
+  const stage = kv.KAMIYO_EXECUTION_STAGE;
+  if (stage === 'canary_0' || stage === 'canary_1' || stage === 'canary_2' || stage === 'full') {
+    overrides.KAMIYO_EXECUTION_STAGE = stage;
+  }
+
+  const hardStop = parseBooleanLiteral(kv.KAMIYO_EXECUTION_HARD_STOP);
+  if (hardStop != null) overrides.KAMIYO_EXECUTION_HARD_STOP = hardStop;
+
+  const dailyCap = parseFiniteNumber(kv.KAMIYO_SOL_DAILY_CAP);
+  if (dailyCap != null) overrides.KAMIYO_SOL_DAILY_CAP = dailyCap;
+
+  const perTxCap = parseFiniteNumber(kv.KAMIYO_SOL_PER_TX_CAP);
+  if (perTxCap != null) overrides.KAMIYO_SOL_PER_TX_CAP = perTxCap;
+
+  const maxTx = parseFiniteNumber(kv.KAMIYO_MAX_TX_PER_DAY);
+  if (maxTx != null) overrides.KAMIYO_MAX_TX_PER_DAY = Math.max(1, Math.floor(maxTx));
+
+  const swarmJobExecutionEnabled = parseBooleanLiteral(kv.KAMIYO_SWARM_JOB_EXECUTION_ENABLED);
+  if (swarmJobExecutionEnabled != null) {
+    overrides.KAMIYO_SWARM_JOB_EXECUTION_ENABLED = swarmJobExecutionEnabled;
+  }
+
+  const executionsPerTick = parseFiniteNumber(kv.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK);
+  if (executionsPerTick != null) {
+    overrides.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK = Math.max(1, Math.floor(executionsPerTick));
+  }
+
+  const minMargin = parseFiniteNumber(kv.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL);
+  if (minMargin != null) overrides.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL = Math.max(0, minMargin);
+
+  const autoClaimEnabled = parseBooleanLiteral(kv.KAMIYO_AUTO_CLAIM_ENABLED);
+  if (autoClaimEnabled != null) overrides.KAMIYO_AUTO_CLAIM_ENABLED = autoClaimEnabled;
+
+  const kyoshinAutoClaimEnabled = parseBooleanLiteral(kv.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED);
+  if (kyoshinAutoClaimEnabled != null) {
+    overrides.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED = kyoshinAutoClaimEnabled;
+  }
+
+  const autoStakeEnabled = parseBooleanLiteral(kv.KAMIYO_AUTO_STAKE_ENABLED);
+  if (autoStakeEnabled != null) overrides.KAMIYO_AUTO_STAKE_ENABLED = autoStakeEnabled;
+
+  const autoStakeAvailableBps = parseFiniteNumber(kv.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
+  if (autoStakeAvailableBps != null) {
+    overrides.KAMIYO_AUTO_STAKE_AVAILABLE_BPS = Math.max(1, Math.floor(autoStakeAvailableBps));
+  }
+
+  const autoStakeMaxLamportsPerTx = parseFiniteNumber(kv.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
+  if (autoStakeMaxLamportsPerTx != null) {
+    overrides.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX = Math.max(0, Math.floor(autoStakeMaxLamportsPerTx));
+  }
+
+  const allowlist = parseCsv(kv.KAMIYO_ALLOWED_STAKING_POOLS);
+  if (allowlist) overrides.KAMIYO_ALLOWED_STAKING_POOLS = allowlist;
+
+  const requireAllowlist = parseBooleanLiteral(kv.KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST);
+  if (requireAllowlist != null) {
+    overrides.KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST = requireAllowlist;
+  }
+
+  return overrides;
+}
+
+function executionPolicyFingerprint(policy: ExecutionPolicy): string {
+  const pools = Array.from(policy.allowedStakingPools).sort();
+  return JSON.stringify({
+    stage: policy.stage,
+    hardStop: policy.hardStop,
+    dailyCapSol: policy.dailyCapSol,
+    perTxCapSol: policy.perTxCapSol,
+    maxTxPerDay: policy.maxTxPerDay,
+    swarmJobExecutionEnabled: policy.swarmJobExecutionEnabled,
+    swarmJobExecutionsPerTick: policy.swarmJobExecutionsPerTick,
+    swarmJobMinMarginSol: policy.swarmJobMinMarginSol,
+    autoClaimEnabled: policy.autoClaimEnabled,
+    kyoshinAutoClaimEnabled: policy.kyoshinAutoClaimEnabled,
+    autoStakeEnabled: policy.autoStakeEnabled,
+    autoStakeAvailableBps: policy.autoStakeAvailableBps,
+    autoStakeMaxLamportsPerTx: policy.autoStakeMaxLamportsPerTx,
+    requireStakingPoolAllowlist: policy.requireStakingPoolAllowlist,
+    pools,
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -227,7 +350,7 @@ function computeRevenueNet(
 
 export class KyoshinRuntime {
   private readonly runtimeEnv: Env;
-  private readonly executionPolicy: ExecutionPolicy;
+  private executionPolicy: ExecutionPolicy;
   private readonly db: ReturnType<typeof openDb>;
   private readonly status: RuntimeStatus;
   private readonly rpcConnections: Connection[];
@@ -236,6 +359,7 @@ export class KyoshinRuntime {
   private loopTimer: NodeJS.Timeout | null = null;
   private runningTick = false;
   private stopRequested = false;
+  private lastPolicyReloadMs = 0;
 
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
@@ -262,17 +386,8 @@ export class KyoshinRuntime {
     this.rpcConnections = endpoints.map(endpoint => new Connection(endpoint, 'confirmed'));
 
     this.status.mode = runtimeEnv.KAMIYO_MODE;
-    this.status.execution.stage = this.executionPolicy.stage;
-    this.status.execution.hardStop = this.executionPolicy.hardStop;
-    this.status.execution.swarmJobExecutionEnabled = this.executionPolicy.swarmJobExecutionEnabled;
-    this.status.execution.autoClaimEnabled = this.executionPolicy.autoClaimEnabled;
-    this.status.execution.autoStakeEnabled = this.executionPolicy.autoStakeEnabled;
-    this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
-    this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
-    this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
     this.status.selfImprove.enabled = runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED;
-    this.status.selfImprove.effectiveMinMarginSol = this.executionPolicy.swarmJobMinMarginSol;
-    this.status.selfImprove.effectiveExecutionsPerTick = this.executionPolicy.swarmJobExecutionsPerTick;
+    this.applyExecutionPolicyToStatus();
 
     log('info', 'Kyoshin runtime initialized', {
       mode: runtimeEnv.KAMIYO_MODE,
@@ -407,6 +522,111 @@ export class KyoshinRuntime {
     return `${lines.join('\n')}\n`;
   }
 
+  private applyExecutionPolicyToStatus(): void {
+    this.status.execution.stage = this.executionPolicy.stage;
+    this.status.execution.hardStop = this.executionPolicy.hardStop;
+    this.status.execution.swarmJobExecutionEnabled = this.executionPolicy.swarmJobExecutionEnabled;
+    this.status.execution.autoClaimEnabled = this.executionPolicy.autoClaimEnabled;
+    this.status.execution.autoStakeEnabled = this.executionPolicy.autoStakeEnabled;
+    this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
+    this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
+    this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
+    this.status.selfImprove.effectiveMinMarginSol = this.executionPolicy.swarmJobMinMarginSol;
+    this.status.selfImprove.effectiveExecutionsPerTick = this.executionPolicy.swarmJobExecutionsPerTick;
+  }
+
+  private getExecutionPolicyInput(): ExecutionPolicyInput {
+    return {
+      KAMIYO_EXECUTION_STAGE: this.executionPolicy.stage,
+      KAMIYO_EXECUTION_HARD_STOP: this.executionPolicy.hardStop,
+      KAMIYO_SOL_DAILY_CAP: this.executionPolicy.dailyCapSol,
+      KAMIYO_SOL_PER_TX_CAP: this.executionPolicy.perTxCapSol,
+      KAMIYO_MAX_TX_PER_DAY: this.executionPolicy.maxTxPerDay,
+      KAMIYO_SWARM_JOB_EXECUTION_ENABLED: this.executionPolicy.swarmJobExecutionEnabled,
+      KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK: this.executionPolicy.swarmJobExecutionsPerTick,
+      KAMIYO_SWARM_JOB_MIN_MARGIN_SOL: this.executionPolicy.swarmJobMinMarginSol,
+      KAMIYO_AUTO_CLAIM_ENABLED: this.executionPolicy.autoClaimEnabled,
+      KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED: this.executionPolicy.kyoshinAutoClaimEnabled,
+      KAMIYO_AUTO_STAKE_ENABLED: this.executionPolicy.autoStakeEnabled,
+      KAMIYO_AUTO_STAKE_AVAILABLE_BPS: this.executionPolicy.autoStakeAvailableBps,
+      KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX: this.executionPolicy.autoStakeMaxLamportsPerTx,
+      KAMIYO_ALLOWED_STAKING_POOLS: Array.from(this.executionPolicy.allowedStakingPools),
+      KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST: this.executionPolicy.requireStakingPoolAllowlist,
+    };
+  }
+
+  private maybeRefreshExecutionPolicy(params: { tickId: string; nowIso: string }): void {
+    if (!this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_ENABLED) return;
+
+    const nowMs = Date.now();
+    const intervalMs = Math.max(1, this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS) * 1000;
+    if (nowMs - this.lastPolicyReloadMs < intervalMs) return;
+    this.lastPolicyReloadMs = nowMs;
+
+    const envFilePathRaw = this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_ENV_FILE;
+    if (!envFilePathRaw) return;
+    const envFilePath = path.isAbsolute(envFilePathRaw) ? envFilePathRaw : resolvePath(envFilePathRaw);
+    if (!fs.existsSync(envFilePath)) return;
+
+    try {
+      const overrides = readExecutionPolicyEnvOverrides(envFilePath);
+      if (Object.keys(overrides).length === 0) return;
+
+      const previousPolicy = this.executionPolicy;
+      const nextPolicy = buildExecutionPolicy({
+        ...this.getExecutionPolicyInput(),
+        ...overrides,
+      });
+      if (executionPolicyFingerprint(previousPolicy) === executionPolicyFingerprint(nextPolicy)) return;
+
+      this.executionPolicy = nextPolicy;
+      this.applyExecutionPolicyToStatus();
+      this.db.addAction(
+        params.tickId,
+        'execution_policy_hot_reload',
+        {
+          envFilePath,
+          overrides,
+        },
+        {
+          previous: {
+            stage: previousPolicy.stage,
+            hardStop: previousPolicy.hardStop,
+            dailyCapSol: previousPolicy.dailyCapSol,
+            perTxCapSol: previousPolicy.perTxCapSol,
+            maxTxPerDay: previousPolicy.maxTxPerDay,
+          },
+          next: {
+            stage: nextPolicy.stage,
+            hardStop: nextPolicy.hardStop,
+            dailyCapSol: nextPolicy.dailyCapSol,
+            perTxCapSol: nextPolicy.perTxCapSol,
+            maxTxPerDay: nextPolicy.maxTxPerDay,
+          },
+          at: params.nowIso,
+        }
+      );
+      log('warn', 'Execution policy hot-reloaded from env file', {
+        envFilePath,
+        stage: nextPolicy.stage,
+        hardStop: nextPolicy.hardStop,
+        dailyCapSol: nextPolicy.dailyCapSol,
+        perTxCapSol: nextPolicy.perTxCapSol,
+        maxTxPerDay: nextPolicy.maxTxPerDay,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.db.addAction(
+        params.tickId,
+        'execution_policy_hot_reload',
+        { envFilePath },
+        null,
+        message
+      );
+      log('warn', 'Execution policy hot-reload failed', { envFilePath, error: message });
+    }
+  }
+
   async start(): Promise<void> {
     await this.runTickGuarded();
 
@@ -466,6 +686,7 @@ export class KyoshinRuntime {
   private async runTick(tickId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const dayStartIso = startOfUtcDayIso();
+    this.maybeRefreshExecutionPolicy({ tickId, nowIso });
     const effectiveSelfImprove = this.getEffectiveSelfImproveSnapshot();
 
     let budget = this.calculateBudgetState(dayStartIso);
@@ -528,6 +749,7 @@ export class KyoshinRuntime {
       let excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
       if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
         await this.maybeSyncNearMarketBidMarkers({ tickId, nowIso });
+        await this.maybeWithdrawStaleNearMarketBids({ tickId, nowIso });
         excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
       }
 
@@ -1465,6 +1687,119 @@ export class KyoshinRuntime {
     }
 
     this.db.kvSet('near_market_bid_sync_last_at', params.nowIso);
+  }
+
+  private async maybeWithdrawStaleNearMarketBids(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+
+    const lastCheckedAt = this.db.kvGet('near_market_bid_withdraw_last_at');
+    if (lastCheckedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastCheckedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    let tracked;
+    try {
+      tracked = await listNearMarketTrackedBids({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses: ['pending'],
+      });
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_withdraw_stale',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+      this.db.kvSet('near_market_bid_withdraw_last_at', params.nowIso);
+      return;
+    }
+
+    const staleCutoffMs =
+      Date.now() - this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES * 60_000;
+    let inspected = 0;
+    let stale = 0;
+    let withdrawn = 0;
+    let failures = 0;
+    let initializedMarkers = 0;
+
+    for (const bid of tracked) {
+      inspected += 1;
+      const markerKey = `near_market_bid_submitted:${bid.jobId}`;
+      const markerRaw = this.db.kvGet(markerKey);
+      if (!markerRaw) {
+        this.db.kvSet(markerKey, params.nowIso);
+        initializedMarkers += 1;
+        continue;
+      }
+
+      const markerMs = Date.parse(markerRaw);
+      if (!Number.isFinite(markerMs)) {
+        this.db.kvSet(markerKey, params.nowIso);
+        initializedMarkers += 1;
+        continue;
+      }
+      if (markerMs > staleCutoffMs) continue;
+
+      stale += 1;
+      try {
+        await withdrawNearMarketBid({
+          baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+          apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+          bidId: bid.bidId,
+          timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+        });
+        this.db.kvSet(markerKey, '');
+        this.db.kvSet(`near_market_bid_withdrawn:${bid.bidId}`, params.nowIso);
+        withdrawn += 1;
+      } catch (error) {
+        failures += 1;
+        this.db.addAction(
+          params.tickId,
+          'near_market_bid_withdraw_stale',
+          {
+            bidId: bid.bidId,
+            jobId: bid.jobId,
+            markerAt: markerRaw,
+          },
+          null,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+
+    this.db.addAction(
+      params.tickId,
+      'near_market_bid_withdraw_stale',
+      {
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        staleAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES,
+      },
+      {
+        tracked: tracked.length,
+        inspected,
+        stale,
+        withdrawn,
+        failures,
+        initializedMarkers,
+      }
+    );
+    this.db.kvSet('near_market_bid_withdraw_last_at', params.nowIso);
   }
 
   private async maybeFetchBerlinWeather(): Promise<{
