@@ -8,8 +8,6 @@ members = [
     "programs/kamiyo-staking",
     "programs/kamiyo-governance",
     "programs/kamiyo-transfer-hook",
-    "programs/kamiyo-singularity-market",
-    "programs/kamiyo-singularity-orderbook",
     "programs/hive",
     "programs/kamiyo-fast-voting",
     "programs/meishi",

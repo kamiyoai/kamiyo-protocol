@@ -13,8 +13,6 @@ import { reputationRouter } from './routes/reputation.js';
 import { meishiRouter } from './routes/meishi.js';
 import { receiptsRouter } from './routes/receipts.js';
 import { receiptService } from './services/receipts.js';
-import { agentOpportunityFeedService } from './services/agent-opportunity-feed.js';
-import { renderPrometheusMetrics } from './services/runtime-metrics.js';
 
 const app = new Hono();
 
@@ -131,20 +129,6 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/metrics', (c) => {
-  const token = process.env.METRICS_BEARER_TOKEN;
-  if (token) {
-    const authHeader = c.req.header('Authorization') || '';
-    if (authHeader !== `Bearer ${token}`) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
-  }
-
-  c.header('cache-control', 'no-store');
-  c.header('content-type', 'text/plain; version=0.0.4');
-  return c.text(renderPrometheusMetrics());
-});
-
 app.route('/api/agents', agentsRouter);
 app.route('/api/jobs', jobsRouter);
 app.route('/api/earnings', earningsRouter);
@@ -168,7 +152,6 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 const port = Math.min(65535, Math.max(1, parseInt(process.env.PORT || '3001', 10) || 3001));
 console.log(`KEIRO API starting on port ${port}`);
-agentOpportunityFeedService.start();
 
 process.on('uncaughtException', (e) => {
   console.error('Uncaught exception', e);
@@ -178,13 +161,11 @@ process.on('unhandledRejection', (e) => {
 });
 
 process.on('SIGTERM', async () => {
-  agentOpportunityFeedService.stop();
   await receiptService.close();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  agentOpportunityFeedService.stop();
   await receiptService.close();
   process.exit(0);
 });
