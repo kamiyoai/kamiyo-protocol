@@ -77,6 +77,7 @@ type NearMarketAdapterConfig = {
   etaSeconds: number;
   allowCompetition: boolean;
   proposalTemplate: string;
+  minMarginSol: number;
 };
 
 export type MarketplaceFeedConfig = {
@@ -957,7 +958,8 @@ function parseNearMarketItem(params: {
 
   const feedUrl = new URL(params.feedUrl);
   const baseUrl = `${feedUrl.protocol}//${feedUrl.host}`;
-  const applyUrl = `${baseUrl}/v1/jobs/${jobId}/bids`;
+  const applicationPath = jobType === 'competition' ? 'entries' : 'bids';
+  const applyUrl = `${baseUrl}/v1/jobs/${jobId}/${applicationPath}`;
   const publicUrl = `${baseUrl}/jobs/${jobId}`;
   const proposal = fillProposalTemplate(adapter.proposalTemplate, {
     job_id: jobId,
@@ -1032,6 +1034,8 @@ function parseNearMarketItem(params: {
         budgetToken,
         existingBids,
         jobType,
+        applicationPath,
+        minMarginSol: adapter.minMarginSol,
       },
     },
   };
@@ -1060,6 +1064,7 @@ function parseMarketplaceItem(params: {
         etaSeconds: 3600,
         allowCompetition: false,
         proposalTemplate: 'Automated delivery.',
+        minMarginSol: 0,
       },
     });
   }

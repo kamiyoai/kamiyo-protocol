@@ -37,7 +37,6 @@ import { evaluateSelfImprove, parseSelfImproveState } from './swarm/selfImprove.
 import {
   collectNearMarketSettlements,
   fetchNearMarketJobDetail,
-  listNearMarketAcceptedBids,
   listNearMarketTrackedBids,
   submitNearMarketDeliverable,
   withdrawNearMarketBid,
@@ -798,6 +797,7 @@ export class KyoshinRuntime {
               etaSeconds: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ETA_SECONDS,
               allowCompetition: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ALLOW_COMPETITION,
               proposalTemplate: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE,
+              minMarginSol: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_MARGIN_SOL,
             },
           });
         }
@@ -1953,13 +1953,14 @@ export class KyoshinRuntime {
       }
     }
 
-    let acceptedBids;
+    let trackedBids;
     try {
-      acceptedBids = await listNearMarketAcceptedBids({
+      trackedBids = await listNearMarketTrackedBids({
         baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
         apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
         limit: Math.max(this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT, 100),
         timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses: ['accepted', 'in_progress', 'submitted'],
       });
     } catch (error) {
       this.db.addAction(
@@ -1973,11 +1974,53 @@ export class KyoshinRuntime {
       return;
     }
 
+    const nowMs = Date.parse(params.nowIso);
+    const retryLimit = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_LIMIT;
+    const backoffBaseMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES * 60_000;
+    const backoffMaxMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_MAX_BACKOFF_MINUTES * 60_000;
+    const escalateAfterMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES * 60_000;
+    const escalationLimit = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATION_LIMIT;
+
     let submitted = 0;
-    for (const bid of acceptedBids) {
+    let failed = 0;
+    let skippedBackoff = 0;
+    let escalated = 0;
+
+    for (const bid of trackedBids) {
       if (submitted >= this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT) break;
-      const submitMarkerKey = `near_market_submit:${bid.jobId}:${bid.bidId}`;
+      const keySuffix = `${bid.jobId}:${bid.bidId}`;
+      const submitMarkerKey = `near_market_submit:${keySuffix}`;
       if (this.db.kvGet(submitMarkerKey)) continue;
+
+      const firstSeenKey = `near_market_submit_first_seen:${keySuffix}`;
+      const attemptsKey = `near_market_submit_attempts:${keySuffix}`;
+      const nextAttemptAtKey = `near_market_submit_next_at:${keySuffix}`;
+      const escalationMarkerKey = `near_market_submit_escalated:${keySuffix}`;
+
+      const firstSeenAt =
+        this.db.kvGet(firstSeenKey) ||
+        params.nowIso;
+      if (!this.db.kvGet(firstSeenKey)) {
+        this.db.kvSet(firstSeenKey, firstSeenAt);
+      }
+
+      const attempts = Number.parseInt(this.db.kvGet(attemptsKey) ?? '0', 10) || 0;
+      const nextAttemptAt = this.db.kvGet(nextAttemptAtKey);
+      if (nextAttemptAt) {
+        const nextAttemptMs = Date.parse(nextAttemptAt);
+        if (Number.isFinite(nextAttemptMs) && nextAttemptMs > nowMs) {
+          skippedBackoff += 1;
+          continue;
+        }
+      }
+
+      const bidStatus = (bid.status ?? '').toLowerCase();
+      if (bidStatus === 'submitted') {
+        this.db.kvSet(submitMarkerKey, params.nowIso);
+        this.db.kvSet(attemptsKey, '0');
+        this.db.kvSet(nextAttemptAtKey, '');
+        continue;
+      }
 
       try {
         const detail = await fetchNearMarketJobDetail({
@@ -1986,14 +2029,34 @@ export class KyoshinRuntime {
           jobId: bid.jobId,
           timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
         });
-        if (!detail) continue;
+        if (!detail) {
+          throw new Error('near_market_job_detail_missing');
+        }
         const assignment =
-          detail.myAssignments.find(row => row.status === 'in_progress' || row.status === 'submitted' || row.status === 'accepted') ??
+          detail.myAssignments.find(
+            row =>
+              row.status === 'in_progress' ||
+              row.status === 'submitted' ||
+              row.status === 'accepted' ||
+              row.status === 'completed' ||
+              row.status === 'rejected'
+          ) ??
           null;
-        if (!assignment) continue;
+        if (!assignment) {
+          throw new Error('near_market_assignment_missing');
+        }
 
-        if (assignment.status === 'submitted' || assignment.status === 'accepted') {
+        if (
+          assignment.status === 'submitted' ||
+          assignment.status === 'completed' ||
+          assignment.status === 'rejected'
+        ) {
           this.db.kvSet(submitMarkerKey, params.nowIso);
+          this.db.kvSet(attemptsKey, '0');
+          this.db.kvSet(nextAttemptAtKey, '');
+          continue;
+        }
+        if (assignment.status !== 'accepted' && assignment.status !== 'in_progress') {
           continue;
         }
 
@@ -2040,8 +2103,17 @@ export class KyoshinRuntime {
           }
         );
         this.db.kvSet(submitMarkerKey, params.nowIso);
+        this.db.kvSet(attemptsKey, '0');
+        this.db.kvSet(nextAttemptAtKey, '');
+        this.db.kvSet(escalationMarkerKey, '');
         submitted += 1;
       } catch (error) {
+        failed += 1;
+        const nextAttempts = attempts + 1;
+        this.db.kvSet(attemptsKey, String(nextAttempts));
+        const backoffMs = Math.min(backoffMaxMs, backoffBaseMs * Math.max(1, nextAttempts));
+        this.db.kvSet(nextAttemptAtKey, new Date(nowMs + backoffMs).toISOString());
+
         this.db.addAction(
           params.tickId,
           'near_market_submit',
@@ -2052,8 +2124,60 @@ export class KyoshinRuntime {
           null,
           error instanceof Error ? error.message : String(error)
         );
+
+        const firstSeenMs = Date.parse(firstSeenAt);
+        const ageMs = Number.isFinite(firstSeenMs) ? Math.max(0, nowMs - firstSeenMs) : 0;
+        const shouldEscalate = nextAttempts >= retryLimit || ageMs >= escalateAfterMs;
+        if (shouldEscalate && escalated < escalationLimit && !this.db.kvGet(escalationMarkerKey)) {
+          const escalationError = error instanceof Error ? error.message : String(error);
+          const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'near-market-submit-escalation', {
+            tickId: params.tickId,
+            at: params.nowIso,
+            bid,
+            attempts: nextAttempts,
+            firstSeenAt,
+            ageMinutes: Math.floor(ageMs / 60_000),
+            retryLimit,
+            escalateAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES,
+            error: escalationError,
+          });
+          this.db.addAction(
+            params.tickId,
+            'near_market_submit_escalation',
+            {
+              jobId: bid.jobId,
+              bidId: bid.bidId,
+              attempts: nextAttempts,
+              ageMinutes: Math.floor(ageMs / 60_000),
+            },
+            {
+              receiptPath,
+              error: escalationError,
+            }
+          );
+          this.db.kvSet(escalationMarkerKey, params.nowIso);
+          escalated += 1;
+        }
       }
     }
+
+    this.db.addAction(
+      params.tickId,
+      'near_market_submit',
+      {
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT,
+        retryLimit,
+        backoffMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES,
+        escalateAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES,
+      },
+      {
+        tracked: trackedBids.length,
+        submitted,
+        failed,
+        skippedBackoff,
+        escalated,
+      }
+    );
 
     this.db.kvSet('near_market_submit_last_at', params.nowIso);
   }

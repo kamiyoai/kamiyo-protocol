@@ -284,6 +284,7 @@ test('near market feed generates bid action with deferred settlement mode', asyn
             etaSeconds: 1200,
             allowCompetition: false,
             proposalTemplate: 'Autonomous completion for {title} at {bid_near} NEAR.',
+            minMarginSol: 0.001,
           },
         },
       ],
@@ -313,6 +314,89 @@ test('near market feed generates bid action with deferred settlement mode', asyn
     assert.equal(metadata.executionMode, 'api');
     assert.equal(metadata.settlementMode, 'deferred');
     assert.equal(intake.assignments.some(item => item.opportunityId === 'near-job-1'), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('near market competition jobs use entries endpoint when enabled', async () => {
+  const originalFetch = globalThis.fetch;
+  const nearPayload = [
+    {
+      job_id: 'near-comp-1',
+      creator_agent_id: 'creator-1',
+      title: 'Agent competition task',
+      description: 'Submit a competition entry',
+      tags: ['competition'],
+      budget_amount: '0.5',
+      budget_token: 'NEAR',
+      status: 'open',
+      bid_count: 1,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      job_type: 'competition',
+    },
+  ];
+
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify(nearPayload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  try {
+    const intake = await collectSwarmOpportunities({
+      registry: createRegistry(),
+      feedUrls: [],
+      marketplaceFeeds: [
+        {
+          source: 'near_market',
+          url: 'https://market.near.ai/v1/jobs?status=open',
+          apiKey: 'test-key',
+          authHeader: 'authorization',
+          nearMarketAdapter: {
+            enabled: true,
+            agentId: 'worker-1',
+            nearPriceUsd: 4,
+            minBudgetNear: 0.05,
+            maxBudgetNear: 2,
+            bidDiscountBps: 7000,
+            minBidNear: 0.03,
+            maxBidNear: 1,
+            maxExistingBids: 8,
+            etaSeconds: 1200,
+            allowCompetition: true,
+            proposalTemplate: 'Autonomous completion for {title} at {bid_near} NEAR.',
+            minMarginSol: 0.001,
+          },
+        },
+      ],
+      leadConversionPolicy: {
+        enabled: false,
+        maxConversions: 0,
+        defaultPayoutUsd: 0,
+        requireEndpoint: true,
+        simulateOnly: false,
+        estimatedFeeSol: 0,
+        minConfidence: 0.6,
+        validateSourceContracts: true,
+      },
+      minRewardUsd: 0,
+      maxOpen: 10,
+      assignmentLimit: 3,
+      solPriceUsd: 100,
+      fetchTimeoutMs: 1000,
+    });
+
+    const opportunity = intake.opportunities.find(item => item.id === 'near-comp-1');
+    assert.ok(opportunity);
+    assert.equal(opportunity?.source, 'near_market');
+    const metadata = opportunity?.metadata as Record<string, unknown>;
+    const actions = metadata.actions as Record<string, unknown>;
+    const apply = actions.apply as Record<string, unknown>;
+    assert.equal(apply.url, 'https://market.near.ai/v1/jobs/near-comp-1/entries');
+    const nearMarket = metadata.nearMarket as Record<string, unknown>;
+    assert.equal(nearMarket.applicationPath, 'entries');
   } finally {
     globalThis.fetch = originalFetch;
   }

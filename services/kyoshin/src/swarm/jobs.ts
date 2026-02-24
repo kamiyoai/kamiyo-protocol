@@ -237,6 +237,27 @@ function formatNearAmount(value: number): string {
   return fixed.replace(/\.?0+$/, '');
 }
 
+function nearMarketApplicationPathFromStep(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+}): 'bids' | 'entries' | null {
+  try {
+    const parsed = new URL(params.step.url);
+    const match = parsed.pathname.match(/\/v1\/jobs\/[^/]+\/(bids|entries)\/?$/i);
+    if (match?.[1]) {
+      return match[1].toLowerCase() as 'bids' | 'entries';
+    }
+  } catch {
+    // Fall back to metadata.
+  }
+
+  const metadata = asRecord(params.opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const explicit = asString(nearMarket?.applicationPath)?.toLowerCase();
+  if (explicit === 'bids' || explicit === 'entries') return explicit;
+  return null;
+}
+
 function nearMarketJobIdFromStep(params: {
   opportunity: SwarmOpportunity;
   step: MarketplaceActionStep;
@@ -250,7 +271,7 @@ function nearMarketJobIdFromStep(params: {
 
   try {
     const parsed = new URL(params.step.url);
-    const match = parsed.pathname.match(/\/v1\/jobs\/([^/]+)\/bids\/?$/i);
+    const match = parsed.pathname.match(/\/v1\/jobs\/([^/]+)\/(?:bids|entries)\/?$/i);
     return match?.[1] ?? null;
   } catch {
     return null;
@@ -296,6 +317,7 @@ async function maybeApplyNearMarketUndercut(params: {
 }): Promise<MarketplaceActionStep> {
   if (params.opportunity.source !== 'near_market') return params.step;
   if (params.step.name !== 'apply' || params.step.method !== 'POST') return params.step;
+  if (nearMarketApplicationPathFromStep(params) !== 'bids') return params.step;
 
   const body = asRecord(params.step.body);
   if (!body) return params.step;
@@ -355,6 +377,15 @@ async function maybeApplyNearMarketUndercut(params: {
   } catch {
     return params.step;
   }
+}
+
+function nearMarketMinMarginSol(opportunity: SwarmOpportunity): number {
+  if (opportunity.source !== 'near_market') return 0;
+  const metadata = asRecord(opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const configured = asNumber(nearMarket?.minMarginSol);
+  if (configured == null || !Number.isFinite(configured)) return 0;
+  return Math.max(0, configured);
 }
 
 function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceActionStep | null {
@@ -510,10 +541,11 @@ async function executeMarketplaceLifecycle(params: {
   };
 
   const costEstimate = params.estimatedFeeSol * Math.max(1, params.steps.length);
+  const effectiveMinMarginSol = Math.max(params.minMarginSol, nearMarketMinMarginSol(opportunity));
   const margin = marginCheck({
     expectedRevenueSol: params.expectedRevenueSol,
     estimatedCostSol: costEstimate,
-    minMarginSol: params.minMarginSol,
+    minMarginSol: effectiveMinMarginSol,
     requireExpectedRevenue: params.requireExpectedRevenue,
   });
 
@@ -528,7 +560,7 @@ async function executeMarketplaceLifecycle(params: {
       output: {
         expectedRevenueSol: params.expectedRevenueSol,
         estimatedCostSol: costEstimate,
-        minMarginSol: params.minMarginSol,
+        minMarginSol: effectiveMinMarginSol,
         marginSol: margin.marginSol,
       },
     };
@@ -644,6 +676,7 @@ async function executeMarketplaceLifecycle(params: {
       steps: stepOutputs,
       settlementMode,
       estimatedCostSol: costEstimate,
+      minMarginSol: effectiveMinMarginSol,
       marginSol: margin.marginSol,
     },
   };

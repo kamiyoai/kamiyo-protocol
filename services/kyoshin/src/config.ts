@@ -148,6 +148,7 @@ const envSchema = z.object({
   KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE: z
     .string()
     .default('Autonomous delivery with proof artifacts, deterministic output, and deadline compliance.'),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_MARGIN_SOL: z.coerce.number().nonnegative().default(0.001),
   KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
@@ -160,6 +161,11 @@ const envSchema = z.object({
     .transform(v => v === 'true'),
   KAMIYO_SWARM_NEAR_MARKET_SUBMIT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
   KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT: z.coerce.number().int().positive().default(6),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_LIMIT: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES: z.coerce.number().int().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_MAX_BACKOFF_MINUTES: z.coerce.number().int().positive().default(180),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES: z.coerce.number().int().positive().default(45),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATION_LIMIT: z.coerce.number().int().positive().default(4),
   KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
