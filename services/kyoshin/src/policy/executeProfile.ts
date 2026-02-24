@@ -67,7 +67,7 @@ const STAGE_CAPS: Record<ExecutionStage, StageCaps> = {
     perTxCapSol: 0.01,
     maxTxPerDay: 60,
     swarmJobExecutionsPerTick: 1,
-    minMarginSol: 0.00015,
+    minMarginSol: 0.0001,
     allowSwarmExecution: true,
     allowAutoClaim: true,
     allowKyoshinClaim: true,
