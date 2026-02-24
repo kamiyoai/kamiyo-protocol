@@ -232,6 +232,131 @@ function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthM
   return { [header]: value };
 }
 
+function formatNearAmount(value: number): string {
+  const fixed = value.toFixed(4);
+  return fixed.replace(/\.?0+$/, '');
+}
+
+function nearMarketJobIdFromStep(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+}): string | null {
+  const metadata = asRecord(params.opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const explicit =
+    asString(nearMarket?.jobId) ??
+    asString(metadata?.rawId);
+  if (explicit) return explicit;
+
+  try {
+    const parsed = new URL(params.step.url);
+    const match = parsed.pathname.match(/\/v1\/jobs\/([^/]+)\/bids\/?$/i);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function nearMarketBidLimits(opportunity: SwarmOpportunity): {
+  minBidNear: number;
+  maxBidNear: number;
+  budgetNear: number | null;
+} {
+  const metadata = asRecord(opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const minBidNear = Math.max(0, asNumber(nearMarket?.minBidNear) ?? 0);
+  const rawMaxBidNear = asNumber(nearMarket?.maxBidNear);
+  const maxBidNear = rawMaxBidNear != null && rawMaxBidNear > 0 ? rawMaxBidNear : Number.POSITIVE_INFINITY;
+  const budgetNear = asNumber(nearMarket?.budgetNear);
+  return {
+    minBidNear,
+    maxBidNear,
+    budgetNear: budgetNear != null && budgetNear > 0 ? budgetNear : null,
+  };
+}
+
+function pickNearMarketBidAmount(payload: unknown): number | null {
+  if (!Array.isArray(payload)) return null;
+  let next: number | null = null;
+  for (const row of payload) {
+    const record = asRecord(row);
+    if (!record) continue;
+    const amount = asNumber(record.amount);
+    if (amount == null || amount <= 0) continue;
+    next = next == null ? amount : Math.min(next, amount);
+  }
+  return next;
+}
+
+async function maybeApplyNearMarketUndercut(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+  sourceHeaders: Record<string, string>;
+  timeoutMs: number;
+}): Promise<MarketplaceActionStep> {
+  if (params.opportunity.source !== 'near_market') return params.step;
+  if (params.step.name !== 'apply' || params.step.method !== 'POST') return params.step;
+
+  const body = asRecord(params.step.body);
+  if (!body) return params.step;
+  const currentBidNear = asNumber(body.amount);
+  if (currentBidNear == null || currentBidNear <= 0) return params.step;
+
+  const jobId = nearMarketJobIdFromStep({
+    opportunity: params.opportunity,
+    step: params.step,
+  });
+  if (!jobId) return params.step;
+
+  let baseUrl: string;
+  try {
+    const parsed = new URL(params.step.url);
+    baseUrl = `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return params.step;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${baseUrl}/v1/jobs/${jobId}/bids`,
+      {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          ...params.sourceHeaders,
+        },
+      },
+      params.timeoutMs
+    );
+    if (!response.ok) return params.step;
+    const payload = await parseResponsePayload(response);
+    const lowestBidNear = pickNearMarketBidAmount(payload);
+    if (lowestBidNear == null || lowestBidNear <= 0) return params.step;
+
+    const { minBidNear, maxBidNear, budgetNear } = nearMarketBidLimits(params.opportunity);
+    const undercutNear = Math.max(0, lowestBidNear - 0.0001);
+    let bidCapNear = maxBidNear;
+    if (budgetNear != null) {
+      bidCapNear = Math.min(bidCapNear, Math.max(0, budgetNear - 0.0001));
+    }
+    if (!Number.isFinite(bidCapNear) || bidCapNear <= 0) return params.step;
+
+    const nextBidNear = Math.max(minBidNear, Math.min(bidCapNear, undercutNear));
+    if (!Number.isFinite(nextBidNear) || nextBidNear <= 0) return params.step;
+    if (nextBidNear >= currentBidNear - 0.00005) return params.step;
+
+    return {
+      ...params.step,
+      body: {
+        ...body,
+        amount: formatNearAmount(nextBidNear),
+      },
+    };
+  } catch {
+    return params.step;
+  }
+}
+
 function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceActionStep | null {
   const urlFromString = asString(value);
   if (urlFromString) {
@@ -412,7 +537,13 @@ async function executeMarketplaceLifecycle(params: {
   const sourceHeaders = sourceAuthHeaders(opportunity.source, params.sourceAuth);
   const stepOutputs: Array<Record<string, unknown>> = [];
 
-  for (const step of params.steps) {
+  for (const rawStep of params.steps) {
+    const step = await maybeApplyNearMarketUndercut({
+      opportunity,
+      step: rawStep,
+      sourceHeaders,
+      timeoutMs: params.timeoutMs,
+    });
     const method = step.method;
     const mergedHeaders: Record<string, string> = {
       ...sourceHeaders,

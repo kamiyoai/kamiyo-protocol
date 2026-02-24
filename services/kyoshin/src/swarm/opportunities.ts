@@ -1023,9 +1023,12 @@ function parseNearMarketItem(params: {
       marketplaceRecord: record,
       nearMarket: {
         jobId,
+        bidderAgentId: adapter.agentId,
         creatorAgentId,
         budgetNear,
         bidNear,
+        minBidNear: adapter.minBidNear,
+        maxBidNear: adapter.maxBidNear,
         budgetToken,
         existingBids,
         jobType,
