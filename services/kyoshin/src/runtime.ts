@@ -1386,6 +1386,10 @@ export class KyoshinRuntime {
     const prefix = 'near_market_bid_submitted:';
     return this.db
       .kvKeys(prefix)
+      .filter(key => {
+        const value = this.db.kvGet(key);
+        return typeof value === 'string' && value.trim().length > 0;
+      })
       .map(key => key.slice(prefix.length).trim())
       .filter(Boolean);
   }
@@ -1409,7 +1413,7 @@ export class KyoshinRuntime {
     }
 
     try {
-      const statuses = ['pending', 'accepted', 'submitted', 'in_progress', 'withdrawn', 'completed'];
+      const statuses = ['pending', 'accepted', 'submitted', 'in_progress', 'withdrawn', 'rejected', 'completed'];
       const bids = await listNearMarketTrackedBids({
         baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
         apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
@@ -1419,8 +1423,17 @@ export class KyoshinRuntime {
       });
 
       let marked = 0;
+      let cleared = 0;
       for (const bid of bids) {
         const markerKey = `near_market_bid_submitted:${bid.jobId}`;
+        const status = (bid.status ?? '').toLowerCase();
+        if (status === 'withdrawn' || status === 'rejected') {
+          if (this.db.kvGet(markerKey)) {
+            this.db.kvSet(markerKey, '');
+            cleared += 1;
+          }
+          continue;
+        }
         if (this.db.kvGet(markerKey)) continue;
         this.db.kvSet(markerKey, params.nowIso);
         marked += 1;
@@ -1436,6 +1449,7 @@ export class KyoshinRuntime {
         {
           tracked: bids.length,
           marked,
+          cleared,
         }
       );
     } catch (error) {
