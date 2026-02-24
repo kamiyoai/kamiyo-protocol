@@ -135,10 +135,10 @@ case "$hard_stop" in
   *) usage ;;
 esac
 
+validate_before_mutation "$stage" "$hard_stop"
 set_kv "KAMIYO_EXECUTION_STAGE" "$stage"
 set_kv "KAMIYO_EXECUTION_HARD_STOP" "$hard_stop"
 apply_stage_caps "$stage"
-validate_before_mutation "$stage" "$hard_stop"
 
 systemctl daemon-reload
 systemctl restart "$SERVICE"
