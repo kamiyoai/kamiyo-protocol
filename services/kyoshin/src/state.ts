@@ -31,6 +31,22 @@ export type RuntimeStatus = {
     lastRouteSignature: string | null;
     lastClaimSignature: string | null;
   };
+  economics: {
+    pendingIntakeJobs: number;
+    completedIntakeJobs: number;
+    deadletterIntakeJobs: number;
+    netRevenueTodaySol: number;
+    grossRevenueTodaySol: number;
+    costTodaySol: number;
+    lastSettlementAt: string | null;
+  };
+  selfImprove: {
+    enabled: boolean;
+    lastEvaluatedAt: string | null;
+    lastAction: 'hold' | 'tighten' | 'loosen' | 'scale_down' | 'scale_up';
+    effectiveMinMarginSol: number;
+    effectiveExecutionsPerTick: number;
+  };
 };
 
 export function createInitialStatus(mode: 'propose' | 'execute'): RuntimeStatus {
@@ -66,6 +82,22 @@ export function createInitialStatus(mode: 'propose' | 'execute'): RuntimeStatus 
       maxTxPerDay: 0,
       lastRouteSignature: null,
       lastClaimSignature: null,
+    },
+    economics: {
+      pendingIntakeJobs: 0,
+      completedIntakeJobs: 0,
+      deadletterIntakeJobs: 0,
+      netRevenueTodaySol: 0,
+      grossRevenueTodaySol: 0,
+      costTodaySol: 0,
+      lastSettlementAt: null,
+    },
+    selfImprove: {
+      enabled: false,
+      lastEvaluatedAt: null,
+      lastAction: 'hold',
+      effectiveMinMarginSol: 0,
+      effectiveExecutionsPerTick: 0,
     },
   };
 }

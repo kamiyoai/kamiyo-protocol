@@ -12,6 +12,9 @@ async function main(): Promise<void> {
         token: env.KYOSHIN_HTTP_TOKEN,
         getStatus: () => runtime.getStatus(),
         getMetrics: () => runtime.getMetrics(),
+        enqueueIntakeJobs: payload => runtime.enqueueIntakeJobs(payload),
+        listIntakeJobs: params => runtime.listIntakeJobs(params),
+        getEconomicsSnapshot: () => runtime.getEconomicsSnapshot(),
       })
     : null;
 

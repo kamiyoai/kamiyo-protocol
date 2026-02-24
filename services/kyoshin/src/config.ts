@@ -134,6 +134,33 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
+  KAMIYO_SWARM_INTAKE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_INTAKE_MAX_OPEN: z.coerce.number().int().positive().default(16),
+  KAMIYO_SWARM_INTAKE_RETRY_LIMIT: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS: z.coerce.number().int().positive().default(120),
+  KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_SWARM_LEAD_CONVERSION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK: z.coerce.number().int().positive().default(6),
+  KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD: z.coerce.number().nonnegative().default(12),
+  KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
 
   KAMIYO_SWARM_X402_ENABLED: z
     .enum(['true', 'false'])
@@ -168,6 +195,27 @@ const envSchema = z.object({
   KAMIYO_SWARM_ROLLBACK_SOURCE_MIN_JOBS: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_MAX_DISABLED_SOURCES: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_REVENUE_POLICY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
+  KAMIYO_REVENUE_MIN_NET_SOL: z.coerce.number().nonnegative().default(0.001),
+  KAMIYO_REVENUE_ROUTE_BPS: z.coerce.number().int().min(0).max(10_000).default(7000),
+  KAMIYO_REVENUE_RESERVE_BPS: z.coerce.number().int().min(0).max(10_000).default(2000),
+  KAMIYO_REVENUE_OPERATIONS_BPS: z.coerce.number().int().min(0).max(10_000).default(1000),
+  KAMIYO_SELF_IMPROVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  KAMIYO_SELF_IMPROVE_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_SELF_IMPROVE_MIN_JOBS: z.coerce.number().int().positive().default(10),
+  KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER: z.coerce.number().min(0).max(1).default(0.35),
+  KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER: z.coerce.number().min(0).max(1).default(0.1),
+  KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL: z.coerce.number().positive().default(0.0002),
+  KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL: z.coerce.number().nonnegative().default(0.0002),
+  KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK: z.coerce.number().int().positive().default(4),
 
   KYOSHIN_HTTP_ENABLED: z
     .enum(['true', 'false'])

@@ -13,6 +13,7 @@ import { loadSwarmRegistry } from './swarm/registry.js';
 import { planSwarmMissions, type SwarmMissionOpportunityHint } from './swarm/planner.js';
 import {
   collectSwarmOpportunities,
+  type LeadConversionPolicy,
   type MarketplaceFeedConfig,
   type SwarmOpportunity,
   type SwarmOpportunityAssignment,
@@ -22,7 +23,9 @@ import { executeAssignedOpportunity, type SourceAuthMap } from './swarm/jobs.js'
 import { parseMarginCircuitState, pruneMarginCircuitState, isMarginCircuitOpen, updateMarginCircuit } from './swarm/circuitBreaker.js';
 import { parseRollbackState, pruneRollbackState, isRollbackSourceDisabled, evaluateRollbackPolicy } from './swarm/rollback.js';
 import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMetrics } from './swarm/performance.js';
-import { revenueLaneForOpportunitySource } from './swarm/revenue.js';
+import { revenueLaneForOpportunitySource, summariseLaneStats } from './swarm/revenue.js';
+import { intakeJobBatchSchema, intakeJobToOpportunity, normalizeBatchInput, normalizeIntakeJob } from './swarm/intake.js';
+import { evaluateSelfImprove, parseSelfImproveState } from './swarm/selfImprove.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
 import { buildExecutionPolicy, type ExecutionPolicy } from './policy/executeProfile.js';
@@ -136,11 +139,83 @@ type BudgetState = {
   txToday: number;
 };
 
+type SwarmExecutionOutcome = {
+  agentId: string;
+  opportunityId: string;
+  source: string;
+  status: 'executed' | 'failed' | 'skipped';
+  reason?: string;
+  error?: string;
+  realizedRevenueSol: number;
+  realizedRevenueUsd: number;
+  intakeJobId?: string;
+};
+
+type RevenueNet = {
+  grossSol: number;
+  costSol: number;
+  netSol: number;
+  grossUsd: number;
+  costUsd: number;
+  netUsd: number;
+};
+
+type SelfImproveSnapshot = {
+  effectiveMinMarginSol: number;
+  effectiveExecutionsPerTick: number;
+  lastAction: 'hold' | 'tighten' | 'loosen' | 'scale_down' | 'scale_up';
+  lastEvaluatedAt: string | null;
+};
+
+function isTerminalSkipReason(reason: string | undefined): boolean {
+  if (!reason) return false;
+  return (
+    reason === 'missing_opportunity_url' ||
+    reason === 'discovery_lead_non_executable' ||
+    reason.startsWith('marketplace_') ||
+    reason === 'request_failed' ||
+    reason === 'request_error' ||
+    reason === 'x402_requirement_missing' ||
+    reason === 'x402_amount_invalid' ||
+    reason === 'x402_amount_missing'
+  );
+}
+
+function computeRevenueNet(
+  stats: Array<{ lane: string; kind: string; events: number; amountSol: number; amountUsd: number }>
+): RevenueNet {
+  let grossSol = 0;
+  let costSol = 0;
+  let grossUsd = 0;
+  let costUsd = 0;
+
+  for (const row of stats) {
+    if (row.kind === 'job' || row.kind === 'claim') {
+      grossSol += row.amountSol;
+      grossUsd += row.amountUsd;
+      continue;
+    }
+    if (row.kind === 'job_cost' || row.kind === 'route') {
+      costSol += Math.abs(row.amountSol);
+      costUsd += Math.abs(row.amountUsd);
+    }
+  }
+
+  return {
+    grossSol,
+    costSol,
+    netSol: grossSol - costSol,
+    grossUsd,
+    costUsd,
+    netUsd: grossUsd - costUsd,
+  };
+}
+
 export class KyoshinRuntime {
   private readonly runtimeEnv: Env;
   private readonly executionPolicy: ExecutionPolicy;
-  private readonly db = openDb(resolvePath(env.KAMIYO_DB_PATH));
-  private readonly status: RuntimeStatus = createInitialStatus(env.KAMIYO_MODE);
+  private readonly db: ReturnType<typeof openDb>;
+  private readonly status: RuntimeStatus;
   private readonly rpcConnections: Connection[];
   private readonly operatorKeypair: Keypair;
 
@@ -151,6 +226,8 @@ export class KyoshinRuntime {
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
     this.executionPolicy = buildExecutionPolicy(runtimeEnv);
+    this.db = openDb(resolvePath(runtimeEnv.KAMIYO_DB_PATH));
+    this.status = createInitialStatus(runtimeEnv.KAMIYO_MODE);
 
     let keypairInfo: { keypair: Keypair; source: string };
     try {
@@ -179,6 +256,9 @@ export class KyoshinRuntime {
     this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
     this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
     this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
+    this.status.selfImprove.enabled = runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED;
+    this.status.selfImprove.effectiveMinMarginSol = this.executionPolicy.swarmJobMinMarginSol;
+    this.status.selfImprove.effectiveExecutionsPerTick = this.executionPolicy.swarmJobExecutionsPerTick;
 
     log('info', 'Kyoshin runtime initialized', {
       mode: runtimeEnv.KAMIYO_MODE,
@@ -196,6 +276,60 @@ export class KyoshinRuntime {
       execution: { ...this.status.execution },
       swarm: { ...this.status.swarm },
       treasury: { ...this.status.treasury },
+      economics: { ...this.status.economics },
+      selfImprove: { ...this.status.selfImprove },
+    };
+  }
+
+  enqueueIntakeJobs(payload: unknown): {
+    accepted: string[];
+    updated: string[];
+    rejected: Array<{ id: string; reason: string }>;
+  } {
+    const parsed = intakeJobBatchSchema.parse(payload);
+    const normalized = normalizeBatchInput(parsed).map(job => ({
+      id: job.id,
+      payload: normalizeIntakeJob(job),
+    }));
+    const result = this.db.upsertIntakeJobs(normalized);
+    const stats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = stats.pending;
+    this.status.economics.completedIntakeJobs = stats.completed;
+    this.status.economics.deadletterIntakeJobs = stats.deadletter;
+    return result;
+  }
+
+  listIntakeJobs(params?: {
+    status?: 'pending' | 'completed' | 'deadletter';
+    limit?: number;
+  }): ReturnType<ReturnType<typeof openDb>['listIntakeJobs']> {
+    return this.db.listIntakeJobs(params);
+  }
+
+  getEconomicsSnapshot(): {
+    dayStartIso: string;
+    revenue: RevenueNet;
+    laneSummary: ReturnType<typeof summariseLaneStats>;
+    intake: ReturnType<ReturnType<typeof openDb>['intakeJobStats']>;
+    selfImprove: SelfImproveSnapshot;
+  } {
+    const dayStartIso = startOfUtcDayIso();
+    const laneStats = this.db.revenueLaneStatsSince(dayStartIso);
+    const intake = this.db.intakeJobStats();
+    const revenue = computeRevenueNet(laneStats);
+    const laneSummary = summariseLaneStats(laneStats);
+
+    return {
+      dayStartIso,
+      revenue,
+      laneSummary,
+      intake,
+      selfImprove: {
+        effectiveMinMarginSol: this.status.selfImprove.effectiveMinMarginSol,
+        effectiveExecutionsPerTick: this.status.selfImprove.effectiveExecutionsPerTick,
+        lastAction: this.status.selfImprove.lastAction,
+        lastEvaluatedAt: this.status.selfImprove.lastEvaluatedAt,
+      },
     };
   }
 
@@ -242,6 +376,18 @@ export class KyoshinRuntime {
       '# HELP kyoshin_treasury_tx_today Number of treasury tx attempts today.',
       '# TYPE kyoshin_treasury_tx_today gauge',
       `kyoshin_treasury_tx_today ${this.status.treasury.txToday}`,
+      '# HELP kyoshin_intake_jobs_pending Pending intake jobs.',
+      '# TYPE kyoshin_intake_jobs_pending gauge',
+      `kyoshin_intake_jobs_pending ${this.status.economics.pendingIntakeJobs}`,
+      '# HELP kyoshin_revenue_net_today_sol Net realized revenue for UTC day.',
+      '# TYPE kyoshin_revenue_net_today_sol gauge',
+      `kyoshin_revenue_net_today_sol ${this.status.economics.netRevenueTodaySol}`,
+      '# HELP kyoshin_self_improve_effective_min_margin_sol Adaptive min margin.',
+      '# TYPE kyoshin_self_improve_effective_min_margin_sol gauge',
+      `kyoshin_self_improve_effective_min_margin_sol ${this.status.selfImprove.effectiveMinMarginSol}`,
+      '# HELP kyoshin_self_improve_effective_executions_per_tick Adaptive execution rate.',
+      '# TYPE kyoshin_self_improve_effective_executions_per_tick gauge',
+      `kyoshin_self_improve_effective_executions_per_tick ${this.status.selfImprove.effectiveExecutionsPerTick}`,
     ];
 
     return `${lines.join('\n')}\n`;
@@ -306,11 +452,20 @@ export class KyoshinRuntime {
   private async runTick(tickId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const dayStartIso = startOfUtcDayIso();
+    const effectiveSelfImprove = this.getEffectiveSelfImproveSnapshot();
 
     let budget = this.calculateBudgetState(dayStartIso);
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
+    this.status.selfImprove.effectiveExecutionsPerTick = effectiveSelfImprove.effectiveExecutionsPerTick;
+    this.status.selfImprove.effectiveMinMarginSol = effectiveSelfImprove.effectiveMinMarginSol;
+    this.status.selfImprove.lastAction = effectiveSelfImprove.lastAction;
+    this.status.selfImprove.lastEvaluatedAt = effectiveSelfImprove.lastEvaluatedAt;
+    const intakeStats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStats.pending;
+    this.status.economics.completedIntakeJobs = intakeStats.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStats.deadletter;
 
     const observation: Record<string, unknown> = {
       tickId,
@@ -320,6 +475,8 @@ export class KyoshinRuntime {
         stage: this.executionPolicy.stage,
         hardStop: this.executionPolicy.hardStop,
         swarmJobExecutionEnabled: this.executionPolicy.swarmJobExecutionEnabled,
+        effectiveSwarmJobExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
+        effectiveSwarmJobMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
         autoClaimEnabled: this.executionPolicy.autoClaimEnabled,
         autoStakeEnabled: this.executionPolicy.autoStakeEnabled,
       },
@@ -346,8 +503,16 @@ export class KyoshinRuntime {
       const disabledSources = Object.values(rollbackState.sources)
         .filter(value => value != null)
         .map(value => value!.source);
+      const intakeJobs =
+        this.runtimeEnv.KAMIYO_SWARM_INTAKE_ENABLED
+          ? this.db.dueIntakeJobs({
+              nowIso,
+              limit: this.runtimeEnv.KAMIYO_SWARM_INTAKE_MAX_OPEN,
+            })
+          : [];
+      const intakeOpportunities = intakeJobs.map(intakeJobToOpportunity);
 
-      if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED) {
+      if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED || intakeOpportunities.length > 0) {
         const marketplaceFeeds: MarketplaceFeedConfig[] = [];
         if (this.runtimeEnv.KAMIYO_SWARM_RELEVANCE_FEED_URL) {
           marketplaceFeeds.push({
@@ -374,6 +539,17 @@ export class KyoshinRuntime {
           });
         }
 
+        const leadConversionPolicy: LeadConversionPolicy = {
+          enabled: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_ENABLED,
+          maxConversions: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK,
+          defaultPayoutUsd: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD,
+          requireEndpoint: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT,
+          simulateOnly: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY,
+          estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
+          minConfidence: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE,
+          validateSourceContracts: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION,
+        };
+
         swarmOpportunityIntake = await collectSwarmOpportunities({
           registry: swarmRegistry,
           feedPath: this.runtimeEnv.KAMIYO_SWARM_JOB_FEED_PATH
@@ -381,6 +557,8 @@ export class KyoshinRuntime {
             : undefined,
           feedUrls: this.runtimeEnv.KAMIYO_SWARM_JOB_FEED_URLS,
           marketplaceFeeds,
+          leadConversionPolicy,
+          extraOpportunities: intakeOpportunities,
           sourceQualityBySource,
           disabledSources,
           minRewardUsd: this.runtimeEnv.KAMIYO_SWARM_JOB_MIN_REWARD_USD,
@@ -425,12 +603,15 @@ export class KyoshinRuntime {
       if (
         this.runtimeEnv.KAMIYO_MODE === 'execute' &&
         this.executionPolicy.swarmJobExecutionEnabled &&
+        effectiveSelfImprove.effectiveExecutionsPerTick > 0 &&
         swarmOpportunityIntake
       ) {
         const executionResult = await this.executeSwarmJobs({
           tickId,
           dayStartIso,
           budget,
+          effectiveMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
+          effectiveExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
           registry: swarmRegistry,
           missionPlan,
           opportunityIntake: swarmOpportunityIntake,
@@ -440,6 +621,11 @@ export class KyoshinRuntime {
         this.status.swarm.executedLastTick = executionResult.executed;
         this.status.swarm.skippedLastTick = executionResult.skipped;
         this.status.swarm.failedLastTick = executionResult.failed;
+        this.settleIntakeJobOutcomes({
+          tickId,
+          outcomes: executionResult.outcomes,
+          nowIso,
+        });
 
         const performance = evaluateSwarmPerformance({
           registry: swarmRegistry,
@@ -450,6 +636,10 @@ export class KyoshinRuntime {
         this.db.addObservation(tickId, 'swarm-performance', performance);
 
         await this.maybeEvaluateRollback({ tickId, nowIso });
+      }
+
+      if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
+        await this.maybeEvaluateSelfImprove({ tickId, nowIso });
       }
 
       observation.swarm = {
@@ -500,18 +690,36 @@ export class KyoshinRuntime {
           source: 'runtime_auto_stake_kyoshin',
         });
       }
+
+      budget = await this.maybeSettleRevenuePolicy({ tickId, dayStartIso, nowIso, budget });
     }
 
     await this.maybeRunRetention({ tickId, nowIso });
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
+    const revenueStatsToday = this.db.revenueLaneStatsSince(dayStartIso);
+    const revenueNetToday = computeRevenueNet(revenueStatsToday);
+    this.status.economics.grossRevenueTodaySol = revenueNetToday.grossSol;
+    this.status.economics.costTodaySol = revenueNetToday.costSol;
+    this.status.economics.netRevenueTodaySol = revenueNetToday.netSol;
+    const intakeStatsEnd = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStatsEnd.pending;
+    this.status.economics.completedIntakeJobs = intakeStatsEnd.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStatsEnd.deadletter;
 
     observation.budgetsEnd = {
       spentTodaySol: budget.spentTodaySol,
       txToday: budget.txToday,
       dailyCapSol: this.executionPolicy.dailyCapSol,
       txCap: this.executionPolicy.maxTxPerDay,
+    };
+    observation.economics = {
+      grossRevenueSol: revenueNetToday.grossSol,
+      costSol: revenueNetToday.costSol,
+      netRevenueSol: revenueNetToday.netSol,
+      intakeJobs: intakeStatsEnd,
+      selfImprove: this.status.selfImprove,
     };
 
     this.db.addObservation(tickId, 'snapshot', observation);
@@ -528,6 +736,8 @@ export class KyoshinRuntime {
     tickId: string;
     dayStartIso: string;
     budget: BudgetState;
+    effectiveMinMarginSol: number;
+    effectiveExecutionsPerTick: number;
     registry: SwarmRegistry;
     missionPlan: ReturnType<typeof planSwarmMissions>;
     opportunityIntake: SwarmOpportunityIntake;
@@ -537,6 +747,7 @@ export class KyoshinRuntime {
     executed: number;
     skipped: number;
     failed: number;
+    outcomes: SwarmExecutionOutcome[];
   }> {
     let budget = { ...params.budget };
 
@@ -582,10 +793,11 @@ export class KyoshinRuntime {
     this.db.kvSet('swarm_rollback_state', JSON.stringify(rollbackState));
 
     const runtimeMetrics: SwarmAgentRuntimeMetrics[] = [];
+    const outcomes: SwarmExecutionOutcome[] = [];
     let executed = 0;
     let skipped = 0;
     let failed = 0;
-    let remainingExecutions = this.executionPolicy.swarmJobExecutionsPerTick;
+    let remainingExecutions = params.effectiveExecutionsPerTick;
 
     for (const mission of params.missionPlan.missions) {
       const agent = params.registry.agents.find(row => row.id === mission.agentId);
@@ -624,6 +836,12 @@ export class KyoshinRuntime {
         runtimeMetrics.push(metric);
         continue;
       }
+      const intakeJobId =
+        opportunity.metadata &&
+        typeof opportunity.metadata === 'object' &&
+        typeof (opportunity.metadata as Record<string, unknown>).intakeJobId === 'string'
+          ? String((opportunity.metadata as Record<string, unknown>).intakeJobId)
+          : undefined;
 
       const rollbackStatus = this.runtimeEnv.KAMIYO_SWARM_ROLLBACK_ENABLED
         ? isRollbackSourceDisabled({ state: rollbackState, source: opportunity.source })
@@ -642,6 +860,18 @@ export class KyoshinRuntime {
           error: rollbackStatus.reason,
           metadata: { reason: 'rollback_source_disabled', disabledUntil: rollbackStatus.disabledUntil },
         });
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: rollbackStatus.reason ?? 'rollback_source_disabled',
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
         runtimeMetrics.push(metric);
         continue;
       }
@@ -663,6 +893,18 @@ export class KyoshinRuntime {
           error: 'margin_circuit_open',
           metadata: { openUntil: circuitStatus.openUntil },
         });
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: 'margin_circuit_open',
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
         runtimeMetrics.push(metric);
         continue;
       }
@@ -691,6 +933,18 @@ export class KyoshinRuntime {
           error: budgetReason,
           metadata: { reason: 'budget_guard' },
         });
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: budgetReason,
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
         runtimeMetrics.push(metric);
         continue;
       }
@@ -706,7 +960,7 @@ export class KyoshinRuntime {
         signer: agentSigner,
         timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
         solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
-        minMarginSol: this.executionPolicy.swarmJobMinMarginSol,
+        minMarginSol: params.effectiveMinMarginSol,
         estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
         requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
         sourceAuth,
@@ -741,6 +995,19 @@ export class KyoshinRuntime {
           output: result.output,
         },
       });
+      if (intakeJobId) {
+        outcomes.push({
+          agentId: agent.id,
+          opportunityId: assignment.opportunityId,
+          source: opportunity.source,
+          status: result.status,
+          reason: result.reason,
+          error: result.error,
+          realizedRevenueSol: result.realizedRevenueSol,
+          realizedRevenueUsd: result.realizedRevenueUsd,
+          intakeJobId,
+        });
+      }
 
       const paymentCostSol = result.paid && result.paymentAmountUsd
         ? result.paymentAmountUsd / this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
@@ -837,7 +1104,229 @@ export class KyoshinRuntime {
       executed,
       skipped,
       failed,
+      outcomes,
     };
+  }
+
+  private settleIntakeJobOutcomes(params: {
+    tickId: string;
+    outcomes: SwarmExecutionOutcome[];
+    nowIso: string;
+  }): void {
+    for (const outcome of params.outcomes) {
+      if (!outcome.intakeJobId) continue;
+
+      const terminal =
+        outcome.status === 'executed'
+          ? false
+          : isTerminalSkipReason(outcome.reason) || isTerminalSkipReason(outcome.error);
+
+      const settled = this.db.settleIntakeJob({
+        jobId: outcome.intakeJobId,
+        status: outcome.status,
+        reason: outcome.error ?? outcome.reason,
+        realizedRevenueSol: outcome.realizedRevenueSol,
+        realizedRevenueUsd: outcome.realizedRevenueUsd,
+        retryLimit: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_LIMIT,
+        retryBaseSeconds: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS,
+        retryMaxSeconds: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS,
+        terminal,
+        nowIso: params.nowIso,
+      });
+
+      this.db.addAction(
+        params.tickId,
+        'swarm_intake_settle',
+        {
+          jobId: outcome.intakeJobId,
+          outcome,
+          terminal,
+        },
+        settled
+      );
+    }
+
+    const intakeStats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStats.pending;
+    this.status.economics.completedIntakeJobs = intakeStats.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStats.deadletter;
+  }
+
+  private getEffectiveSelfImproveSnapshot(): SelfImproveSnapshot {
+    const state = parseSelfImproveState(this.db.kvGet('swarm_self_improve_state'));
+    const minMargin = Math.max(
+      this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL,
+      this.executionPolicy.swarmJobMinMarginSol + state.minMarginDeltaSol
+    );
+    const maxExecutions = Math.max(
+      this.executionPolicy.swarmJobExecutionsPerTick,
+      this.runtimeEnv.KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK
+    );
+    const executions = this.executionPolicy.swarmJobExecutionEnabled
+      ? Math.max(
+          1,
+          Math.min(maxExecutions, this.executionPolicy.swarmJobExecutionsPerTick + state.executionsDelta)
+        )
+      : 0;
+
+    return {
+      effectiveMinMarginSol: minMargin,
+      effectiveExecutionsPerTick: executions,
+      lastAction: state.lastAction,
+      lastEvaluatedAt: state.lastEvaluatedAt,
+    };
+  }
+
+  private async maybeEvaluateSelfImprove(params: { tickId: string; nowIso: string }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED) return;
+    if (!this.executionPolicy.swarmJobExecutionEnabled) return;
+
+    const lastEvaluatedAt = this.db.kvGet('swarm_self_improve_last_at');
+    if (lastEvaluatedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastEvaluatedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    const windowStartIso = new Date(
+      Date.now() - this.runtimeEnv.KAMIYO_SELF_IMPROVE_WINDOW_HOURS * 3_600_000
+    ).toISOString();
+    const sourceStats = this.db.swarmSourceStatsSince(windowStartIso);
+    const totalJobs = sourceStats.reduce((sum, row) => sum + row.total, 0);
+    const failedJobs = sourceStats.reduce((sum, row) => sum + row.failed, 0);
+    const netRevenueSol = sourceStats.reduce((sum, row) => sum + row.revenueSol, 0);
+    const previousState = parseSelfImproveState(this.db.kvGet('swarm_self_improve_state'));
+
+    const decision = evaluateSelfImprove({
+      state: previousState,
+      nowIso: params.nowIso,
+      totalJobs,
+      failedJobs,
+      netRevenueSol,
+      minJobs: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_JOBS,
+      failRateUpper: this.runtimeEnv.KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER,
+      failRateLower: this.runtimeEnv.KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER,
+      marginStepSol: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL,
+      minMarginFloorSol: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL,
+      currentMinMarginSol: this.executionPolicy.swarmJobMinMarginSol,
+      baseExecutionsPerTick: this.executionPolicy.swarmJobExecutionsPerTick,
+      maxExecutionsPerTick: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK,
+    });
+
+    this.db.kvSet('swarm_self_improve_state', JSON.stringify(decision.state));
+    this.db.kvSet('swarm_self_improve_last_at', params.nowIso);
+    this.status.selfImprove.lastAction = decision.action;
+    this.status.selfImprove.lastEvaluatedAt = decision.state.lastEvaluatedAt;
+    this.status.selfImprove.effectiveMinMarginSol = decision.effectiveMinMarginSol;
+    this.status.selfImprove.effectiveExecutionsPerTick = decision.effectiveExecutionsPerTick;
+
+    const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'swarm-self-improve', {
+      tickId: params.tickId,
+      at: params.nowIso,
+      decision,
+      sourceStats,
+    });
+    this.db.addAction(params.tickId, 'swarm_self_improve', { windowStartIso }, { decision, receiptPath });
+  }
+
+  private async maybeSettleRevenuePolicy(params: {
+    tickId: string;
+    dayStartIso: string;
+    nowIso: string;
+    budget: BudgetState;
+  }): Promise<BudgetState> {
+    if (!this.runtimeEnv.KAMIYO_REVENUE_POLICY_ENABLED) return params.budget;
+
+    const lastSettledAt = this.db.kvGet('revenue_policy_last_at');
+    if (lastSettledAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSettledAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES * 60_000
+      ) {
+        return params.budget;
+      }
+    }
+
+    const laneStats = this.db.revenueLaneStatsSince(params.dayStartIso);
+    const net = computeRevenueNet(laneStats);
+    this.status.economics.grossRevenueTodaySol = net.grossSol;
+    this.status.economics.costTodaySol = net.costSol;
+    this.status.economics.netRevenueTodaySol = net.netSol;
+
+    const alreadySettled = Number.parseFloat(this.db.kvGet('revenue_policy_settled_sol') ?? '0') || 0;
+    const unsettledNet = net.netSol - alreadySettled;
+    if (unsettledNet < this.runtimeEnv.KAMIYO_REVENUE_MIN_NET_SOL) return params.budget;
+
+    const bpsTotal =
+      this.runtimeEnv.KAMIYO_REVENUE_ROUTE_BPS +
+      this.runtimeEnv.KAMIYO_REVENUE_RESERVE_BPS +
+      this.runtimeEnv.KAMIYO_REVENUE_OPERATIONS_BPS;
+    if (bpsTotal <= 0) return params.budget;
+
+    const scale = 10_000 / bpsTotal;
+    const routeBps = this.runtimeEnv.KAMIYO_REVENUE_ROUTE_BPS * scale;
+    const reserveBps = this.runtimeEnv.KAMIYO_REVENUE_RESERVE_BPS * scale;
+    const operationsBps = this.runtimeEnv.KAMIYO_REVENUE_OPERATIONS_BPS * scale;
+
+    const routeSol = unsettledNet * (routeBps / 10_000);
+    const reserveSol = unsettledNet * (reserveBps / 10_000);
+    const operationsSol = unsettledNet * (operationsBps / 10_000);
+
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_route`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_route',
+      amountSol: routeSol,
+      amountUsd: routeSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, routeBps },
+    });
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_reserve`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_reserve',
+      amountSol: reserveSol,
+      amountUsd: reserveSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, reserveBps },
+    });
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_operations`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_operations',
+      amountSol: operationsSol,
+      amountUsd: operationsSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, operationsBps },
+    });
+
+    const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'revenue-settlement', {
+      tickId: params.tickId,
+      at: params.nowIso,
+      net,
+      alreadySettled,
+      unsettledNet,
+      routeSol,
+      reserveSol,
+      operationsSol,
+    });
+    this.db.addAction(
+      params.tickId,
+      'revenue_settlement',
+      { dayStartIso: params.dayStartIso, alreadySettled },
+      { unsettledNet, routeSol, reserveSol, operationsSol, receiptPath }
+    );
+
+    this.db.kvSet('revenue_policy_settled_sol', String(alreadySettled + unsettledNet));
+    this.db.kvSet('revenue_policy_last_at', params.nowIso);
+    this.status.economics.lastSettlementAt = params.nowIso;
+
+    return params.budget;
   }
 
   private async maybeClaimFeeVault(params: {

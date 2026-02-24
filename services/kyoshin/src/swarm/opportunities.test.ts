@@ -190,3 +190,48 @@ test('source quality weighting influences assignment selection', async () => {
   assert.equal(intake.assignments.length, 1);
   assert.equal(intake.assignments[0]?.opportunityId, 'opp-x402');
 });
+
+test('extra intake opportunities are merged into assignment pool', async () => {
+  const intake = await collectSwarmOpportunities({
+    registry: createRegistry(),
+    feedUrls: [],
+    extraOpportunities: [
+      {
+        id: 'intake:job-1',
+        source: 'direct',
+        title: 'Inbound API job',
+        summary: 'Queued over HTTP intake',
+        url: 'https://example.com/intake-job-1',
+        confidence: 0.85,
+        roleHints: ['Execution'],
+        tags: ['intake'],
+        payoutUsd: 30,
+        payoutSolEstimate: 0.2,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          intakeJobId: 'job-1',
+        },
+      },
+    ],
+    leadConversionPolicy: {
+      enabled: false,
+      maxConversions: 0,
+      defaultPayoutUsd: 0,
+      requireEndpoint: true,
+      simulateOnly: false,
+      estimatedFeeSol: 0,
+      minConfidence: 0.6,
+      validateSourceContracts: true,
+    },
+    minRewardUsd: 0,
+    maxOpen: 10,
+    assignmentLimit: 2,
+    solPriceUsd: 100,
+    fetchTimeoutMs: 1000,
+  });
+
+  assert.equal(intake.opportunities.length, 1);
+  assert.equal(intake.opportunities[0]?.id, 'intake:job-1');
+  assert.equal(intake.assignments.length, 1);
+  assert.equal(intake.assignments[0]?.opportunityId, 'intake:job-1');
+});

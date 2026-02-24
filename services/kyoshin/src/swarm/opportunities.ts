@@ -1022,6 +1022,7 @@ export async function collectSwarmOpportunities(params: {
   feedUrls: string[];
   marketplaceFeeds?: MarketplaceFeedConfig[];
   leadConversionPolicy?: LeadConversionPolicy;
+  extraOpportunities?: SwarmOpportunity[];
   disabledSources?: SwarmOpportunitySource[];
   sourceQualityBySource?: Partial<Record<SwarmOpportunitySource, number>>;
   minRewardUsd: number;
@@ -1126,6 +1127,15 @@ export async function collectSwarmOpportunities(params: {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  if (params.extraOpportunities?.length) {
+    normalized.push(...params.extraOpportunities);
+    sourceStats.push({
+      source: 'intake',
+      discovered: params.extraOpportunities.length,
+      accepted: params.extraOpportunities.length,
+    });
   }
 
   const deduped = dedupeOpportunities(normalized);

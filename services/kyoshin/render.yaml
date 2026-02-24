@@ -100,6 +100,30 @@ services:
         value: "0.00001"
       - key: KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD
         value: "true"
+      - key: KAMIYO_SWARM_INTAKE_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_INTAKE_MAX_OPEN
+        value: "16"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_LIMIT
+        value: "4"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS
+        value: "120"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS
+        value: "3600"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK
+        value: "6"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD
+        value: "12"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT
+        value: "true"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY
+        value: "false"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE
+        value: "0.6"
+      - key: KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION
+        value: "true"
 
       - key: KAMIYO_SWARM_X402_ENABLED
         value: "true"
@@ -137,6 +161,36 @@ services:
         value: "2"
       - key: KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS
         value: "24"
+      - key: KAMIYO_REVENUE_POLICY_ENABLED
+        value: "true"
+      - key: KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES
+        value: "30"
+      - key: KAMIYO_REVENUE_MIN_NET_SOL
+        value: "0.001"
+      - key: KAMIYO_REVENUE_ROUTE_BPS
+        value: "7000"
+      - key: KAMIYO_REVENUE_RESERVE_BPS
+        value: "2000"
+      - key: KAMIYO_REVENUE_OPERATIONS_BPS
+        value: "1000"
+      - key: KAMIYO_SELF_IMPROVE_ENABLED
+        value: "true"
+      - key: KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES
+        value: "60"
+      - key: KAMIYO_SELF_IMPROVE_WINDOW_HOURS
+        value: "24"
+      - key: KAMIYO_SELF_IMPROVE_MIN_JOBS
+        value: "10"
+      - key: KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER
+        value: "0.35"
+      - key: KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER
+        value: "0.1"
+      - key: KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL
+        value: "0.0002"
+      - key: KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL
+        value: "0.0002"
+      - key: KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK
+        value: "4"
 
       - key: KAMIYO_FEE_VAULT
         sync: false
