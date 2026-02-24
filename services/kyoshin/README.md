@@ -3,6 +3,7 @@
 Kyoshin is an execution-first cloud worker for:
 
 - sourcing swarm jobs from file/URL/marketplace feeds,
+- sourcing + bidding on NEAR Agent Market jobs with deferred settlement accounting,
 - accepting inbound paid jobs over authenticated HTTP intake,
 - enforcing profitability and treasury guardrails before execution,
 - executing jobs (including x402 flows) without LLM inference,

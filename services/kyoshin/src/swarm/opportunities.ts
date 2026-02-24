@@ -13,6 +13,7 @@ export type SwarmOpportunitySource =
   | 'relevance'
   | 'agent_ai'
   | 'kore'
+  | 'near_market'
   | 'direct'
   | 'internal';
 
@@ -63,11 +64,27 @@ export type SwarmOpportunityIntake = {
   }>;
 };
 
+type NearMarketAdapterConfig = {
+  enabled: boolean;
+  agentId?: string;
+  nearPriceUsd: number;
+  minBudgetNear: number;
+  maxBudgetNear: number;
+  bidDiscountBps: number;
+  minBidNear: number;
+  maxBidNear: number;
+  maxExistingBids: number;
+  etaSeconds: number;
+  allowCompetition: boolean;
+  proposalTemplate: string;
+};
+
 export type MarketplaceFeedConfig = {
-  source: 'relevance' | 'agent_ai' | 'kore';
+  source: 'relevance' | 'agent_ai' | 'kore' | 'near_market';
   url: string;
   apiKey?: string;
   authHeader?: string;
+  nearMarketAdapter?: NearMarketAdapterConfig;
 };
 
 export type LeadConversionPolicy = {
@@ -204,6 +221,9 @@ function normalizeSource(value: string | undefined): SwarmOpportunitySource {
   if (source === 'relevance' || source === 'relevance_ai') return 'relevance';
   if (source === 'agent.ai' || source === 'agentai' || source === 'agent_ai') return 'agent_ai';
   if (source === 'kore' || source === 'kore_ai') return 'kore';
+  if (source === 'near_market' || source === 'near-market' || source === 'nearai' || source === 'near') {
+    return 'near_market';
+  }
   if (source === 'internal') return 'internal';
   return 'direct';
 }
@@ -629,6 +649,7 @@ function jobSourceForOpportunity(source: SwarmOpportunity['source']): SwarmJobSo
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
+  if (source === 'near_market') return 'near_market';
   if (source === 'internal') return 'internal';
   return 'direct_api';
 }
@@ -639,6 +660,7 @@ function marketplaceSourceFromOpportunity(
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
+  if (source === 'near_market') return 'near_market';
   return null;
 }
 
@@ -857,11 +879,179 @@ function parseMarketplaceActions(
   return actions;
 }
 
-function parseMarketplaceItem(params: {
-  source: 'relevance' | 'agent_ai' | 'kore';
+function formatNearAmount(value: number): string {
+  const fixed = value.toFixed(4);
+  return fixed.replace(/\.?0+$/, '');
+}
+
+function fillProposalTemplate(template: string, values: Record<string, string>): string {
+  let next = template;
+  for (const [key, value] of Object.entries(values)) {
+    next = next.replaceAll(`{${key}}`, value);
+  }
+  return next;
+}
+
+function parseNearMarketItem(params: {
   record: Record<string, unknown>;
   index: number;
+  feedUrl: string;
+  adapter: NearMarketAdapterConfig;
 }): RawOpportunity | null {
+  const { record, index, adapter } = params;
+  if (!adapter.enabled) return null;
+
+  const jobId = pickString(record, ['job_id', 'jobId', 'id']) ?? `near-market-${index + 1}`;
+  const creatorAgentId = pickString(record, ['creator_agent_id', 'creatorAgentId']);
+  if (adapter.agentId && creatorAgentId && creatorAgentId === adapter.agentId) {
+    return null;
+  }
+
+  const statusRaw = pickString(record, ['status', 'state']) ?? 'open';
+  if (/closed|filled|archived|inactive|completed|expired|judging|in_progress|filling/i.test(statusRaw)) {
+    return null;
+  }
+
+  const jobType = (pickString(record, ['job_type', 'jobType']) ?? 'standard').toLowerCase();
+  if (!adapter.allowCompetition && jobType === 'competition') {
+    return null;
+  }
+
+  const existingBids = Math.max(0, Math.trunc(pickNumber(record, ['bid_count', 'bidCount']) ?? 0));
+  if (existingBids > adapter.maxExistingBids) {
+    return null;
+  }
+
+  const budgetAmount = pickNumber(record, ['budget_amount', 'budgetAmount']);
+  const budgetToken = (pickString(record, ['budget_token', 'budgetToken']) ?? 'NEAR').toUpperCase();
+  if (budgetAmount == null || budgetAmount <= 0) return null;
+
+  const budgetNear = budgetToken === 'NEAR'
+    ? budgetAmount
+    : budgetToken === 'USDC' || budgetToken === 'USD'
+      ? budgetAmount / adapter.nearPriceUsd
+      : null;
+  if (budgetNear == null || !Number.isFinite(budgetNear) || budgetNear <= 0) return null;
+  if (budgetNear < adapter.minBudgetNear || budgetNear > adapter.maxBudgetNear) return null;
+
+  const rawBidNear = budgetNear * (adapter.bidDiscountBps / 10_000);
+  const bidNear = Math.max(adapter.minBidNear, Math.min(adapter.maxBidNear, rawBidNear));
+  if (!Number.isFinite(bidNear) || bidNear <= 0 || bidNear >= budgetNear) return null;
+
+  const title = pickString(record, ['title', 'name', 'task', 'job', 'listing', 'label']);
+  if (!title) return null;
+  const summary =
+    pickString(record, ['summary', 'description', 'overview', 'brief', 'details']) ??
+    'No summary provided.';
+
+  const feedUrl = new URL(params.feedUrl);
+  const baseUrl = `${feedUrl.protocol}//${feedUrl.host}`;
+  const applyUrl = `${baseUrl}/v1/jobs/${jobId}/bids`;
+  const publicUrl = `${baseUrl}/jobs/${jobId}`;
+  const proposal = fillProposalTemplate(adapter.proposalTemplate, {
+    job_id: jobId,
+    title,
+    budget_near: formatNearAmount(budgetNear),
+    bid_near: formatNearAmount(bidNear),
+    budget_token: budgetToken,
+  });
+
+  return {
+    id: jobId,
+    source: 'near_market',
+    title,
+    summary,
+    description: summary,
+    url: publicUrl,
+    status: 'open',
+    confidence: Math.max(0.35, Math.min(0.9, 0.65 - existingBids * 0.02)),
+    roleHints: Array.from(
+      new Set([
+        ...arrayOfStrings(record.roleHints),
+        ...arrayOfStrings(record.roles),
+        'execution',
+      ])
+    ),
+    tags: Array.from(
+      new Set([
+        ...arrayOfStrings(record.tags),
+        ...arrayOfStrings(record.skills),
+        ...arrayOfStrings(record.capabilities),
+        'near',
+        'near_market',
+        'marketplace',
+      ])
+    ),
+    payoutUsd: bidNear * adapter.nearPriceUsd,
+    payoutSol: undefined,
+    payout: {
+      amount: bidNear,
+      currency: 'NEAR',
+    },
+    createdAt:
+      pickString(record, ['created_at', 'createdAt', 'updated_at', 'updatedAt']) ??
+      new Date().toISOString(),
+    expiresAt: pickString(record, ['expires_at', 'expiresAt', 'deadline']),
+    metadata: {
+      source: 'near_market',
+      executionMode: 'api',
+      settlementMode: 'deferred',
+      actions: {
+        apply: {
+          url: applyUrl,
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: {
+            amount: formatNearAmount(bidNear),
+            eta_seconds: adapter.etaSeconds,
+            proposal,
+          },
+        },
+      },
+      rawId: jobId,
+      marketplaceRecord: record,
+      nearMarket: {
+        jobId,
+        creatorAgentId,
+        budgetNear,
+        bidNear,
+        budgetToken,
+        existingBids,
+        jobType,
+      },
+    },
+  };
+}
+
+function parseMarketplaceItem(params: {
+  source: 'relevance' | 'agent_ai' | 'kore' | 'near_market';
+  record: Record<string, unknown>;
+  index: number;
+  feed: MarketplaceFeedConfig;
+}): RawOpportunity | null {
+  if (params.source === 'near_market') {
+    return parseNearMarketItem({
+      record: params.record,
+      index: params.index,
+      feedUrl: params.feed.url,
+      adapter: params.feed.nearMarketAdapter ?? {
+        enabled: false,
+        nearPriceUsd: 4,
+        minBudgetNear: 0,
+        maxBudgetNear: Number.POSITIVE_INFINITY,
+        bidDiscountBps: 7000,
+        minBidNear: 0,
+        maxBidNear: Number.POSITIVE_INFINITY,
+        maxExistingBids: Number.MAX_SAFE_INTEGER,
+        etaSeconds: 3600,
+        allowCompetition: false,
+        proposalTemplate: 'Automated delivery.',
+      },
+    });
+  }
+
   const { source, record, index } = params;
   const id =
     pickString(record, ['id', 'jobId', 'taskId', 'listingId', 'slug']) ?? `${source}-${index + 1}`;
@@ -968,9 +1158,10 @@ function parseMarketplaceItem(params: {
 }
 
 function parseMarketplaceFeed(params: {
-  source: 'relevance' | 'agent_ai' | 'kore';
+  feed: MarketplaceFeedConfig;
   payload: unknown;
 }): RawOpportunity[] {
+  const source = params.feed.source;
   const rootRecord = asRecord(params.payload);
   const items = Array.isArray(params.payload)
     ? params.payload
@@ -993,9 +1184,10 @@ function parseMarketplaceFeed(params: {
     if (!record) return;
 
     const parsed = parseMarketplaceItem({
-      source: params.source,
+      source,
       record,
       index,
+      feed: params.feed,
     });
     if (parsed) opportunities.push(parsed);
   });
@@ -1106,7 +1298,7 @@ export async function collectSwarmOpportunities(params: {
         timeoutMs: params.fetchTimeoutMs,
         headers: authHeaders(feed),
       });
-      const raw = parseMarketplaceFeed({ source: feed.source, payload });
+      const raw = parseMarketplaceFeed({ feed, payload });
       const opportunities = raw
         .map((entry, index) =>
           normalizeOpportunity({

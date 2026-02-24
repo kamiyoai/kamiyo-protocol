@@ -117,6 +117,32 @@ const envSchema = z.object({
   KAMIYO_SWARM_KORE_FEED_URL: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_API_KEY: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_NEAR_MARKET_FEED_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_API_KEY: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_NEAR_MARKET_AGENT_ID: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_BASE_URL: z.string().url().default('https://market.near.ai'),
+  KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD: z.coerce.number().positive().default(4),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_BUDGET_NEAR: z.coerce.number().nonnegative().default(0.05),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_BUDGET_NEAR: z.coerce.number().positive().default(20),
+  KAMIYO_SWARM_NEAR_MARKET_BID_DISCOUNT_BPS: z.coerce.number().int().min(1).max(10_000).default(7000),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_BID_NEAR: z.coerce.number().nonnegative().default(0.03),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_BID_NEAR: z.coerce.number().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_EXISTING_BIDS: z.coerce.number().int().nonnegative().default(12),
+  KAMIYO_SWARM_NEAR_MARKET_ETA_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_SWARM_NEAR_MARKET_ALLOW_COMPETITION: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE: z
+    .string()
+    .default('Autonomous delivery with proof artifacts, deterministic output, and deadline compliance.'),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT: z.coerce.number().int().positive().default(50),
 
   KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
   KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),

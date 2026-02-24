@@ -61,7 +61,7 @@ if [[ ! -f "$RUNTIME_DIR/swarm.registry.json" ]]; then
       "mint": "KyoshinSignal1111111111111111111111111111111",
       "status": "active",
       "priority": 120,
-      "jobSources": ["relevance", "direct_api", "x402"]
+      "jobSources": ["relevance", "near_market", "direct_api", "x402"]
     },
     {
       "id": "deal-executor",
@@ -71,7 +71,7 @@ if [[ ! -f "$RUNTIME_DIR/swarm.registry.json" ]]; then
       "mint": "KyoshinDeal11111111111111111111111111111111",
       "status": "active",
       "priority": 110,
-      "jobSources": ["relevance", "agent_ai", "x402", "direct_api"]
+      "jobSources": ["relevance", "near_market", "agent_ai", "x402", "direct_api"]
     },
     {
       "id": "research-prover",
@@ -81,7 +81,7 @@ if [[ ! -f "$RUNTIME_DIR/swarm.registry.json" ]]; then
       "mint": "KyoshinProof1111111111111111111111111111111",
       "status": "active",
       "priority": 100,
-      "jobSources": ["relevance", "direct_api", "agent_ai"]
+      "jobSources": ["relevance", "near_market", "direct_api", "agent_ai"]
     },
     {
       "id": "ops-keeper",
@@ -91,7 +91,7 @@ if [[ ! -f "$RUNTIME_DIR/swarm.registry.json" ]]; then
       "mint": "KyoshinOps111111111111111111111111111111111",
       "status": "active",
       "priority": 105,
-      "jobSources": ["internal", "direct_api", "relevance"]
+      "jobSources": ["internal", "direct_api", "relevance", "near_market"]
     }
   ]
 }

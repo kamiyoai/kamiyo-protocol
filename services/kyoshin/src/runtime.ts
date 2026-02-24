@@ -26,6 +26,7 @@ import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMet
 import { revenueLaneForOpportunitySource, summariseLaneStats } from './swarm/revenue.js';
 import { intakeJobBatchSchema, intakeJobToOpportunity, normalizeBatchInput, normalizeIntakeJob } from './swarm/intake.js';
 import { evaluateSelfImprove, parseSelfImproveState } from './swarm/selfImprove.js';
+import { collectNearMarketSettlements } from './swarm/nearMarket.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
 import { buildExecutionPolicy, type ExecutionPolicy } from './policy/executeProfile.js';
@@ -538,6 +539,28 @@ export class KyoshinRuntime {
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
           });
         }
+        if (this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_FEED_URL) {
+          marketplaceFeeds.push({
+            source: 'near_market',
+            url: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_FEED_URL,
+            apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+            authHeader: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER,
+            nearMarketAdapter: {
+              enabled: true,
+              agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+              nearPriceUsd: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD,
+              minBudgetNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_BUDGET_NEAR,
+              maxBudgetNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_BUDGET_NEAR,
+              bidDiscountBps: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_DISCOUNT_BPS,
+              minBidNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_BID_NEAR,
+              maxBidNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_BID_NEAR,
+              maxExistingBids: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_EXISTING_BIDS,
+              etaSeconds: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ETA_SECONDS,
+              allowCompetition: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ALLOW_COMPETITION,
+              proposalTemplate: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE,
+            },
+          });
+        }
 
         const leadConversionPolicy: LeadConversionPolicy = {
           enabled: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_ENABLED,
@@ -691,6 +714,7 @@ export class KyoshinRuntime {
         });
       }
 
+      await this.maybeCollectNearMarketSettlements({ tickId, nowIso });
       budget = await this.maybeSettleRevenuePolicy({ tickId, dayStartIso, nowIso, budget });
     }
 
@@ -778,6 +802,12 @@ export class KyoshinRuntime {
         ? {
             apiKey: this.runtimeEnv.KAMIYO_SWARM_KORE_API_KEY,
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
+          }
+        : undefined,
+      near_market: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY
+        ? {
+            apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+            authHeader: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER,
           }
         : undefined,
     };
@@ -1231,6 +1261,108 @@ export class KyoshinRuntime {
       sourceStats,
     });
     this.db.addAction(params.tickId, 'swarm_self_improve', { windowStartIso }, { decision, receiptPath });
+  }
+
+  private async maybeCollectNearMarketSettlements(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID) return;
+
+    const lastSettledAt = this.db.kvGet('near_market_settlement_last_at');
+    if (lastSettledAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSettledAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    let settlements: Awaited<ReturnType<typeof collectNearMarketSettlements>>;
+    try {
+      settlements = await collectNearMarketSettlements({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        nearPriceUsd: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD,
+        solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      });
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+      this.db.kvSet('near_market_settlement_last_at', params.nowIso);
+      return;
+    }
+
+    let recorded = 0;
+    for (const settlement of settlements) {
+      const markerKey = `near_market_settlement:${settlement.settlementId}`;
+      if (this.db.kvGet(markerKey)) continue;
+
+      this.db.recordRevenueEvent({
+        id: `${params.tickId}:near_settlement:${settlement.settlementId}`,
+        tickId: params.tickId,
+        lane: 'marketplace_direct',
+        kind: 'job',
+        amountSol: settlement.amountSol,
+        amountUsd: settlement.amountUsd,
+        metadata: {
+          source: 'near_market',
+          settlementId: settlement.settlementId,
+          jobId: settlement.jobId,
+          jobTitle: settlement.jobTitle,
+          bidId: settlement.bidId,
+          amountNear: settlement.amountNear,
+          completedAt: settlement.completedAt,
+        },
+      });
+      this.db.kvSet(markerKey, settlement.completedAt);
+      recorded += 1;
+    }
+
+    if (recorded > 0) {
+      const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'near-market-settlement', {
+        tickId: params.tickId,
+        at: params.nowIso,
+        recorded,
+        settlements,
+      });
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        { recorded, receiptPath }
+      );
+    } else {
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        { recorded: 0 }
+      );
+    }
+
+    this.db.kvSet('near_market_settlement_last_at', params.nowIso);
   }
 
   private async maybeSettleRevenuePolicy(params: {
@@ -1718,10 +1850,10 @@ export class KyoshinRuntime {
     this.db.addAction(params.tickId, 'retention_prune', cutoffs, result);
   }
 
-  private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> {
+  private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> {
     const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
     const stats = this.db.swarmSourceStatsSince(since);
-    const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> = {};
+    const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> = {};
 
     for (const row of stats) {
       if (row.total < this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_MIN_SAMPLES) continue;
@@ -1734,6 +1866,7 @@ export class KyoshinRuntime {
         row.source === 'relevance' ||
         row.source === 'agent_ai' ||
         row.source === 'kore' ||
+        row.source === 'near_market' ||
         row.source === 'direct' ||
         row.source === 'internal'
       ) {

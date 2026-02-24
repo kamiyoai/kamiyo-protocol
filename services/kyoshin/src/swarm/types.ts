@@ -1,6 +1,13 @@
 export type SwarmAgentStatus = 'active' | 'paused' | 'retired';
-export type SwarmJobSource = 'x402' | 'direct_api' | 'relevance' | 'agent_ai' | 'kore' | 'internal';
-export type SwarmMarketplaceSource = Extract<SwarmJobSource, 'relevance' | 'agent_ai' | 'kore'>;
+export type SwarmJobSource =
+  | 'x402'
+  | 'direct_api'
+  | 'relevance'
+  | 'agent_ai'
+  | 'kore'
+  | 'near_market'
+  | 'internal';
+export type SwarmMarketplaceSource = Extract<SwarmJobSource, 'relevance' | 'agent_ai' | 'kore' | 'near_market'>;
 export type SwarmMarketplaceProfileState = 'not_listed' | 'draft' | 'submitted' | 'approved' | 'rejected';
 
 export type SwarmMarketplaceProfile = {

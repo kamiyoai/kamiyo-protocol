@@ -61,7 +61,7 @@ type SourceAuth = {
   authHeader?: string;
 };
 
-export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore', SourceAuth>>;
+export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore' | 'near_market', SourceAuth>>;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -216,7 +216,9 @@ function parseX402Body(raw: unknown): {
 
 function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthMap | undefined): Record<string, string> {
   if (!auth) return {};
-  if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore') return {};
+  if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore' && source !== 'near_market') {
+    return {};
+  }
   const sourceAuth = auth[source];
   if (!sourceAuth?.apiKey) return {};
 
@@ -259,7 +261,12 @@ function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceAc
 }
 
 function marketplaceActionSteps(opportunity: SwarmOpportunity): MarketplaceActionStep[] {
-  if (opportunity.source !== 'relevance' && opportunity.source !== 'agent_ai' && opportunity.source !== 'kore') {
+  if (
+    opportunity.source !== 'relevance' &&
+    opportunity.source !== 'agent_ai' &&
+    opportunity.source !== 'kore' &&
+    opportunity.source !== 'near_market'
+  ) {
     return [];
   }
 
@@ -349,6 +356,12 @@ function marginCheck(params: {
   return { ok: true, marginSol };
 }
 
+function marketplaceSettlementMode(opportunity: SwarmOpportunity): 'immediate' | 'deferred' {
+  const metadata = asRecord(opportunity.metadata);
+  const mode = asString(metadata?.settlementMode)?.toLowerCase();
+  return mode === 'deferred' ? 'deferred' : 'immediate';
+}
+
 async function executeMarketplaceLifecycle(params: {
   agentId: string;
   opportunity: SwarmOpportunity;
@@ -363,6 +376,7 @@ async function executeMarketplaceLifecycle(params: {
   solPriceUsd: number;
 }): Promise<SwarmJobExecutionResult> {
   const { agentId, opportunity, assignment } = params;
+  const settlementMode = marketplaceSettlementMode(opportunity);
   const common = {
     agentId,
     opportunityId: opportunity.id,
@@ -479,7 +493,13 @@ async function executeMarketplaceLifecycle(params: {
   }
 
   const realizedRevenueSol =
-    revenue.sol > 0 ? revenue.sol : params.expectedRevenueSol != null ? params.expectedRevenueSol : 0;
+    revenue.sol > 0
+      ? revenue.sol
+      : settlementMode === 'deferred'
+        ? 0
+        : params.expectedRevenueSol != null
+          ? params.expectedRevenueSol
+          : 0;
   const realizedRevenueUsd =
     revenue.usd > 0 ? revenue.usd : realizedRevenueSol > 0 ? realizedRevenueSol * params.solPriceUsd : 0;
 
@@ -491,6 +511,7 @@ async function executeMarketplaceLifecycle(params: {
     realizedRevenueUsd,
     output: {
       steps: stepOutputs,
+      settlementMode,
       estimatedCostSol: costEstimate,
       marginSol: margin.marginSol,
     },
@@ -533,7 +554,13 @@ export async function executeAssignedOpportunity(params: {
   }
 
   const marketplaceSteps = marketplaceActionSteps(opportunity);
-  if (marketplaceSteps.length > 0 && (opportunity.source === 'relevance' || opportunity.source === 'agent_ai' || opportunity.source === 'kore')) {
+  if (
+    marketplaceSteps.length > 0 &&
+    (opportunity.source === 'relevance' ||
+      opportunity.source === 'agent_ai' ||
+      opportunity.source === 'kore' ||
+      opportunity.source === 'near_market')
+  ) {
     return executeMarketplaceLifecycle({
       agentId,
       opportunity,

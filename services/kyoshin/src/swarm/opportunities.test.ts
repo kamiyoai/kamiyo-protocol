@@ -20,7 +20,7 @@ function createRegistry(): SwarmRegistry {
         mint: 'mint-1',
         status: 'active',
         priority: 1,
-        jobSources: ['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'internal'],
+        jobSources: ['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'near_market', 'internal'],
         marketplaceProfiles: [],
         missionHints: [],
       },
@@ -234,4 +234,86 @@ test('extra intake opportunities are merged into assignment pool', async () => {
   assert.equal(intake.opportunities[0]?.id, 'intake:job-1');
   assert.equal(intake.assignments.length, 1);
   assert.equal(intake.assignments[0]?.opportunityId, 'intake:job-1');
+});
+
+test('near market feed generates bid action with deferred settlement mode', async () => {
+  const originalFetch = globalThis.fetch;
+  const nearPayload = [
+    {
+      job_id: 'near-job-1',
+      creator_agent_id: 'creator-1',
+      title: 'Berlin weather report',
+      description: 'Need current weather with timestamp',
+      tags: ['weather', 'api'],
+      budget_amount: '0.2',
+      budget_token: 'NEAR',
+      status: 'open',
+      bid_count: 0,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+      job_type: 'standard',
+    },
+  ];
+
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify(nearPayload), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  try {
+    const intake = await collectSwarmOpportunities({
+      registry: createRegistry(),
+      feedUrls: [],
+      marketplaceFeeds: [
+        {
+          source: 'near_market',
+          url: 'https://market.near.ai/v1/jobs?status=open',
+          apiKey: 'test-key',
+          authHeader: 'authorization',
+          nearMarketAdapter: {
+            enabled: true,
+            agentId: 'worker-1',
+            nearPriceUsd: 4,
+            minBudgetNear: 0.05,
+            maxBudgetNear: 2,
+            bidDiscountBps: 7000,
+            minBidNear: 0.03,
+            maxBidNear: 1,
+            maxExistingBids: 8,
+            etaSeconds: 1200,
+            allowCompetition: false,
+            proposalTemplate: 'Autonomous completion for {title} at {bid_near} NEAR.',
+          },
+        },
+      ],
+      leadConversionPolicy: {
+        enabled: false,
+        maxConversions: 0,
+        defaultPayoutUsd: 0,
+        requireEndpoint: true,
+        simulateOnly: false,
+        estimatedFeeSol: 0,
+        minConfidence: 0.6,
+        validateSourceContracts: true,
+      },
+      minRewardUsd: 0,
+      maxOpen: 10,
+      assignmentLimit: 3,
+      solPriceUsd: 100,
+      fetchTimeoutMs: 1000,
+    });
+
+    const opportunity = intake.opportunities.find(item => item.id === 'near-job-1');
+    assert.ok(opportunity);
+    assert.equal(opportunity?.source, 'near_market');
+    const metadata = opportunity?.metadata as Record<string, unknown>;
+    const actions = metadata.actions as Record<string, unknown>;
+    assert.ok(actions.apply);
+    assert.equal(metadata.executionMode, 'api');
+    assert.equal(metadata.settlementMode, 'deferred');
+    assert.equal(intake.assignments.some(item => item.opportunityId === 'near-job-1'), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
