@@ -1,17 +1,35 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
+import { Keypair } from '@solana/web3.js';
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
 import { agentsRouter } from './agents.js';
 import { agentService } from '../services/agents.js';
+import { setPolymarketRunnerForTests } from '../services/polymarket-cli.js';
+import { agentOpportunityFeedService } from '../services/agent-opportunity-feed.js';
 
 const app = new Hono();
 app.route('/agents', agentsRouter);
+
+function signedAuthHeader(nowMs: number = Date.now(), signer: Keypair = Keypair.generate()): string {
+  const message = new TextEncoder().encode(`keiro-auth:${nowMs}`);
+  const signature = nacl.sign.detached(message, signer.secretKey);
+  return `Solana ${signer.publicKey.toBase58()}:${bs58.encode(signature)}:${nowMs}`;
+}
 
 describe('agents routes', () => {
   const testWallet = '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgBsU';
 
   beforeEach(() => {
+    agentOpportunityFeedService.resetForTests();
+    agentOpportunityFeedService.setPersistenceForTests(false);
     const existing = agentService.getByWallet(testWallet);
     if (existing) agentService.delete(existing.id);
+  });
+
+  afterEach(() => {
+    setPolymarketRunnerForTests(null);
+    agentOpportunityFeedService.resetForTests();
   });
 
   describe('GET /agents/wallet/:address', () => {
@@ -196,6 +214,134 @@ describe('agents routes', () => {
       expect(res.status).toBe(200);
       const data = (await res.json()) as { skills: unknown[] };
       expect(data.skills.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe('GET /agents/polymarket/markets', () => {
+    it('requires signed wallet auth', async () => {
+      const res = await app.request('/agents/polymarket/markets?limit=5&active=true');
+      expect(res.status).toBe(401);
+    });
+
+    it('returns external markets from polymarket-cli adapter', async () => {
+      setPolymarketRunnerForTests(async () => [
+        {
+          id: 'market-1',
+          question: 'Will SOL exceed $300 this year?',
+          slug: 'sol-300',
+          active: true,
+          volume_num: '1200000',
+          liquidity_num: '400000',
+        },
+      ]);
+
+      const res = await app.request('/agents/polymarket/markets?limit=5&active=true', {
+        headers: { Authorization: signedAuthHeader() },
+      });
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as {
+        source: string;
+        markets: Array<{ id: string; question: string }>;
+      };
+      expect(data.source).toBe('polymarket-cli');
+      expect(data.markets.length).toBe(1);
+      expect(data.markets[0].id).toBe('market-1');
+    });
+
+    it('enforces polymarket-specific rate limits', async () => {
+      const signer = Keypair.generate();
+      setPolymarketRunnerForTests(async () => []);
+
+      let lastStatus = 200;
+      for (let i = 0; i < 31; i++) {
+        const res = await app.request('/agents/polymarket/markets?limit=1&active=true', {
+          headers: { Authorization: signedAuthHeader(Date.now(), signer) },
+        });
+        lastStatus = res.status;
+      }
+
+      expect(lastStatus).toBe(429);
+    });
+  });
+
+  describe('GET /agents/polymarket/orderbook/:tokenId', () => {
+    it('returns orderbook payload', async () => {
+      setPolymarketRunnerForTests(async (args) => {
+        if (args.join(' ') === 'clob book 12345') {
+          return { bids: [{ price: '0.49', size: '1000' }], asks: [{ price: '0.51', size: '900' }] };
+        }
+        return null;
+      });
+
+      const res = await app.request('/agents/polymarket/orderbook/12345', {
+        headers: { Authorization: signedAuthHeader() },
+      });
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as {
+        tokenId: string;
+        book: { bids: unknown[]; asks: unknown[] };
+      };
+      expect(data.tokenId).toBe('12345');
+      expect(data.book.bids.length).toBe(1);
+      expect(data.book.asks.length).toBe(1);
+    });
+
+    it('validates token id format', async () => {
+      const res = await app.request('/agents/polymarket/orderbook/not-a-number', {
+        headers: { Authorization: signedAuthHeader() },
+      });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe('GET /agents/:id/polymarket/opportunities', () => {
+    it('ranks opportunities using agent skill overlap', async () => {
+      const agent = agentService.create({
+        walletAddress: testWallet,
+        name: 'Opportunity Agent',
+        personality: 'balanced',
+        skills: ['crypto research', 'risk analysis'],
+      });
+
+      setPolymarketRunnerForTests(async () => [
+        {
+          id: 'm1',
+          question: 'Will bitcoin reach new all-time high before year end?',
+          slug: 'bitcoin-ath',
+          category: 'crypto',
+          active: true,
+          volume_num: '1230000',
+          liquidity_num: '500000',
+        },
+        {
+          id: 'm2',
+          question: 'Will inflation be below 3% in Q4?',
+          slug: 'inflation-q4',
+          category: 'macro',
+          active: true,
+          volume_num: '250000',
+          liquidity_num: '150000',
+        },
+      ]);
+
+      const res = await app.request(`/agents/${agent.id}/polymarket/opportunities?limit=5`, {
+        headers: { Authorization: signedAuthHeader() },
+      });
+      expect(res.status).toBe(200);
+
+      const data = (await res.json()) as {
+        mode: string;
+        snapshot: { updatedAt: string | null; stale: boolean; marketUniverseSize: number };
+        opportunities: Array<{ market: { id: string }; matchedSkills: string[] }>;
+      };
+      expect(data.mode).toBe('snapshot');
+      expect(data.snapshot.updatedAt).not.toBeNull();
+      expect(data.snapshot.marketUniverseSize).toBeGreaterThan(0);
+      expect(data.opportunities.length).toBe(1);
+      expect(data.opportunities[0].market.id).toBe('m1');
+      expect(data.opportunities[0].matchedSkills).toContain('crypto_research');
     });
   });
 });

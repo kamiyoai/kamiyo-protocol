@@ -13,6 +13,7 @@ import { reputationRouter } from './routes/reputation.js';
 import { meishiRouter } from './routes/meishi.js';
 import { receiptsRouter } from './routes/receipts.js';
 import { receiptService } from './services/receipts.js';
+import { agentOpportunityFeedService } from './services/agent-opportunity-feed.js';
 
 const app = new Hono();
 
@@ -152,6 +153,7 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 const port = Math.min(65535, Math.max(1, parseInt(process.env.PORT || '3001', 10) || 3001));
 console.log(`KEIRO API starting on port ${port}`);
+agentOpportunityFeedService.start();
 
 process.on('uncaughtException', (e) => {
   console.error('Uncaught exception', e);
@@ -161,11 +163,13 @@ process.on('unhandledRejection', (e) => {
 });
 
 process.on('SIGTERM', async () => {
+  agentOpportunityFeedService.stop();
   await receiptService.close();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
+  agentOpportunityFeedService.stop();
   await receiptService.close();
   process.exit(0);
 });
