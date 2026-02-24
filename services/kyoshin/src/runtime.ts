@@ -1332,7 +1332,7 @@ export class KyoshinRuntime {
     }
 
     try {
-      const statuses = ['pending', 'accepted', 'submitted', 'in_progress'];
+      const statuses = ['pending', 'accepted', 'submitted', 'in_progress', 'withdrawn', 'completed'];
       const bids = await listNearMarketTrackedBids({
         baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
         apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,

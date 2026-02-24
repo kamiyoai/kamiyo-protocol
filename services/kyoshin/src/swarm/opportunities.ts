@@ -943,6 +943,17 @@ function parseNearMarketItem(params: {
   const summary =
     pickString(record, ['summary', 'description', 'overview', 'brief', 'details']) ??
     'No summary provided.';
+  const createdAt =
+    pickString(record, ['created_at', 'createdAt', 'updated_at', 'updatedAt']) ??
+    new Date().toISOString();
+  const createdAtMs = Date.parse(createdAt);
+  const ageHours =
+    Number.isFinite(createdAtMs) && createdAtMs > 0
+      ? Math.max(0, (Date.now() - createdAtMs) / 3_600_000)
+      : 24;
+  const freshnessBoost = ageHours <= 1 ? 0.2 : ageHours <= 6 ? 0.12 : ageHours <= 24 ? 0.04 : -0.08;
+  const competitionPenalty = Math.min(0.35, existingBids * 0.02);
+  const confidence = Math.max(0.25, Math.min(0.92, 0.55 + freshnessBoost - competitionPenalty));
 
   const feedUrl = new URL(params.feedUrl);
   const baseUrl = `${feedUrl.protocol}//${feedUrl.host}`;
@@ -964,7 +975,7 @@ function parseNearMarketItem(params: {
     description: summary,
     url: publicUrl,
     status: 'open',
-    confidence: Math.max(0.35, Math.min(0.9, 0.65 - existingBids * 0.02)),
+    confidence,
     roleHints: Array.from(
       new Set([
         ...arrayOfStrings(record.roleHints),
@@ -988,9 +999,7 @@ function parseNearMarketItem(params: {
       amount: bidNear,
       currency: 'NEAR',
     },
-    createdAt:
-      pickString(record, ['created_at', 'createdAt', 'updated_at', 'updatedAt']) ??
-      new Date().toISOString(),
+    createdAt,
     expiresAt: pickString(record, ['expires_at', 'expiresAt', 'deadline']),
     metadata: {
       source: 'near_market',
