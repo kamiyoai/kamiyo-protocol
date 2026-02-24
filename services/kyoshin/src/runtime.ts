@@ -21,7 +21,13 @@ import {
   type SwarmOpportunityIntake,
 } from './swarm/opportunities.js';
 import { executeAssignedOpportunity, type SourceAuthMap } from './swarm/jobs.js';
-import { parseMarginCircuitState, pruneMarginCircuitState, isMarginCircuitOpen, updateMarginCircuit } from './swarm/circuitBreaker.js';
+import {
+  parseMarginCircuitState,
+  pruneMarginCircuitState,
+  isMarginCircuitOpen,
+  updateMarginCircuit,
+  type MarginCircuitState,
+} from './swarm/circuitBreaker.js';
 import { parseRollbackState, pruneRollbackState, isRollbackSourceDisabled, evaluateRollbackPolicy } from './swarm/rollback.js';
 import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMetrics } from './swarm/performance.js';
 import { revenueLaneForOpportunitySource, summariseLaneStats } from './swarm/revenue.js';
@@ -830,6 +836,7 @@ export class KyoshinRuntime {
       state: parseMarginCircuitState(this.db.kvGet('swarm_margin_circuit_state')),
       keepDays: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS,
     });
+    marginCircuitState = this.clearTransientNearMarketCircuitBlocks(marginCircuitState);
 
     let rollbackState = pruneRollbackState({
       state: parseRollbackState(this.db.kvGet('swarm_rollback_state')),
@@ -1312,6 +1319,40 @@ export class KyoshinRuntime {
       sourceStats,
     });
     this.db.addAction(params.tickId, 'swarm_self_improve', { windowStartIso }, { decision, receiptPath });
+  }
+
+  private clearTransientNearMarketCircuitBlocks(state: MarginCircuitState): MarginCircuitState {
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
+    let changed = false;
+    const entries: MarginCircuitState['entries'] = {};
+
+    for (const [key, entry] of Object.entries(state.entries)) {
+      const openUntilMs = entry.openUntil ? Date.parse(entry.openUntil) : Number.NaN;
+      const isTransientNearMarketBlock =
+        entry.source === 'near_market' &&
+        entry.openUntil &&
+        Number.isFinite(openUntilMs) &&
+        openUntilMs > nowMs &&
+        entry.negativeMarginStreak === 0 &&
+        entry.lastError === 'marketplace_apply_failed';
+      if (isTransientNearMarketBlock) {
+        entries[key] = {
+          ...entry,
+          openUntil: undefined,
+          updatedAt: nowIso,
+        };
+        changed = true;
+        continue;
+      }
+      entries[key] = entry;
+    }
+
+    if (!changed) return state;
+    return {
+      updatedAt: nowIso,
+      entries,
+    };
   }
 
   private getNearMarketBidSubmittedOpportunityIds(): string[] {
