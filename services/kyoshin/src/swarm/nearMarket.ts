@@ -148,7 +148,12 @@ async function postJson(params: {
   }
 }
 
-function parseCompletedJobs(payload: unknown): NearMarketJob[] {
+function parseCompletedJobs(
+  payload: unknown,
+  defaults?: {
+    workerAgentId?: string;
+  }
+): NearMarketJob[] {
   if (!Array.isArray(payload)) return [];
   const jobs: NearMarketJob[] = [];
 
@@ -157,13 +162,15 @@ function parseCompletedJobs(payload: unknown): NearMarketJob[] {
     if (!row) continue;
     const jobId = asString(row.job_id) ?? asString(row.jobId);
     const title = asString(row.title) ?? 'Untitled job';
-    const workerAgentId = asString(row.worker_agent_id) ?? asString(row.workerAgentId);
-    const completedAt =
+    const workerAgentId =
+      asString(row.worker_agent_id) ?? asString(row.workerAgentId) ?? defaults?.workerAgentId;
+    const completedAtRaw =
       asString(row.updated_at) ??
       asString(row.updatedAt) ??
       asString(row.created_at) ??
       asString(row.createdAt);
-    if (!jobId || !workerAgentId || !completedAt) continue;
+    const completedAtMs = completedAtRaw ? Date.parse(completedAtRaw) : Number.NaN;
+    if (!jobId || !workerAgentId || !Number.isFinite(completedAtMs)) continue;
 
     jobs.push({
       jobId,
@@ -172,7 +179,7 @@ function parseCompletedJobs(payload: unknown): NearMarketJob[] {
       awardedBidId: asString(row.awarded_bid_id) ?? asString(row.awardedBidId),
       budgetAmount: asNumber(row.budget_amount) ?? asNumber(row.budgetAmount),
       budgetToken: asString(row.budget_token) ?? asString(row.budgetToken),
-      completedAt: new Date(completedAt).toISOString(),
+      completedAt: new Date(completedAtMs).toISOString(),
       raw: row,
     });
   }
@@ -383,7 +390,7 @@ export async function collectNearMarketSettlements(params: {
     apiKey: params.apiKey,
     timeoutMs: params.timeoutMs,
   });
-  const jobs = parseCompletedJobs(jobsPayload);
+  const jobs = parseCompletedJobs(jobsPayload, { workerAgentId: params.agentId });
 
   const settlements: NearMarketSettlement[] = [];
   for (const job of jobs) {
