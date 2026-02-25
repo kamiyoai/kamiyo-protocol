@@ -183,7 +183,7 @@ export async function runDag<T, Out>(
     }
   };
 
-  while (true) {
+  for (;;) {
     if (!abortScheduling) {
       const abort = options.shouldAbort?.();
       if (abort) {

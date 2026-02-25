@@ -15,7 +15,7 @@ export interface DKGToolsConfig {
 }
 
 const UAL_REGEX = /^did:dkg:[a-z]+:\d+\/0x[a-fA-F0-9]+\/\d+$/;
-const SAFE_ID_REGEX = /^[a-zA-Z0-9_\-.:@]+$/;
+const SAFE_ID_REGEX = /^[a-zA-Z0-9_.:@-]+$/;
 const MAX_QUERY_LIMIT = 50;
 const MAX_HOPS = 3;
 
@@ -63,7 +63,7 @@ function sanitizeError(error: unknown): string {
 }
 
 function createSchemaId(type: string, suffix: string): string {
-  const safe = suffix.replace(/[^a-zA-Z0-9_\-]/g, '-').slice(0, 100);
+  const safe = suffix.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 100);
   return `urn:kamiyo:${type}:${safe}`;
 }
 

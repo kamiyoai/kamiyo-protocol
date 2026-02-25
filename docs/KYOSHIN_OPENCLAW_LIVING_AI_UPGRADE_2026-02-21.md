@@ -43,6 +43,9 @@ Runtime scripts added in `ops/openclaw`:
 - `kyoshin-mission-control.py`
   - generates live mission-control board/backlog from queue + tool health + governor state
   - writes to `runtime/mission-control/board.json` and `runtime/mission-control/backlog.json`
+- `kyoshin-artifact-contracts.py`
+  - validates runtime JSON contracts for feed/queue/tools/mission-control/runtime-state artifacts
+  - writes contract report to `runtime/state/runtime-artifact-contracts.json`
 - `install-context-pack.sh`
   - scaffolds the required mission/profile/goals/memory/tool-registry baseline files
   - now also scaffolds `soul.md`, `identity.md`, `heartbeat.md`, and `.learnings/LEARNINGS.md`
@@ -65,9 +68,10 @@ New behavior in every tick:
 6. swarm governor (`work/earn/die`)
 7. swarm planner
 8. mission-control board generation
-9. heartbeat agent decision turn
-10. nightly proactive run at `KYO_PROACTIVE_HOUR_UTC` (default `02:00 UTC`, once/day)
-11. learnings flywheel run (`kyoshin-learnings.py`) to convert degraded ticks into durable rules
+9. runtime artifact contract validation
+10. heartbeat agent decision turn
+11. nightly proactive run at `KYO_PROACTIVE_HOUR_UTC` (default `02:00 UTC`, once/day)
+12. learnings flywheel run (`kyoshin-learnings.py`) to convert degraded ticks into durable rules
 
 Cycle status is `degraded` if any required guard fails.
 
@@ -88,6 +92,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-artifact-contracts.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
@@ -103,7 +108,7 @@ sudo systemctl start kyoshin-autonomy-loop.service
 - mission-control board and backlog update every cycle.
 - nightly proactive run appears exactly once per UTC day.
 - swarm governor updates registry statuses/priorities from receipt evidence.
-- autonomy log includes `context`, `toolHealth`, `governor`, `missionControl`, `learning`, and `proactive` objects.
+- autonomy log includes `context`, `toolHealth`, `governor`, `missionControl`, `artifactContracts`, `learning`, and `proactive` objects.
 - `.learnings/LEARNINGS.md` grows only with unique failure signatures and includes actionable prevention rules.
 
 ## Hard truth

@@ -396,7 +396,7 @@ Want to be part of it?
     const achieved = this.status.milestones.filter((m) => m.achieved);
     const pending = this.status.milestones.filter((m) => !m.achieved);
 
-    let report = `## First Transaction Campaign
+    const report = `## First Transaction Campaign
 
 **Phase:** ${this.status.phase}
 **Started:** ${new Date(this.status.startedAt).toISOString().split('T')[0]}

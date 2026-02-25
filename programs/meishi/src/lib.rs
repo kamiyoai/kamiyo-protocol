@@ -274,10 +274,10 @@ fn verify_ed25519_mandate_signature(
     message_hash: &[u8; 32],
     principal_signature: &[u8; 64],
 ) -> Result<()> {
-    use solana_program::ed25519_program;
     use anchor_lang::solana_program::sysvar::instructions::{
         load_current_index_checked, load_instruction_at_checked,
     };
+    use solana_program::ed25519_program;
 
     let current_index = load_current_index_checked(instructions)?;
     require!(current_index > 0, MeishiError::MandateSignatureMissing);

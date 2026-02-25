@@ -56,7 +56,7 @@ jobs:
           PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
           RPC_URL: ${{ inputs.network == 'mainnet' && secrets.HYPERLIQUID_MAINNET_RPC || secrets.HYPERLIQUID_TESTNET_RPC }}
         run: |
-          forge script script/Deploy.s.sol:DeployScript \
+          forge script script/Deploy.s.sol:Deploy \
             --rpc-url $RPC_URL \
             --broadcast \
             --verify \
@@ -68,18 +68,40 @@ jobs:
           echo "Network: ${{ inputs.network }}" >> $GITHUB_STEP_SUMMARY
           cat contracts/hyperliquid/broadcast/Deploy.s.sol/*/run-latest.json | jq '.transactions[] | select(.transactionType == "CREATE") | {contract: .contractName, address: .contractAddress}' >> $GITHUB_STEP_SUMMARY
 
+      - name: Upload Broadcast Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-broadcast-${{ inputs.network }}
+          path: contracts/hyperliquid/broadcast/Deploy.s.sol/**/run-latest.json
+          if-no-files-found: error
+
   update-sdk-addresses:
     name: Update SDK Addresses
     needs: deploy-hyperliquid
     runs-on: ubuntu-latest
     if: success()
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download Broadcast Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-broadcast-${{ inputs.network }}
+          path: deployment-broadcast
+
       - name: Parse Deployed Addresses
         run: |
-          # Extract addresses from broadcast output and update config
-          echo "TODO: Parse and commit address updates"
+          BROADCAST_JSON="$(find deployment-broadcast -type f -name run-latest.json | head -n 1)"
+          if [ -z "$BROADCAST_JSON" ]; then
+            echo "::error::run-latest.json not found in downloaded artifact"
+            exit 1
+          fi
+          node scripts/update-hyperliquid-addresses.mjs \
+            --network "${{ inputs.network }}" \
+            --broadcast "$BROADCAST_JSON"
 
       - name: Create PR with Address Updates
         uses: peter-evans/create-pull-request@v8
@@ -90,5 +112,7 @@ jobs:
 
             Network: ${{ inputs.network }}
             Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          branch: auto/update-${{ inputs.network }}-addresses
-          commit-message: "Update ${{ inputs.network }} contract addresses"
+          branch: auto/update-${{ inputs.network }}-addresses-${{ github.run_id }}
+          commit-message: "chore: update ${{ inputs.network }} contract addresses"
+          add-paths: |
+            packages/kamiyo-hyperliquid/src/types.ts

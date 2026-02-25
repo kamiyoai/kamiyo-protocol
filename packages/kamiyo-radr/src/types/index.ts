@@ -17,6 +17,7 @@ export interface ShadowWireConfig {
   debug?: boolean;
   apiKey?: string;
   baseUrl?: string;
+  referralId?: string;
 }
 
 export type TransferType = 'internal' | 'external';

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Mobile client for the Kamiyo Protocol — manage AI agents with stake-backed identities, escrow payments, and verifiable reputation on Solana.",
   "license": "MIT",
-  "author": "KAMIYO <kamiyo-ai@users.noreply.github.com>",
+  "author": "KAMIYO <dev@kamiyo.ai>",
   "repository": {
     "type": "git",
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",

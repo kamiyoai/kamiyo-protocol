@@ -311,6 +311,13 @@ function advanceState(state: KyoshinLogState, kind: KyoshinLogKind, nowMs: numbe
   return next;
 }
 
+function isSqliteBusyError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const code = (error as { code?: unknown }).code;
+  if (code === 'SQLITE_BUSY' || code === 'SQLITE_BUSY_SNAPSHOT') return true;
+  return /\bdatabase is locked\b/i.test(error.message);
+}
+
 export function isKyoshinOperatorLogEnabled(): boolean {
   return KYOSHIN_OPERATOR_LOG_ENABLED;
 }
@@ -356,7 +363,15 @@ export function maybeQueueKyoshinOperatorLog(nowMs = Date.now()): QueuedKyoshinL
     };
   });
 
-  return queue(nowMs);
+  try {
+    return queue(nowMs);
+  } catch (error) {
+    if (isSqliteBusyError(error)) {
+      logger.warn('Skipping Kyoshin operator log tick due to sqlite lock contention');
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function setKyoshinOperatorNextSerial(nextSerial: number): void {

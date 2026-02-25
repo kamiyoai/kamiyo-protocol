@@ -72,8 +72,11 @@ ENABLE_PROACTIVE_NIGHTLY="${KYO_ENABLE_PROACTIVE_NIGHTLY:-true}"
 ENABLE_AGENT_HEARTBEAT="${KYO_ENABLE_AGENT_HEARTBEAT:-false}"
 REQUIRE_GATEWAY_HEALTH="${KYO_REQUIRE_GATEWAY_HEALTH:-}"
 REQUIRE_KYOSHIN_RUNTIME="${KYO_REQUIRE_KYOSHIN_RUNTIME:-true}"
+REQUIRE_RUNTIME_ARTIFACT_CONTRACTS="${KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS:-true}"
 PROACTIVE_HOUR_RAW="${KYO_PROACTIVE_HOUR_UTC:-2}"
 REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
+REQUIRE_X402_FEED="${KYO_REQUIRE_X402_FEED:-false}"
+REQUIRE_RECEIPT_SYNC="${KYO_REQUIRE_RECEIPT_SYNC:-false}"
 
 if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
   if is_true "$ENABLE_AGENT_HEARTBEAT"; then
@@ -149,6 +152,36 @@ last_nightly_run_date="$(jq -r '.lastRunDate // ""' "$NIGHTLY_STATE_FILE" 2>/dev
 
 feed_sync_ok=1
 feed_sync_summary='{"ok":false,"error":"not_run"}'
+x402_feed_ok=1
+x402_feed_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-x402-feed.py" ]; then
+  if "$HOME/bin/kyoshin-x402-feed.py" >"$TMP_DIR/x402-feed.json" 2>"$TMP_DIR/x402-feed.err"; then
+    x402_feed_summary="$(as_json_line "$TMP_DIR/x402-feed.json")"
+    x402_feed_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/x402-feed.json" 2>/dev/null || echo true)"
+    x402_feed_accepted="$(jq -r '.accepted // 0' "$TMP_DIR/x402-feed.json" 2>/dev/null || echo 0)"
+    if is_true "$REQUIRE_X402_FEED"; then
+      if [ "$x402_feed_inner_ok" != "true" ] || ! [[ "$x402_feed_accepted" =~ ^[0-9]+$ ]] || [ "$x402_feed_accepted" -le 0 ]; then
+        x402_feed_ok=0
+      fi
+    fi
+  else
+    if [ -s "$TMP_DIR/x402-feed.json" ]; then
+      x402_feed_summary="$(as_json_line "$TMP_DIR/x402-feed.json")"
+    else
+      x402_feed_err="$(tr -d '\n' <"$TMP_DIR/x402-feed.err" | sed 's/"/\\"/g')"
+      x402_feed_summary="{\"ok\":false,\"error\":\"$x402_feed_err\"}"
+    fi
+    if is_true "$REQUIRE_X402_FEED"; then
+      x402_feed_ok=0
+    fi
+  fi
+else
+  x402_feed_summary='{"ok":false,"error":"missing_x402_feed_builder"}'
+  if is_true "$REQUIRE_X402_FEED"; then
+    x402_feed_ok=0
+  fi
+fi
+
 if [ -x "$HOME/bin/kyoshin-sync-feed-config.py" ]; then
   if "$HOME/bin/kyoshin-sync-feed-config.py" >"$TMP_DIR/feed-sync.json" 2>"$TMP_DIR/feed-sync.err"; then
     feed_sync_summary="$(as_json_line "$TMP_DIR/feed-sync.json")"
@@ -240,6 +273,36 @@ else
   marketplace_summary="{\"ok\":false,\"error\":\"$intake_err\"}"
 fi
 
+receipt_sync_ok=1
+receipt_sync_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-receipt-sync.py" ]; then
+  if "$HOME/bin/kyoshin-receipt-sync.py" >"$TMP_DIR/receipt-sync.json" 2>"$TMP_DIR/receipt-sync.err"; then
+    receipt_sync_summary="$(as_json_line "$TMP_DIR/receipt-sync.json")"
+    receipt_sync_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/receipt-sync.json" 2>/dev/null || echo true)"
+    receipt_sync_status="$(jq -r '.status // "ok"' "$TMP_DIR/receipt-sync.json" 2>/dev/null || echo ok)"
+    if is_true "$REQUIRE_RECEIPT_SYNC"; then
+      if [ "$receipt_sync_inner_ok" != "true" ] || [ "$receipt_sync_status" = "skipped" ]; then
+        receipt_sync_ok=0
+      fi
+    fi
+  else
+    if [ -s "$TMP_DIR/receipt-sync.json" ]; then
+      receipt_sync_summary="$(as_json_line "$TMP_DIR/receipt-sync.json")"
+    else
+      receipt_sync_err="$(tr -d '\n' <"$TMP_DIR/receipt-sync.err" | sed 's/"/\\"/g')"
+      receipt_sync_summary="{\"ok\":false,\"error\":\"$receipt_sync_err\"}"
+    fi
+    if is_true "$REQUIRE_RECEIPT_SYNC"; then
+      receipt_sync_ok=0
+    fi
+  fi
+else
+  receipt_sync_summary='{"ok":false,"error":"missing_receipt_sync"}'
+  if is_true "$REQUIRE_RECEIPT_SYNC"; then
+    receipt_sync_ok=0
+  fi
+fi
+
 governor_ok=1
 governor_summary='{"ok":false,"error":"not_run"}'
 if [ -x "$HOME/bin/kyoshin-swarm-governor.py" ]; then
@@ -304,6 +367,27 @@ else
   mission_control_summary='{"ok":false,"error":"missing_mission_control"}'
   if is_true "$REQUIRE_RUNTIME_GUARDS"; then
     mission_control_ok=0
+  fi
+fi
+
+artifact_contracts_ok=1
+artifact_contracts_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-artifact-contracts.py" ]; then
+  if "$HOME/bin/kyoshin-artifact-contracts.py" >"$TMP_DIR/artifact-contracts.json" 2>"$TMP_DIR/artifact-contracts.err"; then
+    artifact_contracts_summary="$(as_json_line "$TMP_DIR/artifact-contracts.json")"
+    artifact_contracts_errors="$(jq -r '.errors | length // 0' "$TMP_DIR/artifact-contracts.json" 2>/dev/null || echo 1)"
+    if [ "$artifact_contracts_errors" -gt 0 ]; then
+      artifact_contracts_ok=0
+    fi
+  else
+    artifact_contracts_ok=0
+    artifact_contracts_err="$(tr -d '\n' <"$TMP_DIR/artifact-contracts.err" | sed 's/"/\\"/g')"
+    artifact_contracts_summary="{\"ok\":false,\"error\":\"$artifact_contracts_err\"}"
+  fi
+else
+  artifact_contracts_summary='{"ok":false,"error":"missing_artifact_contracts"}'
+  if is_true "$REQUIRE_RUNTIME_ARTIFACT_CONTRACTS"; then
+    artifact_contracts_ok=0
   fi
 fi
 
@@ -409,7 +493,9 @@ combined_error=""
 
 if [ "$agent_ok" -eq 1 ] \
   && [ "$proactive_ok" -eq 1 ] \
+  && [ "$x402_feed_ok" -eq 1 ] \
   && [ "$marketplace_ok" -eq 1 ] \
+  && [ "$receipt_sync_ok" -eq 1 ] \
   && [ "$planner_ok" -eq 1 ] \
   && [ "$feed_sync_ok" -eq 1 ] \
   && [ "$gateway_ok" -eq 1 ] \
@@ -417,7 +503,8 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$context_ok" -eq 1 ] \
   && [ "$tool_health_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
-  && [ "$mission_control_ok" -eq 1 ]; then
+  && [ "$mission_control_ok" -eq 1 ] \
+  && [ "$artifact_contracts_ok" -eq 1 ]; then
   cat >"$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date"}
 EOF
@@ -432,6 +519,12 @@ else
   fi
   if [ "$marketplace_ok" -ne 1 ]; then
     combined_error+="marketplace_failed;"
+  fi
+  if [ "$receipt_sync_ok" -ne 1 ]; then
+    combined_error+="receipt_sync_failed;"
+  fi
+  if [ "$x402_feed_ok" -ne 1 ]; then
+    combined_error+="x402_feed_failed;"
   fi
   if [ "$planner_ok" -ne 1 ]; then
     combined_error+="planner_failed;"
@@ -456,6 +549,9 @@ else
   fi
   if [ "$mission_control_ok" -ne 1 ]; then
     combined_error+="mission_control_failed;"
+  fi
+  if [ "$artifact_contracts_ok" -ne 1 ]; then
+    combined_error+="artifact_contracts_failed;"
   fi
   cat >"$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date"}
@@ -487,8 +583,8 @@ if [ "$status" = "ok" ] && [ "$learning_ok" -ne 1 ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"governor":%s,"planner":%s,"missionControl":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$LOG_FILE"

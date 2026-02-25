@@ -21,7 +21,7 @@ const DISPUTE_REASONS = [
 
 function assertValidEscrowId(id: string): string {
   const trimmed = id.trim();
-  if (!/^[a-z0-9_:\-]{3,128}$/i.test(trimmed)) throw new Error('Invalid Escrow ID');
+  if (!/^[a-z0-9_:-]{3,128}$/i.test(trimmed)) throw new Error('Invalid Escrow ID');
   return trimmed;
 }
 

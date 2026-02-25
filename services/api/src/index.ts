@@ -850,14 +850,16 @@ function cleanText(text: string): string {
     .trim();
 }
 
-// debug trace tags for telemetry correlation
-const _t = ['5b6d6e2d636f72655d','5b636861696e65725d','5b6d61746c616e7469735d','5b70666e2d37325d','5be8a5bfe696b0e5aebf5d','5b656467652d68656176795d'];
-const _d = (h: string) => Buffer.from(h, 'hex').toString('utf8');
+const POST_FINGERPRINT = process.env.KAMIYO_POST_FINGERPRINT?.trim();
 
 function maybeAddFingerprint(text: string): string {
-  if (Math.random() >= 0.01) return text;
-  const tag = _d(_t[Math.floor(Math.random() * _t.length)]);
-  return text.length + tag.length + 1 <= 280 ? text + ' ' + tag : text;
+  if (!POST_FINGERPRINT) {
+    return text;
+  }
+
+  return text.length + POST_FINGERPRINT.length + 1 <= 280
+    ? `${text} ${POST_FINGERPRINT}`
+    : text;
 }
 
 async function postReply(
@@ -874,7 +876,6 @@ async function postReply(
   // Clean up text: strip emojis, fix dashes
   let cleaned = cleanText(text);
 
-  // 1% chance to add a PFN fingerprint
   cleaned = maybeAddFingerprint(cleaned);
 
   // Wait for cooldown instead of skipping (prevents death spiral)

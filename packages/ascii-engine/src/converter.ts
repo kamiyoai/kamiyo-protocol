@@ -8,11 +8,9 @@
 import {
   CHARACTER_SETS,
   type RenderOptions,
-  type PixelData,
   type AsciiFrame,
   type CharacterSetName,
   type ColorMode,
-  type DitheringMode,
   type SamplingMode
 } from './types.js';
 
@@ -163,7 +161,7 @@ export function formatColor(
   mode: ColorMode
 ): string {
   switch (mode) {
-    case 'ansi':
+    case 'ansi': {
       // Basic 8-color ANSI
       const ansiColors = [
         [0, 0, 0], [128, 0, 0], [0, 128, 0], [128, 128, 0],
@@ -180,6 +178,7 @@ export function formatColor(
         }
       }
       return `\x1b[3${closest}m`;
+    }
 
     case 'ansi256':
       return `\x1b[38;5;${rgbToAnsi256(r, g, b)}m`;
@@ -318,7 +317,7 @@ export function pixelsToAscii(
   const charset = getCharset(opts);
 
   // Calculate output dimensions
-  let outWidth = opts.width;
+  const outWidth = opts.width;
   let outHeight = opts.height;
 
   if (opts.preserveAspectRatio && !opts.height) {
@@ -570,15 +569,6 @@ function renderBraille(
   imageHeight: number,
   opts: Required<RenderOptions>
 ): AsciiFrame {
-  // Calculate character dimensions
-  // Braille: 2 dots wide x 4 dots tall per character
-  const charWidth = Math.floor(opts.width);
-  const charHeight = opts.height || Math.floor(charWidth * (imageHeight / imageWidth) / 2);
-
-  // Pixel dimensions for braille (2x4 per char)
-  const pixelWidth = charWidth * 2;
-  const pixelHeight = charHeight * 4;
-
   // Determine threshold from brightness setting
   const threshold = Math.round(128 + opts.brightness * 127);
 

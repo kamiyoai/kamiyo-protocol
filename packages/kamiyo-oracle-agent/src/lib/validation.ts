@@ -66,7 +66,7 @@ export function sanitizeForLLM(input: string): string {
   if (!input || typeof input !== 'string') return '';
 
   // Remove potential prompt injection patterns
-  let sanitized = input
+  const sanitized = input
     // Remove markdown code blocks that could contain instructions
     .replace(/```[\s\S]*?```/g, '[code block removed]')
     // Remove HTML-like tags

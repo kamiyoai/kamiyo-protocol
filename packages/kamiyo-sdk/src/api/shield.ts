@@ -57,7 +57,7 @@ export class ShieldAPI {
     shield.setRep(req.stats);
 
     const meetsThreshold = shield.meetsThreshold(req.threshold);
-    let notBlacklisted = true;
+    const notBlacklisted = true;
     let smtProof: SmtProof | undefined;
 
     if (req.blacklistRoot && req.smtSiblings) {

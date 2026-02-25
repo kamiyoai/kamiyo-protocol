@@ -14,12 +14,12 @@ Core runtime paths for Kyoshin, swarm/sub-agent execution, and X posting are now
 - [x] `ops/openclaw/kyoshin-learnings.py` dedupe signature included cycle number | Impact: repeated failures flooded learnings file every cycle | Fix: dedupe signature now based on failure class (`status + normalized error`) only.
 
 ## Medium Priority (P2 - Fix Soon After Launch)
-- [ ] OpenClaw runtime scripts (`ops/openclaw/*.py`, `ops/openclaw/*.sh`) still rely on smoke tests only | Impact: regression risk in control-loop behavior | Fix: add deterministic unit tests for parsing/scoring/guards and loop integration contract tests.
+- [x] OpenClaw runtime loop contract tests (`ops/openclaw/*.sh`) were missing | Impact: regressions could slip through sequencing and orchestration changes | Fix: added loop integration contract tests around `kyoshin-autonomy-loop.sh` stage ordering and failure gates.
 - [ ] X posting flows span multiple services (`services/api`, `services/kyoshin`) with independent schedules | Impact: policy drift risk between operators | Fix: add shared posting policy module + single source for cadence/guardrails.
 
 ## Low Priority (P3 - Technical Debt)
-- [ ] Add static typing/contract validation for generated JSON artifacts under `~/.openclaw/workspace/runtime/*` | Impact: malformed artifact handling is permissive | Fix: add schema validation before consumption.
-- [ ] Add integration test that simulates dual process startup for operator-log scheduler | Impact: future refactors could reintroduce duplicate generation behavior | Fix: multi-process DB lock/transaction test.
+- [x] Add static typing/contract validation for generated JSON artifacts under `~/.openclaw/workspace/runtime/*` | Impact: malformed artifact handling was permissive | Fix: added `kyoshin-artifact-contracts.py` and autonomy-loop gating on contract failures.
+- [x] Add integration test that simulates dual process startup for operator-log scheduler | Impact: future refactors could reintroduce duplicate generation behavior | Fix: added multi-process DB contention contract test and `SQLITE_BUSY` skip handling.
 
 ## Security Assessment
 - Removed shell execution from tool-health command checks.
@@ -44,22 +44,22 @@ Core runtime paths for Kyoshin, swarm/sub-agent execution, and X posting are now
 
 ## Test Coverage Gaps
 - No direct unit tests for:
-  - `ops/openclaw/kyoshin-tool-health.py` command parser behavior.
-  - `ops/openclaw/kyoshin-sync-feed-config.py` file URL restriction logic.
-  - `ops/openclaw/kyoshin-marketplace-intake.py` file URL guard + response limits.
-  - `services/api/src/operator-logbook.ts` transactional due-queue semantics.
+  - None in this audited scope after loop, runtime-artifact, and multi-process scheduler contract tests.
 
 ## Action Plan
 1. [x] Harden command execution and feed URL handling.
 2. [x] Harden operator-log scheduling correctness and transactionality.
 3. [x] Harden learnings flywheel dedupe behavior.
 4. [x] Run build/test/smoke verification across target surfaces.
-5. [ ] Add unit/integration tests for OpenClaw runtime scripts and operator-log scheduler.
+5. [x] Add OpenClaw loop integration tests and multi-process operator-log scheduler tests.
 
 ## Verification
 - `pnpm --filter kamiyo-companion run build` passed.
+- `pnpm --filter kamiyo-companion run test` passed.
+- `pnpm --filter kamiyo-companion exec vitest run src/__tests__/operator-logbook.multiprocess.test.ts` passed.
 - `pnpm --filter @kamiyo/kyoshin run build` and `pnpm --filter @kamiyo/kyoshin run test` passed.
 - `pnpm --filter @kamiyo/kamiyo-operator run build` and `pnpm --filter @kamiyo/kamiyo-operator run test` passed.
 - `pnpm run operator-log:validate` passed.
+- `python3 -m unittest discover -s ops/openclaw/tests -p 'test_*.py'` passed.
 - `python3 -m py_compile` passed for updated OpenClaw scripts.
 - Shell syntax checks (`bash -n`) passed for updated loop/install scripts.

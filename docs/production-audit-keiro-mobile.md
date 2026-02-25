@@ -1,14 +1,14 @@
 # Production Audit: Keiro Mobile + Solana Mobile Resubmission
 
 ## Executive Summary
-Core mobile/API quality gates are green, dApp publishing metadata is valid with `kamiyo-ai@users.noreply.github.com`, and release minting now works on mainnet. Resubmission is still blocked because the store already has a pending review for Android `version_code` 1, and the freshly minted release uses the same APK version.
+Core mobile/API quality gates are green, dApp publishing metadata is valid with `dev@kamiyo.ai`, and release minting now works on mainnet. Resubmission is still blocked because the store already has a pending review for Android `version_code` 1, and the freshly minted release uses the same APK version.
 
 ## Critical Issues (P0 - Block Release)
 - [x] Resubmission blocked by signer wallet funding. | Impact: release mint could not be created. | Fix: funded authority key and successfully minted a new release.
 - [ ] Existing review already has `version_code: 1`; portal rejects another submission of the same version. | Impact: `publish update` cannot be accepted yet. | Fix: build/sign APK with incremented Android version code and mint/submit that release, or have reviewer/support replace pending review.
 
 ## High Priority (P1 - Fix Before Launch)
-- [x] Submission contact/support email mismatch across metadata. | Impact: inconsistent reviewer contact details. | Fix: normalized to `kamiyo-ai@users.noreply.github.com`.
+- [x] Submission contact/support email mismatch across metadata. | Impact: inconsistent reviewer contact details. | Fix: normalized to `dev@kamiyo.ai`.
 - [x] Production defaults pointed to local/dev infra (`localhost`, `devnet`). | Impact: broken runtime in review/production builds without env overrides. | Fix: production-safe defaults with dev fallback.
 - [x] Expo dependency drift and duplicate native module graph. | Impact: risk of native build/runtime instability. | Fix: aligned package versions and removed unused duplicate dependency; `expo-doctor` now passes.
 

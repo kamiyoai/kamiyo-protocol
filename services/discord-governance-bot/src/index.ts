@@ -196,7 +196,9 @@ function loadData(): ProposalStore {
     if (fs.existsSync(DATA_FILE)) {
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
     }
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   return { proposals: [], walletLinks: {} };
 }
 
@@ -481,7 +483,9 @@ client.once('ready', async () => {
               components: [createVoteButtons(proposal.id, true)],
             });
           }
-        } catch {}
+        } catch (error) {
+          void error;
+        }
       }
     }
 
@@ -916,7 +920,9 @@ async function handleButton(interaction: ButtonInteraction) {
       const msg = await channel.messages.fetch(proposal.messageId);
       await msg.edit({ embeds: [createProposalEmbed(proposal)] });
     }
-  } catch {}
+  } catch (error) {
+    void error;
+  }
 
   await interaction.reply({
     content: `Vote recorded: **${choice.toUpperCase()}** with ${formatNumber(weight)} KAMIYO`,

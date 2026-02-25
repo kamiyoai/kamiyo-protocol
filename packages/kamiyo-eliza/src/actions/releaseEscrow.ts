@@ -4,10 +4,10 @@ import type { Action, IAgentRuntime, Memory, State, HandlerCallback } from '../t
 import { getNetworkConfig, getKeypair, createConnection, parseAddress } from '../utils';
 
 function extractEscrowId(text: string, fallback?: string): string | null {
-  const match = text.match(/tx_[a-z0-9_\-]+/i) || text.match(/escrow_[a-z0-9_\-]+/i);
+  const match = text.match(/tx_[a-z0-9_-]+/i) || text.match(/escrow_[a-z0-9_-]+/i);
   const id = match?.[0] || fallback;
   if (!id) return null;
-  return /^[a-z0-9_:\-]{3,128}$/i.test(id) ? id : null;
+  return /^[a-z0-9_:-]{3,128}$/i.test(id) ? id : null;
 }
 
 export const releaseEscrowAction: Action = {

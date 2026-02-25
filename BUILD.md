@@ -39,11 +39,11 @@ pnpm install
 ## Build
 
 ```bash
-npm run build              # Programs + SDK
-npm run build:program      # Solana programs only
-npm run build:sdk          # @kamiyo/sdk only
-npm run build:api          # SDK + API dependencies
-npm run build:oracle       # Oracle service
+pnpm run build              # Programs + SDK
+pnpm run build:program      # Solana programs only
+pnpm run build:sdk          # @kamiyo/sdk only
+pnpm run build:api          # SDK + API dependencies
+pnpm run build:oracle       # Oracle service
 ```
 
 ### Individual Packages
@@ -73,8 +73,8 @@ Built via `anchor build`:
 ```bash
 anchor test                         # All programs (starts localnet)
 anchor test --skip-local-validator  # Use running validator
-npm run test:sdk                    # SDK tests
-npm run test:surfpool               # Surfpool tests
+pnpm run test:sdk                   # SDK tests
+pnpm run test:surfpool              # Surfpool tests
 ```
 
 ### Specific Tests
@@ -87,11 +87,11 @@ npx ts-mocha -p ./tests/tsconfig.json tests/escrow.test.ts
 ## Lint
 
 ```bash
-npm run lint         # TypeScript (auto-fix)
-npm run lint:check   # TypeScript (check)
-npm run lint:rust    # Rust (fmt + clippy)
-npm run format       # Prettier
-npm run format:rust  # Cargo fmt
+pnpm run lint         # TypeScript (auto-fix)
+pnpm run lint:check   # TypeScript (check)
+pnpm run lint:rust    # Rust (fmt + clippy)
+pnpm run format       # Prettier
+pnpm run format:rust  # Cargo fmt
 ```
 
 ## EVM Contracts
@@ -143,25 +143,25 @@ cargo test
 
 ```bash
 cd services/api
-npm install
-npm run build
-npm run dev      # Development (tsx watch)
-npm start        # Production
+pnpm install
+pnpm run build
+pnpm run dev      # Development (tsx watch)
+pnpm start        # Production
 ```
 
 ### Oracle
 
 ```bash
-npm run build:oracle
+pnpm run build:oracle
 cd services/oracle
-npm start
+pnpm start
 ```
 
 ### Discord Bot
 
 ```bash
 cd services/discord-governance-bot
-npm install && npm run build && npm start
+pnpm install && pnpm run build && pnpm start
 ```
 
 ## Environment
@@ -200,7 +200,7 @@ curl -X POST "https://api.render.com/v1/services/{service_id}/deploys" \
 
 **Anchor build fails:**
 ```bash
-npm run clean && anchor build
+pnpm run clean && anchor build
 ```
 
 **pnpm install fails:**

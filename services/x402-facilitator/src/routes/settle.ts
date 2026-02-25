@@ -410,14 +410,14 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         const fee = Number(onchain.feeMicro) / 1_000_000;
         const net = Number(onchain.netMicro) / 1_000_000;
 
-	        try {
-	          const treasuryTx = isBase ? onchain.feeTxHash : onchain.txHash;
-	          await updateSettlementConfirmed(settlement.id, onchain.txHash, fee);
-	          await insertFeeLedger(settlement.id, null, 'settlement', fee, treasuryTx);
-	          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash);
-	        } catch {
-	          // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
-	          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash).catch(() => {});
+        try {
+          const treasuryTx = isBase ? onchain.feeTxHash : onchain.txHash;
+          await updateSettlementConfirmed(settlement.id, onchain.txHash, fee);
+          await insertFeeLedger(settlement.id, null, 'settlement', fee, treasuryTx);
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash);
+        } catch {
+          // The on-chain transfer already happened. Keep the session budget reserved and return the tx hash.
+          await setPaymentNonceTxHash(session.payer_wallet, sessionHeader.nonce, onchain.txHash).catch(() => {});
         }
 
         res.json({

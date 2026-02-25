@@ -124,6 +124,8 @@ def source_definition() -> list[dict[str, str]]:
             'auth_header_key': 'KYO_X402_AUTH_HEADER',
             'auth_prefix_key': 'KYO_X402_AUTH_PREFIX',
             'seed_file': 'x402.json',
+            'generated_file': str((RUNTIME_DIR / 'feeds' / 'x402-opportunities.json').resolve()),
+            'generated_enabled_key': 'KYO_X402_GENERATED_FEED_ENABLED',
         },
         {
             'source': 'direct_api',
@@ -161,6 +163,13 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
         auth_prefix = env_value(source['auth_prefix_key'], file_env.get(source['auth_prefix_key'], 'Bearer'))
         seed_path = (SEED_DIR / source['seed_file']).resolve()
         has_seed = seed_path.exists()
+        generated_enabled = parse_bool(
+            env_value(source.get('generated_enabled_key', ''), file_env.get(source.get('generated_enabled_key', ''), 'true')),
+            True,
+        )
+        generated_path_raw = source.get('generated_file', '').strip()
+        generated_path = Path(generated_path_raw).resolve() if generated_path_raw else None
+        has_generated = bool(generated_path and generated_path.exists())
 
         if live_url:
             entry = {
@@ -173,6 +182,17 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
                 'authPrefix': auth_prefix,
             }
             mode = 'live'
+        elif has_generated and generated_enabled and generated_path is not None:
+            entry = {
+                'id': f"{source['source']}_generated",
+                'source': source['source'],
+                'enabled': True,
+                'url': f'file://{generated_path}',
+                'authHeader': auth_header,
+                'authEnv': source['api_key_env'],
+                'authPrefix': auth_prefix,
+            }
+            mode = 'generated'
         elif fallback_enabled and has_seed:
             entry = {
                 'id': f"{source['source']}_bootstrap",
@@ -204,6 +224,8 @@ def build_config() -> tuple[dict[str, Any], dict[str, Any]]:
                 'enabled': entry['enabled'],
                 'url': entry['url'],
                 'hasSeed': has_seed,
+                'hasGenerated': has_generated,
+                'generatedEnabled': generated_enabled,
                 'liveUrlSet': bool(live_url_raw),
                 'liveUrlValid': live_url_valid,
             }

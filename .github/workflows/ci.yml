@@ -82,8 +82,8 @@ jobs:
       - run: anchor test --skip-build
       - name: Validate VK
         run: ./scripts/validate-vk.sh
-      - name: Cargo Audit
-        run: cargo audit --ignore RUSTSEC-2024-0344 --ignore RUSTSEC-2022-0093
+      - name: Security Audit Policy
+        run: pnpm run audit:policy
 
   evm:
     name: EVM
@@ -123,25 +123,29 @@ jobs:
 
       - run: pnpm install
 
-      - name: Build SDK
-        run: pnpm run build:sdk
+      - name: Docs Command Drift Check
+        run: pnpm run check:docs
 
-      - name: Build Meishi Stack
-        run: |
-          pnpm --filter @kamiyo/meishi build
-          pnpm --filter @kamiyo/meishi-middleware build
-          pnpm --filter @kamiyo/meishi-mcp build
-          pnpm --filter @kamiyo/x402-client build
-          pnpm --filter @kamiyo/meishi-compliance build
+      - name: Service Onboarding Check
+        run: pnpm run check:onboarding
 
-      - name: Test SDK
-        run: pnpm run test:sdk
+      - name: Workspace Build
+        run: pnpm -r --if-present --no-bail run build
+
+      - name: Workspace Test
+        run: pnpm -r --if-present --no-bail run test
+
+      - name: Rust Core Lint
+        run: pnpm run lint:rust
 
       - name: Test Meishi Header Validation
-        run: npx ts-mocha -p ./tests/tsconfig.json -t 120000 tests/meishi-validation.test.ts
+        run: npx tsx node_modules/mocha/bin/mocha.js -t 120000 tests/meishi-validation.test.ts
 
       - name: Test Meishi DKG Alignment
-        run: npx ts-mocha -p ./tests/tsconfig.json -t 120000 tests/meishi-dkg-alignment.test.ts
+        run: npx tsx node_modules/mocha/bin/mocha.js -t 120000 tests/meishi-dkg-alignment.test.ts
+
+      - name: Test Meishi DKG Integrity
+        run: npx tsx node_modules/mocha/bin/mocha.js -t 120000 tests/meishi-dkg-integrity.test.ts
 
       - name: PNPM Audit (Critical)
         run: pnpm audit --prod --audit-level=critical

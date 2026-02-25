@@ -65,14 +65,14 @@ export function decodePaymentHeader(header: string): DecodedPayment | null {
 export function verifyPaymentAuth(payment: DecodedPayment): boolean {
   try {
     const authSig = Buffer.from(payment.authSignature, 'base64');
-    const { authSignature: _, ...rest } = payment;
+    const { amount, nonce, payer, resource, signature, timestamp } = payment;
     const canonical = JSON.stringify({
-      amount: rest.amount,
-      nonce: rest.nonce,
-      payer: rest.payer,
-      resource: rest.resource,
-      signature: rest.signature,
-      timestamp: rest.timestamp,
+      amount,
+      nonce,
+      payer,
+      resource,
+      signature,
+      timestamp,
     });
     const message = new TextEncoder().encode(canonical);
 

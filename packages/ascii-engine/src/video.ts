@@ -93,7 +93,7 @@ export async function videoToAscii(
 
   try {
     // Extract frames
-    const { frameCount, fps, duration } = await extractFrames(
+    const { fps } = await extractFrames(
       videoPath,
       tempDir,
       options,

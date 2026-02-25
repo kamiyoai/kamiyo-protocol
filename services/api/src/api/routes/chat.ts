@@ -108,10 +108,10 @@ async function getMarketSignals(cryptoCtx: CachedContext): Promise<MarketSignals
   if (fearGreed > 60) momentum = 'bullish';
   else if (fearGreed < 40) momentum = 'bearish';
 
-  let volatility: MarketSignals['volatility'] = 'medium';
+  const volatility: MarketSignals['volatility'] = 'medium';
   // Would calculate from price history in production
 
-  let whaleActivity: MarketSignals['whaleActivity'] = 'neutral';
+  const whaleActivity: MarketSignals['whaleActivity'] = 'neutral';
   // Would analyze on-chain data in production
 
   const trendStrength = Math.abs(fearGreed - 50) * 2;

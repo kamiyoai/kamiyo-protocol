@@ -2,6 +2,7 @@ use crate::{
     error::TrustLayerError,
     hash::{hash_bytes, FNV_OFFSET_BASIS},
 };
+use core::str::FromStr;
 
 pub const MAX_SCORE: u16 = 1_000;
 pub const BASE_SCORE: u16 = 500;
@@ -38,7 +39,7 @@ impl TrustProvider {
         }
     }
 
-    pub fn from_str(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value {
             "openclaw" => Some(Self::OpenClaw),
             "nanoclaw" => Some(Self::NanoClaw),
@@ -50,6 +51,14 @@ impl TrustProvider {
             "custom" => Some(Self::Custom),
             _ => None,
         }
+    }
+}
+
+impl FromStr for TrustProvider {
+    type Err = ();
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::parse(value).ok_or(())
     }
 }
 

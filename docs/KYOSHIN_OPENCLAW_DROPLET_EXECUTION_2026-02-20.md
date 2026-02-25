@@ -170,11 +170,13 @@ Implemented in repo and ready for droplet deployment:
   - `ops/openclaw/kyoshin-swarm-governor.py`
 - Added Mission Control board/backlog generator:
   - `ops/openclaw/kyoshin-mission-control.py`
+- Added runtime artifact contract validator:
+  - `ops/openclaw/kyoshin-artifact-contracts.py`
 - Added context bootstrap installer:
   - `ops/openclaw/install-context-pack.sh`
 - Updated loop behavior in:
   - `ops/openclaw/kyoshin-autonomy-loop.sh`
-  - now runs context/tool/governor/mission-control stages each cycle
+  - now runs context/tool/governor/mission-control/artifact-contract stages each cycle
   - now executes one nightly proactive mission at configurable UTC hour
   - now marks cycle `degraded` if required autonomy guards fail
 

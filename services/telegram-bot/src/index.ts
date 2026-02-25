@@ -23,6 +23,39 @@ const DOCS_TO_FETCH = [
 
 let docsContent = '';
 
+interface DexScreenerPair {
+  priceUsd?: string;
+  marketCap?: number;
+  volume?: {
+    h24?: number;
+  };
+  priceChange?: {
+    h24?: string | number;
+  };
+  liquidity?: {
+    usd?: number;
+  };
+  dexId?: string;
+}
+
+interface DexScreenerResponse {
+  pairs?: DexScreenerPair[];
+}
+
+interface HeliusTokenMetadata {
+  onChainAccountInfo?: {
+    accountInfo?: {
+      data?: {
+        parsed?: {
+          info?: {
+            supply?: string;
+          };
+        };
+      };
+    };
+  };
+}
+
 // Custom tool definitions for Claude
 const customTools: Tool[] = [
   {
@@ -81,16 +114,18 @@ async function getTokenData(): Promise<string> {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${KAMIYO_PAIR}`);
     if (!res.ok) return `DexScreener error: ${res.status}`;
 
-    const data = await res.json();
+    const data = (await res.json()) as DexScreenerResponse;
     const pair = data.pairs?.[0];
 
     if (!pair) return 'Token data not found.';
+    const price = Number(pair.priceUsd || 0);
+    const priceChange = Number(pair.priceChange?.h24 || 0);
 
     return `KAMIYO Token Data:
-- Price: $${parseFloat(pair.priceUsd).toFixed(8)}
+- Price: $${price.toFixed(8)}
 - Market Cap: $${formatLargeNumber(pair.marketCap)}
 - 24h Volume: $${formatLargeNumber(pair.volume?.h24)}
-- 24h Change: ${pair.priceChange?.h24 || 0}%
+- 24h Change: ${priceChange}%
 - Liquidity: $${formatLargeNumber(pair.liquidity?.usd)}
 - DEX: ${pair.dexId}`;
   } catch (e) {
@@ -123,9 +158,12 @@ async function getHolderCount(): Promise<string> {
     });
 
     if (!res.ok) return `Helius error: ${res.status}`;
-    const data = await res.json();
-    const holders = data[0]?.onChainAccountInfo?.accountInfo?.data?.parsed?.info?.supply;
-    return `Token supply info retrieved. Check DexScreener for holder count.`;
+    const data = (await res.json()) as HeliusTokenMetadata[];
+    const supply = data[0]?.onChainAccountInfo?.accountInfo?.data?.parsed?.info?.supply;
+    if (supply) {
+      return `KAMIYO token supply: ${formatNumber(Number(supply))}.`;
+    }
+    return 'Token metadata retrieved, but supply field was not available.';
   } catch (e) {
     return `Error fetching holder count: ${e}`;
   }
@@ -312,7 +350,9 @@ function loadData(): ProposalStore {
     if (fs.existsSync(DATA_FILE)) {
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
     }
-  } catch {}
+  } catch (error) {
+    void error;
+  }
   return { proposals: [], walletLinks: {} };
 }
 
@@ -675,7 +715,9 @@ bot.action(/vote_(for|against|abstain)_(.+)/, async (ctx) => {
       parse_mode: 'Markdown',
       ...getVoteKeyboard(proposal.id),
     });
-  } catch {}
+  } catch (error) {
+    void error;
+  }
 
   await ctx.answerCbQuery(`Vote recorded: ${choice.toUpperCase()} with ${formatNumber(weight)} KAMIYO`);
 });
@@ -699,7 +741,9 @@ setInterval(async () => {
           formatProposal(proposal),
           { parse_mode: 'Markdown' }
         );
-      } catch {}
+      } catch (error) {
+        void error;
+      }
     }
   }
 

@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node --test --loader tsx src/**/*.test.ts"
+    "test": "node --test --loader tsx"
   },
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {

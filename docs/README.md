@@ -19,6 +19,8 @@ Public documentation for KAMIYO Protocol.
 - `AGENT_LOG_0011_X_POST.md` — operator logbook post draft
 - `AGENT_LOG_0012_X_POST_REFLECTIVE_SAMPLE.md` — reflective-mode operator logbook sample
 - `production-audit-kyoshin.md` — production-readiness assessment for Kyoshin swarm autonomy with prioritized gaps and action plan
+- `production-audit-full-system.md` — monorepo-wide production audit with executed remediation status and remaining release blockers
+- `security-dependency-triage.md` — dependency vulnerability triage policy, allowlist governance, and CI enforcement rules
 - `FUNDRY_LIVE_CONFIG_SNAPSHOT_2026-02-20.json` — machine-fetched Fundry config metadata snapshot used for launch-config selection
 - `KYOSHIN_SWARM_JOB_FEED_TEMPLATE.json` — starter opportunity feed format for autonomous subagent job intake
 - `KYOSHIN_MARKETPLACE_ADAPTERS.md` — source adapter behavior and config for Relevance, Agent.ai, Kore, and generic feeds

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import http from 'http';
 
-var assetGetMock: ReturnType<typeof vi.fn>;
+let assetGetMock: ReturnType<typeof vi.fn>;
 
 vi.mock('@kamiyo/agent-paranet', async () => {
   const actual = await vi.importActual<any>('@kamiyo/agent-paranet');

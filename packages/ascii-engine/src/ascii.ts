@@ -33,7 +33,7 @@
 import sharp from 'sharp';
 import { writeFileSync } from 'fs';
 import { pixelsToAscii } from './converter.js';
-import { applyEffect, applyEffects, type EffectName, type EffectOptions } from './effects/apply.js';
+import { applyEffects, type EffectName, type EffectOptions } from './effects/apply.js';
 import { toPng, toBuffer, parseAnsiColors, type PngOptions } from './export/png.js';
 import { toSvg, type SvgOptions } from './export/svg.js';
 import { toHtml, type HtmlOptions } from './export/html.js';

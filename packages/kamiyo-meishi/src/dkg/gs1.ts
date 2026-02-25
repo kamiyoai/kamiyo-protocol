@@ -18,7 +18,7 @@ export interface GS1Config {
   resolverDomain?: string;
 }
 
-let _config: Required<GS1Config> = {
+const _config: Required<GS1Config> = {
   companyPrefix: DEFAULT_GS1_PREFIX,
   resolverDomain: DEFAULT_RESOLVER,
 };

@@ -57,7 +57,7 @@ export function dots(
       const brightness = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
       // Calculate radius based on brightness
-      let radius = minRadius + (maxRadius - minRadius) * (invert ? 1 - brightness : brightness);
+      const radius = minRadius + (maxRadius - minRadius) * (invert ? 1 - brightness : brightness);
 
       // Draw dot
       const startX = Math.max(0, Math.floor(centerX - maxRadius));

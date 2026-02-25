@@ -45,9 +45,19 @@ export class ShadowWireWrapper {
 
     try {
       const { ShadowWireClient } = await import('@radr/shadowwire');
-      this.client = new ShadowWireClient({
+      const clientConfig: Record<string, unknown> = {
         debug: this.config.debug ?? false,
-      }) as unknown as ShadowWireClientInterface;
+      };
+      if (this.config.apiKey) {
+        clientConfig.apiKey = this.config.apiKey;
+      }
+      if (this.config.baseUrl) {
+        clientConfig.baseUrl = this.config.baseUrl;
+      }
+      if (this.config.referralId) {
+        clientConfig.referralId = this.config.referralId;
+      }
+      this.client = new ShadowWireClient(clientConfig) as unknown as ShadowWireClientInterface;
       this.initialized = true;
     } catch (err) {
       throw new Error(

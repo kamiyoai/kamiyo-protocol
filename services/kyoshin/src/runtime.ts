@@ -331,8 +331,8 @@ export class KyoshinRuntime {
       },
     };
 
-    let registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
-    let swarmRegistry = registryResult.ok ? registryResult.registry : null;
+    const registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
+    const swarmRegistry = registryResult.ok ? registryResult.registry : null;
     let swarmOpportunityIntake: SwarmOpportunityIntake | null = null;
 
     if (this.runtimeEnv.KAMIYO_SWARM_ENABLED && swarmRegistry) {
@@ -576,7 +576,7 @@ export class KyoshinRuntime {
       keepDays: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS,
     });
 
-    let rollbackState = pruneRollbackState({
+    const rollbackState = pruneRollbackState({
       state: parseRollbackState(this.db.kvGet('swarm_rollback_state')),
     });
     this.db.kvSet('swarm_rollback_state', JSON.stringify(rollbackState));

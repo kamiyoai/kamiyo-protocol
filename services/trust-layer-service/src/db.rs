@@ -1121,7 +1121,7 @@ fn decode_event_row(row: &sqlx::postgres::PgRow) -> Result<StoredEvent> {
         provider: row
             .try_get::<Option<String>, _>("provider")?
             .map(|value| {
-                TrustProvider::from_str(&value).ok_or_else(|| anyhow!("unknown provider: {value}"))
+                TrustProvider::parse(&value).ok_or_else(|| anyhow!("unknown provider: {value}"))
             })
             .transpose()?,
     });

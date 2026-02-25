@@ -1,4 +1,5 @@
 import { getPool, closePool } from './pool';
+import * as dotenv from 'dotenv';
 
 const MIGRATIONS = [
   {
@@ -285,7 +286,7 @@ export async function runMigrations(): Promise<void> {
 }
 
 if (require.main === module) {
-  require('dotenv').config();
+  dotenv.config();
   runMigrations()
     .then(() => {
       console.log('[migrate] done');

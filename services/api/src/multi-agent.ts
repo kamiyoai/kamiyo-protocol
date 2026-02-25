@@ -238,7 +238,7 @@ export async function runConversation(
     throw new Error('Need at least 2 valid participants');
   }
 
-  let messages = [...conv.messages];
+  const messages = [...conv.messages];
 
   // If no messages yet and topic provided, seed with it
   if (messages.length === 0 && topic) {

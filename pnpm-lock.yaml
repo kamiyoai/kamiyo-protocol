@@ -569,6 +569,9 @@ importers:
       bn.js:
         specifier: ^5.2.1
         version: 5.2.2
+      bs58:
+        specifier: ^6.0.0
+        version: 6.0.0
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
@@ -1425,9 +1428,6 @@ importers:
         specifier: 1.95.8
         version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     devDependencies:
-      '@types/bs58':
-        specifier: ^5.0.0
-        version: 5.0.0
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -2290,37 +2290,6 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
-  services/live-show-coach:
-    dependencies:
-      dotenv:
-        specifier: ^16.4.5
-        version: 16.6.1
-      express:
-        specifier: ^4.21.2
-        version: 4.22.1
-      openai:
-        specifier: ^6.16.0
-        version: 6.16.0(ws@8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@4.3.6)
-      ws:
-        specifier: ^8.18.0
-        version: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    devDependencies:
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/node':
-        specifier: ^22.10.1
-        version: 22.19.5
-      '@types/ws':
-        specifier: ^8.5.12
-        version: 8.18.1
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-
   services/meishi-compliance:
     dependencies:
       '@coral-xyz/anchor':
@@ -2398,8 +2367,8 @@ importers:
   services/oracle:
     dependencies:
       '@kamiyo/hyperliquid':
-        specifier: file:../../packages/kamiyo-hyperliquid
-        version: file:packages/kamiyo-hyperliquid(bufferutil@4.1.0)(utf-8-validate@5.0.10)(zod@4.3.6)
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-hyperliquid
       ethers:
         specifier: ^6.13.0
         version: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -4594,9 +4563,6 @@ packages:
     peerDependenciesMeta:
       '@anthropic-ai/sdk':
         optional: true
-
-  '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid':
-    resolution: {directory: packages/kamiyo-hyperliquid, type: directory}
 
   '@kamiyo/monad@file:packages/kamiyo-monad':
     resolution: {directory: packages/kamiyo-monad, type: directory}
@@ -19202,16 +19168,6 @@ snapshots:
       - encoding
       - react-native-b4a
       - utf-8-validate
-
-  '@kamiyo/hyperliquid@file:packages/kamiyo-hyperliquid(bufferutil@4.1.0)(utf-8-validate@5.0.10)(zod@4.3.6)':
-    dependencies:
-      '@anthropic-ai/sdk': 0.77.0(zod@4.3.6)
-      '@kamiyo/hive': link:packages/kamiyo-hive
-      ethers: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
 
   '@kamiyo/monad@file:packages/kamiyo-monad(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
     dependencies:

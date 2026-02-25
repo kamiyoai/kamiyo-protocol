@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm --filter @kamiyo/hyperliquid run build && tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@kamiyo/hyperliquid": "file:../../packages/kamiyo-hyperliquid",
+    "@kamiyo/hyperliquid": "workspace:*",
     "ethers": "^6.13.0"
   },
   "devDependencies": {

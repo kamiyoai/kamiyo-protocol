@@ -127,7 +127,7 @@ export async function refreshUserTier(userId: string, platform: string, wallet: 
     return cached;
   }
 
-  const user = getOrCreateUser(userId, platform);
+  getOrCreateUser(userId, platform);
 
   // Get existing tier from DB first (as fallback)
   const { tier: existingTier, expired } = getUserTier(userId);

@@ -25,6 +25,14 @@ opt-level = 3
 incremental = false
 codegen-units = 1
 
+[patch.crates-io]
+# Solana SBF toolchains used in CI/local builds can lag edition2024 support.
+# Keep constant_time_eq at v0.4.2 with a locally patched Cargo manifest until
+# the toolchain baseline fully supports edition2024 parsing.
+constant_time_eq = { path = "vendor/constant_time_eq" }
+blake3 = { path = "vendor/blake3" }
+getrandom = { path = "vendor/getrandom" }
+
 # Pin versions/toolchain to be compatible with Solana SBF builds.
 # If CI fails parsing a transitive dependency that uses edition2024 (e.g. constant_time_eq via blake3),
 # bump SOLANA_VERSION in workflows to a release that bundles a newer Cargo/Rust toolchain.
