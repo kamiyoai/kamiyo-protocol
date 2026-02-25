@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,7 +15,11 @@ function writeExecutable(path: string, contents: string): void {
   chmodSync(path, 0o755);
 }
 
-function setupHarness(t: TestContext, economicsJson: string): {
+function setupHarness(
+  t: TestContext,
+  economicsJson: string,
+  envOverrides: Record<string, string> = {}
+): {
   callsFile: string;
   run: () => ReturnType<typeof spawnSync>;
 } {
@@ -72,6 +76,7 @@ function setupHarness(t: TestContext, economicsJson: string): {
     MOCK_ECONOMICS_JSON: economicsJson,
     KAMIYO_CANARY_GATE_GRACE_SECONDS: '0',
     PATH: `${binDir}:${process.env.PATH ?? ''}`,
+    ...envOverrides,
   };
 
   return {
@@ -122,4 +127,38 @@ test('guarded promote blocks promotion when settled jobs gate is not met', t => 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /blocked: canary gate check failed before promotion/);
   assert.equal(result.stdout.includes('"min_settled_jobs": false'), true);
+  assert.equal(existsSync(harness.callsFile), false);
+});
+
+test('guarded promote can enforce executed jobs threshold when configured', t => {
+  const harness = setupHarness(
+    t,
+    JSON.stringify({
+      laneSummary: {
+        byLaneAndKind: [{ lane: 'marketplace_direct', kind: 'job', events: 0, amountSol: 0, amountUsd: 0 }],
+      },
+      jobs: { executed: 1 },
+      revenue: { netSol: 0.02 },
+      intake: { pending: 5 },
+    }),
+    {
+      KAMIYO_CANARY_GATE_MIN_SETTLED_JOBS: '0',
+      KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS: '2',
+    }
+  );
+
+  const result = harness.run();
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /blocked: canary gate check failed before promotion/);
+  assert.equal(result.stdout.includes('"min_executed_jobs": false'), true);
+  assert.equal(existsSync(harness.callsFile), false);
+});
+
+test('guarded promote blocks promotion when economics payload is empty', t => {
+  const harness = setupHarness(t, '');
+
+  const result = harness.run();
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /blocked: canary gate check failed before promotion/);
+  assert.equal(existsSync(harness.callsFile), false);
 });

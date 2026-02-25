@@ -34,16 +34,18 @@ stage_rank() {
 gate_summary_from_economics() {
   local economics_json="$1"
   local min_settled="$2"
-  local min_net_sol="$3"
-  local max_pending="$4"
-  ECONOMICS_JSON="$economics_json" python3 - "$min_settled" "$min_net_sol" "$max_pending" <<'PY'
+  local min_executed="$3"
+  local min_net_sol="$4"
+  local max_pending="$5"
+  ECONOMICS_JSON="$economics_json" python3 - "$min_settled" "$min_executed" "$min_net_sol" "$max_pending" <<'PY'
 import json
 import os
 import sys
 
 min_settled = int(float(sys.argv[1]))
-min_net_sol = float(sys.argv[2])
-max_pending = int(float(sys.argv[3]))
+min_executed = int(float(sys.argv[2]))
+min_net_sol = float(sys.argv[3])
+max_pending = int(float(sys.argv[4]))
 raw = os.environ.get("ECONOMICS_JSON", "").strip()
 if not raw:
     raise ValueError("missing economics payload")
@@ -63,9 +65,12 @@ revenue = data.get("revenue") or {}
 net_sol = float(revenue.get("netSol") or 0.0)
 intake = data.get("intake") or {}
 pending = int(intake.get("pending") or 0)
+jobs = data.get("jobs") or {}
+executed_jobs = int(jobs.get("executed") or 0)
 
 checks = {
     "min_settled_jobs": settled_jobs >= min_settled,
+    "min_executed_jobs": executed_jobs >= min_executed,
     "min_net_sol": net_sol >= min_net_sol,
     "max_pending_intake": pending <= max_pending,
 }
@@ -73,11 +78,13 @@ ok = all(checks.values())
 summary = {
     "ok": ok,
     "settled_jobs": settled_jobs,
+    "executed_jobs": executed_jobs,
     "net_sol": net_sol,
     "pending_intake": pending,
     "checks": checks,
     "thresholds": {
         "min_settled_jobs": min_settled,
+        "min_executed_jobs": min_executed,
         "min_net_sol": min_net_sol,
         "max_pending_intake": max_pending,
     },
@@ -97,11 +104,13 @@ evaluate_gates() {
   if [[ -z "$port" ]]; then port="4020"; fi
   economics_url="http://${host}:${port}/economics"
 
-  local min_settled min_net_sol max_pending economics summary
+  local min_settled min_executed min_net_sol max_pending economics summary
   min_settled="${KAMIYO_CANARY_GATE_MIN_SETTLED_JOBS:-$(get_kv KAMIYO_CANARY_GATE_MIN_SETTLED_JOBS)}"
+  min_executed="${KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS:-$(get_kv KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS)}"
   min_net_sol="${KAMIYO_CANARY_GATE_MIN_NET_SOL:-$(get_kv KAMIYO_CANARY_GATE_MIN_NET_SOL)}"
   max_pending="${KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE:-$(get_kv KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE)}"
   if [[ -z "$min_settled" ]]; then min_settled="1"; fi
+  if [[ -z "$min_executed" ]]; then min_executed="0"; fi
   if [[ -z "$min_net_sol" ]]; then min_net_sol="0"; fi
   if [[ -z "$max_pending" ]]; then max_pending="200"; fi
 
@@ -111,7 +120,7 @@ evaluate_gates() {
     economics="$(curl -fsS --max-time 12 "$economics_url")"
   fi
 
-  if ! summary="$(gate_summary_from_economics "$economics" "$min_settled" "$min_net_sol" "$max_pending")"; then
+  if ! summary="$(gate_summary_from_economics "$economics" "$min_settled" "$min_executed" "$min_net_sol" "$max_pending")"; then
     echo "$summary"
     return 2
   fi

@@ -439,19 +439,45 @@ export class KyoshinRuntime {
     revenue: RevenueNet;
     laneSummary: ReturnType<typeof summariseLaneStats>;
     intake: ReturnType<ReturnType<typeof openDb>['intakeJobStats']>;
+    jobs: {
+      total: number;
+      executed: number;
+      failed: number;
+      skipped: number;
+      paid: number;
+    };
     selfImprove: SelfImproveSnapshot;
   } {
     const dayStartIso = startOfUtcDayIso();
     const laneStats = this.db.revenueLaneStatsSince(dayStartIso);
     const intake = this.db.intakeJobStats();
+    const jobsByAgent = this.db.swarmJobStatsSince(dayStartIso);
     const revenue = computeRevenueNet(laneStats);
     const laneSummary = summariseLaneStats(laneStats);
+    const jobs = jobsByAgent.reduce(
+      (totals, row) => {
+        totals.total += row.total;
+        totals.executed += row.succeeded;
+        totals.failed += row.failed;
+        totals.paid += row.paidCount;
+        return totals;
+      },
+      {
+        total: 0,
+        executed: 0,
+        failed: 0,
+        skipped: 0,
+        paid: 0,
+      }
+    );
+    jobs.skipped = Math.max(0, jobs.total - jobs.executed - jobs.failed);
 
     return {
       dayStartIso,
       revenue,
       laneSummary,
       intake,
+      jobs,
       selfImprove: {
         effectiveMinMarginSol: this.status.selfImprove.effectiveMinMarginSol,
         effectiveExecutionsPerTick: this.status.selfImprove.effectiveExecutionsPerTick,

@@ -45,6 +45,7 @@ sudo /usr/local/bin/kamiyo-kyoshin-exec-stage-guarded canary_2 false
 
 Optional gate env keys in `/etc/kamiyo/kyoshin-exec.env`:
 - `KAMIYO_CANARY_GATE_MIN_SETTLED_JOBS` (default `1`)
+- `KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS` (default `0`)
 - `KAMIYO_CANARY_GATE_MIN_NET_SOL` (default `0`)
 - `KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE` (default `200`)
 - `KAMIYO_CANARY_GATE_GRACE_SECONDS` (default `900`)
