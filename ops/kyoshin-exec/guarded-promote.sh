@@ -36,14 +36,18 @@ gate_summary_from_economics() {
   local min_settled="$2"
   local min_net_sol="$3"
   local max_pending="$4"
-  printf '%s' "$economics_json" | python3 - "$min_settled" "$min_net_sol" "$max_pending" <<'PY'
+  ECONOMICS_JSON="$economics_json" python3 - "$min_settled" "$min_net_sol" "$max_pending" <<'PY'
 import json
+import os
 import sys
 
 min_settled = int(float(sys.argv[1]))
 min_net_sol = float(sys.argv[2])
 max_pending = int(float(sys.argv[3]))
-data = json.load(sys.stdin)
+raw = os.environ.get("ECONOMICS_JSON", "").strip()
+if not raw:
+    raise ValueError("missing economics payload")
+data = json.loads(raw)
 
 lane_rows = ((data.get("laneSummary") or {}).get("byLaneAndKind") or [])
 settled_jobs = 0
