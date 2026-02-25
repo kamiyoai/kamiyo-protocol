@@ -7,6 +7,7 @@ PREFLIGHT_BIN="${PREFLIGHT_BIN:-/usr/local/bin/kamiyo-kyoshin-exec-preflight}"
 
 usage() {
   echo "usage: $0 <canary_0|canary_1|canary_2|full> [true|false]" >&2
+  echo "       $0 --gate-check" >&2
   exit 1
 }
 
@@ -110,7 +111,7 @@ evaluate_gates() {
   min_net_sol="${KAMIYO_CANARY_GATE_MIN_NET_SOL:-$(get_kv KAMIYO_CANARY_GATE_MIN_NET_SOL)}"
   max_pending="${KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE:-$(get_kv KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE)}"
   if [[ -z "$min_settled" ]]; then min_settled="1"; fi
-  if [[ -z "$min_executed" ]]; then min_executed="0"; fi
+  if [[ -z "$min_executed" ]]; then min_executed="1"; fi
   if [[ -z "$min_net_sol" ]]; then min_net_sol="0"; fi
   if [[ -z "$max_pending" ]]; then max_pending="200"; fi
 
@@ -127,6 +128,13 @@ evaluate_gates() {
   echo "$summary"
   return 0
 }
+
+if [[ $# -ge 1 && "$1" == "--gate-check" ]]; then
+  if evaluate_gates; then
+    exit 0
+  fi
+  exit 2
+fi
 
 [[ $# -ge 1 ]] || usage
 target_stage="$1"

@@ -18,7 +18,8 @@ function writeExecutable(path: string, contents: string): void {
 function setupHarness(
   t: TestContext,
   economicsJson: string,
-  envOverrides: Record<string, string> = {}
+  envOverrides: Record<string, string> = {},
+  commandArgs: string[] = ['canary_1', 'false']
 ): {
   callsFile: string;
   run: () => ReturnType<typeof spawnSync>;
@@ -82,7 +83,7 @@ function setupHarness(
   return {
     callsFile,
     run: () =>
-      spawnSync(GUARDED_PROMOTE_PATH, ['canary_1', 'false'], {
+      spawnSync(GUARDED_PROMOTE_PATH, commandArgs, {
         env,
         encoding: 'utf8',
       }),
@@ -97,6 +98,7 @@ test('guarded promote passes gates and promotes stage with valid economics paylo
         laneSummary: {
           byLaneAndKind: [{ lane: 'marketplace_direct', kind: 'job', events: 2, amountSol: 0.021, amountUsd: 2.1 }],
         },
+        jobs: { executed: 2 },
         revenue: { netSol: 0.019 },
         intake: { pending: 12 },
       },
@@ -160,5 +162,47 @@ test('guarded promote blocks promotion when economics payload is empty', t => {
   const result = harness.run();
   assert.equal(result.status, 2);
   assert.match(result.stderr, /blocked: canary gate check failed before promotion/);
+  assert.equal(existsSync(harness.callsFile), false);
+});
+
+test('gate-check mode reports pass without promotion side effects', t => {
+  const harness = setupHarness(
+    t,
+    JSON.stringify({
+      laneSummary: {
+        byLaneAndKind: [{ lane: 'marketplace_direct', kind: 'job', events: 2, amountSol: 0.02, amountUsd: 2 }],
+      },
+      jobs: { executed: 5 },
+      revenue: { netSol: 0.01 },
+      intake: { pending: 10 },
+    }),
+    {},
+    ['--gate-check']
+  );
+
+  const result = harness.run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /"ok": true/);
+  assert.equal(existsSync(harness.callsFile), false);
+});
+
+test('gate-check mode exits non-zero when thresholds fail', t => {
+  const harness = setupHarness(
+    t,
+    JSON.stringify({
+      laneSummary: {
+        byLaneAndKind: [{ lane: 'marketplace_direct', kind: 'job', events: 0, amountSol: 0, amountUsd: 0 }],
+      },
+      jobs: { executed: 0 },
+      revenue: { netSol: -1 },
+      intake: { pending: 1000 },
+    }),
+    {},
+    ['--gate-check']
+  );
+
+  const result = harness.run();
+  assert.equal(result.status, 2);
+  assert.match(result.stdout, /"ok": false/);
   assert.equal(existsSync(harness.callsFile), false);
 });

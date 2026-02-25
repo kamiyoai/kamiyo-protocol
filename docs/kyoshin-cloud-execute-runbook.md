@@ -55,6 +55,12 @@ sudo /usr/local/bin/kamiyo-kyoshin-exec-stage canary_2 false
 sudo /usr/local/bin/kamiyo-kyoshin-exec-stage full false
 ```
 
+Guarded gate check (no promotion):
+
+```bash
+sudo /usr/local/bin/kamiyo-kyoshin-exec-stage-guarded --gate-check
+```
+
 Preflight command:
 
 ```bash
@@ -66,7 +72,7 @@ If `hard-stop=false` and no operator key is configured, promotion now fails by d
 Guarded promotion gate overrides (in `/etc/kamiyo/kyoshin-exec.env`):
 
 - `KAMIYO_CANARY_GATE_MIN_SETTLED_JOBS` (default `1`)
-- `KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS` (default `0`)
+- `KAMIYO_CANARY_GATE_MIN_EXECUTED_JOBS` (default `1`)
 - `KAMIYO_CANARY_GATE_MIN_NET_SOL` (default `0`)
 - `KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE` (default `200`)
 - `KAMIYO_CANARY_GATE_GRACE_SECONDS` (default `900`)
