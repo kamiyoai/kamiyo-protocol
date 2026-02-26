@@ -6,8 +6,23 @@ import type {
 } from '../types';
 
 const SCHEMA_ORG = 'https://schema.org/';
-const KAMIYO_PARANET = 'https://kamiyo.ai/paranet/v1';
-const ERC8004_CONTEXT = 'https://eips.ethereum.org/EIPS/eip-8004';
+const KAMIYO_PARANET_CONTEXT = {
+  '@version': 1.1,
+  '@vocab': 'https://schema.org/',
+  erc8004: 'urn:erc8004:',
+  schemaVersion: 'https://kamiyo.ai/paranet/schemaVersion',
+  taskType: 'https://kamiyo.ai/paranet/taskType',
+  responseTimeMs: 'https://kamiyo.ai/paranet/responseTimeMs',
+  disputeOutcome: 'https://kamiyo.ai/paranet/disputeOutcome',
+  escrowId: 'https://kamiyo.ai/paranet/escrowId',
+  paymentChain: 'https://kamiyo.ai/paranet/paymentChain',
+  tags: 'https://kamiyo.ai/paranet/tags',
+  capability: 'https://kamiyo.ai/paranet/capability',
+  attestationType: 'https://kamiyo.ai/paranet/attestationType',
+  trustType: 'https://kamiyo.ai/paranet/trustType',
+  stakeAmount: 'https://kamiyo.ai/paranet/stakeAmount',
+  stakeCurrency: 'https://kamiyo.ai/paranet/stakeCurrency',
+} as const;
 
 export const SCHEMA_VERSION = '1.0.0';
 
@@ -76,7 +91,7 @@ export function buildTaskCompletionAsset(task: TaskCompletion): object {
   const taskId = `${task.providerGlobalId}:${Date.parse(task.endTime)}`;
 
   return {
-    '@context': [SCHEMA_ORG, KAMIYO_PARANET, ERC8004_CONTEXT],
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT],
     '@type': 'Action',
     '@id': `urn:kamiyo:task:${taskId}`,
     name: 'TaskCompletion',
@@ -115,7 +130,7 @@ export function buildCapabilityAttestationAsset(attestation: CapabilityAttestati
   const attestationId = `${attestation.agentGlobalId}:${attestation.capability}:${attestation.attestorGlobalId}`;
 
   return {
-    '@context': [SCHEMA_ORG, KAMIYO_PARANET, ERC8004_CONTEXT],
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT],
     '@type': 'EndorseAction',
     '@id': `urn:kamiyo:attestation:${attestationId}`,
     name: 'CapabilityAttestation',
@@ -147,7 +162,7 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
   const trustId = `${trust.trustorGlobalId}:${trust.trusteeGlobalId}:${Date.parse(trust.since)}`;
 
   return {
-    '@context': [SCHEMA_ORG, KAMIYO_PARANET, ERC8004_CONTEXT],
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT],
     '@type': 'EndorseAction',
     '@id': `urn:kamiyo:trust:${trustId}`,
     name: 'TrustRelationship',

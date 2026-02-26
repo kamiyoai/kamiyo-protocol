@@ -295,6 +295,12 @@ DKG_PRIVATE_KEY=0x...
 DKG_EPOCHS=12
 ```
 
+If `paranetUAL` is missing, discover the active chain paranet and a valid default global ID:
+
+```bash
+pnpm --filter @kamiyo/agent-paranet run discover-paranet-ual
+```
+
 ## Advanced Features
 
 ### Redis Caching

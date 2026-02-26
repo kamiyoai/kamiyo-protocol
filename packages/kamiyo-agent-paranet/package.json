@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src/**/*.ts",
-    "verify-deployment": "tsx scripts/verify-deployment.ts"
+    "verify-deployment": "tsx scripts/verify-deployment.ts",
+    "discover-paranet-ual": "tsx scripts/discover-paranet-ual.ts"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",

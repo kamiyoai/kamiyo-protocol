@@ -21,6 +21,7 @@ const DKG_ENV_KEYS = {
   port: ['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT'],
   privateKey: ['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY'],
   epochs: ['DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS', 'PARANET_EPOCHS'],
+  paranetUAL: ['DKG_PARANET_UAL', 'KAMIYO_DKG_PARANET_UAL', 'PARANET_UAL', 'MEISHI_PARANET_UAL'],
 } as const;
 
 function resolveEnvValue(keys: readonly string[]): { value: string | undefined; source: string | null } {
@@ -42,6 +43,7 @@ async function verifyEnvironment(): Promise<CheckResult[]> {
   const blockchain = resolveEnvValue(DKG_ENV_KEYS.blockchain);
   const privateKey = resolveEnvValue(DKG_ENV_KEYS.privateKey);
   const epochsEnv = resolveEnvValue(DKG_ENV_KEYS.epochs);
+  const paranetUal = resolveEnvValue(DKG_ENV_KEYS.paranetUAL);
 
   if (endpoint.value) {
     results.push({
@@ -96,6 +98,20 @@ async function verifyEnvironment(): Promise<CheckResult[]> {
       name: 'env:DKG_EPOCHS',
       status: 'warn',
       message: `Not set (recommended for production; checked: ${DKG_ENV_KEYS.epochs.join(', ')})`,
+    });
+  }
+
+  if (paranetUal.value) {
+    results.push({
+      name: 'env:DKG_PARANET_UAL',
+      status: 'pass',
+      message: paranetUal.source ? `Set via ${paranetUal.source}` : 'Set',
+    });
+  } else {
+    results.push({
+      name: 'env:DKG_PARANET_UAL',
+      status: 'warn',
+      message: `Not set (run: pnpm --filter @kamiyo/agent-paranet run discover-paranet-ual). Checked: ${DKG_ENV_KEYS.paranetUAL.join(', ')}`,
     });
   }
 
