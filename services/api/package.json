@@ -21,7 +21,7 @@
     "@kamiyo/meishi": "workspace:*",
     "@kamiyo/swarm-agents": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
-    "@sentry/node": "^8.0.0",
+    "@sentry/node": "^10.40.0",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^11.0.0",
     "bs58": "^6.0.0",
