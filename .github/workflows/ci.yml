@@ -135,6 +135,9 @@ jobs:
       - name: Workspace Test
         run: pnpm -r --if-present --no-bail run test
 
+      - name: Install Rust lint dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
       - name: Rust Core Lint
         run: pnpm run lint:rust
 
