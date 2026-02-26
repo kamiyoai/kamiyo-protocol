@@ -50,6 +50,7 @@ chmod 700 "$RUNTIME_DIR" "$STATE_DIR" "$LOG_DIR" "$QUEUE_DIR" "$FEEDS_DIR" "$TOO
 
 STATE_FILE="$STATE_DIR/autonomy-loop-state.json"
 NIGHTLY_STATE_FILE="$STATE_DIR/nightly-mission-state.json"
+MEMORY_EXTRACT_STATE_FILE="$STATE_DIR/memory-extract-state.json"
 LOG_FILE="$LOG_DIR/autonomy-loop.jsonl"
 RAW_DIR="$LOG_DIR/raw"
 mkdir -p "$RAW_DIR"
@@ -74,10 +75,13 @@ REQUIRE_GATEWAY_HEALTH="${KYO_REQUIRE_GATEWAY_HEALTH:-}"
 REQUIRE_KYOSHIN_RUNTIME="${KYO_REQUIRE_KYOSHIN_RUNTIME:-true}"
 REQUIRE_RUNTIME_ARTIFACT_CONTRACTS="${KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS:-true}"
 PROACTIVE_HOUR_RAW="${KYO_PROACTIVE_HOUR_UTC:-2}"
+MEMORY_EXTRACTION_HOUR_RAW="${KYO_MEMORY_EXTRACTION_HOUR_UTC:-23}"
 REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
 REQUIRE_X402_FEED="${KYO_REQUIRE_X402_FEED:-false}"
 REQUIRE_DX_TERMINAL_FEED="${KYO_REQUIRE_DX_TERMINAL_FEED:-false}"
 REQUIRE_RECEIPT_SYNC="${KYO_REQUIRE_RECEIPT_SYNC:-false}"
+ENABLE_MEMORY_EXTRACTION="${KYO_ENABLE_MEMORY_EXTRACTION:-true}"
+REQUIRE_MEMORY_EXTRACTION="${KYO_REQUIRE_MEMORY_EXTRACTION:-false}"
 
 if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
   if is_true "$ENABLE_AGENT_HEARTBEAT"; then
@@ -91,6 +95,11 @@ if ! [[ "$PROACTIVE_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$PROACTIVE_HOUR_RAW" -lt 0 ] 
   PROACTIVE_HOUR_RAW=2
 fi
 PROACTIVE_HOUR_UTC="$(printf '%02d' "$PROACTIVE_HOUR_RAW")"
+
+if ! [[ "$MEMORY_EXTRACTION_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$MEMORY_EXTRACTION_HOUR_RAW" -lt 0 ] || [ "$MEMORY_EXTRACTION_HOUR_RAW" -gt 23 ]; then
+  MEMORY_EXTRACTION_HOUR_RAW=23
+fi
+MEMORY_EXTRACTION_HOUR_UTC="$(printf '%02d' "$MEMORY_EXTRACTION_HOUR_RAW")"
 
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$LOCK_FILE"
@@ -129,6 +138,13 @@ EOF
   chmod 600 "$NIGHTLY_STATE_FILE"
 fi
 
+if [ ! -s "$MEMORY_EXTRACT_STATE_FILE" ]; then
+  cat >"$MEMORY_EXTRACT_STATE_FILE" <<EOF
+{"lastRunDate":null}
+EOF
+  chmod 600 "$MEMORY_EXTRACT_STATE_FILE"
+fi
+
 TODAY_MEMORY="$WORKSPACE_DIR/memory/${TODAY}.md"
 mkdir -p "$(dirname "$TODAY_MEMORY")"
 chmod 700 "$(dirname "$TODAY_MEMORY")"
@@ -150,6 +166,7 @@ fi
 next_cycles=$((cycles + 1))
 prev_success_json="$(jq -c '.lastSuccessAt // null' "$STATE_FILE" 2>/dev/null || echo null)"
 last_nightly_run_date="$(jq -r '.lastRunDate // ""' "$NIGHTLY_STATE_FILE" 2>/dev/null || true)"
+last_memory_extract_date="$(jq -r '.lastRunDate // ""' "$MEMORY_EXTRACT_STATE_FILE" 2>/dev/null || true)"
 
 feed_sync_ok=1
 feed_sync_summary='{"ok":false,"error":"not_run"}'
@@ -429,11 +446,12 @@ read -r -d '' HEARTBEAT_MSG <<'EOF' || true
 Autonomy heartbeat run.
 
 Execute one Kyoshin control-loop tick with the following rules:
-- Read soul.md, identity.md, heartbeat.md, MISSION_STATEMENT.md, USER_PROFILE.md, GOALS.md, AMBITIONS.md, WORKING-MEMORY.md, .learnings/LEARNINGS.md and memory/TODAY.md.
+- Read SOUL.md, IDENTITY.md, MEMORY.md, AGENTS.md, soul.md, identity.md, heartbeat.md, MISSION_STATEMENT.md, USER_PROFILE.md, GOALS.md, AMBITIONS.md, WORKING-MEMORY.md, .learnings/LEARNINGS.md and memory/TODAY.md.
 - Read runtime/feeds/opportunities.json, runtime/queue/assignments.json and runtime/mission-control/board.json.
 - Process up to HEARTBEAT_MAX assignments that are safe, compliant, and auditable.
 - If credentials or external endpoints are missing, do not fake success. Record blockers and next concrete action.
 - Update WORKING-MEMORY.md with current state, blockers, and next cycle priorities.
+- Update MEMORY.md only with durable preferences or policy facts learned during this cycle.
 - Append one concise log line to memory/TODAY.md.
 - If any failure/degraded condition is detected, append mistake/correction/rule to .learnings/LEARNINGS.md.
 - If a required tool is missing, propose or scaffold the minimal tool needed in Mission Control backlog.
@@ -538,7 +556,7 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
   && [ "$artifact_contracts_ok" -eq 1 ]; then
   cat >"$STATE_FILE" <<EOF
-{"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date"}
+{"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
 EOF
   status="ok"
 else
@@ -589,7 +607,7 @@ else
     combined_error+="artifact_contracts_failed;"
   fi
   cat >"$STATE_FILE" <<EOF
-{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date"}
+{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
 EOF
 fi
 
@@ -614,15 +632,59 @@ if [ "$status" = "ok" ] && [ "$learning_ok" -ne 1 ]; then
   status="degraded"
   combined_error+="learnings_failed;"
   cat >"$STATE_FILE" <<EOF
-{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date"}
+{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+memory_extract_ok=1
+memory_extract_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_MEMORY_EXTRACTION"; then
+  if [ "$CURRENT_HOUR_UTC" = "$MEMORY_EXTRACTION_HOUR_UTC" ] && [ "$last_memory_extract_date" != "$TODAY" ]; then
+    if [ -x "$HOME/bin/kyoshin-memory-extract.py" ]; then
+      if "$HOME/bin/kyoshin-memory-extract.py" --date "$TODAY" >"$TMP_DIR/memory-extract.json" 2>"$TMP_DIR/memory-extract.err"; then
+        memory_extract_summary="$(as_json_line "$TMP_DIR/memory-extract.json")"
+        cat >"$MEMORY_EXTRACT_STATE_FILE" <<EOF
+{"lastRunDate":"$TODAY","lastRunAt":"$NOW_ISO","cycle":$next_cycles}
+EOF
+        chmod 600 "$MEMORY_EXTRACT_STATE_FILE"
+        last_memory_extract_date="$TODAY"
+      else
+        memory_extract_err="$(tr -d '\n' <"$TMP_DIR/memory-extract.err" | sed 's/"/\\"/g')"
+        memory_extract_summary="{\"ok\":false,\"status\":\"failed\",\"error\":\"$memory_extract_err\"}"
+        if is_true "$REQUIRE_MEMORY_EXTRACTION"; then
+          memory_extract_ok=0
+        fi
+      fi
+    else
+      memory_extract_summary='{"ok":false,"status":"failed","error":"missing_memory_extract_script"}'
+      if is_true "$REQUIRE_MEMORY_EXTRACTION"; then
+        memory_extract_ok=0
+      fi
+    fi
+  else
+    memory_extract_summary="{\"ok\":true,\"status\":\"not_due\",\"lastRunDate\":\"$last_memory_extract_date\"}"
+  fi
+fi
+
+if [ "$status" = "ok" ] && [ "$memory_extract_ok" -ne 1 ]; then
+  status="degraded"
+  combined_error+="memory_extract_failed;"
+  cat >"$STATE_FILE" <<EOF
+{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
+EOF
+fi
+
+if [ "$status" = "ok" ]; then
+  cat >"$STATE_FILE" <<EOF
+{"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
+EOF
+fi
+
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
-chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$LOG_FILE"
+chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"
 if [ "$status" = "ok" ]; then
   exit 0
 fi

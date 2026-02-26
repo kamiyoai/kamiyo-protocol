@@ -6,7 +6,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Tuple
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -70,7 +70,7 @@ def append_log(payload: dict[str, Any]) -> None:
     LOG_PATH.chmod(0o600)
 
 
-def safe_float(value: Any) -> float | None:
+def safe_float(value: Any) -> Optional[float]:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -81,7 +81,7 @@ def safe_float(value: Any) -> float | None:
     return None
 
 
-def safe_int(value: Any) -> int | None:
+def safe_int(value: Any) -> Optional[int]:
     if isinstance(value, int):
         return value
     if isinstance(value, float) and value.is_integer():
@@ -124,7 +124,7 @@ def compact(value: dict[str, Any], max_bytes: int = 4500) -> dict[str, Any]:
     }
 
 
-def fetch_json(path: str, params: dict[str, Any] | None = None) -> Any:
+def fetch_json(path: str, params: Optional[dict[str, Any]] = None) -> Any:
     base = normalize_api_base(API_BASE_URL)
     query = ''
     if params:
@@ -149,7 +149,7 @@ def fetch_json(path: str, params: dict[str, Any] | None = None) -> Any:
     return json.loads(raw.decode('utf-8'))
 
 
-def vault_web_url(vault_address: str) -> str | None:
+def vault_web_url(vault_address: str) -> Optional[str]:
     clean = vault_address.strip()
     if not clean:
         return None
@@ -291,7 +291,7 @@ def build_token_opportunities(rows: list[dict[str, Any]]) -> list[dict[str, Any]
     return out
 
 
-def build_owner_vault_opportunity(owner_address: str) -> tuple[dict[str, Any] | None, str | None]:
+def build_owner_vault_opportunity(owner_address: str) -> Tuple[Optional[dict[str, Any]], Optional[str]]:
     owner = owner_address.strip()
     if not owner:
         return None, None

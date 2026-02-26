@@ -157,6 +157,37 @@ class KyoshinReceiptSyncTests(unittest.TestCase):
         receipts_after = self._read_receipts()
         self.assertEqual(len(receipts_after), 2)
 
+    def test_parse_db_path_rejects_non_sqlite_configured_path(self):
+        invalid_path = Path(self.tmp.name) / 'state.json'
+        invalid_path.write_text('{"ok":true}\n', encoding='utf-8')
+
+        with patch.dict(os.environ, {'KYO_KYOSHIN_DB_PATH': str(invalid_path)}, clear=False):
+            parsed = self.mod.parse_db_path()
+
+        self.assertIsNone(parsed)
+
+    def test_parse_db_path_prefers_valid_sqlite_over_json_fallback(self):
+        project_root = Path(self.tmp.name) / 'project'
+        json_candidate = project_root / 'services' / 'kyoshin' / 'output' / 'kyoshin' / 'state.db'
+        sqlite_candidate = project_root / 'output' / 'kamiyo-operator' / 'state.db'
+        json_candidate.parent.mkdir(parents=True, exist_ok=True)
+        sqlite_candidate.parent.mkdir(parents=True, exist_ok=True)
+        json_candidate.write_text('{"version":2}\n', encoding='utf-8')
+        init_db(sqlite_candidate)
+
+        prior_cwd = Path.cwd()
+        try:
+            os.chdir(project_root)
+            with patch.dict(os.environ, {'KYO_KYOSHIN_DB_PATH': ''}, clear=False):
+                parsed = self.mod.parse_db_path()
+        finally:
+            os.chdir(prior_cwd)
+
+        self.assertIsNotNone(parsed)
+        self.assertTrue(parsed.exists())
+        self.assertTrue(sqlite_candidate.exists())
+        self.assertTrue(parsed.samefile(sqlite_candidate))
+
 
 if __name__ == '__main__':
     unittest.main()

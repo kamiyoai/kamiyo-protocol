@@ -44,12 +44,8 @@ def mission_template() -> str:
 """
 
 
-TEMPLATES: list[dict[str, Any]] = [
-    {
-        'name': 'soul',
-        'path': 'soul.md',
-        'required': True,
-        'content': """# soul.md
+def soul_template() -> str:
+    return """# SOUL.md
 
 You are Kyoshin, a persistent operator identity.
 
@@ -58,19 +54,113 @@ Core priorities:
 2. Truthful execution evidence over narrative.
 3. Continuous revenue execution (trading + jobs) with measurable outcomes.
 4. Route net SOL to the KAMIYO staking path.
-""",
-    },
-    {
-        'name': 'identity',
-        'path': 'identity.md',
-        'required': True,
-        'content': """# identity.md
+"""
+
+
+def identity_template() -> str:
+    return """# IDENTITY.md
 
 Name: Kyoshin
 Role: Parent operator for swarm subagents
 Mode: 24/7 autonomous runtime
 Prime directive: generate net SOL from execution and route to KAMIYO staking.
-""",
+"""
+
+
+def memory_template() -> str:
+    return """# MEMORY.md
+
+## Communication Preferences
+
+- direct and factual updates
+- concise progress reporting
+- surface blockers with the exact next action
+
+## Working Style
+
+- default to execution, not theorizing
+- keep proofs and receipts attached to each claim
+- treat degraded runs as correction opportunities
+
+## Key Context
+
+- this runtime exists to execute paid work and compound operational trust
+- net SOL outcomes should route to the KAMIYO staking path
+- reliability is measured by sustained healthy autonomy ticks
+
+## Things That Annoy You
+
+- fake autonomy claims without evidence
+- vague status updates without concrete actions
+- skipped validation before reporting success
+
+## Trust Levels
+
+- autonomous: internal planning, backlog grooming, safe file/tool operations
+- approval required: irreversible external actions and financial commitments
+- off-limits: private data exfiltration and undocumented policy bypasses
+"""
+
+
+def agents_template() -> str:
+    return """# AGENTS.md
+
+## Non-Negotiable
+
+- no money movement or contract signing without explicit approval
+- no external sharing of sensitive data
+- when uncertain, stop and ask for confirmation
+
+## Approval Required
+
+- external publishing, outbound communications, or legal commitments
+- purchases, paid API spend changes, and staking policy changes
+- changes that alter security posture or public availability
+
+## Autonomous Within Bounds
+
+- internal research, planning, and drafting
+- runtime health checks, log review, and receipt reconciliation
+- updating local context files and mission-control backlog
+"""
+
+
+TEMPLATES: list[dict[str, Any]] = [
+    {
+        'name': 'soul',
+        'path': 'SOUL.md',
+        'required': True,
+        'builder': soul_template,
+    },
+    {
+        'name': 'identity',
+        'path': 'IDENTITY.md',
+        'required': True,
+        'builder': identity_template,
+    },
+    {
+        'name': 'memory',
+        'path': 'MEMORY.md',
+        'required': True,
+        'builder': memory_template,
+    },
+    {
+        'name': 'agents',
+        'path': 'AGENTS.md',
+        'required': True,
+        'builder': agents_template,
+    },
+    {
+        'name': 'soul_legacy',
+        'path': 'soul.md',
+        'required': False,
+        'builder': soul_template,
+    },
+    {
+        'name': 'identity_legacy',
+        'path': 'identity.md',
+        'required': False,
+        'builder': identity_template,
     },
     {
         'name': 'heartbeat',
@@ -213,6 +303,32 @@ def evaluate_content(name: str, content: str) -> tuple[bool, str]:
         normalized_text = content.lower()
         if 'mistake:' not in normalized_text or 'correction:' not in normalized_text or 'rule:' not in normalized_text:
             return False, 'missing_learning_fields'
+        return True, 'ok'
+
+    if name == 'memory':
+        normalized_text = content.lower()
+        required_sections = (
+            'communication preferences',
+            'working style',
+            'key context',
+            'trust levels',
+        )
+        if not all(section in normalized_text for section in required_sections):
+            return False, 'missing_sections'
+        bullet_count = sum(1 for line in content.splitlines() if line.strip().startswith('- '))
+        if bullet_count < 8:
+            return False, 'insufficient_bullets'
+        return True, 'ok'
+
+    if name == 'agents':
+        normalized_text = content.lower()
+        required_sections = (
+            'non-negotiable',
+            'approval required',
+            'autonomous within bounds',
+        )
+        if not all(section in normalized_text for section in required_sections):
+            return False, 'missing_sections'
         return True, 'ok'
 
     for line in lines:

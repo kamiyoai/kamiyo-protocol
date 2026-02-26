@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional, Tuple
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -25,7 +25,7 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def parse_bool(value: str | None, fallback: bool) -> bool:
+def parse_bool(value: Optional[str], fallback: bool) -> bool:
     if value is None:
         return fallback
     normalized = value.strip().lower()
@@ -53,7 +53,7 @@ def append_log(payload: dict[str, Any]) -> None:
     LOG_PATH.chmod(0o600)
 
 
-def load_json(path: Path) -> tuple[Any, str | None]:
+def load_json(path: Path) -> Tuple[Any, Optional[str]]:
     try:
         return json.loads(path.read_text(encoding='utf-8')), None
     except Exception as exc:

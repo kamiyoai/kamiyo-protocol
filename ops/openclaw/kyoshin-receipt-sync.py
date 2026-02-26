@@ -4,7 +4,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -20,6 +20,7 @@ LOG_PATH = LOG_DIR / 'kyoshin-receipt-sync.jsonl'
 MAX_BATCH = max(1, int(os.getenv('KYO_RECEIPT_SYNC_MAX_BATCH', '1000')))
 SOL_PRICE_USD = max(0.000001, float(os.getenv('KYO_RECEIPT_SOL_PRICE_USD', '150')))
 ESTIMATED_FEE_SOL = max(0.0, float(os.getenv('KYO_RECEIPT_ESTIMATED_FEE_SOL', '0.00001')))
+SQLITE_HEADER = b'SQLite format 3\x00'
 
 
 def now_iso() -> str:
@@ -64,21 +65,34 @@ def as_float(value: Any) -> float:
     return 0.0
 
 
-def parse_db_path() -> Path | None:
+def is_sqlite_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        with path.open('rb') as handle:
+            header = handle.read(len(SQLITE_HEADER))
+    except Exception:
+        return False
+    return header == SQLITE_HEADER
+
+
+def parse_db_path() -> Optional[Path]:
     configured = os.getenv('KYO_KYOSHIN_DB_PATH', '').strip()
     if configured:
         candidate = Path(configured).expanduser()
-        if candidate.is_file():
+        if is_sqlite_file(candidate):
             return candidate
         return None
 
     fallback_candidates = [
+        Path.cwd() / 'output' / 'kamiyo-operator' / 'state.db',
+        Path.cwd() / 'services' / 'kamiyo-operator' / 'output' / 'kamiyo-operator' / 'state.db',
         Path.cwd() / 'services' / 'kyoshin' / 'output' / 'kyoshin' / 'state.db',
         Path.cwd() / 'output' / 'kyoshin' / 'state.db',
         HOME_DIR / '.openclaw' / 'workspace' / 'runtime' / 'kyoshin' / 'state.db',
     ]
     for candidate in fallback_candidates:
-        if candidate.is_file():
+        if is_sqlite_file(candidate):
             return candidate
     return None
 
@@ -120,7 +134,7 @@ def read_rows(conn: sqlite3.Connection, cursor: int) -> tuple[list[sqlite3.Row],
     return rows, max_rowid
 
 
-def normalize_receipt(row: sqlite3.Row) -> dict[str, Any] | None:
+def normalize_receipt(row: sqlite3.Row) -> Optional[dict[str, Any]]:
     status_raw = str(row['status'] or '').strip().lower()
     if status_raw not in {'executed', 'failed'}:
         return None
@@ -174,7 +188,7 @@ def run() -> int:
         print(json.dumps(summary, ensure_ascii=True))
         return 0
 
-    conn: sqlite3.Connection | None = None
+    conn: Optional[sqlite3.Connection] = None
     try:
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row

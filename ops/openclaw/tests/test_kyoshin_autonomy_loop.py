@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+from typing import Optional
 import unittest
 
 
@@ -23,6 +25,7 @@ EXPECTED_STAGE_ORDER = [
     'artifact_contracts',
     'learnings',
 ]
+EXPECTED_STAGE_ORDER_WITH_MEMORY_EXTRACT = EXPECTED_STAGE_ORDER + ['memory_extract']
 
 
 class KyoshinAutonomyLoopContractTests(unittest.TestCase):
@@ -146,6 +149,14 @@ echo "learnings" >> "{self.order_file}"
 echo '{{"ok":true}}'
 """,
         )
+        self._write_exec(
+            self.bin_dir / 'kyoshin-memory-extract.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "memory_extract" >> "{self.order_file}"
+echo '{{"ok":true,"appendedCount":0}}'
+""",
+        )
 
     def _write_runtime_bridge_failing(self) -> None:
         self._write_exec(
@@ -168,7 +179,7 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
 """,
         )
 
-    def _run_loop(self, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+    def _run_loop(self, extra_env: Optional[dict[str, str]] = None) -> subprocess.CompletedProcess:
         env = os.environ.copy()
         env.update(
             {
@@ -178,6 +189,7 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
                 'KYO_ENABLE_PROACTIVE_NIGHTLY': 'false',
                 'KYO_REQUIRE_RUNTIME_GUARDS': 'true',
                 'KYO_REQUIRE_LEARNINGS': 'true',
+                'KYO_ENABLE_MEMORY_EXTRACTION': 'false',
                 'KYO_REQUIRE_KYOSHIN_RUNTIME': 'true',
                 'KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS': 'true',
             }
@@ -308,6 +320,36 @@ echo '{{"ok":false,"accepted":0}}'
 
         state = self._read_state()
         self.assertIn('dx_terminal_feed_failed', state.get('lastError', ''))
+
+    def test_memory_extract_runs_when_due_and_enabled(self):
+        self._write_default_scripts()
+        current_hour = datetime.now(timezone.utc).strftime('%H')
+
+        result = self._run_loop(
+            {
+                'KYO_ENABLE_MEMORY_EXTRACTION': 'true',
+                'KYO_MEMORY_EXTRACTION_HOUR_UTC': current_hour,
+            }
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITH_MEMORY_EXTRACT)
+
+    def test_memory_extract_is_hard_gate_when_required(self):
+        self._write_default_scripts()
+        (self.bin_dir / 'kyoshin-memory-extract.py').unlink()
+        current_hour = datetime.now(timezone.utc).strftime('%H')
+
+        result = self._run_loop(
+            {
+                'KYO_ENABLE_MEMORY_EXTRACTION': 'true',
+                'KYO_REQUIRE_MEMORY_EXTRACTION': 'true',
+                'KYO_MEMORY_EXTRACTION_HOUR_UTC': current_hour,
+            }
+        )
+        self.assertEqual(result.returncode, 1)
+
+        state = self._read_state()
+        self.assertIn('memory_extract_failed', state.get('lastError', ''))
 
 
 if __name__ == '__main__':

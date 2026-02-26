@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Tuple
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
@@ -71,7 +71,7 @@ def is_supported_url(url: str) -> bool:
     return False
 
 
-def parse_float(value: Any) -> float | None:
+def parse_float(value: Any) -> Optional[float]:
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -130,7 +130,7 @@ def request_json(url: str) -> Any:
     return json.loads(raw.decode('utf-8'))
 
 
-def as_record(value: Any) -> dict[str, Any] | None:
+def as_record(value: Any) -> Optional[dict[str, Any]]:
     if isinstance(value, dict):
         return value
     return None
@@ -192,7 +192,7 @@ def normalize_headers(value: Any) -> dict[str, str]:
     return out
 
 
-def descriptor_from_pricing_url(url: str, payload: Any) -> tuple[list[dict[str, Any]], str | None]:
+def descriptor_from_pricing_url(url: str, payload: Any) -> Tuple[list[dict[str, Any]], Optional[str]]:
     root = as_record(payload)
     if not root:
         return [], 'invalid_pricing_payload'

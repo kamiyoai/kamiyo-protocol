@@ -17,6 +17,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
 - `kyoshin-artifact-contracts.py`: validates JSON contracts for runtime artifacts before autonomy tick is accepted as healthy.
 - `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
+- `kyoshin-memory-extract.py`: nightly extraction of durable `MEMORY.md` facts from daily workspace notes.
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
 - `rollout-artifact-contracts.sh`: host rollout helper that installs artifact-contract validator + updated loop and runs one verification tick.
 - `install-context-pack.sh`: scaffolds mission/profile/goals/tool-registry baseline files.
@@ -39,6 +40,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-artifact-contracts.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-memory-extract.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
@@ -70,6 +72,7 @@ Rollout helper for this specific hardening:
 - Artifact contracts report: `~/.openclaw/workspace/runtime/state/runtime-artifact-contracts.json`
 - Learnings file: `~/.openclaw/workspace/.learnings/LEARNINGS.md`
 - Learnings state: `~/.openclaw/workspace/runtime/state/learnings-state.json`
+- Memory extraction state: `~/.openclaw/workspace/runtime/state/memory-extract-state.json`
 - Receipt sync state: `~/.openclaw/workspace/runtime/state/kyoshin-receipt-sync-state.json`
 - Context guard output: `~/.openclaw/workspace/runtime/state/context-guard.json`
 - Nightly mission state: `~/.openclaw/workspace/runtime/state/nightly-mission-state.json`
@@ -156,6 +159,11 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_ENABLE_PROACTIVE_NIGHTLY=true|false` (default `true`)
   - `KYO_PROACTIVE_HOUR_UTC=2`
   - `KYO_PROACTIVE_TIMEOUT_SECONDS=180`
+- memory extraction controls:
+  - `KYO_ENABLE_MEMORY_EXTRACTION=true|false` (default `true`)
+  - `KYO_MEMORY_EXTRACTION_HOUR_UTC=23`
+  - `KYO_REQUIRE_MEMORY_EXTRACTION=true|false` (default `false`)
+  - `KYO_MEMORY_EXTRACT_MAX_FACTS=200`
 - learnings flywheel controls:
   - `KYO_REQUIRE_LEARNINGS=true|false` (default `true`)
   - `KYO_LEARNINGS_MAX_ENTRIES=661`
@@ -205,8 +213,12 @@ This gives non-synthetic external opportunities right away. Replace it with your
 
 These files are enforced by `kyoshin-context-guard.py`:
 
-- `soul.md`
-- `identity.md`
+- `SOUL.md`
+- `IDENTITY.md`
+- `MEMORY.md`
+- `AGENTS.md`
+- `soul.md` (legacy compatibility mirror)
+- `identity.md` (legacy compatibility mirror)
 - `heartbeat.md`
 - `MISSION_STATEMENT.md`
 - `USER_PROFILE.md`
@@ -245,5 +257,5 @@ Expected fields per line:
 - Intake and planner artifacts are written with `0600` file permissions inside `0700` runtime directories.
 - The loop uses a host-local file lock to prevent overlapping control-loop executions.
 - Provider-level model rejections (for example exhausted credits) are treated as degraded cycles only when agent heartbeat is enabled.
-- The loop now enforces: context completeness, tool-health critical checks, mission-control generation, nightly proactive execution, and learnings capture on degraded cycles.
+- The loop now enforces: context completeness, tool-health critical checks, mission-control generation, nightly proactive execution, learnings capture on degraded cycles, and nightly durable-memory extraction.
 - Keep gateway bind on loopback by default; use private-network access paths only.
