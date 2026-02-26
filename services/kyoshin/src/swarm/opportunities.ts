@@ -13,6 +13,10 @@ export type SwarmOpportunitySource =
   | 'relevance'
   | 'agent_ai'
   | 'kore'
+<<<<<<< HEAD
+=======
+  | 'near_market'
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   | 'direct'
   | 'internal';
 
@@ -63,11 +67,36 @@ export type SwarmOpportunityIntake = {
   }>;
 };
 
+<<<<<<< HEAD
 export type MarketplaceFeedConfig = {
   source: 'relevance' | 'agent_ai' | 'kore';
   url: string;
   apiKey?: string;
   authHeader?: string;
+=======
+type NearMarketAdapterConfig = {
+  enabled: boolean;
+  agentId?: string;
+  nearPriceUsd: number;
+  minBudgetNear: number;
+  maxBudgetNear: number;
+  bidDiscountBps: number;
+  minBidNear: number;
+  maxBidNear: number;
+  maxExistingBids: number;
+  etaSeconds: number;
+  allowCompetition: boolean;
+  proposalTemplate: string;
+  minMarginSol: number;
+};
+
+export type MarketplaceFeedConfig = {
+  source: 'relevance' | 'agent_ai' | 'kore' | 'near_market';
+  url: string;
+  apiKey?: string;
+  authHeader?: string;
+  nearMarketAdapter?: NearMarketAdapterConfig;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 };
 
 export type LeadConversionPolicy = {
@@ -204,6 +233,12 @@ function normalizeSource(value: string | undefined): SwarmOpportunitySource {
   if (source === 'relevance' || source === 'relevance_ai') return 'relevance';
   if (source === 'agent.ai' || source === 'agentai' || source === 'agent_ai') return 'agent_ai';
   if (source === 'kore' || source === 'kore_ai') return 'kore';
+<<<<<<< HEAD
+=======
+  if (source === 'near_market' || source === 'near-market' || source === 'nearai' || source === 'near') {
+    return 'near_market';
+  }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   if (source === 'internal') return 'internal';
   return 'direct';
 }
@@ -572,10 +607,17 @@ function filterRankedOpportunities(params: {
   });
 
   filtered.sort((a, b) => {
+<<<<<<< HEAD
     const payoutA = a.payoutSolEstimate ?? -1;
     const payoutB = b.payoutSolEstimate ?? -1;
     if (payoutB !== payoutA) return payoutB - payoutA;
     if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+=======
+    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+    const payoutA = a.payoutSolEstimate ?? -1;
+    const payoutB = b.payoutSolEstimate ?? -1;
+    if (payoutB !== payoutA) return payoutB - payoutA;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     return a.id.localeCompare(b.id);
   });
 
@@ -629,6 +671,10 @@ function jobSourceForOpportunity(source: SwarmOpportunity['source']): SwarmJobSo
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
+<<<<<<< HEAD
+=======
+  if (source === 'near_market') return 'near_market';
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   if (source === 'internal') return 'internal';
   return 'direct_api';
 }
@@ -639,6 +685,10 @@ function marketplaceSourceFromOpportunity(
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
+<<<<<<< HEAD
+=======
+  if (source === 'near_market') return 'near_market';
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   return null;
 }
 
@@ -857,11 +907,203 @@ function parseMarketplaceActions(
   return actions;
 }
 
+<<<<<<< HEAD
 function parseMarketplaceItem(params: {
   source: 'relevance' | 'agent_ai' | 'kore';
   record: Record<string, unknown>;
   index: number;
 }): RawOpportunity | null {
+=======
+function formatNearAmount(value: number): string {
+  const fixed = value.toFixed(4);
+  return fixed.replace(/\.?0+$/, '');
+}
+
+function fillProposalTemplate(template: string, values: Record<string, string>): string {
+  let next = template;
+  for (const [key, value] of Object.entries(values)) {
+    next = next.replaceAll(`{${key}}`, value);
+  }
+  return next;
+}
+
+function parseNearMarketItem(params: {
+  record: Record<string, unknown>;
+  index: number;
+  feedUrl: string;
+  adapter: NearMarketAdapterConfig;
+}): RawOpportunity | null {
+  const { record, index, adapter } = params;
+  if (!adapter.enabled) return null;
+
+  const jobId = pickString(record, ['job_id', 'jobId', 'id']) ?? `near-market-${index + 1}`;
+  const creatorAgentId = pickString(record, ['creator_agent_id', 'creatorAgentId']);
+  if (adapter.agentId && creatorAgentId && creatorAgentId === adapter.agentId) {
+    return null;
+  }
+
+  const statusRaw = pickString(record, ['status', 'state']) ?? 'open';
+  if (/closed|filled|archived|inactive|completed|expired|judging|in_progress|filling/i.test(statusRaw)) {
+    return null;
+  }
+
+  const jobType = (pickString(record, ['job_type', 'jobType']) ?? 'standard').toLowerCase();
+  if (!adapter.allowCompetition && jobType === 'competition') {
+    return null;
+  }
+
+  const existingBids = Math.max(0, Math.trunc(pickNumber(record, ['bid_count', 'bidCount']) ?? 0));
+  if (existingBids > adapter.maxExistingBids) {
+    return null;
+  }
+
+  const budgetAmount = pickNumber(record, ['budget_amount', 'budgetAmount']);
+  const budgetToken = (pickString(record, ['budget_token', 'budgetToken']) ?? 'NEAR').toUpperCase();
+  if (budgetAmount == null || budgetAmount <= 0) return null;
+
+  const budgetNear = budgetToken === 'NEAR'
+    ? budgetAmount
+    : budgetToken === 'USDC' || budgetToken === 'USD'
+      ? budgetAmount / adapter.nearPriceUsd
+      : null;
+  if (budgetNear == null || !Number.isFinite(budgetNear) || budgetNear <= 0) return null;
+  if (budgetNear < adapter.minBudgetNear || budgetNear > adapter.maxBudgetNear) return null;
+
+  const rawBidNear = budgetNear * (adapter.bidDiscountBps / 10_000);
+  const bidNear = Math.max(adapter.minBidNear, Math.min(adapter.maxBidNear, rawBidNear));
+  if (!Number.isFinite(bidNear) || bidNear <= 0 || bidNear >= budgetNear) return null;
+
+  const title = pickString(record, ['title', 'name', 'task', 'job', 'listing', 'label']);
+  if (!title) return null;
+  const summary =
+    pickString(record, ['summary', 'description', 'overview', 'brief', 'details']) ??
+    'No summary provided.';
+  const createdAt =
+    pickString(record, ['created_at', 'createdAt', 'updated_at', 'updatedAt']) ??
+    new Date().toISOString();
+  const createdAtMs = Date.parse(createdAt);
+  const ageHours =
+    Number.isFinite(createdAtMs) && createdAtMs > 0
+      ? Math.max(0, (Date.now() - createdAtMs) / 3_600_000)
+      : 24;
+  const freshnessBoost = ageHours <= 1 ? 0.2 : ageHours <= 6 ? 0.12 : ageHours <= 24 ? 0.04 : -0.08;
+  const competitionPenalty = Math.min(0.35, existingBids * 0.02);
+  const confidence = Math.max(0.25, Math.min(0.92, 0.55 + freshnessBoost - competitionPenalty));
+
+  const feedUrl = new URL(params.feedUrl);
+  const baseUrl = `${feedUrl.protocol}//${feedUrl.host}`;
+  const applicationPath = jobType === 'competition' ? 'entries' : 'bids';
+  const applyUrl = `${baseUrl}/v1/jobs/${jobId}/${applicationPath}`;
+  const publicUrl = `${baseUrl}/jobs/${jobId}`;
+  const proposal = fillProposalTemplate(adapter.proposalTemplate, {
+    job_id: jobId,
+    title,
+    budget_near: formatNearAmount(budgetNear),
+    bid_near: formatNearAmount(bidNear),
+    budget_token: budgetToken,
+  });
+
+  return {
+    id: jobId,
+    source: 'near_market',
+    title,
+    summary,
+    description: summary,
+    url: publicUrl,
+    status: 'open',
+    confidence,
+    roleHints: Array.from(
+      new Set([
+        ...arrayOfStrings(record.roleHints),
+        ...arrayOfStrings(record.roles),
+        'execution',
+      ])
+    ),
+    tags: Array.from(
+      new Set([
+        ...arrayOfStrings(record.tags),
+        ...arrayOfStrings(record.skills),
+        ...arrayOfStrings(record.capabilities),
+        'near',
+        'near_market',
+        'marketplace',
+      ])
+    ),
+    payoutUsd: bidNear * adapter.nearPriceUsd,
+    payoutSol: undefined,
+    payout: {
+      amount: bidNear,
+      currency: 'NEAR',
+    },
+    createdAt,
+    expiresAt: pickString(record, ['expires_at', 'expiresAt', 'deadline']),
+    metadata: {
+      source: 'near_market',
+      executionMode: 'api',
+      settlementMode: 'deferred',
+      actions: {
+        apply: {
+          url: applyUrl,
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: {
+            amount: formatNearAmount(bidNear),
+            eta_seconds: adapter.etaSeconds,
+            proposal,
+          },
+        },
+      },
+      rawId: jobId,
+      marketplaceRecord: record,
+      nearMarket: {
+        jobId,
+        bidderAgentId: adapter.agentId,
+        creatorAgentId,
+        budgetNear,
+        bidNear,
+        minBidNear: adapter.minBidNear,
+        maxBidNear: adapter.maxBidNear,
+        budgetToken,
+        existingBids,
+        jobType,
+        applicationPath,
+        minMarginSol: adapter.minMarginSol,
+      },
+    },
+  };
+}
+
+function parseMarketplaceItem(params: {
+  source: 'relevance' | 'agent_ai' | 'kore' | 'near_market';
+  record: Record<string, unknown>;
+  index: number;
+  feed: MarketplaceFeedConfig;
+}): RawOpportunity | null {
+  if (params.source === 'near_market') {
+    return parseNearMarketItem({
+      record: params.record,
+      index: params.index,
+      feedUrl: params.feed.url,
+      adapter: params.feed.nearMarketAdapter ?? {
+        enabled: false,
+        nearPriceUsd: 4,
+        minBudgetNear: 0,
+        maxBudgetNear: Number.POSITIVE_INFINITY,
+        bidDiscountBps: 7000,
+        minBidNear: 0,
+        maxBidNear: Number.POSITIVE_INFINITY,
+        maxExistingBids: Number.MAX_SAFE_INTEGER,
+        etaSeconds: 3600,
+        allowCompetition: false,
+        proposalTemplate: 'Automated delivery.',
+        minMarginSol: 0,
+      },
+    });
+  }
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const { source, record, index } = params;
   const id =
     pickString(record, ['id', 'jobId', 'taskId', 'listingId', 'slug']) ?? `${source}-${index + 1}`;
@@ -968,9 +1210,16 @@ function parseMarketplaceItem(params: {
 }
 
 function parseMarketplaceFeed(params: {
+<<<<<<< HEAD
   source: 'relevance' | 'agent_ai' | 'kore';
   payload: unknown;
 }): RawOpportunity[] {
+=======
+  feed: MarketplaceFeedConfig;
+  payload: unknown;
+}): RawOpportunity[] {
+  const source = params.feed.source;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const rootRecord = asRecord(params.payload);
   const items = Array.isArray(params.payload)
     ? params.payload
@@ -993,9 +1242,16 @@ function parseMarketplaceFeed(params: {
     if (!record) return;
 
     const parsed = parseMarketplaceItem({
+<<<<<<< HEAD
       source: params.source,
       record,
       index,
+=======
+      source,
+      record,
+      index,
+      feed: params.feed,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     });
     if (parsed) opportunities.push(parsed);
   });
@@ -1022,7 +1278,13 @@ export async function collectSwarmOpportunities(params: {
   feedUrls: string[];
   marketplaceFeeds?: MarketplaceFeedConfig[];
   leadConversionPolicy?: LeadConversionPolicy;
+<<<<<<< HEAD
   disabledSources?: SwarmOpportunitySource[];
+=======
+  extraOpportunities?: SwarmOpportunity[];
+  disabledSources?: SwarmOpportunitySource[];
+  excludedOpportunityIds?: string[];
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   sourceQualityBySource?: Partial<Record<SwarmOpportunitySource, number>>;
   minRewardUsd: number;
   maxOpen: number;
@@ -1105,7 +1367,11 @@ export async function collectSwarmOpportunities(params: {
         timeoutMs: params.fetchTimeoutMs,
         headers: authHeaders(feed),
       });
+<<<<<<< HEAD
       const raw = parseMarketplaceFeed({ source: feed.source, payload });
+=======
+      const raw = parseMarketplaceFeed({ feed, payload });
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
       const opportunities = raw
         .map((entry, index) =>
           normalizeOpportunity({
@@ -1128,6 +1394,18 @@ export async function collectSwarmOpportunities(params: {
     }
   }
 
+<<<<<<< HEAD
+=======
+  if (params.extraOpportunities?.length) {
+    normalized.push(...params.extraOpportunities);
+    sourceStats.push({
+      source: 'intake',
+      discovered: params.extraOpportunities.length,
+      accepted: params.extraOpportunities.length,
+    });
+  }
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const deduped = dedupeOpportunities(normalized);
   const convertedLeadResult = buildLeadConversions({
     opportunities: deduped,
@@ -1148,8 +1426,18 @@ export async function collectSwarmOpportunities(params: {
   const disabledSources = new Set(
     (params.disabledSources ?? []).map(source => source.toLowerCase())
   );
+<<<<<<< HEAD
   const gated = merged.filter(
     opportunity => !disabledSources.has(opportunity.source.toLowerCase())
+=======
+  const excludedOpportunityIds = new Set(
+    (params.excludedOpportunityIds ?? []).map(id => id.trim()).filter(Boolean)
+  );
+  const gated = merged.filter(
+    opportunity =>
+      !disabledSources.has(opportunity.source.toLowerCase()) &&
+      !excludedOpportunityIds.has(opportunity.id)
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   );
   const opportunities = filterRankedOpportunities({
     opportunities: gated,

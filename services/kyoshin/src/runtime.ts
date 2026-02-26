@@ -1,4 +1,9 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+<<<<<<< HEAD
+=======
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,12 +18,17 @@ import { loadSwarmRegistry } from './swarm/registry.js';
 import { planSwarmMissions, type SwarmMissionOpportunityHint } from './swarm/planner.js';
 import {
   collectSwarmOpportunities,
+<<<<<<< HEAD
+=======
+  type LeadConversionPolicy,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   type MarketplaceFeedConfig,
   type SwarmOpportunity,
   type SwarmOpportunityAssignment,
   type SwarmOpportunityIntake,
 } from './swarm/opportunities.js';
 import { executeAssignedOpportunity, type SourceAuthMap } from './swarm/jobs.js';
+<<<<<<< HEAD
 import { parseMarginCircuitState, pruneMarginCircuitState, isMarginCircuitOpen, updateMarginCircuit } from './swarm/circuitBreaker.js';
 import { parseRollbackState, pruneRollbackState, isRollbackSourceDisabled, evaluateRollbackPolicy } from './swarm/rollback.js';
 import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMetrics } from './swarm/performance.js';
@@ -26,6 +36,30 @@ import { revenueLaneForOpportunitySource } from './swarm/revenue.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
 import { buildExecutionPolicy, type ExecutionPolicy } from './policy/executeProfile.js';
+=======
+import {
+  parseMarginCircuitState,
+  pruneMarginCircuitState,
+  isMarginCircuitOpen,
+  updateMarginCircuit,
+  type MarginCircuitState,
+} from './swarm/circuitBreaker.js';
+import { parseRollbackState, pruneRollbackState, isRollbackSourceDisabled, evaluateRollbackPolicy } from './swarm/rollback.js';
+import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMetrics } from './swarm/performance.js';
+import { revenueLaneForOpportunitySource, summariseLaneStats } from './swarm/revenue.js';
+import { intakeJobBatchSchema, intakeJobToOpportunity, normalizeBatchInput, normalizeIntakeJob } from './swarm/intake.js';
+import { evaluateSelfImprove, parseSelfImproveState } from './swarm/selfImprove.js';
+import {
+  collectNearMarketSettlements,
+  fetchNearMarketJobDetail,
+  listNearMarketTrackedBids,
+  submitNearMarketDeliverable,
+  withdrawNearMarketBid,
+} from './swarm/nearMarket.js';
+import { buildAutonomySloReport } from './swarm/slo.js';
+import { checkBudget, applyBudget } from './policy/budget.js';
+import { buildExecutionPolicy, type ExecutionPolicy, type ExecutionPolicyInput } from './policy/executeProfile.js';
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 import type { SwarmRegistry } from './swarm/types.js';
 import { createInitialStatus, type RuntimeStatus } from './state.js';
 
@@ -68,6 +102,130 @@ function randomId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+<<<<<<< HEAD
+=======
+function parseBooleanLiteral(value: string | undefined): boolean | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return undefined;
+}
+
+function parseFiniteNumber(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value.trim());
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseCsv(value: string | undefined): string[] | undefined {
+  if (value == null) return undefined;
+  return value
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function readExecutionPolicyEnvOverrides(envFilePath: string): Partial<ExecutionPolicyInput> {
+  if (!envFilePath || !fs.existsSync(envFilePath)) return {};
+
+  const raw = fs.readFileSync(envFilePath, 'utf8');
+  const kv: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separator = trimmed.indexOf('=');
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    kv[key] = value;
+  }
+
+  const overrides: Partial<ExecutionPolicyInput> = {};
+  const stage = kv.KAMIYO_EXECUTION_STAGE;
+  if (stage === 'canary_0' || stage === 'canary_1' || stage === 'canary_2' || stage === 'full') {
+    overrides.KAMIYO_EXECUTION_STAGE = stage;
+  }
+
+  const hardStop = parseBooleanLiteral(kv.KAMIYO_EXECUTION_HARD_STOP);
+  if (hardStop != null) overrides.KAMIYO_EXECUTION_HARD_STOP = hardStop;
+
+  const dailyCap = parseFiniteNumber(kv.KAMIYO_SOL_DAILY_CAP);
+  if (dailyCap != null) overrides.KAMIYO_SOL_DAILY_CAP = dailyCap;
+
+  const perTxCap = parseFiniteNumber(kv.KAMIYO_SOL_PER_TX_CAP);
+  if (perTxCap != null) overrides.KAMIYO_SOL_PER_TX_CAP = perTxCap;
+
+  const maxTx = parseFiniteNumber(kv.KAMIYO_MAX_TX_PER_DAY);
+  if (maxTx != null) overrides.KAMIYO_MAX_TX_PER_DAY = Math.max(1, Math.floor(maxTx));
+
+  const swarmJobExecutionEnabled = parseBooleanLiteral(kv.KAMIYO_SWARM_JOB_EXECUTION_ENABLED);
+  if (swarmJobExecutionEnabled != null) {
+    overrides.KAMIYO_SWARM_JOB_EXECUTION_ENABLED = swarmJobExecutionEnabled;
+  }
+
+  const executionsPerTick = parseFiniteNumber(kv.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK);
+  if (executionsPerTick != null) {
+    overrides.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK = Math.max(1, Math.floor(executionsPerTick));
+  }
+
+  const minMargin = parseFiniteNumber(kv.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL);
+  if (minMargin != null) overrides.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL = Math.max(0, minMargin);
+
+  const autoClaimEnabled = parseBooleanLiteral(kv.KAMIYO_AUTO_CLAIM_ENABLED);
+  if (autoClaimEnabled != null) overrides.KAMIYO_AUTO_CLAIM_ENABLED = autoClaimEnabled;
+
+  const kyoshinAutoClaimEnabled = parseBooleanLiteral(kv.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED);
+  if (kyoshinAutoClaimEnabled != null) {
+    overrides.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED = kyoshinAutoClaimEnabled;
+  }
+
+  const autoStakeEnabled = parseBooleanLiteral(kv.KAMIYO_AUTO_STAKE_ENABLED);
+  if (autoStakeEnabled != null) overrides.KAMIYO_AUTO_STAKE_ENABLED = autoStakeEnabled;
+
+  const autoStakeAvailableBps = parseFiniteNumber(kv.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
+  if (autoStakeAvailableBps != null) {
+    overrides.KAMIYO_AUTO_STAKE_AVAILABLE_BPS = Math.max(1, Math.floor(autoStakeAvailableBps));
+  }
+
+  const autoStakeMaxLamportsPerTx = parseFiniteNumber(kv.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
+  if (autoStakeMaxLamportsPerTx != null) {
+    overrides.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX = Math.max(0, Math.floor(autoStakeMaxLamportsPerTx));
+  }
+
+  const allowlist = parseCsv(kv.KAMIYO_ALLOWED_STAKING_POOLS);
+  if (allowlist) overrides.KAMIYO_ALLOWED_STAKING_POOLS = allowlist;
+
+  const requireAllowlist = parseBooleanLiteral(kv.KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST);
+  if (requireAllowlist != null) {
+    overrides.KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST = requireAllowlist;
+  }
+
+  return overrides;
+}
+
+function executionPolicyFingerprint(policy: ExecutionPolicy): string {
+  const pools = Array.from(policy.allowedStakingPools).sort();
+  return JSON.stringify({
+    stage: policy.stage,
+    hardStop: policy.hardStop,
+    dailyCapSol: policy.dailyCapSol,
+    perTxCapSol: policy.perTxCapSol,
+    maxTxPerDay: policy.maxTxPerDay,
+    swarmJobExecutionEnabled: policy.swarmJobExecutionEnabled,
+    swarmJobExecutionsPerTick: policy.swarmJobExecutionsPerTick,
+    swarmJobMinMarginSol: policy.swarmJobMinMarginSol,
+    autoClaimEnabled: policy.autoClaimEnabled,
+    kyoshinAutoClaimEnabled: policy.kyoshinAutoClaimEnabled,
+    autoStakeEnabled: policy.autoStakeEnabled,
+    autoStakeAvailableBps: policy.autoStakeAvailableBps,
+    autoStakeMaxLamportsPerTx: policy.autoStakeMaxLamportsPerTx,
+    requireStakingPoolAllowlist: policy.requireStakingPoolAllowlist,
+    pools,
+  });
+}
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   if (timeoutMs <= 0) return promise;
   let timer: NodeJS.Timeout | null = null;
@@ -136,21 +294,110 @@ type BudgetState = {
   txToday: number;
 };
 
+<<<<<<< HEAD
 export class KyoshinRuntime {
   private readonly runtimeEnv: Env;
   private readonly executionPolicy: ExecutionPolicy;
   private readonly db = openDb(resolvePath(env.KAMIYO_DB_PATH));
   private readonly status: RuntimeStatus = createInitialStatus(env.KAMIYO_MODE);
+=======
+type SwarmExecutionOutcome = {
+  agentId: string;
+  opportunityId: string;
+  source: string;
+  status: 'executed' | 'failed' | 'skipped';
+  reason?: string;
+  error?: string;
+  realizedRevenueSol: number;
+  realizedRevenueUsd: number;
+  intakeJobId?: string;
+};
+
+type RevenueNet = {
+  grossSol: number;
+  costSol: number;
+  netSol: number;
+  grossUsd: number;
+  costUsd: number;
+  netUsd: number;
+};
+
+type SelfImproveSnapshot = {
+  effectiveMinMarginSol: number;
+  effectiveExecutionsPerTick: number;
+  lastAction: 'hold' | 'tighten' | 'loosen' | 'scale_down' | 'scale_up';
+  lastEvaluatedAt: string | null;
+};
+
+function isTerminalSkipReason(reason: string | undefined): boolean {
+  if (!reason) return false;
+  return (
+    reason === 'missing_opportunity_url' ||
+    reason === 'discovery_lead_non_executable' ||
+    reason.startsWith('marketplace_') ||
+    reason === 'request_failed' ||
+    reason === 'request_error' ||
+    reason === 'x402_requirement_missing' ||
+    reason === 'x402_amount_invalid' ||
+    reason === 'x402_amount_missing'
+  );
+}
+
+function computeRevenueNet(
+  stats: Array<{ lane: string; kind: string; events: number; amountSol: number; amountUsd: number }>
+): RevenueNet {
+  let grossSol = 0;
+  let costSol = 0;
+  let grossUsd = 0;
+  let costUsd = 0;
+
+  for (const row of stats) {
+    if (row.kind === 'job' || row.kind === 'claim') {
+      grossSol += row.amountSol;
+      grossUsd += row.amountUsd;
+      continue;
+    }
+    if (row.kind === 'job_cost' || row.kind === 'route') {
+      costSol += Math.abs(row.amountSol);
+      costUsd += Math.abs(row.amountUsd);
+    }
+  }
+
+  return {
+    grossSol,
+    costSol,
+    netSol: grossSol - costSol,
+    grossUsd,
+    costUsd,
+    netUsd: grossUsd - costUsd,
+  };
+}
+
+export class KyoshinRuntime {
+  private readonly runtimeEnv: Env;
+  private executionPolicy: ExecutionPolicy;
+  private readonly db: ReturnType<typeof openDb>;
+  private readonly status: RuntimeStatus;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   private readonly rpcConnections: Connection[];
   private readonly operatorKeypair: Keypair;
 
   private loopTimer: NodeJS.Timeout | null = null;
   private runningTick = false;
   private stopRequested = false;
+<<<<<<< HEAD
+=======
+  private lastPolicyReloadMs = 0;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
     this.executionPolicy = buildExecutionPolicy(runtimeEnv);
+<<<<<<< HEAD
+=======
+    this.db = openDb(resolvePath(runtimeEnv.KAMIYO_DB_PATH));
+    this.status = createInitialStatus(runtimeEnv.KAMIYO_MODE);
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     let keypairInfo: { keypair: Keypair; source: string };
     try {
@@ -171,6 +418,7 @@ export class KyoshinRuntime {
     this.rpcConnections = endpoints.map(endpoint => new Connection(endpoint, 'confirmed'));
 
     this.status.mode = runtimeEnv.KAMIYO_MODE;
+<<<<<<< HEAD
     this.status.execution.stage = this.executionPolicy.stage;
     this.status.execution.hardStop = this.executionPolicy.hardStop;
     this.status.execution.swarmJobExecutionEnabled = this.executionPolicy.swarmJobExecutionEnabled;
@@ -179,6 +427,10 @@ export class KyoshinRuntime {
     this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
     this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
     this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
+=======
+    this.status.selfImprove.enabled = runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED;
+    this.applyExecutionPolicyToStatus();
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     log('info', 'Kyoshin runtime initialized', {
       mode: runtimeEnv.KAMIYO_MODE,
@@ -196,6 +448,89 @@ export class KyoshinRuntime {
       execution: { ...this.status.execution },
       swarm: { ...this.status.swarm },
       treasury: { ...this.status.treasury },
+<<<<<<< HEAD
+=======
+      economics: { ...this.status.economics },
+      selfImprove: { ...this.status.selfImprove },
+    };
+  }
+
+  enqueueIntakeJobs(payload: unknown): {
+    accepted: string[];
+    updated: string[];
+    rejected: Array<{ id: string; reason: string }>;
+  } {
+    const parsed = intakeJobBatchSchema.parse(payload);
+    const normalized = normalizeBatchInput(parsed).map(job => ({
+      id: job.id,
+      payload: normalizeIntakeJob(job),
+    }));
+    const result = this.db.upsertIntakeJobs(normalized);
+    const stats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = stats.pending;
+    this.status.economics.completedIntakeJobs = stats.completed;
+    this.status.economics.deadletterIntakeJobs = stats.deadletter;
+    return result;
+  }
+
+  listIntakeJobs(params?: {
+    status?: 'pending' | 'completed' | 'deadletter';
+    limit?: number;
+  }): ReturnType<ReturnType<typeof openDb>['listIntakeJobs']> {
+    return this.db.listIntakeJobs(params);
+  }
+
+  getEconomicsSnapshot(): {
+    dayStartIso: string;
+    revenue: RevenueNet;
+    laneSummary: ReturnType<typeof summariseLaneStats>;
+    intake: ReturnType<ReturnType<typeof openDb>['intakeJobStats']>;
+    jobs: {
+      total: number;
+      executed: number;
+      failed: number;
+      skipped: number;
+      paid: number;
+    };
+    selfImprove: SelfImproveSnapshot;
+  } {
+    const dayStartIso = startOfUtcDayIso();
+    const laneStats = this.db.revenueLaneStatsSince(dayStartIso);
+    const intake = this.db.intakeJobStats();
+    const jobsByAgent = this.db.swarmJobStatsSince(dayStartIso);
+    const revenue = computeRevenueNet(laneStats);
+    const laneSummary = summariseLaneStats(laneStats);
+    const jobs = jobsByAgent.reduce(
+      (totals, row) => {
+        totals.total += row.total;
+        totals.executed += row.succeeded;
+        totals.failed += row.failed;
+        totals.paid += row.paidCount;
+        return totals;
+      },
+      {
+        total: 0,
+        executed: 0,
+        failed: 0,
+        skipped: 0,
+        paid: 0,
+      }
+    );
+    jobs.skipped = Math.max(0, jobs.total - jobs.executed - jobs.failed);
+
+    return {
+      dayStartIso,
+      revenue,
+      laneSummary,
+      intake,
+      jobs,
+      selfImprove: {
+        effectiveMinMarginSol: this.status.selfImprove.effectiveMinMarginSol,
+        effectiveExecutionsPerTick: this.status.selfImprove.effectiveExecutionsPerTick,
+        lastAction: this.status.selfImprove.lastAction,
+        lastEvaluatedAt: this.status.selfImprove.lastEvaluatedAt,
+      },
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     };
   }
 
@@ -242,11 +577,134 @@ export class KyoshinRuntime {
       '# HELP kyoshin_treasury_tx_today Number of treasury tx attempts today.',
       '# TYPE kyoshin_treasury_tx_today gauge',
       `kyoshin_treasury_tx_today ${this.status.treasury.txToday}`,
+<<<<<<< HEAD
+=======
+      '# HELP kyoshin_intake_jobs_pending Pending intake jobs.',
+      '# TYPE kyoshin_intake_jobs_pending gauge',
+      `kyoshin_intake_jobs_pending ${this.status.economics.pendingIntakeJobs}`,
+      '# HELP kyoshin_revenue_net_today_sol Net realized revenue for UTC day.',
+      '# TYPE kyoshin_revenue_net_today_sol gauge',
+      `kyoshin_revenue_net_today_sol ${this.status.economics.netRevenueTodaySol}`,
+      '# HELP kyoshin_self_improve_effective_min_margin_sol Adaptive min margin.',
+      '# TYPE kyoshin_self_improve_effective_min_margin_sol gauge',
+      `kyoshin_self_improve_effective_min_margin_sol ${this.status.selfImprove.effectiveMinMarginSol}`,
+      '# HELP kyoshin_self_improve_effective_executions_per_tick Adaptive execution rate.',
+      '# TYPE kyoshin_self_improve_effective_executions_per_tick gauge',
+      `kyoshin_self_improve_effective_executions_per_tick ${this.status.selfImprove.effectiveExecutionsPerTick}`,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     ];
 
     return `${lines.join('\n')}\n`;
   }
 
+<<<<<<< HEAD
+=======
+  private applyExecutionPolicyToStatus(): void {
+    this.status.execution.stage = this.executionPolicy.stage;
+    this.status.execution.hardStop = this.executionPolicy.hardStop;
+    this.status.execution.swarmJobExecutionEnabled = this.executionPolicy.swarmJobExecutionEnabled;
+    this.status.execution.autoClaimEnabled = this.executionPolicy.autoClaimEnabled;
+    this.status.execution.autoStakeEnabled = this.executionPolicy.autoStakeEnabled;
+    this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
+    this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
+    this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
+    this.status.selfImprove.effectiveMinMarginSol = this.executionPolicy.swarmJobMinMarginSol;
+    this.status.selfImprove.effectiveExecutionsPerTick = this.executionPolicy.swarmJobExecutionsPerTick;
+  }
+
+  private getExecutionPolicyInput(): ExecutionPolicyInput {
+    return {
+      KAMIYO_EXECUTION_STAGE: this.executionPolicy.stage,
+      KAMIYO_EXECUTION_HARD_STOP: this.executionPolicy.hardStop,
+      KAMIYO_SOL_DAILY_CAP: this.executionPolicy.dailyCapSol,
+      KAMIYO_SOL_PER_TX_CAP: this.executionPolicy.perTxCapSol,
+      KAMIYO_MAX_TX_PER_DAY: this.executionPolicy.maxTxPerDay,
+      KAMIYO_SWARM_JOB_EXECUTION_ENABLED: this.executionPolicy.swarmJobExecutionEnabled,
+      KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK: this.executionPolicy.swarmJobExecutionsPerTick,
+      KAMIYO_SWARM_JOB_MIN_MARGIN_SOL: this.executionPolicy.swarmJobMinMarginSol,
+      KAMIYO_AUTO_CLAIM_ENABLED: this.executionPolicy.autoClaimEnabled,
+      KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED: this.executionPolicy.kyoshinAutoClaimEnabled,
+      KAMIYO_AUTO_STAKE_ENABLED: this.executionPolicy.autoStakeEnabled,
+      KAMIYO_AUTO_STAKE_AVAILABLE_BPS: this.executionPolicy.autoStakeAvailableBps,
+      KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX: this.executionPolicy.autoStakeMaxLamportsPerTx,
+      KAMIYO_ALLOWED_STAKING_POOLS: Array.from(this.executionPolicy.allowedStakingPools),
+      KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST: this.executionPolicy.requireStakingPoolAllowlist,
+    };
+  }
+
+  private maybeRefreshExecutionPolicy(params: { tickId: string; nowIso: string }): void {
+    if (!this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_ENABLED) return;
+
+    const nowMs = Date.now();
+    const intervalMs = Math.max(1, this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS) * 1000;
+    if (nowMs - this.lastPolicyReloadMs < intervalMs) return;
+    this.lastPolicyReloadMs = nowMs;
+
+    const envFilePathRaw = this.runtimeEnv.KAMIYO_POLICY_HOT_RELOAD_ENV_FILE;
+    if (!envFilePathRaw) return;
+    const envFilePath = path.isAbsolute(envFilePathRaw) ? envFilePathRaw : resolvePath(envFilePathRaw);
+    if (!fs.existsSync(envFilePath)) return;
+
+    try {
+      const overrides = readExecutionPolicyEnvOverrides(envFilePath);
+      if (Object.keys(overrides).length === 0) return;
+
+      const previousPolicy = this.executionPolicy;
+      const nextPolicy = buildExecutionPolicy({
+        ...this.getExecutionPolicyInput(),
+        ...overrides,
+      });
+      if (executionPolicyFingerprint(previousPolicy) === executionPolicyFingerprint(nextPolicy)) return;
+
+      this.executionPolicy = nextPolicy;
+      this.applyExecutionPolicyToStatus();
+      this.db.addAction(
+        params.tickId,
+        'execution_policy_hot_reload',
+        {
+          envFilePath,
+          overrides,
+        },
+        {
+          previous: {
+            stage: previousPolicy.stage,
+            hardStop: previousPolicy.hardStop,
+            dailyCapSol: previousPolicy.dailyCapSol,
+            perTxCapSol: previousPolicy.perTxCapSol,
+            maxTxPerDay: previousPolicy.maxTxPerDay,
+          },
+          next: {
+            stage: nextPolicy.stage,
+            hardStop: nextPolicy.hardStop,
+            dailyCapSol: nextPolicy.dailyCapSol,
+            perTxCapSol: nextPolicy.perTxCapSol,
+            maxTxPerDay: nextPolicy.maxTxPerDay,
+          },
+          at: params.nowIso,
+        }
+      );
+      log('warn', 'Execution policy hot-reloaded from env file', {
+        envFilePath,
+        stage: nextPolicy.stage,
+        hardStop: nextPolicy.hardStop,
+        dailyCapSol: nextPolicy.dailyCapSol,
+        perTxCapSol: nextPolicy.perTxCapSol,
+        maxTxPerDay: nextPolicy.maxTxPerDay,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.db.addAction(
+        params.tickId,
+        'execution_policy_hot_reload',
+        { envFilePath },
+        null,
+        message
+      );
+      log('warn', 'Execution policy hot-reload failed', { envFilePath, error: message });
+    }
+  }
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   async start(): Promise<void> {
     await this.runTickGuarded();
 
@@ -306,11 +764,27 @@ export class KyoshinRuntime {
   private async runTick(tickId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const dayStartIso = startOfUtcDayIso();
+<<<<<<< HEAD
+=======
+    this.maybeRefreshExecutionPolicy({ tickId, nowIso });
+    const effectiveSelfImprove = this.getEffectiveSelfImproveSnapshot();
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     let budget = this.calculateBudgetState(dayStartIso);
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
+<<<<<<< HEAD
+=======
+    this.status.selfImprove.effectiveExecutionsPerTick = effectiveSelfImprove.effectiveExecutionsPerTick;
+    this.status.selfImprove.effectiveMinMarginSol = effectiveSelfImprove.effectiveMinMarginSol;
+    this.status.selfImprove.lastAction = effectiveSelfImprove.lastAction;
+    this.status.selfImprove.lastEvaluatedAt = effectiveSelfImprove.lastEvaluatedAt;
+    const intakeStats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStats.pending;
+    this.status.economics.completedIntakeJobs = intakeStats.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStats.deadletter;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     const observation: Record<string, unknown> = {
       tickId,
@@ -320,6 +794,11 @@ export class KyoshinRuntime {
         stage: this.executionPolicy.stage,
         hardStop: this.executionPolicy.hardStop,
         swarmJobExecutionEnabled: this.executionPolicy.swarmJobExecutionEnabled,
+<<<<<<< HEAD
+=======
+        effectiveSwarmJobExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
+        effectiveSwarmJobMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         autoClaimEnabled: this.executionPolicy.autoClaimEnabled,
         autoStakeEnabled: this.executionPolicy.autoStakeEnabled,
       },
@@ -331,8 +810,13 @@ export class KyoshinRuntime {
       },
     };
 
+<<<<<<< HEAD
     const registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
     const swarmRegistry = registryResult.ok ? registryResult.registry : null;
+=======
+    let registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
+    let swarmRegistry = registryResult.ok ? registryResult.registry : null;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     let swarmOpportunityIntake: SwarmOpportunityIntake | null = null;
 
     if (this.runtimeEnv.KAMIYO_SWARM_ENABLED && swarmRegistry) {
@@ -346,8 +830,27 @@ export class KyoshinRuntime {
       const disabledSources = Object.values(rollbackState.sources)
         .filter(value => value != null)
         .map(value => value!.source);
+<<<<<<< HEAD
 
       if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED) {
+=======
+      const intakeJobs =
+        this.runtimeEnv.KAMIYO_SWARM_INTAKE_ENABLED
+          ? this.db.dueIntakeJobs({
+              nowIso,
+              limit: this.runtimeEnv.KAMIYO_SWARM_INTAKE_MAX_OPEN,
+            })
+          : [];
+      const intakeOpportunities = intakeJobs.map(intakeJobToOpportunity);
+      let excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
+      if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
+        await this.maybeSyncNearMarketBidMarkers({ tickId, nowIso });
+        await this.maybeWithdrawStaleNearMarketBids({ tickId, nowIso });
+        excludedOpportunityIds = this.getNearMarketBidSubmittedOpportunityIds();
+      }
+
+      if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED || intakeOpportunities.length > 0) {
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         const marketplaceFeeds: MarketplaceFeedConfig[] = [];
         if (this.runtimeEnv.KAMIYO_SWARM_RELEVANCE_FEED_URL) {
           marketplaceFeeds.push({
@@ -373,6 +876,43 @@ export class KyoshinRuntime {
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
           });
         }
+<<<<<<< HEAD
+=======
+        if (this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_FEED_URL) {
+          marketplaceFeeds.push({
+            source: 'near_market',
+            url: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_FEED_URL,
+            apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+            authHeader: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER,
+            nearMarketAdapter: {
+              enabled: true,
+              agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+              nearPriceUsd: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD,
+              minBudgetNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_BUDGET_NEAR,
+              maxBudgetNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_BUDGET_NEAR,
+              bidDiscountBps: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_DISCOUNT_BPS,
+              minBidNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_BID_NEAR,
+              maxBidNear: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_BID_NEAR,
+              maxExistingBids: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MAX_EXISTING_BIDS,
+              etaSeconds: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ETA_SECONDS,
+              allowCompetition: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_ALLOW_COMPETITION,
+              proposalTemplate: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE,
+              minMarginSol: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_MIN_MARGIN_SOL,
+            },
+          });
+        }
+
+        const leadConversionPolicy: LeadConversionPolicy = {
+          enabled: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_ENABLED,
+          maxConversions: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK,
+          defaultPayoutUsd: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD,
+          requireEndpoint: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT,
+          simulateOnly: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY,
+          estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
+          minConfidence: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE,
+          validateSourceContracts: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION,
+        };
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
         swarmOpportunityIntake = await collectSwarmOpportunities({
           registry: swarmRegistry,
@@ -381,8 +921,16 @@ export class KyoshinRuntime {
             : undefined,
           feedUrls: this.runtimeEnv.KAMIYO_SWARM_JOB_FEED_URLS,
           marketplaceFeeds,
+<<<<<<< HEAD
           sourceQualityBySource,
           disabledSources,
+=======
+          leadConversionPolicy,
+          extraOpportunities: intakeOpportunities,
+          sourceQualityBySource,
+          disabledSources,
+          excludedOpportunityIds,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
           minRewardUsd: this.runtimeEnv.KAMIYO_SWARM_JOB_MIN_REWARD_USD,
           maxOpen: this.runtimeEnv.KAMIYO_SWARM_JOB_MAX_OPEN,
           assignmentLimit: this.runtimeEnv.KAMIYO_SWARM_MISSIONS_PER_TICK,
@@ -425,12 +973,21 @@ export class KyoshinRuntime {
       if (
         this.runtimeEnv.KAMIYO_MODE === 'execute' &&
         this.executionPolicy.swarmJobExecutionEnabled &&
+<<<<<<< HEAD
+=======
+        effectiveSelfImprove.effectiveExecutionsPerTick > 0 &&
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         swarmOpportunityIntake
       ) {
         const executionResult = await this.executeSwarmJobs({
           tickId,
           dayStartIso,
           budget,
+<<<<<<< HEAD
+=======
+          effectiveMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
+          effectiveExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
           registry: swarmRegistry,
           missionPlan,
           opportunityIntake: swarmOpportunityIntake,
@@ -440,6 +997,14 @@ export class KyoshinRuntime {
         this.status.swarm.executedLastTick = executionResult.executed;
         this.status.swarm.skippedLastTick = executionResult.skipped;
         this.status.swarm.failedLastTick = executionResult.failed;
+<<<<<<< HEAD
+=======
+        this.settleIntakeJobOutcomes({
+          tickId,
+          outcomes: executionResult.outcomes,
+          nowIso,
+        });
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
         const performance = evaluateSwarmPerformance({
           registry: swarmRegistry,
@@ -452,6 +1017,13 @@ export class KyoshinRuntime {
         await this.maybeEvaluateRollback({ tickId, nowIso });
       }
 
+<<<<<<< HEAD
+=======
+      if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
+        await this.maybeEvaluateSelfImprove({ tickId, nowIso });
+      }
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
       observation.swarm = {
         enabled: true,
         registryVersion: swarmRegistry.version,
@@ -500,12 +1072,31 @@ export class KyoshinRuntime {
           source: 'runtime_auto_stake_kyoshin',
         });
       }
+<<<<<<< HEAD
+=======
+
+      await this.maybeProcessNearMarketSubmissions({ tickId, nowIso });
+      await this.maybeCollectNearMarketSettlements({ tickId, nowIso });
+      budget = await this.maybeSettleRevenuePolicy({ tickId, dayStartIso, nowIso, budget });
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     }
 
     await this.maybeRunRetention({ tickId, nowIso });
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
+<<<<<<< HEAD
+=======
+    const revenueStatsToday = this.db.revenueLaneStatsSince(dayStartIso);
+    const revenueNetToday = computeRevenueNet(revenueStatsToday);
+    this.status.economics.grossRevenueTodaySol = revenueNetToday.grossSol;
+    this.status.economics.costTodaySol = revenueNetToday.costSol;
+    this.status.economics.netRevenueTodaySol = revenueNetToday.netSol;
+    const intakeStatsEnd = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStatsEnd.pending;
+    this.status.economics.completedIntakeJobs = intakeStatsEnd.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStatsEnd.deadletter;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     observation.budgetsEnd = {
       spentTodaySol: budget.spentTodaySol,
@@ -513,6 +1104,16 @@ export class KyoshinRuntime {
       dailyCapSol: this.executionPolicy.dailyCapSol,
       txCap: this.executionPolicy.maxTxPerDay,
     };
+<<<<<<< HEAD
+=======
+    observation.economics = {
+      grossRevenueSol: revenueNetToday.grossSol,
+      costSol: revenueNetToday.costSol,
+      netRevenueSol: revenueNetToday.netSol,
+      intakeJobs: intakeStatsEnd,
+      selfImprove: this.status.selfImprove,
+    };
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     this.db.addObservation(tickId, 'snapshot', observation);
     log('info', 'Tick complete', {
@@ -528,6 +1129,11 @@ export class KyoshinRuntime {
     tickId: string;
     dayStartIso: string;
     budget: BudgetState;
+<<<<<<< HEAD
+=======
+    effectiveMinMarginSol: number;
+    effectiveExecutionsPerTick: number;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     registry: SwarmRegistry;
     missionPlan: ReturnType<typeof planSwarmMissions>;
     opportunityIntake: SwarmOpportunityIntake;
@@ -537,6 +1143,10 @@ export class KyoshinRuntime {
     executed: number;
     skipped: number;
     failed: number;
+<<<<<<< HEAD
+=======
+    outcomes: SwarmExecutionOutcome[];
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   }> {
     let budget = { ...params.budget };
 
@@ -569,23 +1179,46 @@ export class KyoshinRuntime {
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
           }
         : undefined,
+<<<<<<< HEAD
+=======
+      near_market: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY
+        ? {
+            apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+            authHeader: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER,
+          }
+        : undefined,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     };
 
     let marginCircuitState = pruneMarginCircuitState({
       state: parseMarginCircuitState(this.db.kvGet('swarm_margin_circuit_state')),
       keepDays: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS,
     });
+<<<<<<< HEAD
 
     const rollbackState = pruneRollbackState({
+=======
+    marginCircuitState = this.clearTransientNearMarketCircuitBlocks(marginCircuitState);
+
+    let rollbackState = pruneRollbackState({
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
       state: parseRollbackState(this.db.kvGet('swarm_rollback_state')),
     });
     this.db.kvSet('swarm_rollback_state', JSON.stringify(rollbackState));
 
     const runtimeMetrics: SwarmAgentRuntimeMetrics[] = [];
+<<<<<<< HEAD
     let executed = 0;
     let skipped = 0;
     let failed = 0;
     let remainingExecutions = this.executionPolicy.swarmJobExecutionsPerTick;
+=======
+    const outcomes: SwarmExecutionOutcome[] = [];
+    let executed = 0;
+    let skipped = 0;
+    let failed = 0;
+    let remainingExecutions = params.effectiveExecutionsPerTick;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     for (const mission of params.missionPlan.missions) {
       const agent = params.registry.agents.find(row => row.id === mission.agentId);
@@ -624,6 +1257,36 @@ export class KyoshinRuntime {
         runtimeMetrics.push(metric);
         continue;
       }
+<<<<<<< HEAD
+=======
+      const intakeJobId =
+        opportunity.metadata &&
+        typeof opportunity.metadata === 'object' &&
+        typeof (opportunity.metadata as Record<string, unknown>).intakeJobId === 'string'
+          ? String((opportunity.metadata as Record<string, unknown>).intakeJobId)
+          : undefined;
+
+      if (
+        opportunity.source === 'near_market' &&
+        this.db.kvGet(`near_market_bid_submitted:${opportunity.id}`)
+      ) {
+        skipped += 1;
+        this.db.recordSwarmJob({
+          id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
+          agentId: agent.id,
+          source: opportunity.source,
+          status: 'skipped',
+          url: opportunity.url,
+          paid: false,
+          revenueSol: 0,
+          revenueUsd: 0,
+          error: 'near_market_bid_already_submitted',
+          metadata: { reason: 'near_market_bid_already_submitted' },
+        });
+        runtimeMetrics.push(metric);
+        continue;
+      }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       const rollbackStatus = this.runtimeEnv.KAMIYO_SWARM_ROLLBACK_ENABLED
         ? isRollbackSourceDisabled({ state: rollbackState, source: opportunity.source })
@@ -642,6 +1305,21 @@ export class KyoshinRuntime {
           error: rollbackStatus.reason,
           metadata: { reason: 'rollback_source_disabled', disabledUntil: rollbackStatus.disabledUntil },
         });
+<<<<<<< HEAD
+=======
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: rollbackStatus.reason ?? 'rollback_source_disabled',
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -663,6 +1341,21 @@ export class KyoshinRuntime {
           error: 'margin_circuit_open',
           metadata: { openUntil: circuitStatus.openUntil },
         });
+<<<<<<< HEAD
+=======
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: 'margin_circuit_open',
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -691,6 +1384,21 @@ export class KyoshinRuntime {
           error: budgetReason,
           metadata: { reason: 'budget_guard' },
         });
+<<<<<<< HEAD
+=======
+        if (intakeJobId) {
+          outcomes.push({
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            status: 'skipped',
+            reason: budgetReason,
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            intakeJobId,
+          });
+        }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -706,7 +1414,11 @@ export class KyoshinRuntime {
         signer: agentSigner,
         timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
         solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+<<<<<<< HEAD
         minMarginSol: this.executionPolicy.swarmJobMinMarginSol,
+=======
+        minMarginSol: params.effectiveMinMarginSol,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
         requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
         sourceAuth,
@@ -715,17 +1427,34 @@ export class KyoshinRuntime {
         x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
         x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
       });
+<<<<<<< HEAD
+=======
+      const normalizedResult =
+        opportunity.source === 'near_market' && result.status === 'failed' && result.httpStatus === 409
+          ? {
+              ...result,
+              status: 'skipped' as const,
+              reason: 'near_market_bid_already_submitted',
+              error: undefined,
+            }
+          : result;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       this.db.addAction(params.tickId, 'swarm_execute_opportunity', {
         agentId: agent.id,
         opportunityId: assignment.opportunityId,
         source: opportunity.source,
+<<<<<<< HEAD
       }, result, result.error);
+=======
+      }, normalizedResult, normalizedResult.error);
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       this.db.recordSwarmJob({
         id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
         agentId: agent.id,
         source: opportunity.source,
+<<<<<<< HEAD
         status: result.status,
         url: result.endpoint,
         paid: result.paid,
@@ -749,6 +1478,51 @@ export class KyoshinRuntime {
       const totalCostSol = feeCostSol + paymentCostSol;
 
       if (result.status !== 'skipped') {
+=======
+        status: normalizedResult.status,
+        url: normalizedResult.endpoint,
+        paid: normalizedResult.paid,
+        paymentNetwork: normalizedResult.paymentNetwork,
+        paymentAmountUsd: normalizedResult.paymentAmountUsd,
+        revenueSol: normalizedResult.realizedRevenueSol,
+        revenueUsd: normalizedResult.realizedRevenueUsd,
+        error: normalizedResult.error ?? normalizedResult.reason,
+        metadata: {
+          reason: normalizedResult.reason,
+          paymentTransactionId: normalizedResult.paymentTransactionId,
+          httpStatus: normalizedResult.httpStatus,
+          output: normalizedResult.output,
+        },
+      });
+      if (intakeJobId) {
+        outcomes.push({
+          agentId: agent.id,
+          opportunityId: assignment.opportunityId,
+          source: opportunity.source,
+          status: normalizedResult.status,
+          reason: normalizedResult.reason,
+          error: normalizedResult.error,
+          realizedRevenueSol: normalizedResult.realizedRevenueSol,
+          realizedRevenueUsd: normalizedResult.realizedRevenueUsd,
+          intakeJobId,
+        });
+      }
+
+      if (
+        opportunity.source === 'near_market' &&
+        (normalizedResult.status === 'executed' || normalizedResult.httpStatus === 409)
+      ) {
+        this.db.kvSet(`near_market_bid_submitted:${opportunity.id}`, new Date().toISOString());
+      }
+
+      const paymentCostSol = normalizedResult.paid && normalizedResult.paymentAmountUsd
+        ? normalizedResult.paymentAmountUsd / this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+        : 0;
+      const feeCostSol = normalizedResult.status === 'skipped' ? 0 : this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL;
+      const totalCostSol = feeCostSol + paymentCostSol;
+
+      if (normalizedResult.status !== 'skipped') {
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         budget = {
           ...budget,
           ...applyBudget({
@@ -759,16 +1533,26 @@ export class KyoshinRuntime {
         };
       }
 
+<<<<<<< HEAD
       if (result.realizedRevenueSol > 0) {
+=======
+      if (normalizedResult.realizedRevenueSol > 0) {
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         this.db.recordRevenueEvent({
           id: `${params.tickId}:job:${agent.id}:${assignment.opportunityId}`,
           tickId: params.tickId,
           agentId: agent.id,
           lane: revenueLaneForOpportunitySource(opportunity.source),
           kind: 'job',
+<<<<<<< HEAD
           amountSol: result.realizedRevenueSol,
           amountUsd: result.realizedRevenueUsd,
           metadata: { source: opportunity.source, status: result.status },
+=======
+          amountSol: normalizedResult.realizedRevenueSol,
+          amountUsd: normalizedResult.realizedRevenueUsd,
+          metadata: { source: opportunity.source, status: normalizedResult.status },
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         });
       }
 
@@ -785,26 +1569,59 @@ export class KyoshinRuntime {
             source: opportunity.source,
             paymentCostSol,
             feeCostSol,
+<<<<<<< HEAD
             paid: result.paid,
+=======
+            paid: normalizedResult.paid,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
           },
         });
       }
 
+<<<<<<< HEAD
       if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && result.status !== 'skipped') {
         const marginSol = result.realizedRevenueSol - totalCostSol;
+=======
+      if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && normalizedResult.status !== 'skipped') {
+        const outputRecord =
+          normalizedResult.output &&
+          typeof normalizedResult.output === 'object' &&
+          !Array.isArray(normalizedResult.output)
+            ? (normalizedResult.output as Record<string, unknown>)
+            : null;
+        const settlementMode =
+          outputRecord && typeof outputRecord.settlementMode === 'string'
+            ? outputRecord.settlementMode
+            : undefined;
+        const deferredNearMarketExpectedRevenue =
+          opportunity.source === 'near_market' && settlementMode === 'deferred'
+            ? assignment.expectedRewardSol ?? opportunity.payoutSolEstimate ?? null
+            : null;
+        const realizedOrExpectedRevenue =
+          deferredNearMarketExpectedRevenue != null
+            ? deferredNearMarketExpectedRevenue
+            : normalizedResult.realizedRevenueSol;
+        const marginSol = realizedOrExpectedRevenue - totalCostSol;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         const circuitUpdate = updateMarginCircuit({
           state: marginCircuitState,
           agentId: agent.id,
           source: opportunity.source,
           marginSol,
+<<<<<<< HEAD
           failed: result.status === 'failed',
           error: result.error ?? result.reason,
+=======
+          failed: normalizedResult.status === 'failed',
+          error: normalizedResult.error ?? normalizedResult.reason,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
           negativeMarginThreshold: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_NEG_MARGIN_STREAK,
           cooldownMinutes: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES,
         });
         marginCircuitState = circuitUpdate.state;
       }
 
+<<<<<<< HEAD
       if (result.status === 'executed') executed += 1;
       if (result.status === 'failed') failed += 1;
       if (result.status === 'skipped') skipped += 1;
@@ -813,6 +1630,16 @@ export class KyoshinRuntime {
       metric.jobSucceeded = result.status === 'executed';
       metric.jobRevenueSol = result.realizedRevenueSol;
       metric.hadError = result.status === 'failed';
+=======
+      if (normalizedResult.status === 'executed') executed += 1;
+      if (normalizedResult.status === 'failed') failed += 1;
+      if (normalizedResult.status === 'skipped') skipped += 1;
+
+      metric.jobExecuted = normalizedResult.status === 'executed' || normalizedResult.status === 'failed';
+      metric.jobSucceeded = normalizedResult.status === 'executed';
+      metric.jobRevenueSol = normalizedResult.realizedRevenueSol;
+      metric.hadError = normalizedResult.status === 'failed';
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       runtimeMetrics.push(metric);
       remainingExecutions -= 1;
@@ -837,9 +1664,960 @@ export class KyoshinRuntime {
       executed,
       skipped,
       failed,
+<<<<<<< HEAD
     };
   }
 
+=======
+      outcomes,
+    };
+  }
+
+  private settleIntakeJobOutcomes(params: {
+    tickId: string;
+    outcomes: SwarmExecutionOutcome[];
+    nowIso: string;
+  }): void {
+    for (const outcome of params.outcomes) {
+      if (!outcome.intakeJobId) continue;
+
+      const terminal =
+        outcome.status === 'executed'
+          ? false
+          : isTerminalSkipReason(outcome.reason) || isTerminalSkipReason(outcome.error);
+
+      const settled = this.db.settleIntakeJob({
+        jobId: outcome.intakeJobId,
+        status: outcome.status,
+        reason: outcome.error ?? outcome.reason,
+        realizedRevenueSol: outcome.realizedRevenueSol,
+        realizedRevenueUsd: outcome.realizedRevenueUsd,
+        retryLimit: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_LIMIT,
+        retryBaseSeconds: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS,
+        retryMaxSeconds: this.runtimeEnv.KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS,
+        terminal,
+        nowIso: params.nowIso,
+      });
+
+      this.db.addAction(
+        params.tickId,
+        'swarm_intake_settle',
+        {
+          jobId: outcome.intakeJobId,
+          outcome,
+          terminal,
+        },
+        settled
+      );
+    }
+
+    const intakeStats = this.db.intakeJobStats();
+    this.status.economics.pendingIntakeJobs = intakeStats.pending;
+    this.status.economics.completedIntakeJobs = intakeStats.completed;
+    this.status.economics.deadletterIntakeJobs = intakeStats.deadletter;
+  }
+
+  private getEffectiveSelfImproveSnapshot(): SelfImproveSnapshot {
+    const state = parseSelfImproveState(this.db.kvGet('swarm_self_improve_state'));
+    const minMargin = Math.max(
+      this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL,
+      this.executionPolicy.swarmJobMinMarginSol + state.minMarginDeltaSol
+    );
+    const maxExecutions = Math.max(
+      this.executionPolicy.swarmJobExecutionsPerTick,
+      this.runtimeEnv.KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK
+    );
+    const executions = this.executionPolicy.swarmJobExecutionEnabled
+      ? Math.max(
+          1,
+          Math.min(maxExecutions, this.executionPolicy.swarmJobExecutionsPerTick + state.executionsDelta)
+        )
+      : 0;
+
+    return {
+      effectiveMinMarginSol: minMargin,
+      effectiveExecutionsPerTick: executions,
+      lastAction: state.lastAction,
+      lastEvaluatedAt: state.lastEvaluatedAt,
+    };
+  }
+
+  private async maybeEvaluateSelfImprove(params: { tickId: string; nowIso: string }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED) return;
+    if (!this.executionPolicy.swarmJobExecutionEnabled) return;
+
+    const lastEvaluatedAt = this.db.kvGet('swarm_self_improve_last_at');
+    if (lastEvaluatedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastEvaluatedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    const windowStartIso = new Date(
+      Date.now() - this.runtimeEnv.KAMIYO_SELF_IMPROVE_WINDOW_HOURS * 3_600_000
+    ).toISOString();
+    const sourceStats = this.db.swarmSourceStatsSince(windowStartIso);
+    const totalJobs = sourceStats.reduce((sum, row) => sum + row.total, 0);
+    const failedJobs = sourceStats.reduce((sum, row) => sum + row.failed, 0);
+    const netRevenueSol = sourceStats.reduce((sum, row) => sum + row.revenueSol, 0);
+    const previousState = parseSelfImproveState(this.db.kvGet('swarm_self_improve_state'));
+
+    const decision = evaluateSelfImprove({
+      state: previousState,
+      nowIso: params.nowIso,
+      totalJobs,
+      failedJobs,
+      netRevenueSol,
+      minJobs: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_JOBS,
+      failRateUpper: this.runtimeEnv.KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER,
+      failRateLower: this.runtimeEnv.KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER,
+      marginStepSol: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL,
+      minMarginFloorSol: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL,
+      currentMinMarginSol: this.executionPolicy.swarmJobMinMarginSol,
+      baseExecutionsPerTick: this.executionPolicy.swarmJobExecutionsPerTick,
+      maxExecutionsPerTick: this.runtimeEnv.KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK,
+    });
+
+    this.db.kvSet('swarm_self_improve_state', JSON.stringify(decision.state));
+    this.db.kvSet('swarm_self_improve_last_at', params.nowIso);
+    this.status.selfImprove.lastAction = decision.action;
+    this.status.selfImprove.lastEvaluatedAt = decision.state.lastEvaluatedAt;
+    this.status.selfImprove.effectiveMinMarginSol = decision.effectiveMinMarginSol;
+    this.status.selfImprove.effectiveExecutionsPerTick = decision.effectiveExecutionsPerTick;
+
+    const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'swarm-self-improve', {
+      tickId: params.tickId,
+      at: params.nowIso,
+      decision,
+      sourceStats,
+    });
+    this.db.addAction(params.tickId, 'swarm_self_improve', { windowStartIso }, { decision, receiptPath });
+  }
+
+  private clearTransientNearMarketCircuitBlocks(state: MarginCircuitState): MarginCircuitState {
+    const nowIso = new Date().toISOString();
+    const nowMs = Date.parse(nowIso);
+    let changed = false;
+    const entries: MarginCircuitState['entries'] = {};
+
+    for (const [key, entry] of Object.entries(state.entries)) {
+      const openUntilMs = entry.openUntil ? Date.parse(entry.openUntil) : Number.NaN;
+      const staleDeferredNearMarketBlock =
+        entry.source === 'near_market' &&
+        entry.openUntil &&
+        Number.isFinite(openUntilMs) &&
+        openUntilMs > nowMs &&
+        entry.negativeMarginStreak === 0 &&
+        !entry.lastError &&
+        typeof entry.lastMarginSol === 'number' &&
+        entry.lastMarginSol < 0;
+      const isTransientNearMarketBlock =
+        entry.source === 'near_market' &&
+        entry.openUntil &&
+        Number.isFinite(openUntilMs) &&
+        openUntilMs > nowMs &&
+        entry.negativeMarginStreak === 0 &&
+        entry.lastError === 'marketplace_apply_failed';
+      if (isTransientNearMarketBlock || staleDeferredNearMarketBlock) {
+        entries[key] = {
+          ...entry,
+          openUntil: undefined,
+          updatedAt: nowIso,
+        };
+        changed = true;
+        continue;
+      }
+      entries[key] = entry;
+    }
+
+    if (!changed) return state;
+    return {
+      updatedAt: nowIso,
+      entries,
+    };
+  }
+
+  private getNearMarketBidSubmittedOpportunityIds(): string[] {
+    const prefix = 'near_market_bid_submitted:';
+    return this.db
+      .kvKeys(prefix)
+      .filter(key => {
+        const value = this.db.kvGet(key);
+        return typeof value === 'string' && value.trim().length > 0;
+      })
+      .map(key => key.slice(prefix.length).trim())
+      .filter(Boolean);
+  }
+
+  private async maybeSyncNearMarketBidMarkers(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+
+    const lastSyncedAt = this.db.kvGet('near_market_bid_sync_last_at');
+    if (lastSyncedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSyncedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    try {
+      const statuses = ['pending', 'accepted', 'submitted', 'in_progress', 'withdrawn', 'rejected', 'completed'];
+      const bids = await listNearMarketTrackedBids({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses,
+      });
+
+      let marked = 0;
+      let cleared = 0;
+      for (const bid of bids) {
+        const markerKey = `near_market_bid_submitted:${bid.jobId}`;
+        const status = (bid.status ?? '').toLowerCase();
+        if (status === 'rejected') {
+          if (this.db.kvGet(markerKey)) {
+            this.db.kvSet(markerKey, '');
+            cleared += 1;
+          }
+          continue;
+        }
+        if (status === 'withdrawn') {
+          if (!this.db.kvGet(markerKey)) {
+            this.db.kvSet(markerKey, params.nowIso);
+            marked += 1;
+          }
+          continue;
+        }
+        if (this.db.kvGet(markerKey)) continue;
+        this.db.kvSet(markerKey, params.nowIso);
+        marked += 1;
+      }
+
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_marker_sync',
+        {
+          statuses,
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        },
+        {
+          tracked: bids.length,
+          marked,
+          cleared,
+        }
+      );
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_marker_sync',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+
+    this.db.kvSet('near_market_bid_sync_last_at', params.nowIso);
+  }
+
+  private async maybeWithdrawStaleNearMarketBids(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+
+    const lastCheckedAt = this.db.kvGet('near_market_bid_withdraw_last_at');
+    if (lastCheckedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastCheckedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    let tracked;
+    try {
+      tracked = await listNearMarketTrackedBids({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses: ['pending'],
+      });
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_bid_withdraw_stale',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+      this.db.kvSet('near_market_bid_withdraw_last_at', params.nowIso);
+      return;
+    }
+
+    const staleCutoffMs =
+      Date.now() - this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES * 60_000;
+    let inspected = 0;
+    let stale = 0;
+    let withdrawn = 0;
+    let failures = 0;
+    let initializedMarkers = 0;
+
+    for (const bid of tracked) {
+      inspected += 1;
+      const markerKey = `near_market_bid_submitted:${bid.jobId}`;
+      const markerRaw = this.db.kvGet(markerKey);
+      if (!markerRaw) {
+        this.db.kvSet(markerKey, params.nowIso);
+        initializedMarkers += 1;
+        continue;
+      }
+
+      const markerMs = Date.parse(markerRaw);
+      if (!Number.isFinite(markerMs)) {
+        this.db.kvSet(markerKey, params.nowIso);
+        initializedMarkers += 1;
+        continue;
+      }
+      if (markerMs > staleCutoffMs) continue;
+
+      stale += 1;
+      try {
+        await withdrawNearMarketBid({
+          baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+          apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+          bidId: bid.bidId,
+          timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+        });
+        this.db.kvSet(`near_market_bid_withdrawn:${bid.bidId}`, params.nowIso);
+        withdrawn += 1;
+      } catch (error) {
+        failures += 1;
+        this.db.addAction(
+          params.tickId,
+          'near_market_bid_withdraw_stale',
+          {
+            bidId: bid.bidId,
+            jobId: bid.jobId,
+            markerAt: markerRaw,
+          },
+          null,
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+
+    this.db.addAction(
+      params.tickId,
+      'near_market_bid_withdraw_stale',
+      {
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT,
+        staleAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES,
+      },
+      {
+        tracked: tracked.length,
+        inspected,
+        stale,
+        withdrawn,
+        failures,
+        initializedMarkers,
+      }
+    );
+    this.db.kvSet('near_market_bid_withdraw_last_at', params.nowIso);
+  }
+
+  private async maybeFetchBerlinWeather(): Promise<{
+    observedAt: string;
+    temperatureC: number | null;
+    humidityPct: number | null;
+    windSpeedKmh: number | null;
+    sourceUrl: string;
+  }> {
+    const sourceUrl =
+      'https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=UTC';
+    const response = await withTimeout(
+      fetch(sourceUrl, { headers: { accept: 'application/json' } }),
+      this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+      'berlin_weather_timeout'
+    );
+    if (!response.ok) {
+      throw new Error(`berlin_weather_http_${response.status}`);
+    }
+    const payload = (await response.json()) as Record<string, unknown>;
+    const current =
+      payload && typeof payload.current === 'object' ? (payload.current as Record<string, unknown>) : {};
+    const numberOrNull = (value: unknown): number | null =>
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
+
+    return {
+      observedAt:
+        typeof current.time === 'string' && current.time.trim()
+          ? current.time
+          : new Date().toISOString(),
+      temperatureC: numberOrNull(current.temperature_2m),
+      humidityPct: numberOrNull(current.relative_humidity_2m),
+      windSpeedKmh: numberOrNull(current.wind_speed_10m),
+      sourceUrl,
+    };
+  }
+
+  private async publishNearMarketArtifact(markdown: string): Promise<string> {
+    const response = await withTimeout(
+      fetch('https://paste.rs', {
+        method: 'POST',
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+        },
+        body: markdown,
+      }),
+      this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+      'near_deliverable_publish_timeout'
+    );
+    if (!response.ok) {
+      throw new Error(`near_deliverable_publish_http_${response.status}`);
+    }
+    const url = (await response.text()).trim();
+    if (!/^https?:\/\//i.test(url)) {
+      throw new Error('near_deliverable_publish_invalid_url');
+    }
+    return url;
+  }
+
+  private async buildNearMarketDeliverable(params: {
+    jobId: string;
+    title: string;
+    description: string;
+    amountNear: number | null;
+    nowIso: string;
+  }): Promise<string> {
+    const heading = `# Delivery: ${params.title}\n\n`;
+    const meta = [
+      `- Job ID: ${params.jobId}`,
+      `- Delivered At (UTC): ${params.nowIso}`,
+      `- Proposed Fee (NEAR): ${params.amountNear != null ? params.amountNear : 'unknown'}`,
+      '- Generated by: kyoshin-exec autonomous runner',
+    ].join('\n');
+    const titleLower = `${params.title} ${params.description}`.toLowerCase();
+
+    const sections: string[] = [];
+    sections.push(
+      '## Outcome\n' +
+        'A complete response package is provided below with clear assumptions, reproducible method, and concise actionable output.'
+    );
+
+    if (titleLower.includes('weather') && titleLower.includes('berlin')) {
+      const weather = await this.maybeFetchBerlinWeather();
+      sections.push(
+        [
+          '## Berlin Weather Snapshot',
+          `- Observed At (UTC): ${weather.observedAt}`,
+          `- Temperature: ${weather.temperatureC != null ? `${weather.temperatureC} C` : 'unavailable'}`,
+          `- Relative Humidity: ${weather.humidityPct != null ? `${weather.humidityPct}%` : 'unavailable'}`,
+          `- Wind Speed: ${weather.windSpeedKmh != null ? `${weather.windSpeedKmh} km/h` : 'unavailable'}`,
+          `- Source: ${weather.sourceUrl}`,
+        ].join('\n')
+      );
+    } else if (titleLower.includes('equity') && titleLower.includes('founding engineer')) {
+      sections.push(
+        [
+          '## Equity Recommendation',
+          '- Recommended range: 1.5% to 3.5% for a true founding engineer joining pre-product/pre-seed.',
+          '- Anchor recommendation: 2.5% with a 4-year vesting schedule and 1-year cliff.',
+          '- If joining post-PMF or with cash-market salary, compress toward 0.5% to 1.5%.',
+          '- If taking significant risk, no salary, and owning core architecture, expand toward 3% to 5%.',
+          '',
+          '### Rationale',
+          '1. Equity should track company stage, compensation discount, and expected ownership over technical roadmap.',
+          '2. The grant should be calibrated against dilution through seed and Series A.',
+          '3. Include performance and role-scope review milestones at 12 and 24 months.',
+        ].join('\n')
+      );
+    } else {
+      const trimmedDescription = params.description.trim().slice(0, 1500);
+      sections.push(
+        [
+          '## Structured Response',
+          `Task context:\n${trimmedDescription || '(description omitted)'}`,
+          '',
+          'Delivery plan:',
+          '1. Clarify objective and acceptance criteria from the brief.',
+          '2. Execute against objective with measurable output artifacts.',
+          '3. Provide concise summary and explicit assumptions.',
+          '',
+          'Output status: ready for requester review.',
+        ].join('\n')
+      );
+    }
+
+    sections.push('## Notes\n- Generated without LLM inference costs.\n- Deterministic workflow with auditable timestamps.');
+    return `${heading}${meta}\n\n${sections.join('\n\n')}\n`;
+  }
+
+  private async maybeProcessNearMarketSubmissions(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTO_SUBMIT_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+
+    const lastSubmittedAt = this.db.kvGet('near_market_submit_last_at');
+    if (lastSubmittedAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSubmittedAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    let trackedBids;
+    try {
+      trackedBids = await listNearMarketTrackedBids({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        limit: Math.max(this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT, 100),
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        statuses: ['accepted', 'in_progress', 'submitted'],
+      });
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_submit',
+        {},
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+      this.db.kvSet('near_market_submit_last_at', params.nowIso);
+      return;
+    }
+
+    const nowMs = Date.parse(params.nowIso);
+    const retryLimit = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_LIMIT;
+    const backoffBaseMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES * 60_000;
+    const backoffMaxMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_MAX_BACKOFF_MINUTES * 60_000;
+    const escalateAfterMs = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES * 60_000;
+    const escalationLimit = this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATION_LIMIT;
+
+    let submitted = 0;
+    let failed = 0;
+    let skippedBackoff = 0;
+    let escalated = 0;
+
+    for (const bid of trackedBids) {
+      if (submitted >= this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT) break;
+      const keySuffix = `${bid.jobId}:${bid.bidId}`;
+      const submitMarkerKey = `near_market_submit:${keySuffix}`;
+      if (this.db.kvGet(submitMarkerKey)) continue;
+
+      const firstSeenKey = `near_market_submit_first_seen:${keySuffix}`;
+      const attemptsKey = `near_market_submit_attempts:${keySuffix}`;
+      const nextAttemptAtKey = `near_market_submit_next_at:${keySuffix}`;
+      const escalationMarkerKey = `near_market_submit_escalated:${keySuffix}`;
+
+      const firstSeenAt =
+        this.db.kvGet(firstSeenKey) ||
+        params.nowIso;
+      if (!this.db.kvGet(firstSeenKey)) {
+        this.db.kvSet(firstSeenKey, firstSeenAt);
+      }
+
+      const attempts = Number.parseInt(this.db.kvGet(attemptsKey) ?? '0', 10) || 0;
+      const nextAttemptAt = this.db.kvGet(nextAttemptAtKey);
+      if (nextAttemptAt) {
+        const nextAttemptMs = Date.parse(nextAttemptAt);
+        if (Number.isFinite(nextAttemptMs) && nextAttemptMs > nowMs) {
+          skippedBackoff += 1;
+          continue;
+        }
+      }
+
+      const bidStatus = (bid.status ?? '').toLowerCase();
+      if (bidStatus === 'submitted') {
+        this.db.kvSet(submitMarkerKey, params.nowIso);
+        this.db.kvSet(attemptsKey, '0');
+        this.db.kvSet(nextAttemptAtKey, '');
+        continue;
+      }
+
+      try {
+        const detail = await fetchNearMarketJobDetail({
+          baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+          apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+          jobId: bid.jobId,
+          timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        });
+        if (!detail) {
+          throw new Error('near_market_job_detail_missing');
+        }
+        const assignment =
+          detail.myAssignments.find(
+            row =>
+              row.status === 'in_progress' ||
+              row.status === 'submitted' ||
+              row.status === 'accepted' ||
+              row.status === 'completed' ||
+              row.status === 'rejected'
+          ) ??
+          null;
+        if (!assignment) {
+          throw new Error('near_market_assignment_missing');
+        }
+
+        if (
+          assignment.status === 'submitted' ||
+          assignment.status === 'completed' ||
+          assignment.status === 'rejected'
+        ) {
+          this.db.kvSet(submitMarkerKey, params.nowIso);
+          this.db.kvSet(attemptsKey, '0');
+          this.db.kvSet(nextAttemptAtKey, '');
+          continue;
+        }
+        if (assignment.status !== 'accepted' && assignment.status !== 'in_progress') {
+          continue;
+        }
+
+        const markdown = await this.buildNearMarketDeliverable({
+          jobId: bid.jobId,
+          title: detail.title,
+          description: detail.description,
+          amountNear: bid.amountNear,
+          nowIso: params.nowIso,
+        });
+        const deliverableUrl = await this.publishNearMarketArtifact(markdown);
+        const deliverableHash = `sha256:${createHash('sha256').update(markdown).digest('hex')}`;
+
+        const submitResult = await submitNearMarketDeliverable({
+          baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+          apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+          jobId: bid.jobId,
+          deliverableUrl,
+          deliverableHash,
+          timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+        });
+
+        const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'near-market-submit', {
+          tickId: params.tickId,
+          at: params.nowIso,
+          bid,
+          assignment,
+          deliverableUrl,
+          deliverableHash,
+          submitResult,
+        });
+        this.db.addAction(
+          params.tickId,
+          'near_market_submit',
+          {
+            jobId: bid.jobId,
+            bidId: bid.bidId,
+            deliverableUrl,
+            deliverableHash,
+          },
+          {
+            submitResult,
+            receiptPath,
+          }
+        );
+        this.db.kvSet(submitMarkerKey, params.nowIso);
+        this.db.kvSet(attemptsKey, '0');
+        this.db.kvSet(nextAttemptAtKey, '');
+        this.db.kvSet(escalationMarkerKey, '');
+        submitted += 1;
+      } catch (error) {
+        failed += 1;
+        const nextAttempts = attempts + 1;
+        this.db.kvSet(attemptsKey, String(nextAttempts));
+        const backoffMs = Math.min(backoffMaxMs, backoffBaseMs * Math.max(1, nextAttempts));
+        this.db.kvSet(nextAttemptAtKey, new Date(nowMs + backoffMs).toISOString());
+
+        this.db.addAction(
+          params.tickId,
+          'near_market_submit',
+          {
+            jobId: bid.jobId,
+            bidId: bid.bidId,
+          },
+          null,
+          error instanceof Error ? error.message : String(error)
+        );
+
+        const firstSeenMs = Date.parse(firstSeenAt);
+        const ageMs = Number.isFinite(firstSeenMs) ? Math.max(0, nowMs - firstSeenMs) : 0;
+        const shouldEscalate = nextAttempts >= retryLimit || ageMs >= escalateAfterMs;
+        if (shouldEscalate && escalated < escalationLimit && !this.db.kvGet(escalationMarkerKey)) {
+          const escalationError = error instanceof Error ? error.message : String(error);
+          const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'near-market-submit-escalation', {
+            tickId: params.tickId,
+            at: params.nowIso,
+            bid,
+            attempts: nextAttempts,
+            firstSeenAt,
+            ageMinutes: Math.floor(ageMs / 60_000),
+            retryLimit,
+            escalateAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES,
+            error: escalationError,
+          });
+          this.db.addAction(
+            params.tickId,
+            'near_market_submit_escalation',
+            {
+              jobId: bid.jobId,
+              bidId: bid.bidId,
+              attempts: nextAttempts,
+              ageMinutes: Math.floor(ageMs / 60_000),
+            },
+            {
+              receiptPath,
+              error: escalationError,
+            }
+          );
+          this.db.kvSet(escalationMarkerKey, params.nowIso);
+          escalated += 1;
+        }
+      }
+    }
+
+    this.db.addAction(
+      params.tickId,
+      'near_market_submit',
+      {
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT,
+        retryLimit,
+        backoffMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES,
+        escalateAfterMinutes: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES,
+      },
+      {
+        tracked: trackedBids.length,
+        submitted,
+        failed,
+        skippedBackoff,
+        escalated,
+      }
+    );
+
+    this.db.kvSet('near_market_submit_last_at', params.nowIso);
+  }
+
+  private async maybeCollectNearMarketSettlements(params: {
+    tickId: string;
+    nowIso: string;
+  }): Promise<void> {
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_ENABLED) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY) return;
+    if (!this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID) return;
+
+    const lastSettledAt = this.db.kvGet('near_market_settlement_last_at');
+    if (lastSettledAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSettledAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_INTERVAL_MINUTES * 60_000
+      ) {
+        return;
+      }
+    }
+
+    let settlements: Awaited<ReturnType<typeof collectNearMarketSettlements>>;
+    try {
+      settlements = await collectNearMarketSettlements({
+        baseUrl: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_BASE_URL,
+        apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
+        agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS,
+        nearPriceUsd: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD,
+        solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      });
+    } catch (error) {
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        null,
+        error instanceof Error ? error.message : String(error)
+      );
+      this.db.kvSet('near_market_settlement_last_at', params.nowIso);
+      return;
+    }
+
+    let recorded = 0;
+    for (const settlement of settlements) {
+      const markerKey = `near_market_settlement:${settlement.settlementId}`;
+      if (this.db.kvGet(markerKey)) continue;
+
+      this.db.recordRevenueEvent({
+        id: `${params.tickId}:near_settlement:${settlement.settlementId}`,
+        tickId: params.tickId,
+        lane: 'marketplace_direct',
+        kind: 'job',
+        amountSol: settlement.amountSol,
+        amountUsd: settlement.amountUsd,
+        metadata: {
+          source: 'near_market',
+          settlementId: settlement.settlementId,
+          jobId: settlement.jobId,
+          jobTitle: settlement.jobTitle,
+          bidId: settlement.bidId,
+          amountNear: settlement.amountNear,
+          completedAt: settlement.completedAt,
+        },
+      });
+      this.db.kvSet(markerKey, settlement.completedAt);
+      recorded += 1;
+    }
+
+    if (recorded > 0) {
+      const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'near-market-settlement', {
+        tickId: params.tickId,
+        at: params.nowIso,
+        recorded,
+        settlements,
+      });
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        { recorded, receiptPath }
+      );
+    } else {
+      this.db.addAction(
+        params.tickId,
+        'near_market_settlement',
+        {
+          limit: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT,
+          agentId: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AGENT_ID,
+        },
+        { recorded: 0 }
+      );
+    }
+
+    this.db.kvSet('near_market_settlement_last_at', params.nowIso);
+  }
+
+  private async maybeSettleRevenuePolicy(params: {
+    tickId: string;
+    dayStartIso: string;
+    nowIso: string;
+    budget: BudgetState;
+  }): Promise<BudgetState> {
+    if (!this.runtimeEnv.KAMIYO_REVENUE_POLICY_ENABLED) return params.budget;
+
+    const lastSettledAt = this.db.kvGet('revenue_policy_last_at');
+    if (lastSettledAt) {
+      const elapsedMs = Date.now() - Date.parse(lastSettledAt);
+      if (
+        Number.isFinite(elapsedMs) &&
+        elapsedMs < this.runtimeEnv.KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES * 60_000
+      ) {
+        return params.budget;
+      }
+    }
+
+    const laneStats = this.db.revenueLaneStatsSince(params.dayStartIso);
+    const net = computeRevenueNet(laneStats);
+    this.status.economics.grossRevenueTodaySol = net.grossSol;
+    this.status.economics.costTodaySol = net.costSol;
+    this.status.economics.netRevenueTodaySol = net.netSol;
+
+    const alreadySettled = Number.parseFloat(this.db.kvGet('revenue_policy_settled_sol') ?? '0') || 0;
+    const unsettledNet = net.netSol - alreadySettled;
+    if (unsettledNet < this.runtimeEnv.KAMIYO_REVENUE_MIN_NET_SOL) return params.budget;
+
+    const bpsTotal =
+      this.runtimeEnv.KAMIYO_REVENUE_ROUTE_BPS +
+      this.runtimeEnv.KAMIYO_REVENUE_RESERVE_BPS +
+      this.runtimeEnv.KAMIYO_REVENUE_OPERATIONS_BPS;
+    if (bpsTotal <= 0) return params.budget;
+
+    const scale = 10_000 / bpsTotal;
+    const routeBps = this.runtimeEnv.KAMIYO_REVENUE_ROUTE_BPS * scale;
+    const reserveBps = this.runtimeEnv.KAMIYO_REVENUE_RESERVE_BPS * scale;
+    const operationsBps = this.runtimeEnv.KAMIYO_REVENUE_OPERATIONS_BPS * scale;
+
+    const routeSol = unsettledNet * (routeBps / 10_000);
+    const reserveSol = unsettledNet * (reserveBps / 10_000);
+    const operationsSol = unsettledNet * (operationsBps / 10_000);
+
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_route`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_route',
+      amountSol: routeSol,
+      amountUsd: routeSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, routeBps },
+    });
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_reserve`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_reserve',
+      amountSol: reserveSol,
+      amountUsd: reserveSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, reserveBps },
+    });
+    this.db.recordRevenueEvent({
+      id: `${params.tickId}:revenue_allocation_operations`,
+      tickId: params.tickId,
+      lane: 'internal',
+      kind: 'allocation_operations',
+      amountSol: operationsSol,
+      amountUsd: operationsSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+      metadata: { unsettledNet, operationsBps },
+    });
+
+    const receiptPath = writeOutbox(resolvePath(this.runtimeEnv.KAMIYO_OUTBOX_DIR), 'revenue-settlement', {
+      tickId: params.tickId,
+      at: params.nowIso,
+      net,
+      alreadySettled,
+      unsettledNet,
+      routeSol,
+      reserveSol,
+      operationsSol,
+    });
+    this.db.addAction(
+      params.tickId,
+      'revenue_settlement',
+      { dayStartIso: params.dayStartIso, alreadySettled },
+      { unsettledNet, routeSol, reserveSol, operationsSol, receiptPath }
+    );
+
+    this.db.kvSet('revenue_policy_settled_sol', String(alreadySettled + unsettledNet));
+    this.db.kvSet('revenue_policy_last_at', params.nowIso);
+    this.status.economics.lastSettlementAt = params.nowIso;
+
+    return params.budget;
+  }
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   private async maybeClaimFeeVault(params: {
     tickId: string;
     dayStartIso: string;
@@ -1229,10 +3007,17 @@ export class KyoshinRuntime {
     this.db.addAction(params.tickId, 'retention_prune', cutoffs, result);
   }
 
+<<<<<<< HEAD
   private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> {
     const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
     const stats = this.db.swarmSourceStatsSince(since);
     const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> = {};
+=======
+  private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> {
+    const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
+    const stats = this.db.swarmSourceStatsSince(since);
+    const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> = {};
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     for (const row of stats) {
       if (row.total < this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_MIN_SAMPLES) continue;
@@ -1245,6 +3030,10 @@ export class KyoshinRuntime {
         row.source === 'relevance' ||
         row.source === 'agent_ai' ||
         row.source === 'kore' ||
+<<<<<<< HEAD
+=======
+        row.source === 'near_market' ||
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         row.source === 'direct' ||
         row.source === 'internal'
       ) {

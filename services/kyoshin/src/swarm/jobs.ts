@@ -61,7 +61,11 @@ type SourceAuth = {
   authHeader?: string;
 };
 
+<<<<<<< HEAD
 export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore', SourceAuth>>;
+=======
+export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore' | 'near_market', SourceAuth>>;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -216,7 +220,13 @@ function parseX402Body(raw: unknown): {
 
 function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthMap | undefined): Record<string, string> {
   if (!auth) return {};
+<<<<<<< HEAD
   if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore') return {};
+=======
+  if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore' && source !== 'near_market') {
+    return {};
+  }
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const sourceAuth = auth[source];
   if (!sourceAuth?.apiKey) return {};
 
@@ -230,6 +240,165 @@ function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthM
   return { [header]: value };
 }
 
+<<<<<<< HEAD
+=======
+function formatNearAmount(value: number): string {
+  const fixed = value.toFixed(4);
+  return fixed.replace(/\.?0+$/, '');
+}
+
+function nearMarketApplicationPathFromStep(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+}): 'bids' | 'entries' | null {
+  try {
+    const parsed = new URL(params.step.url);
+    const match = parsed.pathname.match(/\/v1\/jobs\/[^/]+\/(bids|entries)\/?$/i);
+    if (match?.[1]) {
+      return match[1].toLowerCase() as 'bids' | 'entries';
+    }
+  } catch {
+    // Fall back to metadata.
+  }
+
+  const metadata = asRecord(params.opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const explicit = asString(nearMarket?.applicationPath)?.toLowerCase();
+  if (explicit === 'bids' || explicit === 'entries') return explicit;
+  return null;
+}
+
+function nearMarketJobIdFromStep(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+}): string | null {
+  const metadata = asRecord(params.opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const explicit =
+    asString(nearMarket?.jobId) ??
+    asString(metadata?.rawId);
+  if (explicit) return explicit;
+
+  try {
+    const parsed = new URL(params.step.url);
+    const match = parsed.pathname.match(/\/v1\/jobs\/([^/]+)\/(?:bids|entries)\/?$/i);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function nearMarketBidLimits(opportunity: SwarmOpportunity): {
+  minBidNear: number;
+  maxBidNear: number;
+  budgetNear: number | null;
+} {
+  const metadata = asRecord(opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const minBidNear = Math.max(0, asNumber(nearMarket?.minBidNear) ?? 0);
+  const rawMaxBidNear = asNumber(nearMarket?.maxBidNear);
+  const maxBidNear = rawMaxBidNear != null && rawMaxBidNear > 0 ? rawMaxBidNear : Number.POSITIVE_INFINITY;
+  const budgetNear = asNumber(nearMarket?.budgetNear);
+  return {
+    minBidNear,
+    maxBidNear,
+    budgetNear: budgetNear != null && budgetNear > 0 ? budgetNear : null,
+  };
+}
+
+function pickNearMarketBidAmount(payload: unknown): number | null {
+  if (!Array.isArray(payload)) return null;
+  let next: number | null = null;
+  for (const row of payload) {
+    const record = asRecord(row);
+    if (!record) continue;
+    const amount = asNumber(record.amount);
+    if (amount == null || amount <= 0) continue;
+    next = next == null ? amount : Math.min(next, amount);
+  }
+  return next;
+}
+
+async function maybeApplyNearMarketUndercut(params: {
+  opportunity: SwarmOpportunity;
+  step: MarketplaceActionStep;
+  sourceHeaders: Record<string, string>;
+  timeoutMs: number;
+}): Promise<MarketplaceActionStep> {
+  if (params.opportunity.source !== 'near_market') return params.step;
+  if (params.step.name !== 'apply' || params.step.method !== 'POST') return params.step;
+  if (nearMarketApplicationPathFromStep(params) !== 'bids') return params.step;
+
+  const body = asRecord(params.step.body);
+  if (!body) return params.step;
+  const currentBidNear = asNumber(body.amount);
+  if (currentBidNear == null || currentBidNear <= 0) return params.step;
+
+  const jobId = nearMarketJobIdFromStep({
+    opportunity: params.opportunity,
+    step: params.step,
+  });
+  if (!jobId) return params.step;
+
+  let baseUrl: string;
+  try {
+    const parsed = new URL(params.step.url);
+    baseUrl = `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return params.step;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      `${baseUrl}/v1/jobs/${jobId}/bids`,
+      {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+          ...params.sourceHeaders,
+        },
+      },
+      params.timeoutMs
+    );
+    if (!response.ok) return params.step;
+    const payload = await parseResponsePayload(response);
+    const lowestBidNear = pickNearMarketBidAmount(payload);
+    if (lowestBidNear == null || lowestBidNear <= 0) return params.step;
+
+    const { minBidNear, maxBidNear, budgetNear } = nearMarketBidLimits(params.opportunity);
+    const undercutNear = Math.max(0, lowestBidNear - 0.0001);
+    let bidCapNear = maxBidNear;
+    if (budgetNear != null) {
+      bidCapNear = Math.min(bidCapNear, Math.max(0, budgetNear - 0.0001));
+    }
+    if (!Number.isFinite(bidCapNear) || bidCapNear <= 0) return params.step;
+
+    const nextBidNear = Math.max(minBidNear, Math.min(bidCapNear, undercutNear));
+    if (!Number.isFinite(nextBidNear) || nextBidNear <= 0) return params.step;
+    if (nextBidNear >= currentBidNear - 0.00005) return params.step;
+
+    return {
+      ...params.step,
+      body: {
+        ...body,
+        amount: formatNearAmount(nextBidNear),
+      },
+    };
+  } catch {
+    return params.step;
+  }
+}
+
+function nearMarketMinMarginSol(opportunity: SwarmOpportunity): number {
+  if (opportunity.source !== 'near_market') return 0;
+  const metadata = asRecord(opportunity.metadata);
+  const nearMarket = asRecord(metadata?.nearMarket);
+  const configured = asNumber(nearMarket?.minMarginSol);
+  if (configured == null || !Number.isFinite(configured)) return 0;
+  return Math.max(0, configured);
+}
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceActionStep | null {
   const urlFromString = asString(value);
   if (urlFromString) {
@@ -259,7 +428,16 @@ function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceAc
 }
 
 function marketplaceActionSteps(opportunity: SwarmOpportunity): MarketplaceActionStep[] {
+<<<<<<< HEAD
   if (opportunity.source !== 'relevance' && opportunity.source !== 'agent_ai' && opportunity.source !== 'kore') {
+=======
+  if (
+    opportunity.source !== 'relevance' &&
+    opportunity.source !== 'agent_ai' &&
+    opportunity.source !== 'kore' &&
+    opportunity.source !== 'near_market'
+  ) {
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     return [];
   }
 
@@ -349,6 +527,15 @@ function marginCheck(params: {
   return { ok: true, marginSol };
 }
 
+<<<<<<< HEAD
+=======
+function marketplaceSettlementMode(opportunity: SwarmOpportunity): 'immediate' | 'deferred' {
+  const metadata = asRecord(opportunity.metadata);
+  const mode = asString(metadata?.settlementMode)?.toLowerCase();
+  return mode === 'deferred' ? 'deferred' : 'immediate';
+}
+
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 async function executeMarketplaceLifecycle(params: {
   agentId: string;
   opportunity: SwarmOpportunity;
@@ -363,6 +550,10 @@ async function executeMarketplaceLifecycle(params: {
   solPriceUsd: number;
 }): Promise<SwarmJobExecutionResult> {
   const { agentId, opportunity, assignment } = params;
+<<<<<<< HEAD
+=======
+  const settlementMode = marketplaceSettlementMode(opportunity);
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const common = {
     agentId,
     opportunityId: opportunity.id,
@@ -371,10 +562,18 @@ async function executeMarketplaceLifecycle(params: {
   };
 
   const costEstimate = params.estimatedFeeSol * Math.max(1, params.steps.length);
+<<<<<<< HEAD
   const margin = marginCheck({
     expectedRevenueSol: params.expectedRevenueSol,
     estimatedCostSol: costEstimate,
     minMarginSol: params.minMarginSol,
+=======
+  const effectiveMinMarginSol = Math.max(params.minMarginSol, nearMarketMinMarginSol(opportunity));
+  const margin = marginCheck({
+    expectedRevenueSol: params.expectedRevenueSol,
+    estimatedCostSol: costEstimate,
+    minMarginSol: effectiveMinMarginSol,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     requireExpectedRevenue: params.requireExpectedRevenue,
   });
 
@@ -389,7 +588,11 @@ async function executeMarketplaceLifecycle(params: {
       output: {
         expectedRevenueSol: params.expectedRevenueSol,
         estimatedCostSol: costEstimate,
+<<<<<<< HEAD
         minMarginSol: params.minMarginSol,
+=======
+        minMarginSol: effectiveMinMarginSol,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
         marginSol: margin.marginSol,
       },
     };
@@ -398,7 +601,17 @@ async function executeMarketplaceLifecycle(params: {
   const sourceHeaders = sourceAuthHeaders(opportunity.source, params.sourceAuth);
   const stepOutputs: Array<Record<string, unknown>> = [];
 
+<<<<<<< HEAD
   for (const step of params.steps) {
+=======
+  for (const rawStep of params.steps) {
+    const step = await maybeApplyNearMarketUndercut({
+      opportunity,
+      step: rawStep,
+      sourceHeaders,
+      timeoutMs: params.timeoutMs,
+    });
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     const method = step.method;
     const mergedHeaders: Record<string, string> = {
       ...sourceHeaders,
@@ -479,7 +692,17 @@ async function executeMarketplaceLifecycle(params: {
   }
 
   const realizedRevenueSol =
+<<<<<<< HEAD
     revenue.sol > 0 ? revenue.sol : params.expectedRevenueSol != null ? params.expectedRevenueSol : 0;
+=======
+    revenue.sol > 0
+      ? revenue.sol
+      : settlementMode === 'deferred'
+        ? 0
+        : params.expectedRevenueSol != null
+          ? params.expectedRevenueSol
+          : 0;
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
   const realizedRevenueUsd =
     revenue.usd > 0 ? revenue.usd : realizedRevenueSol > 0 ? realizedRevenueSol * params.solPriceUsd : 0;
 
@@ -491,7 +714,13 @@ async function executeMarketplaceLifecycle(params: {
     realizedRevenueUsd,
     output: {
       steps: stepOutputs,
+<<<<<<< HEAD
       estimatedCostSol: costEstimate,
+=======
+      settlementMode,
+      estimatedCostSol: costEstimate,
+      minMarginSol: effectiveMinMarginSol,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
       marginSol: margin.marginSol,
     },
   };
@@ -533,7 +762,17 @@ export async function executeAssignedOpportunity(params: {
   }
 
   const marketplaceSteps = marketplaceActionSteps(opportunity);
+<<<<<<< HEAD
   if (marketplaceSteps.length > 0 && (opportunity.source === 'relevance' || opportunity.source === 'agent_ai' || opportunity.source === 'kore')) {
+=======
+  if (
+    marketplaceSteps.length > 0 &&
+    (opportunity.source === 'relevance' ||
+      opportunity.source === 'agent_ai' ||
+      opportunity.source === 'kore' ||
+      opportunity.source === 'near_market')
+  ) {
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
     return executeMarketplaceLifecycle({
       agentId,
       opportunity,

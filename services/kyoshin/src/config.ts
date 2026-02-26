@@ -42,6 +42,20 @@ const envSchema = z.object({
     .default('false')
     .transform(v => v === 'true'),
   KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(180),
+<<<<<<< HEAD
+=======
+  KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SINGLE_INSTANCE_LOCK_PATH: optionalNonEmptyString,
+  KAMIYO_POLICY_HOT_RELOAD_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
+  KAMIYO_POLICY_HOT_RELOAD_ENV_FILE: optionalNonEmptyString,
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_DB_PATH: z.string().default('output/kyoshin/state.db'),
   KAMIYO_OUTBOX_DIR: z.string().default('output/kyoshin/outbox'),
@@ -117,6 +131,60 @@ const envSchema = z.object({
   KAMIYO_SWARM_KORE_FEED_URL: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_API_KEY: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_AUTH_HEADER: z.string().min(1).default('authorization'),
+<<<<<<< HEAD
+=======
+  KAMIYO_SWARM_NEAR_MARKET_FEED_URL: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_API_KEY: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER: z.string().min(1).default('authorization'),
+  KAMIYO_SWARM_NEAR_MARKET_AGENT_ID: optionalNonEmptyString,
+  KAMIYO_SWARM_NEAR_MARKET_BASE_URL: z.string().url().default('https://market.near.ai'),
+  KAMIYO_SWARM_NEAR_MARKET_NEAR_PRICE_USD: z.coerce.number().positive().default(4),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_BUDGET_NEAR: z.coerce.number().nonnegative().default(0.05),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_BUDGET_NEAR: z.coerce.number().positive().default(20),
+  KAMIYO_SWARM_NEAR_MARKET_BID_DISCOUNT_BPS: z.coerce.number().int().min(1).max(10_000).default(7000),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_BID_NEAR: z.coerce.number().nonnegative().default(0.03),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_BID_NEAR: z.coerce.number().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_MAX_EXISTING_BIDS: z.coerce.number().int().nonnegative().default(12),
+  KAMIYO_SWARM_NEAR_MARKET_ETA_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_SWARM_NEAR_MARKET_ALLOW_COMPETITION: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_PROPOSAL_TEMPLATE: z
+    .string()
+    .default('Autonomous delivery with proof artifacts, deterministic output, and deadline compliance.'),
+  KAMIYO_SWARM_NEAR_MARKET_MIN_MARGIN_SOL: z.coerce.number().nonnegative().default(0.001),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_SETTLEMENT_LIMIT: z.coerce.number().int().positive().default(50),
+  KAMIYO_SWARM_NEAR_MARKET_AUTO_SUBMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_LIMIT: z.coerce.number().int().positive().default(6),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_LIMIT: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_BACKOFF_MINUTES: z.coerce.number().int().positive().default(10),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_RETRY_MAX_BACKOFF_MINUTES: z.coerce.number().int().positive().default(180),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATE_AFTER_MINUTES: z.coerce.number().int().positive().default(45),
+  KAMIYO_SWARM_NEAR_MARKET_SUBMIT_ESCALATION_LIMIT: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_NEAR_MARKET_BID_SYNC_LIMIT: z.coerce.number().int().positive().default(300),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_STALE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES: z.coerce.number().int().positive().default(30),
+  KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT: z.coerce.number().int().positive().default(20),
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
   KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),
@@ -134,6 +202,36 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
+<<<<<<< HEAD
+=======
+  KAMIYO_SWARM_INTAKE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_INTAKE_MAX_OPEN: z.coerce.number().int().positive().default(16),
+  KAMIYO_SWARM_INTAKE_RETRY_LIMIT: z.coerce.number().int().positive().default(4),
+  KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS: z.coerce.number().int().positive().default(120),
+  KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS: z.coerce.number().int().positive().default(3600),
+  KAMIYO_SWARM_LEAD_CONVERSION_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK: z.coerce.number().int().positive().default(6),
+  KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD: z.coerce.number().nonnegative().default(12),
+  KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform(v => v === 'true'),
+  KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.6),
+  KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_SWARM_X402_ENABLED: z
     .enum(['true', 'false'])
@@ -168,6 +266,30 @@ const envSchema = z.object({
   KAMIYO_SWARM_ROLLBACK_SOURCE_MIN_JOBS: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_MAX_DISABLED_SOURCES: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS: z.coerce.number().int().positive().default(24),
+<<<<<<< HEAD
+=======
+  KAMIYO_REVENUE_POLICY_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
+  KAMIYO_REVENUE_MIN_NET_SOL: z.coerce.number().nonnegative().default(0.001),
+  KAMIYO_REVENUE_ROUTE_BPS: z.coerce.number().int().min(0).max(10_000).default(7000),
+  KAMIYO_REVENUE_RESERVE_BPS: z.coerce.number().int().min(0).max(10_000).default(2000),
+  KAMIYO_REVENUE_OPERATIONS_BPS: z.coerce.number().int().min(0).max(10_000).default(1000),
+  KAMIYO_SELF_IMPROVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  KAMIYO_SELF_IMPROVE_WINDOW_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_SELF_IMPROVE_MIN_JOBS: z.coerce.number().int().positive().default(10),
+  KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER: z.coerce.number().min(0).max(1).default(0.35),
+  KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER: z.coerce.number().min(0).max(1).default(0.1),
+  KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL: z.coerce.number().positive().default(0.0002),
+  KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL: z.coerce.number().nonnegative().default(0.0002),
+  KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK: z.coerce.number().int().positive().default(4),
+>>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KYOSHIN_HTTP_ENABLED: z
     .enum(['true', 'false'])

@@ -1,0 +1,25 @@
+[Unit]
+Description=Kamiyo Kyoshin Exec Runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=__KAMIYO_APP_ROOT__
+EnvironmentFile=/etc/kamiyo/kyoshin-exec.env
+ExecStart=/bin/bash -lc 'corepack pnpm --filter @kamiyo/kyoshin start'
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
