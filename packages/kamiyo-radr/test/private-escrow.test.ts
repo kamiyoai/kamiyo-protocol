@@ -8,12 +8,14 @@ import { PrivateEscrowHandler } from '../src/escrow/private-escrow';
 
 // Mock @radr/shadowwire
 vi.mock('@radr/shadowwire', () => ({
-  ShadowWireClient: vi.fn().mockImplementation(() => ({
-    getBalance: vi.fn().mockResolvedValue({ available: 10, poolAddress: 'pool123' }),
-    deposit: vi.fn().mockResolvedValue({ transaction: {} }),
-    withdraw: vi.fn().mockResolvedValue({ transaction: {} }),
-    transfer: vi.fn().mockResolvedValue({ success: true, signature: 'sig123' }),
-  })),
+  ShadowWireClient: vi.fn(function MockShadowWireClient() {
+    return {
+      getBalance: vi.fn().mockResolvedValue({ available: 10, poolAddress: 'pool123' }),
+      deposit: vi.fn().mockResolvedValue({ transaction: {} }),
+      withdraw: vi.fn().mockResolvedValue({ transaction: {} }),
+      transfer: vi.fn().mockResolvedValue({ success: true, signature: 'sig123' }),
+    };
+  }),
 }));
 
 // Mock circomlibjs to fail import - forces SHA-256 fallback

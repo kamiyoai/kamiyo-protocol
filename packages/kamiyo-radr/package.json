@@ -30,8 +30,8 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run test/*.test.ts",
+    "test:watch": "vitest test/*.test.ts",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },

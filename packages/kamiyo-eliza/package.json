@@ -54,8 +54,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run src/**/*.test.ts",
+    "test:watch": "vitest src/**/*.test.ts"
   },
   "keywords": [
     "elizaos",
