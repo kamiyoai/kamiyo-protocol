@@ -144,6 +144,17 @@ const DEFAULT_FUNDRY_TX_ALLOWED_PROGRAM_IDS = [
   'AddressLookupTab1e1111111111111111111111111',
   'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb', // Token-2022 (only if used)
 ];
+const FUNDRY_HTTP_TIMEOUT_MS = 20_000;
+const FUNDRY_HTTP_RETRIES = 3;
+const FUNDRY_HTTP_BASE_BACKOFF_MS = 400;
+const FUNDRY_HTTP_MAX_BACKOFF_MS = 6_000;
+const RETRYABLE_HTTP_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+type HttpError = Error & {
+  status?: number;
+  retryable?: boolean;
+  retryAfterMs?: number;
+};
 
 export async function secureLaunchToken(
   params: {
@@ -398,42 +409,66 @@ async function callFundryMCP(
   args: Record<string, unknown>
 ): Promise<unknown> {
   const url = (endpoint || 'https://fundry.collaterize.com/api/mcp/mcp').replace(/\/+$/, '');
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  let lastError: Error | null = null;
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json, text/event-stream',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'tools/call',
-        params: { name: tool, arguments: args },
-      }),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timeout);
+  for (let attempt = 0; attempt <= FUNDRY_HTTP_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FUNDRY_HTTP_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: tool, arguments: args },
+        }),
+        signal: controller.signal,
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        const detail = raw.trim();
+        const error = new Error(
+          'Fundry API ' + response.status + (detail ? ': ' + detail.slice(0, 200) : '')
+        ) as HttpError;
+        error.status = response.status;
+        error.retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
+        error.retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+        throw error;
+      }
+
+      const rpc = parseMcpJsonRpc(raw);
+      const content = rpc?.result?.content?.[0]?.text;
+      if (typeof content !== 'string' || content.trim().length === 0) {
+        throw new Error('Empty Fundry response content');
+      }
+
+      return JSON.parse(content);
+    } catch (error: unknown) {
+      const normalized = normalizeFundryHttpError(error);
+      lastError = normalized;
+      const shouldRetry = attempt < FUNDRY_HTTP_RETRIES && isRetryableFundryError(normalized);
+      if (!shouldRetry) {
+        throw normalized;
+      }
+      const backoffMs = computeFundryBackoffMs({
+        error: normalized,
+        attempt,
+        baseDelayMs: FUNDRY_HTTP_BASE_BACKOFF_MS,
+        maxDelayMs: FUNDRY_HTTP_MAX_BACKOFF_MS,
+      });
+      await sleep(backoffMs);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
-  const raw = await response.text();
-  if (!response.ok) {
-    const detail = raw.trim();
-    throw new Error('Fundry API ' + response.status + (detail ? ': ' + detail.slice(0, 200) : ''));
-  }
-
-  const rpc = parseMcpJsonRpc(raw);
-  const content = rpc?.result?.content?.[0]?.text;
-  if (typeof content !== 'string' || content.trim().length === 0) {
-    throw new Error('Empty Fundry response content');
-  }
-
-  return JSON.parse(content);
+  throw (lastError ?? new Error('Fundry request failed'));
 }
 
 type McpJsonRpcResponse = {
@@ -573,6 +608,83 @@ function stringish(value: unknown): string | null {
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return;
+  const trimmed = value.trim();
+  if (!trimmed) return;
+
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+
+  const dateMs = Date.parse(trimmed);
+  if (!Number.isFinite(dateMs)) return;
+  const delay = dateMs - Date.now();
+  if (delay <= 0) return;
+  return delay;
+}
+
+function normalizeFundryHttpError(error: unknown): Error {
+  if (error instanceof Error && error.name === 'AbortError') {
+    const timeoutError = new Error(
+      `Fundry request timed out after ${FUNDRY_HTTP_TIMEOUT_MS}ms`
+    ) as HttpError;
+    timeoutError.retryable = true;
+    return timeoutError;
+  }
+  if (error instanceof Error) return error;
+  return new Error(String(error));
+}
+
+function isHttpError(error: unknown): error is HttpError {
+  if (!(error instanceof Error)) return false;
+  return (
+    typeof (error as HttpError).status === 'number' ||
+    typeof (error as HttpError).retryable === 'boolean'
+  );
+}
+
+function isRetryableFundryError(error: Error): boolean {
+  if (isHttpError(error)) {
+    if (error.retryable === true) return true;
+    if (typeof error.status === 'number') return RETRYABLE_HTTP_STATUSES.has(error.status);
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('timed out') ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('socket')
+  );
+}
+
+function computeFundryBackoffMs(params: {
+  error: Error;
+  attempt: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}): number {
+  if (
+    isHttpError(params.error) &&
+    typeof params.error.retryAfterMs === 'number' &&
+    params.error.retryAfterMs > 0
+  ) {
+    return Math.min(params.error.retryAfterMs, params.maxDelayMs);
+  }
+
+  const raw = Math.min(params.baseDelayMs * Math.pow(2, params.attempt), params.maxDelayMs);
+  return Math.max(25, Math.round(raw * (0.5 + Math.random() * 0.5)));
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function joinWarnings(existing: string | undefined, next: string | undefined): string | undefined {

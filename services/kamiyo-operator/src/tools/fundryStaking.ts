@@ -3,6 +3,24 @@ import { Connection, Keypair, Transaction } from '@solana/web3.js';
 type JsonObject = Record<string, unknown>;
 const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
 const DEFAULT_CONFIRM_TIMEOUT_MS = 30_000;
+const DEFAULT_HTTP_RETRY_ATTEMPTS = 3;
+const DEFAULT_HTTP_RETRY_BASE_DELAY_MS = 350;
+const DEFAULT_HTTP_RETRY_MAX_DELAY_MS = 5_000;
+const RETRYABLE_HTTP_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+type HttpError = Error & {
+  status?: number;
+  retryAfterMs?: number;
+  retryable?: boolean;
+};
+
+type FetchJsonInit = RequestInit & {
+  timeoutMs?: number;
+  retries?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
+  retryLabel?: string;
+};
 
 export type FundryClaimablePeriod = {
   periodNumber: number;
@@ -35,32 +53,67 @@ function normalizeApiBase(apiBase: string): string {
 
 async function fetchJson<T>(
   url: string,
-  init?: RequestInit & { timeoutMs?: number }
+  init?: FetchJsonInit
 ): Promise<T> {
-  const { timeoutMs = DEFAULT_HTTP_TIMEOUT_MS, ...requestInit } = init ?? {};
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      ...requestInit,
-      signal: controller.signal,
-    });
-    const payload = (await response.json().catch(() => ({}))) as JsonObject;
+  const {
+    timeoutMs = DEFAULT_HTTP_TIMEOUT_MS,
+    retries = DEFAULT_HTTP_RETRY_ATTEMPTS,
+    retryBaseDelayMs = DEFAULT_HTTP_RETRY_BASE_DELAY_MS,
+    retryMaxDelayMs = DEFAULT_HTTP_RETRY_MAX_DELAY_MS,
+    retryLabel = 'fundry_http',
+    ...requestInit
+  } = init ?? {};
+  const maxRetries = Math.max(0, Math.trunc(retries));
+  let lastError: unknown;
 
-    if (!response.ok) {
-      const error = typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`;
-      throw new Error(error);
-    }
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...requestInit,
+        signal: controller.signal,
+      });
+      const raw = await response.text();
+      const payload = parseJsonPayload(raw);
+      const payloadObj = asJsonObject(payload);
 
-    return payload as T;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
+      if (!response.ok) {
+        const error = new Error(
+          typeof payloadObj.error === 'string' ? payloadObj.error : `HTTP ${response.status}`
+        ) as HttpError;
+        error.status = response.status;
+        error.retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
+        error.retryable = RETRYABLE_HTTP_STATUSES.has(response.status);
+        throw error;
+      }
+
+      return payload as T;
+    } catch (error) {
+      const normalized = normalizeFetchError(error, timeoutMs);
+      const shouldRetry = attempt < maxRetries && isRetryableError(normalized);
+      if (!shouldRetry) {
+        throw normalized;
+      }
+      const backoffMs = computeRetryDelayMs({
+        error: normalized,
+        attempt,
+        retryBaseDelayMs,
+        retryMaxDelayMs,
+      });
+      const statusSuffix =
+        isHttpError(normalized) && normalized.status ? ` status=${normalized.status}` : '';
+      console.warn(
+        `[fundry-staking] retry ${retryLabel} attempt=${attempt + 1}/${maxRetries}${statusSuffix} waitMs=${backoffMs}`
+      );
+      await sleep(backoffMs);
+      lastError = normalized;
+    } finally {
+      clearTimeout(timer);
     }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+
+  throw (lastError instanceof Error ? lastError : new Error(String(lastError)));
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
@@ -101,6 +154,93 @@ function parseLamportsNumber(value: unknown): bigint | null {
   return BigInt(Math.floor(value * 1e9));
 }
 
+function parseJsonPayload(raw: string): unknown {
+  if (!raw.trim()) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function asJsonObject(value: unknown): JsonObject {
+  if (!value || typeof value !== 'object') return {};
+  return value as JsonObject;
+}
+
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return;
+  const trimmed = value.trim();
+  if (!trimmed) return;
+
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+
+  const dateMs = Date.parse(trimmed);
+  if (!Number.isFinite(dateMs)) return;
+  const delay = dateMs - Date.now();
+  if (delay <= 0) return;
+  return delay;
+}
+
+function isHttpError(error: unknown): error is HttpError {
+  if (!(error instanceof Error)) return false;
+  return (
+    typeof (error as HttpError).status === 'number' ||
+    typeof (error as HttpError).retryable === 'boolean'
+  );
+}
+
+function normalizeFetchError(error: unknown, timeoutMs: number): Error {
+  if (error instanceof Error && error.name === 'AbortError') {
+    const timeoutError = new Error(`Request timed out after ${timeoutMs}ms`) as HttpError;
+    timeoutError.retryable = true;
+    return timeoutError;
+  }
+  if (error instanceof Error) return error;
+  return new Error(String(error));
+}
+
+function isRetryableError(error: Error): boolean {
+  if (isHttpError(error)) {
+    if (error.retryable === true) return true;
+    if (typeof error.status === 'number') return RETRYABLE_HTTP_STATUSES.has(error.status);
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('timed out') ||
+    message.includes('network') ||
+    message.includes('fetch failed') ||
+    message.includes('econnreset') ||
+    message.includes('etimedout') ||
+    message.includes('socket')
+  );
+}
+
+function computeRetryDelayMs(params: {
+  error: Error;
+  attempt: number;
+  retryBaseDelayMs: number;
+  retryMaxDelayMs: number;
+}): number {
+  const { error, attempt, retryBaseDelayMs, retryMaxDelayMs } = params;
+  if (isHttpError(error) && typeof error.retryAfterMs === 'number' && error.retryAfterMs > 0) {
+    return Math.min(error.retryAfterMs, retryMaxDelayMs);
+  }
+
+  const raw = Math.min(retryBaseDelayMs * Math.pow(2, attempt), retryMaxDelayMs);
+  const jitter = raw * (0.5 + Math.random() * 0.5);
+  return Math.max(25, Math.round(jitter));
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export function getClaimableLamports(position: FundryUserPosition): bigint {
   const rewards = position.rewards ?? ({} as FundryUserPosition['rewards']);
 
@@ -129,13 +269,24 @@ export async function readFundryUserPosition(params: {
   poolAddress: string;
   wallet: string;
   timeoutMs?: number;
+  retries?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
 }): Promise<FundryUserPosition> {
-  const { apiBase, poolAddress, wallet, timeoutMs } = params;
+  const { apiBase, poolAddress, wallet, timeoutMs, retries, retryBaseDelayMs, retryMaxDelayMs } =
+    params;
   const base = normalizeApiBase(apiBase);
   const query = new URLSearchParams({ wallet }).toString();
-  return fetchJson<FundryUserPosition>(`${base}/api/staking/pools/${poolAddress}/user-position?${query}`, {
-    timeoutMs,
-  });
+  return fetchJson<FundryUserPosition>(
+    `${base}/api/staking/pools/${poolAddress}/user-position?${query}`,
+    {
+      timeoutMs,
+      retries,
+      retryBaseDelayMs,
+      retryMaxDelayMs,
+      retryLabel: 'read_user_position',
+    }
+  );
 }
 
 export async function claimFundryStakingPeriods(params: {
@@ -146,6 +297,9 @@ export async function claimFundryStakingPeriods(params: {
   periodNumbers: number[];
   requestTimeoutMs?: number;
   confirmTimeoutMs?: number;
+  retries?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
 }): Promise<FundryClaimResult[]> {
   const {
     connection,
@@ -154,6 +308,9 @@ export async function claimFundryStakingPeriods(params: {
     signer,
     requestTimeoutMs,
     confirmTimeoutMs = DEFAULT_CONFIRM_TIMEOUT_MS,
+    retries,
+    retryBaseDelayMs,
+    retryMaxDelayMs,
   } = params;
   const base = normalizeApiBase(apiBase);
   const claims: FundryClaimResult[] = [];
@@ -171,6 +328,10 @@ export async function claimFundryStakingPeriods(params: {
           periodNumber,
         }),
         timeoutMs: requestTimeoutMs,
+        retries,
+        retryBaseDelayMs,
+        retryMaxDelayMs,
+        retryLabel: `prepare_claim:${periodNumber}`,
       }
     );
 
@@ -183,6 +344,10 @@ export async function claimFundryStakingPeriods(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transaction: signedTxBase64 }),
       timeoutMs: requestTimeoutMs,
+      retries,
+      retryBaseDelayMs,
+      retryMaxDelayMs,
+      retryLabel: `submit_claim:${periodNumber}`,
     });
 
     const signature = extractSignature(submitResult);

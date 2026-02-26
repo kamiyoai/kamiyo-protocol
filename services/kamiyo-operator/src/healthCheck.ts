@@ -19,6 +19,12 @@ type ActionErrorRow = {
   error: string;
 };
 
+type FundryAggregateRow = {
+  total: number;
+  failed: number;
+  rateLimited: number;
+};
+
 function envNumber(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -37,16 +43,31 @@ function resolvePath(inputPath: string): string {
   return path.isAbsolute(inputPath) ? inputPath : path.resolve(SERVICE_DIR, inputPath);
 }
 
+function isRateLimitError(error: string | null | undefined): boolean {
+  if (!error) return false;
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes('429') ||
+    normalized.includes('too many requests') ||
+    normalized.includes('rate limit')
+  );
+}
+
 function main(): void {
   const dbPath = resolvePath(process.env.KAMIYO_DB_PATH ?? 'output/kamiyo-operator/state.db');
   const staleMinutes = envNumber('KAMIYO_ALERT_STALE_MINUTES', 70);
   const runningStaleMinutes = envNumber('KAMIYO_ALERT_RUNNING_STALE_MINUTES', staleMinutes);
   const claimErrorLookbackHours = envNumber('KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS', 24);
   const stakeErrorLookbackHours = envNumber('KAMIYO_ALERT_STAKE_ERROR_LOOKBACK_HOURS', claimErrorLookbackHours);
+  const fundryLookbackHours = envNumber('KAMIYO_ALERT_FUNDRY_LOOKBACK_HOURS', 1);
+  const fundryMinAttempts = envNumber('KAMIYO_ALERT_FUNDRY_MIN_ATTEMPTS', 5);
+  const fundryMaxErrorRate = envNumber('KAMIYO_ALERT_FUNDRY_MAX_ERROR_RATE', 0.25);
+  const fundryMax429Count = envNumber('KAMIYO_ALERT_FUNDRY_MAX_429_COUNT', 8);
   const nowMs = Date.now();
   const nowIso = new Date(nowMs).toISOString();
   const claimLookbackIso = new Date(nowMs - claimErrorLookbackHours * 3_600_000).toISOString();
   const stakeLookbackIso = new Date(nowMs - stakeErrorLookbackHours * 3_600_000).toISOString();
+  const fundryLookbackIso = new Date(nowMs - fundryLookbackHours * 3_600_000).toISOString();
   const minLookbackIso = claimLookbackIso < stakeLookbackIso ? claimLookbackIso : stakeLookbackIso;
 
   const db = new Database(dbPath, { readonly: true });
@@ -120,6 +141,73 @@ function main(): void {
     );
   }
 
+  const fundryAgg = db
+    .prepare(
+      `SELECT
+         COUNT(1) AS total,
+         SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) AS failed,
+         SUM(
+           CASE
+             WHEN error IS NOT NULL AND (
+               INSTR(error, '429') > 0 OR
+               INSTR(lower(error), 'too many requests') > 0 OR
+               INSTR(lower(error), 'rate limit') > 0
+             )
+             THEN 1
+             ELSE 0
+           END
+         ) AS rateLimited
+       FROM actions
+       WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+         AND at >= ?`
+    )
+    .get(fundryLookbackIso) as FundryAggregateRow;
+  const fundryTotal = fundryAgg.total ?? 0;
+  const fundryFailed = fundryAgg.failed ?? 0;
+  const fundryRateLimited = fundryAgg.rateLimited ?? 0;
+  const fundryErrorRate = fundryTotal > 0 ? fundryFailed / fundryTotal : 0;
+
+  if (fundryTotal >= fundryMinAttempts && fundryErrorRate > fundryMaxErrorRate) {
+    const latestFundryError = db
+      .prepare(
+        `SELECT tool, at, error
+         FROM actions
+         WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+           AND error IS NOT NULL
+           AND at >= ?
+         ORDER BY at DESC
+         LIMIT 1`
+      )
+      .get(fundryLookbackIso) as ActionErrorRow | undefined;
+    const latestSuffix = latestFundryError
+      ? ` (latest ${latestFundryError.tool} ${latestFundryError.at}: ${latestFundryError.error})`
+      : '';
+    alerts.push(
+      `fundry claim error rate high in last ${fundryLookbackHours}h: ${(fundryErrorRate * 100).toFixed(1)}% (${fundryFailed}/${fundryTotal}) > ${(fundryMaxErrorRate * 100).toFixed(1)}%${latestSuffix}`
+    );
+  }
+
+  if (fundryRateLimited > fundryMax429Count) {
+    const fundry429Rows = db
+      .prepare(
+        `SELECT tool, at, error
+         FROM actions
+         WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+           AND error IS NOT NULL
+           AND at >= ?
+         ORDER BY at DESC
+         LIMIT 50`
+      )
+      .all(fundryLookbackIso) as ActionErrorRow[];
+    const latest429 = fundry429Rows.find(row => isRateLimitError(row.error));
+    const latestSuffix = latest429
+      ? ` (latest ${latest429.tool} ${latest429.at}: ${latest429.error})`
+      : '';
+    alerts.push(
+      `fundry claim 429/rate-limit errors high in last ${fundryLookbackHours}h: ${fundryRateLimited} > ${fundryMax429Count}${latestSuffix}`
+    );
+  }
+
   db.close();
 
   if (alerts.length > 0) {
@@ -130,7 +218,7 @@ function main(): void {
   }
 
   console.log(
-    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} runningStaleThresholdMinutes=${runningStaleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours} stakeErrorLookbackHours=${stakeErrorLookbackHours}`
+    `[kamiyo-operator alert] ok at=${nowIso} staleThresholdMinutes=${staleMinutes} runningStaleThresholdMinutes=${runningStaleMinutes} claimErrorLookbackHours=${claimErrorLookbackHours} stakeErrorLookbackHours=${stakeErrorLookbackHours} fundryLookbackHours=${fundryLookbackHours} fundryAttempts=${fundryTotal} fundryErrorRate=${fundryErrorRate.toFixed(4)} fundry429Count=${fundryRateLimited}`
   );
 }
 

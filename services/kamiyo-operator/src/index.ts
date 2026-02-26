@@ -172,6 +172,86 @@ function prometheusLine(name: string, value: number, labels?: Record<string, str
   return `${name}{${serializedLabels}} ${safeValue}`;
 }
 
+const FUNDRY_ACTION_TOOLS = ['kyoshin_staking_claim', 'swarm_agent_staking_claim'] as const;
+const FUNDRY_ACTION_TOOL_SET = new Set<string>(FUNDRY_ACTION_TOOLS);
+
+function isRateLimitErrorMessage(error: string | null | undefined): boolean {
+  if (!error) return false;
+  const normalized = error.toLowerCase();
+  return (
+    normalized.includes('429') ||
+    normalized.includes('too many requests') ||
+    normalized.includes('rate limit')
+  );
+}
+
+function fundryTimeoutBudgetMs(params: {
+  timeoutMs: number;
+  retries: number;
+  maxBackoffMs: number;
+  requestCount?: number;
+  floorMs?: number;
+}): number {
+  const requests = Math.max(1, params.requestCount ?? 1);
+  const attemptsPerRequest = Math.max(1, Math.trunc(params.retries) + 1);
+  const retryCount = Math.max(0, attemptsPerRequest - 1);
+  const perRequestBudget = params.timeoutMs * attemptsPerRequest + params.maxBackoffMs * retryCount;
+  return Math.max(params.floorMs ?? 0, perRequestBudget * requests);
+}
+
+function summarizeFundryActions(actions: Array<{ tool: string; error: string | null }>): {
+  total: number;
+  failed: number;
+  rateLimited: number;
+  byTool: Record<string, { total: number; failed: number; rateLimited: number }>;
+} {
+  const byTool: Record<string, { total: number; failed: number; rateLimited: number }> = {};
+  let failed = 0;
+  let rateLimited = 0;
+
+  for (const action of actions) {
+    if (!FUNDRY_ACTION_TOOL_SET.has(action.tool)) continue;
+    const toolStats = byTool[action.tool] ?? { total: 0, failed: 0, rateLimited: 0 };
+    toolStats.total += 1;
+    if (action.error) {
+      toolStats.failed += 1;
+      failed += 1;
+      if (isRateLimitErrorMessage(action.error)) {
+        toolStats.rateLimited += 1;
+        rateLimited += 1;
+      }
+    }
+    byTool[action.tool] = toolStats;
+  }
+
+  const total = Object.values(byTool).reduce((sum, row) => sum + row.total, 0);
+  return { total, failed, rateLimited, byTool };
+}
+
+function fundryReadTimeoutBudgetMs(): number {
+  return fundryTimeoutBudgetMs({
+    timeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
+    retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+    maxBackoffMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
+    floorMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
+  });
+}
+
+function fundryClaimTimeoutBudgetMs(periodCount: number): number {
+  const periods = Math.max(1, periodCount);
+  const confirmTimeoutMs = Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 30_000);
+  return (
+    fundryTimeoutBudgetMs({
+      timeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
+      retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+      maxBackoffMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
+      requestCount: periods * 2,
+      floorMs: Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 45_000),
+    }) +
+    confirmTimeoutMs * periods
+  );
+}
+
 function renderPrometheusMetrics(params: {
   db: ReturnType<typeof openDb>;
   nowIso: string;
@@ -198,6 +278,16 @@ function renderPrometheusMetrics(params: {
     nowIso: params.nowIso,
   });
   const rollbackSources = Object.values(rollbackState.sources).filter(value => value != null);
+  const fundryWindowStartIso = minutesAgoIso(env.KAMIYO_FUNDRY_METRICS_WINDOW_MINUTES, now);
+  const fundryActions = params.db.actionsSince(fundryWindowStartIso);
+  const fundryStats = summarizeFundryActions(
+    fundryActions.map(action => ({
+      tool: action.tool,
+      error: action.error,
+    }))
+  );
+  const fundryErrorRate = fundryStats.total > 0 ? fundryStats.failed / fundryStats.total : 0;
+  const fundryWindowLabel = String(env.KAMIYO_FUNDRY_METRICS_WINDOW_MINUTES);
 
   const lines = [
     '# HELP kamiyo_process_up Process health state (1 = up).',
@@ -227,6 +317,52 @@ function renderPrometheusMetrics(params: {
     ...revenueSummary.byLane.map(lane =>
       prometheusLine('kamiyo_swarm_revenue_events', lane.events, { lane: lane.lane })
     ),
+    '# HELP kamiyo_fundry_claim_actions_total Fundry claim actions observed in the recent metrics window.',
+    '# TYPE kamiyo_fundry_claim_actions_total gauge',
+    prometheusLine('kamiyo_fundry_claim_actions_total', fundryStats.total, {
+      status: 'total',
+      window_minutes: fundryWindowLabel,
+    }),
+    prometheusLine('kamiyo_fundry_claim_actions_total', fundryStats.failed, {
+      status: 'failed',
+      window_minutes: fundryWindowLabel,
+    }),
+    prometheusLine('kamiyo_fundry_claim_actions_total', fundryStats.rateLimited, {
+      status: 'rate_limited',
+      window_minutes: fundryWindowLabel,
+    }),
+    '# HELP kamiyo_fundry_claim_error_rate Fundry claim action error rate in the recent metrics window.',
+    '# TYPE kamiyo_fundry_claim_error_rate gauge',
+    prometheusLine('kamiyo_fundry_claim_error_rate', fundryErrorRate, {
+      window_minutes: fundryWindowLabel,
+    }),
+    '# HELP kamiyo_fundry_claim_actions_by_tool Fundry claim actions by tool and status in the recent metrics window.',
+    '# TYPE kamiyo_fundry_claim_actions_by_tool gauge',
+    ...(Object.entries(fundryStats.byTool).length === 0
+      ? [
+          prometheusLine('kamiyo_fundry_claim_actions_by_tool', 0, {
+            tool: 'none',
+            status: 'total',
+            window_minutes: fundryWindowLabel,
+          }),
+        ]
+      : Object.entries(fundryStats.byTool).flatMap(([tool, stats]) => [
+          prometheusLine('kamiyo_fundry_claim_actions_by_tool', stats.total, {
+            tool,
+            status: 'total',
+            window_minutes: fundryWindowLabel,
+          }),
+          prometheusLine('kamiyo_fundry_claim_actions_by_tool', stats.failed, {
+            tool,
+            status: 'failed',
+            window_minutes: fundryWindowLabel,
+          }),
+          prometheusLine('kamiyo_fundry_claim_actions_by_tool', stats.rateLimited, {
+            tool,
+            status: 'rate_limited',
+            window_minutes: fundryWindowLabel,
+          }),
+        ])),
     '# HELP kamiyo_swarm_rollback_source_disabled Whether a source is currently disabled by rollback policy.',
     '# TYPE kamiyo_swarm_rollback_source_disabled gauge',
   ];
@@ -2501,8 +2637,11 @@ async function main(): Promise<void> {
                 poolAddress: kyoshinPool,
                 wallet: claimerAddress,
                 timeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
+                retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+                retryBaseDelayMs: env.KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS,
+                retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
               }),
-              env.KAMIYO_RPC_READ_TIMEOUT_MS,
+              fundryReadTimeoutBudgetMs(),
               'read_kyoshin_staking_position timed out'
             );
             const claimableLamports = getClaimableLamports(position);
@@ -2550,8 +2689,11 @@ async function main(): Promise<void> {
                     periodNumbers,
                     requestTimeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
                     confirmTimeoutMs: Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 30_000),
+                    retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+                    retryBaseDelayMs: env.KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS,
+                    retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
                   }),
-                  Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 45_000),
+                  fundryClaimTimeoutBudgetMs(periodNumbers.length),
                   'claim_kyoshin_staking_periods timed out'
                 );
 
@@ -3276,8 +3418,11 @@ async function main(): Promise<void> {
                       poolAddress: agentProfile.sourceStakingPool,
                       wallet: claimerAddress,
                       timeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
+                      retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+                      retryBaseDelayMs: env.KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS,
+                      retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
                     }),
-                    env.KAMIYO_RPC_READ_TIMEOUT_MS,
+                    fundryReadTimeoutBudgetMs(),
                     `read_swarm_agent_staking_position timed out (${agentProfile.id})`
                   );
                   const claimableLamports = getClaimableLamports(position);
@@ -3318,8 +3463,11 @@ async function main(): Promise<void> {
                         periodNumbers,
                         requestTimeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
                         confirmTimeoutMs: Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 30_000),
+                        retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
+                        retryBaseDelayMs: env.KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS,
+                        retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
                       }),
-                      Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 45_000),
+                      fundryClaimTimeoutBudgetMs(periodNumbers.length),
                       `claim_swarm_agent_staking_periods timed out (${agentProfile.id})`
                     );
 

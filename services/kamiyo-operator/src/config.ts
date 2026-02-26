@@ -48,6 +48,10 @@ const envSchema = z.object({
   KAMIYO_FEE_VAULT: optionalNonEmptyString,
   KAMIYO_STAKING_POOL: optionalNonEmptyString,
   KAMIYO_FUNDRY_API_BASE_URL: z.string().url().default('https://fundry.collaterize.com'),
+  KAMIYO_FUNDRY_HTTP_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS: z.coerce.number().int().positive().default(350),
+  KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS: z.coerce.number().int().positive().default(5000),
+  KAMIYO_FUNDRY_METRICS_WINDOW_MINUTES: z.coerce.number().int().positive().default(60),
   KAMIYO_KYOSHIN_STAKING_POOL: optionalNonEmptyString,
   KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH: optionalNonEmptyString,
   KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY: optionalNonEmptyString,
@@ -308,6 +312,11 @@ const envSchema = z.object({
   KAMIYO_ALERT_STALE_MINUTES: z.coerce.number().int().positive().default(70),
   KAMIYO_ALERT_RUNNING_STALE_MINUTES: z.coerce.number().int().positive().default(70),
   KAMIYO_ALERT_CLAIM_ERROR_LOOKBACK_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_ALERT_STAKE_ERROR_LOOKBACK_HOURS: z.coerce.number().int().positive().default(24),
+  KAMIYO_ALERT_FUNDRY_LOOKBACK_HOURS: z.coerce.number().int().positive().default(1),
+  KAMIYO_ALERT_FUNDRY_MIN_ATTEMPTS: z.coerce.number().int().nonnegative().default(5),
+  KAMIYO_ALERT_FUNDRY_MAX_ERROR_RATE: z.coerce.number().min(0).max(1).default(0.25),
+  KAMIYO_ALERT_FUNDRY_MAX_429_COUNT: z.coerce.number().int().nonnegative().default(8),
 });
 
 export type Env = z.infer<typeof envSchema>;
