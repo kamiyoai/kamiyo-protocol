@@ -46,6 +46,7 @@ run() {
     "kyoshin-sync-feed-config.py"
     "kyoshin-marketplace-intake.py"
     "kyoshin-x402-feed.py"
+    "kyoshin-dx-terminal-feed.py"
     "kyoshin-receipt-sync.py"
     "kyoshin-context-guard.py"
     "kyoshin-tool-health.py"
@@ -68,15 +69,19 @@ run() {
   append_env_if_missing "KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS" "true"
   append_env_if_missing "KYO_REQUIRE_KYOSHIN_RUNTIME" "true"
   append_env_if_missing "KYO_X402_GENERATED_FEED_ENABLED" "true"
+  append_env_if_missing "KYO_DX_TERMINAL_ENABLED" "true"
+  append_env_if_missing "KYO_DX_TERMINAL_GENERATED_FEED_ENABLED" "true"
   if [ -n "$KYOSHIN_DB_PATH" ]; then
     append_env_if_missing "KYO_KYOSHIN_DB_PATH" "$KYOSHIN_DB_PATH"
   fi
   if [[ "$ENFORCE_REVENUE_GATES" =~ ^(1|true|TRUE|True|yes|YES|on|ON)$ ]]; then
     append_env_if_missing "KYO_REQUIRE_X402_FEED" "true"
     append_env_if_missing "KYO_REQUIRE_RECEIPT_SYNC" "true"
+    append_env_if_missing "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   else
     append_env_if_missing "KYO_REQUIRE_X402_FEED" "false"
     append_env_if_missing "KYO_REQUIRE_RECEIPT_SYNC" "false"
+    append_env_if_missing "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   fi
 
   local has_systemctl=0
@@ -116,6 +121,14 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/x402-feed-state.json\"
     else
       echo 'missing x402-feed-state.json'
+    fi
+
+    echo
+    echo '--- dx-terminal-feed-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/dx-terminal-feed-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/dx-terminal-feed-state.json\"
+    else
+      echo 'missing dx-terminal-feed-state.json'
     fi
 
     echo
