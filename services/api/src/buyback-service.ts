@@ -5,6 +5,7 @@ import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddress, createBurnCheckedInstruction, createTransferCheckedInstruction, getAccount } from '@solana/spl-token';
 import { logger } from './logger';
 import { getSolanaConnection } from './solana';
+import { enforceSurfpoolPreflight } from './surfpool-gate';
 import {
   buybackExecutionTotal,
   buybackSolSpentTotal,
@@ -272,6 +273,13 @@ export class BuybackService {
         })
       );
 
+      await enforceSurfpoolPreflight({
+        label: 'buyback.withdrawTreasury',
+        transaction: tx,
+        connection: this.connection,
+        signer: authority,
+      });
+
       const signature = await sendAndConfirmTransaction(this.connection, tx, [authority], { commitment: 'confirmed' });
       logger.info('Treasury withdrawal', { lamports, destination: destinationAddress, signature });
 
@@ -452,6 +460,14 @@ export class BuybackService {
             TOKEN_2022_PROGRAM_ID,
           );
           const tx = new Transaction().add(burnIx);
+
+          await enforceSurfpoolPreflight({
+            label: 'buyback.burn',
+            transaction: tx,
+            connection: this.connection,
+            signer: authority,
+          });
+
           burnSig = await sendAndConfirmTransaction(this.connection, tx, [authority], { commitment: 'confirmed' });
 
           logger.info('Buyback burn executed', {
@@ -479,6 +495,14 @@ export class BuybackService {
             TOKEN_2022_PROGRAM_ID,
           );
           const tx = new Transaction().add(transferIx);
+
+          await enforceSurfpoolPreflight({
+            label: 'buyback.stakingTransfer',
+            transaction: tx,
+            connection: this.connection,
+            signer: authority,
+          });
+
           stakingSig = await sendAndConfirmTransaction(this.connection, tx, [authority], { commitment: 'confirmed' });
 
           logger.info('Buyback staking transfer executed', {

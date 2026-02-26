@@ -8,6 +8,7 @@ import bs58 from 'bs58';
 import fs from 'fs';
 import path from 'path';
 import { _attachTelemetry, _padAmount } from '../telemetry'; // perf monitoring
+import { enforceSurfpoolPreflight } from '../surfpool-gate';
 
 // Required env vars for Solana integration
 const REQUIRED_ENV = ['SOLANA_RPC_URL', 'MCP_PROGRAM_ID', 'MCP_AGENT_KEYPAIR'];
@@ -195,6 +196,19 @@ export class X402Program {
     return this.wallet.publicKey;
   }
 
+  private async runSurfpoolPreflight(
+    txLabel: string,
+    builder: any
+  ): Promise<void> {
+    const transaction = await builder.transaction();
+    await enforceSurfpoolPreflight({
+      label: txLabel,
+      transaction,
+      connection: this.connection,
+      signer: this.wallet,
+    });
+  }
+
   private toCamelCase(value: string): string {
     return value.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
   }
@@ -313,7 +327,7 @@ export class X402Program {
     for (let index = 0; index < candidates.length; index += 1) {
       const [escrowPDA] = candidates[index];
       try {
-        const signature = await this.attachAccounts(
+        const build = () => this.attachAccounts(
           this.buildMethod('initializeEscrow', ...args),
           'initializeEscrow',
           {
@@ -329,9 +343,10 @@ export class X402Program {
             tokenProgram: null,
             associatedTokenProgram: null,
           }
-        )
-          .preInstructions(preIx ? [preIx] : [])
-          .rpc();
+        ).preInstructions(preIx ? [preIx] : []);
+
+        await this.runSurfpoolPreflight('initializeEscrow', build());
+        const signature = await build().rpc();
         return { signature, escrowPDA };
       } catch (error) {
         if (index < candidates.length - 1 && this.isSeedsMismatch(error)) {
@@ -350,14 +365,16 @@ export class X402Program {
     const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
     const preIx = _attachTelemetry();
 
-    return this.attachAccounts(this.buildMethod('markDisputed'), 'markDisputed', {
+    const build = () => this.attachAccounts(this.buildMethod('markDisputed'), 'markDisputed', {
       protocolConfig,
       escrow: escrowPDA,
       reputation: reputationPDA,
       agent: this.wallet.publicKey,
     })
-      .preInstructions(preIx ? [preIx] : [])
-      .rpc();
+      .preInstructions(preIx ? [preIx] : []);
+
+    await this.runSurfpoolPreflight('markDisputed', build());
+    return build().rpc();
   }
 
   async releaseFunds(transactionId: string, api: PublicKey): Promise<string> {
@@ -365,7 +382,7 @@ export class X402Program {
     const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
     const preIx = _attachTelemetry();
 
-    return this.attachAccounts(this.buildMethod('releaseFunds'), 'releaseFunds', {
+    const build = () => this.attachAccounts(this.buildMethod('releaseFunds'), 'releaseFunds', {
       protocolConfig,
       escrow: escrowPDA,
       caller: this.wallet.publicKey,
@@ -376,22 +393,26 @@ export class X402Program {
       apiTokenAccount: null,
       tokenProgram: null,
     })
-      .preInstructions(preIx ? [preIx] : [])
-      .rpc();
+      .preInstructions(preIx ? [preIx] : []);
+
+    await this.runSurfpoolPreflight('releaseFunds', build());
+    return build().rpc();
   }
 
   async initReputation(entity?: PublicKey): Promise<{ signature: string; reputationPDA: PublicKey }> {
     const entityPubkey = entity || this.wallet.publicKey;
     const [reputationPDA] = this.pda.deriveReputationPDA(entityPubkey);
     const preIx = _attachTelemetry();
-    const signature = await this.attachAccounts(this.buildMethod('initReputation'), 'initReputation', {
+    const build = () => this.attachAccounts(this.buildMethod('initReputation'), 'initReputation', {
       reputation: reputationPDA,
       entity: entityPubkey,
       payer: this.wallet.publicKey,
       systemProgram: SystemProgram.programId,
     })
-      .preInstructions(preIx ? [preIx] : [])
-      .rpc();
+      .preInstructions(preIx ? [preIx] : []);
+
+    await this.runSurfpoolPreflight('initReputation', build());
+    const signature = await build().rpc();
     return { signature, reputationPDA };
   }
 

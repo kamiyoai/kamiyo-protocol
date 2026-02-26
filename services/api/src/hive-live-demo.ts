@@ -14,6 +14,7 @@ import { EventEmitter } from 'events';
 import { logger } from './logger';
 import { storeHiveSignal } from './db';
 import { waitForWrite, recordWrite, recordSuccess, recordRateLimit, recordFailure, isRateLimited, isCircuitOpen } from './rate-limiter';
+import { enforceSurfpoolPreflight } from './surfpool-gate';
 
 // Demo event emitter for live streaming
 export const demoEvents = new EventEmitter();
@@ -289,6 +290,13 @@ export async function runLiveDemo(twitter: TwitterApi | null): Promise<{
             lamports: 1000,
           })
         );
+
+        await enforceSurfpoolPreflight({
+          label: 'hive-live-demo.registration',
+          transaction: tx,
+          connection,
+          signer: demoKeypair,
+        });
 
         const signature = await sendAndConfirmTransaction(connection, tx, [demoKeypair]);
         txSignatures.push(signature);
