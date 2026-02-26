@@ -73,16 +73,17 @@
     "@anthropic-ai/sdk": "^0.77.0",
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/agent-paranet": "workspace:*",
+    "@kamiyo/cdp": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.21.1",
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.0",
     "borsh": "^2.0.0",
+    "bn.js": "^5.2.1",
     "bs58": "^6.0.0",
     "dotenv": "^16.4.5",
     "tweetnacl": "^1.0.3",
-    "zod": "^3.23.8",
-    "@kamiyo/cdp": "workspace:*"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bs58": "^5.0.0",

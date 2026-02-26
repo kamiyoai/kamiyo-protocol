@@ -7,7 +7,7 @@
 import { Keypair, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import dotenv from 'dotenv';
-import { SolanaClient } from '../src/solana/client.js';
+import { SolanaClient, loadKeypair } from '../src/solana/client.js';
 import { X402Program } from '../src/solana/anchor.js';
 import * as tools from '../src/tools/index.js';
 
@@ -49,25 +49,29 @@ async function runTest(name: string, testFn: () => Promise<void>) {
 async function main() {
   console.log('KAMIYO MCP Server - E2E Integration Tests\n');
   console.log('Network: Solana Devnet');
-  console.log('Program ID: E5EiaJhbg6Bav1v3P211LNv1tAqa4fHVeuGgRBHsEu6n\n');
 
   // Setup
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-  const programIdStr = process.env.MITAMA_PROGRAM_ID;
+  const programIdStr = process.env.MITAMA_PROGRAM_ID || process.env.KAMIYO_PROGRAM_ID;
   const agentPrivateKey = process.env.AGENT_PRIVATE_KEY;
+  const agentKeypairPath = process.env.AGENT_KEYPAIR_PATH;
 
-  if (!programIdStr || !agentPrivateKey) {
+  if (!programIdStr || (!agentPrivateKey && !agentKeypairPath)) {
     console.log('SKIP: integration tests require environment variables:');
-    console.log('  - MITAMA_PROGRAM_ID');
-    console.log('  - AGENT_PRIVATE_KEY');
+    console.log('  - MITAMA_PROGRAM_ID or KAMIYO_PROGRAM_ID');
+    console.log('  - AGENT_PRIVATE_KEY or AGENT_KEYPAIR_PATH');
     console.log('Set both to run devnet integration coverage.');
     process.exit(0);
   }
 
   const programId = new PublicKey(programIdStr);
-  const keypair = Keypair.fromSecretKey(bs58.decode(agentPrivateKey));
+  const keypair = agentPrivateKey
+    ? Keypair.fromSecretKey(bs58.decode(agentPrivateKey))
+    : loadKeypair(agentKeypairPath!);
   const client = new SolanaClient(rpcUrl, keypair);
   const program = new X402Program(client.connection, keypair, programId);
+
+  console.log(`Program ID: ${programId.toBase58()}\n`);
 
   console.log(`Agent Wallet: ${keypair.publicKey.toBase58()}\n`);
 
@@ -331,7 +335,7 @@ async function main() {
 
   // Test 14: Test PDA derivation
   await runTest('Test PDA derivation', async () => {
-    const [escrowPDA] = program.pda.deriveEscrowPDA(escrowResult.transactionId!);
+    const [escrowPDA] = program.pda.deriveEscrowPDA(escrowResult.transactionId!, keypair.publicKey);
     const [reputationPDA] = program.pda.deriveReputationPDA(keypair.publicKey);
     const [rateLimiterPDA] = program.pda.deriveRateLimiterPDA(keypair.publicKey);
 

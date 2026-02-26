@@ -14,6 +14,9 @@ export const DISCRIMINATORS = {
   markDisputed: Buffer.from([136, 86, 152, 120, 3, 21, 223, 251]),
   claimExpiredEscrow: Buffer.from([249, 93, 128, 229, 7, 27, 93, 224]),
 
+  // Reputation instructions
+  initReputation: Buffer.from([236, 239, 233, 112, 220, 149, 26, 175]),
+
   // Oracle instructions
   initializeOracleRegistry: Buffer.from([190, 92, 228, 114, 56, 71, 101, 220]),
   addOracle: Buffer.from([185, 165, 165, 167, 208, 207, 55, 35]),

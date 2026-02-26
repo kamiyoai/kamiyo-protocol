@@ -1,4 +1,4 @@
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2.js';
 import type { ReasoningChain, ReasoningCommitment, ReasoningStep } from './reasoningChain';
 import { ReasoningChainBuilder } from './reasoningChain';
 import { IPFSPublisher } from './ipfsPublisher';
@@ -191,7 +191,7 @@ export class Verifier {
   private verifyStepHashes(steps: ReasoningStep[]): boolean {
     for (const step of steps) {
       const hashInput = `${step.stepNumber}:${step.type}:${step.actor || 'system'}:${step.content}:${step.timestamp}`;
-      const calculated = Buffer.from(sha256(hashInput)).toString('hex');
+      const calculated = Buffer.from(sha256(new TextEncoder().encode(hashInput))).toString('hex');
 
       if (calculated !== step.hash) {
         log.warn('Step hash mismatch', {
@@ -208,7 +208,7 @@ export class Verifier {
 
   private calculateRootHash(steps: ReasoningStep[]): string {
     const combined = steps.map((s) => s.hash).join(':');
-    return Buffer.from(sha256(combined)).toString('hex');
+    return Buffer.from(sha256(new TextEncoder().encode(combined))).toString('hex');
   }
 
   private checkContentCompleteness(chain: ReasoningChain, warnings: string[]): boolean {

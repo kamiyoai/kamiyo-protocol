@@ -4,6 +4,105 @@ import {
   compileUsdcSpendPolicy,
   type CdpPolicyNetwork,
 } from '@kamiyo/cdp';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
+export const CDP_TOOL_DEFINITIONS: Tool[] = [
+  {
+    name: 'cdp_env_status',
+    description: 'Check whether required Coinbase CDP environment variables are configured.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'cdp_evm_get_or_create_account',
+    description: 'Create or fetch a CDP-managed EVM account.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional account name' },
+      },
+    },
+  },
+  {
+    name: 'cdp_solana_get_or_create_account',
+    description: 'Create or fetch a CDP-managed Solana account.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional account name' },
+      },
+    },
+  },
+  {
+    name: 'cdp_create_usdc_policy',
+    description: 'Create a USDC spend policy in CDP.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string' },
+        network: { type: 'string', enum: ['base-sepolia', 'base-mainnet'] },
+        maxSpendMicroUsd: { type: 'string' },
+        allowedMerchants: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+      },
+      required: ['description', 'network', 'maxSpendMicroUsd'],
+    },
+  },
+  {
+    name: 'cdp_evm_set_account_policy',
+    description: 'Attach a policy to an EVM account.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: '0x-prefixed EVM address' },
+        policyId: { type: 'string' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
+    name: 'cdp_solana_set_account_policy',
+    description: 'Attach a policy to a Solana account.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        address: { type: 'string', description: 'Solana public key' },
+        policyId: { type: 'string' },
+      },
+      required: ['address', 'policyId'],
+    },
+  },
+  {
+    name: 'cdp_create_end_user',
+    description: 'Create an authenticated CDP end user profile.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string' },
+        userId: { type: 'string' },
+        createEvmSmartAccount: { type: 'boolean' },
+        enableSpendPermissions: { type: 'boolean' },
+        createSolanaAccount: { type: 'boolean' },
+      },
+      required: ['email'],
+    },
+  },
+  {
+    name: 'cdp_validate_end_user_access_token',
+    description: 'Validate a CDP end-user access token and return its user ID.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        accessToken: { type: 'string' },
+      },
+      required: ['accessToken'],
+    },
+  },
+];
 
 function hasEnv(key: string): boolean {
   const v = process.env[key];

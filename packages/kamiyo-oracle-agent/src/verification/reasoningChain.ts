@@ -1,4 +1,4 @@
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2.js';
 import type { DeliberationResult, GatheredEvidence, DebateRound } from '../deliberation/types';
 import type { EvaluationContext } from '../types';
 import { createLogger } from '../lib/logger';
@@ -187,7 +187,7 @@ export class ReasoningChainBuilder {
   ): ReasoningStep {
     const timestamp = Date.now();
     const hashInput = `${stepNumber}:${type}:${actor || 'system'}:${content}:${timestamp}`;
-    const hash = Buffer.from(sha256(hashInput)).toString('hex');
+    const hash = Buffer.from(sha256(new TextEncoder().encode(hashInput))).toString('hex');
 
     return {
       stepNumber,
@@ -288,7 +288,7 @@ ${deliberation.dissent ? `Dissent: ${deliberation.dissent.advocate} advocate arg
   private calculateRootHash(steps: ReasoningStep[]): string {
     // Simple Merkle-like hash: hash all step hashes together
     const combined = steps.map((s) => s.hash).join(':');
-    return Buffer.from(sha256(combined)).toString('hex');
+    return Buffer.from(sha256(new TextEncoder().encode(combined))).toString('hex');
   }
 
   /**

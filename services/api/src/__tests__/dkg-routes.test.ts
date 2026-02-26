@@ -2,12 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express from 'express';
 import http from 'http';
 
-let assetGetMock: ReturnType<typeof vi.fn>;
-
-vi.mock('@kamiyo/agent-paranet', async () => {
-  const actual = await vi.importActual<any>('@kamiyo/agent-paranet');
-
-  assetGetMock = vi.fn(async (ual: string) => ({
+const { assetGetMock, assetCreateMock, assetUpdateMock, graphQueryMock, createDKGClientMock } = vi.hoisted(() => {
+  const assetGetMock = vi.fn(async (ual: string) => ({
     public: {
       '@id': ual,
       '@type': ['TestAsset'],
@@ -18,17 +14,30 @@ vi.mock('@kamiyo/agent-paranet', async () => {
   }));
 
   return {
+    assetGetMock,
+    assetCreateMock: vi.fn(async () => ({ UAL: 'urn:example:created' })),
+    assetUpdateMock: vi.fn(async () => ({ UAL: 'urn:example:updated' })),
+    graphQueryMock: vi.fn(async () => ({ data: [] })),
+    createDKGClientMock: vi.fn(),
+  };
+});
+
+vi.mock('@kamiyo/agent-paranet', async () => {
+  const actual = await vi.importActual<any>('@kamiyo/agent-paranet');
+  createDKGClientMock.mockImplementation(async () => ({
+    asset: {
+      get: assetGetMock,
+      create: assetCreateMock,
+      update: assetUpdateMock,
+    },
+    graph: {
+      query: graphQueryMock,
+    },
+  }));
+
+  return {
     ...actual,
-    createDKGClient: vi.fn(async () => ({
-      asset: {
-        get: assetGetMock,
-        create: vi.fn(async () => ({ UAL: 'urn:example:created' })),
-        update: vi.fn(async () => ({ UAL: 'urn:example:updated' })),
-      },
-      graph: {
-        query: vi.fn(async () => ({ data: [] })),
-      },
-    })),
+    createDKGClient: createDKGClientMock,
   };
 });
 
@@ -60,7 +69,11 @@ describe('DKG resolver routes', () => {
 
   beforeEach(() => {
     __resetDkgResolverForTests();
-    assetGetMock?.mockClear();
+    assetGetMock.mockClear();
+    assetCreateMock.mockClear();
+    assetUpdateMock.mockClear();
+    graphQueryMock.mockClear();
+    createDKGClientMock.mockClear();
 
     process.env.DKG_ENDPOINT = 'http://127.0.0.1:9999';
     process.env.DKG_PORT = '8900';

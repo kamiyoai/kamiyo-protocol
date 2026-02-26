@@ -393,12 +393,39 @@ export class KamiyoClient {
   }
 
   /**
+   * Build initialize reputation instruction
+   */
+  buildInitReputationInstruction(
+    payer: PublicKey,
+    entity: PublicKey = payer
+  ): TransactionInstruction {
+    const [reputationPDA] = this.getReputationPDA(entity);
+
+    return new TransactionInstruction({
+      keys: [
+        { pubkey: reputationPDA, isSigner: false, isWritable: true },
+        { pubkey: entity, isSigner: false, isWritable: false },
+        { pubkey: payer, isSigner: true, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      ],
+      programId: this.programId,
+      data: DISCRIMINATORS.initReputation,
+    });
+  }
+
+  /**
    * Build create agreement instruction
    */
   buildCreateAgreementInstruction(
     agent: PublicKey,
     params: CreateAgreementParams
   ): TransactionInstruction {
+    if (params.tokenMint) {
+      throw new Error(
+        "SPL-token escrow path is not yet supported by buildCreateAgreementInstruction; omit tokenMint for SOL escrow."
+      );
+    }
+
     const [agreementPDA] = this.getAgreementPDA(agent, params.transactionId);
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
     const [feeVaultPDA] = this.getFeeVaultPDA();
@@ -414,12 +441,17 @@ export class KamiyoClient {
     ]);
 
     const keys = [
+      { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
+      { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
       { pubkey: agreementPDA, isSigner: false, isWritable: true },
       { pubkey: agent, isSigner: true, isWritable: true },
       { pubkey: params.provider, isSigner: false, isWritable: false },
-      { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
-      { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: this.programId, isSigner: false, isWritable: false }, // token_mint (optional)
+      { pubkey: this.programId, isSigner: false, isWritable: true },  // escrow_token_account (optional)
+      { pubkey: this.programId, isSigner: false, isWritable: true },  // agent_token_account (optional)
+      { pubkey: this.programId, isSigner: false, isWritable: false }, // token_program (optional)
+      { pubkey: this.programId, isSigner: false, isWritable: false }, // associated_token_program (optional)
     ];
 
     return new TransactionInstruction({
@@ -438,13 +470,18 @@ export class KamiyoClient {
     provider: PublicKey
   ): TransactionInstruction {
     const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
+    const [protocolConfigPDA] = this.getProtocolConfigPDA();
 
     return new TransactionInstruction({
       keys: [
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
         { pubkey: agreementPDA, isSigner: false, isWritable: true },
         { pubkey: agent, isSigner: true, isWritable: true },
         { pubkey: provider, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: this.programId, isSigner: false, isWritable: true },  // escrow_token_account (optional)
+        { pubkey: this.programId, isSigner: false, isWritable: true },  // api_token_account (optional)
+        { pubkey: this.programId, isSigner: false, isWritable: false }, // token_program (optional)
       ],
       programId: this.programId,
       data: DISCRIMINATORS.releaseFunds,
@@ -487,16 +524,13 @@ export class KamiyoClient {
     const [agreementPDA] = this.getAgreementPDA(agent, transactionId);
     const [reputationPDA] = this.getReputationPDA(agent);
     const [protocolConfigPDA] = this.getProtocolConfigPDA();
-    const [feeVaultPDA] = this.getFeeVaultPDA();
 
     return new TransactionInstruction({
       keys: [
+        { pubkey: protocolConfigPDA, isSigner: false, isWritable: false },
         { pubkey: agreementPDA, isSigner: false, isWritable: true },
         { pubkey: reputationPDA, isSigner: false, isWritable: true },
         { pubkey: agent, isSigner: true, isWritable: true },
-        { pubkey: protocolConfigPDA, isSigner: false, isWritable: true },
-        { pubkey: feeVaultPDA, isSigner: false, isWritable: true },
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: this.programId,
       data: DISCRIMINATORS.markDisputed,
@@ -825,6 +859,30 @@ export class KamiyoClient {
     const instruction = this.buildCreateAgentInstruction(
       this.wallet.publicKey,
       params
+    );
+
+    const transaction = new Transaction().add(instruction);
+    transaction.feePayer = this.wallet.publicKey;
+    transaction.recentBlockhash = (
+      await this.connection.getLatestBlockhash()
+    ).blockhash;
+
+    const signed = await this.wallet.signTransaction(transaction);
+    const signature = await this.connection.sendRawTransaction(
+      signed.serialize()
+    );
+    await this.connection.confirmTransaction(signature);
+
+    return signature;
+  }
+
+  /**
+   * Initialize reputation account for an entity
+   */
+  async initReputation(entity: PublicKey = this.wallet.publicKey): Promise<string> {
+    const instruction = this.buildInitReputationInstruction(
+      this.wallet.publicKey,
+      entity
     );
 
     const transaction = new Transaction().add(instruction);

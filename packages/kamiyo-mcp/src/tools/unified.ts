@@ -160,7 +160,7 @@ export async function callApiWithEscrow(
               transactionId: escrowResult.transactionId!,
               qualityScore: qualityResult.qualityScore!,
               refundPercentage: qualityResult.refundPercentage!,
-              claimant: program.program.provider.publicKey.toBase58(),
+              claimant: program.getWalletPublicKey().toBase58(),
               evidence,
               featureVector: {
                 qualityScore: qualityResult.qualityScore!,

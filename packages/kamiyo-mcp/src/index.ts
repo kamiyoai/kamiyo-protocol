@@ -1222,6 +1222,31 @@ class KamiyoMCPServer {
             result = await tools.cdpValidateEndUserAccessToken(args as any);
             break;
 
+          // DKG quality tools
+          case 'dkg_publish_with_quality_stake':
+          case 'dkg_query_verified':
+          case 'dkg_assess_quality':
+          case 'dkg_get_publisher_reputation':
+          case 'dkg_dispute_quality':
+          case 'dkg_record_inference':
+            result = await tools.handleDkgQualityTool(name, args as any, {
+              walletAddress: this.solanaClient?.publicKey.toBase58() ?? 'unknown',
+            });
+            break;
+
+          // Agent Paranet tools
+          case 'paranet_find_providers':
+          case 'paranet_get_credit_score':
+          case 'paranet_check_requirements':
+          case 'paranet_check_trust':
+          case 'paranet_get_capabilities':
+          case 'paranet_publish_task_completion':
+          case 'paranet_attest_capability':
+          case 'paranet_record_trust':
+          case 'paranet_compare_providers':
+            result = await tools.handleParanetTool(name, args as any);
+            break;
+
           // Market data tools
           case 'get_token_price':
             result = await tools.handleMarketTool('get_token_price', args as any);

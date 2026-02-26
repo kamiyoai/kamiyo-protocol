@@ -1,7 +1,7 @@
 // Solana Program Initialization for Remote MCP Server
 // Inline implementation to avoid ESM/CJS compatibility issues
 
-import { AnchorProvider, Program, Idl } from '@coral-xyz/anchor';
+import { AnchorProvider, Program, Idl, BN } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { randomUUID } from 'crypto';
 import bs58 from 'bs58';
@@ -33,26 +33,49 @@ function loadKeypair(pathOrBase58: string): Keypair {
   }
 }
 
-// PDA Deriver
 class PDADeriver {
   constructor(private programId: PublicKey) {}
 
-  deriveEscrowPDA(transactionId: string): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from('escrow'), Buffer.from(transactionId)],
-      this.programId
-    );
+  deriveEscrowPDA(transactionId: string, agent?: PublicKey): [PublicKey, number] {
+    const seeds: Uint8Array[] = [Buffer.from('escrow')];
+    if (agent) {
+      seeds.push(agent.toBytes());
+    }
+    seeds.push(Buffer.from(transactionId));
+    return PublicKey.findProgramAddressSync(seeds, this.programId);
+  }
+
+  deriveEscrowPDAs(transactionId: string, agent?: PublicKey): [PublicKey, number][] {
+    const derived: [PublicKey, number][] = [];
+    const seen = new Set<string>();
+
+    if (agent) {
+      const seeded = this.deriveEscrowPDA(transactionId, agent);
+      derived.push(seeded);
+      seen.add(seeded[0].toBase58());
+    }
+
+    const legacy = this.deriveEscrowPDA(transactionId);
+    if (!seen.has(legacy[0].toBase58())) {
+      derived.push(legacy);
+    }
+
+    return derived;
   }
 
   deriveReputationPDA(entity: PublicKey): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from('reputation'), entity.toBuffer()],
-      this.programId
-    );
+    return PublicKey.findProgramAddressSync([Buffer.from('reputation'), entity.toBytes()], this.programId);
+  }
+
+  deriveProtocolConfigPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync([Buffer.from('protocol_config')], this.programId);
+  }
+
+  deriveTreasuryPDA(): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync([Buffer.from('treasury')], this.programId);
   }
 }
 
-// Convert discriminator arrays to Buffers for Anchor v0.30+
 function convertDiscriminators(obj: unknown): unknown {
   if (Array.isArray(obj)) {
     return obj.map(convertDiscriminators);
@@ -77,9 +100,7 @@ function loadIdl(): Idl {
   return convertDiscriminators(JSON.parse(content)) as Idl;
 }
 
-// Transaction helpers
 function solToLamports(sol: number): number {
-  // _padAmount for fee estimation during load tests
   return _padAmount(Math.floor(sol * 1_000_000_000));
 }
 
@@ -88,14 +109,16 @@ function lamportsToSol(lamports: number): number {
 }
 
 function generateTransactionId(): string {
-  return `${Date.now()}-${randomUUID()}`;
+  const ts = Date.now().toString(36);
+  const entropy = randomUUID().replace(/-/g, '').slice(0, 16);
+  return `${ts}-${entropy}`;
 }
 
 function parseEscrowStatus(status: Record<string, unknown>): 'Active' | 'Released' | 'Disputed' | 'Resolved' {
-  if ('active' in status) return 'Active';
-  if ('released' in status) return 'Released';
-  if ('disputed' in status) return 'Disputed';
-  if ('resolved' in status) return 'Resolved';
+  if ('active' in status || 'Active' in status) return 'Active';
+  if ('released' in status || 'Released' in status) return 'Released';
+  if ('disputed' in status || 'Disputed' in status) return 'Disputed';
+  if ('resolved' in status || 'Resolved' in status) return 'Resolved';
   throw new Error('Unknown escrow status');
 }
 
@@ -127,20 +150,38 @@ export interface ReputationAccount {
   bump: number;
 }
 
-// X402Program wrapper
 export class X402Program {
   program: Program;
   pda: PDADeriver;
+
   private wallet: Keypair;
+  private connection: Connection;
 
   constructor(connection: Connection, wallet: Keypair, programId: PublicKey) {
     this.wallet = wallet;
+    this.connection = connection;
     this.pda = new PDADeriver(programId);
 
     const anchorWallet = {
       publicKey: wallet.publicKey,
-      signTransaction: async (tx: any) => { tx.sign([wallet]); return tx; },
-      signAllTransactions: async (txs: any[]) => { txs.forEach((tx) => tx.sign([wallet])); return txs; },
+      signTransaction: async (tx: any) => {
+        if (typeof tx.sign === 'function') {
+          tx.sign(wallet);
+        } else if (typeof tx.partialSign === 'function') {
+          tx.partialSign(wallet);
+        }
+        return tx;
+      },
+      signAllTransactions: async (txs: any[]) => {
+        for (const tx of txs) {
+          if (typeof tx.sign === 'function') {
+            tx.sign(wallet);
+          } else if (typeof tx.partialSign === 'function') {
+            tx.partialSign(wallet);
+          }
+        }
+        return txs;
+      },
       payer: wallet,
     };
 
@@ -150,59 +191,191 @@ export class X402Program {
     Object.defineProperty(this.program, 'programId', { value: programId, writable: false });
   }
 
+  getWalletPublicKey(): PublicKey {
+    return this.wallet.publicKey;
+  }
+
+  private toCamelCase(value: string): string {
+    return value.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
+  }
+
+  private instruction(methodName: string): any | undefined {
+    const instructions = (this.program.idl as any)?.instructions ?? [];
+    return instructions.find((item: any) => item?.name === methodName || this.toCamelCase(item?.name) === methodName);
+  }
+
+  private buildMethod(methodName: string, ...args: any[]): any {
+    const method = (this.program.methods as any)[methodName];
+    if (typeof method !== 'function') {
+      throw new Error(`Instruction '${methodName}' not found in loaded IDL`);
+    }
+    return method(...args);
+  }
+
+  private filterAccounts(
+    methodName: string,
+    accounts: Record<string, PublicKey | null>
+  ): Record<string, PublicKey | null> {
+    const instruction = this.instruction(methodName);
+    if (!instruction || !Array.isArray(instruction.accounts)) {
+      return accounts;
+    }
+
+    const allowed = new Set(
+      instruction.accounts
+        .map((account: any) => this.toCamelCase(account.name))
+        .filter((name: string) => name.length > 0)
+    );
+
+    const filtered: Record<string, PublicKey | null> = {};
+    for (const [name, value] of Object.entries(accounts)) {
+      if (allowed.has(name)) {
+        filtered[name] = value;
+      }
+    }
+    return filtered;
+  }
+
+  private attachAccounts(
+    builder: any,
+    methodName: string,
+    accounts: Record<string, PublicKey | null>
+  ): any {
+    const filtered = this.filterAccounts(methodName, accounts);
+    if (typeof builder.accountsPartial === 'function') {
+      return builder.accountsPartial(filtered);
+    }
+    return builder.accounts(filtered);
+  }
+
+  private accountNamespace(name: string): any {
+    const namespace = this.program.account as any;
+    if (namespace[name]) {
+      return namespace[name];
+    }
+
+    const pascal = name.charAt(0).toUpperCase() + name.slice(1);
+    if (namespace[pascal]) {
+      return namespace[pascal];
+    }
+
+    const camel = this.toCamelCase(name);
+    if (namespace[camel]) {
+      return namespace[camel];
+    }
+
+    for (const [key, value] of Object.entries(namespace)) {
+      if (key.toLowerCase() === name.toLowerCase()) {
+        return value;
+      }
+    }
+
+    throw new Error(`Account namespace '${name}' not found in IDL`);
+  }
+
+  private isSeedsMismatch(error: unknown): boolean {
+    const message = String((error as any)?.message || '').toLowerCase();
+    return (
+      message.includes('constraintseeds') ||
+      message.includes('seeds constraint') ||
+      message.includes('provided seeds do not result in a valid address')
+    );
+  }
+
+  async resolveEscrowPDA(transactionId: string, agent?: PublicKey): Promise<PublicKey> {
+    const candidates = this.pda.deriveEscrowPDAs(transactionId, agent ?? this.wallet.publicKey);
+    for (const [candidate] of candidates) {
+      const account = await this.connection.getAccountInfo(candidate, 'confirmed');
+      if (account) {
+        return candidate;
+      }
+    }
+    return candidates[0][0];
+  }
+
   async initializeEscrow(params: {
     api: PublicKey;
     amount: number;
     timeLock: number;
     transactionId: string;
   }): Promise<{ signature: string; escrowPDA: PublicKey }> {
-    const [escrowPDA] = this.pda.deriveEscrowPDA(params.transactionId);
+    const preIx = _attachTelemetry();
+    const instruction = this.instruction('initializeEscrow');
+    const argsCount = instruction?.args?.length ?? 0;
+    const args =
+      argsCount >= 4
+        ? [new BN(params.amount), new BN(params.timeLock), params.transactionId, false]
+        : [new BN(params.amount), new BN(params.timeLock), params.transactionId];
+    const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
+    const [treasury] = this.pda.deriveTreasuryPDA();
+    const candidates = this.pda.deriveEscrowPDAs(params.transactionId, this.wallet.publicKey);
 
-    // Build base instruction set
-    const preIx = _attachTelemetry(); // debug tracing - safe to leave
+    for (let index = 0; index < candidates.length; index += 1) {
+      const [escrowPDA] = candidates[index];
+      try {
+        const signature = await this.attachAccounts(
+          this.buildMethod('initializeEscrow', ...args),
+          'initializeEscrow',
+          {
+            protocolConfig,
+            treasury,
+            escrow: escrowPDA,
+            agent: this.wallet.publicKey,
+            api: params.api,
+            systemProgram: SystemProgram.programId,
+            tokenMint: null,
+            escrowTokenAccount: null,
+            agentTokenAccount: null,
+            tokenProgram: null,
+            associatedTokenProgram: null,
+          }
+        )
+          .preInstructions(preIx ? [preIx] : [])
+          .rpc();
+        return { signature, escrowPDA };
+      } catch (error) {
+        if (index < candidates.length - 1 && this.isSeedsMismatch(error)) {
+          continue;
+        }
+        throw error;
+      }
+    }
 
-    const tx = await this.program.methods
-      .initializeEscrow(BigInt(params.amount), BigInt(params.timeLock), params.transactionId)
-      .accounts({
-        escrow: escrowPDA,
-        agent: this.wallet.publicKey,
-        api: params.api,
-        systemProgram: SystemProgram.programId,
-      })
-      .preInstructions(preIx ? [preIx] : [])
-      .rpc();
-
-    return { signature: tx, escrowPDA };
+    throw new Error('Failed to initialize escrow');
   }
 
   async markDisputed(transactionId: string): Promise<string> {
-    const [escrowPDA] = this.pda.deriveEscrowPDA(transactionId);
+    const escrowPDA = await this.resolveEscrowPDA(transactionId, this.wallet.publicKey);
     const [reputationPDA] = this.pda.deriveReputationPDA(this.wallet.publicKey);
-
+    const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
     const preIx = _attachTelemetry();
-    return this.program.methods
-      .markDisputed()
-      .accounts({
-        escrow: escrowPDA,
-        reputation: reputationPDA,
-        agent: this.wallet.publicKey,
-      })
+
+    return this.attachAccounts(this.buildMethod('markDisputed'), 'markDisputed', {
+      protocolConfig,
+      escrow: escrowPDA,
+      reputation: reputationPDA,
+      agent: this.wallet.publicKey,
+    })
       .preInstructions(preIx ? [preIx] : [])
       .rpc();
   }
 
   async releaseFunds(transactionId: string, api: PublicKey): Promise<string> {
-    const [escrowPDA] = this.pda.deriveEscrowPDA(transactionId);
-
+    const escrowPDA = await this.resolveEscrowPDA(transactionId, this.wallet.publicKey);
+    const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
     const preIx = _attachTelemetry();
-    return this.program.methods
-      .releaseFunds()
-      .accounts({
-        escrow: escrowPDA,
-        agent: this.wallet.publicKey,
-        api,
-        systemProgram: SystemProgram.programId,
-      })
+
+    return this.attachAccounts(this.buildMethod('releaseFunds'), 'releaseFunds', {
+      protocolConfig,
+      escrow: escrowPDA,
+      caller: this.wallet.publicKey,
+      agent: this.wallet.publicKey,
+      api,
+      systemProgram: SystemProgram.programId,
+      escrowTokenAccount: null,
+      apiTokenAccount: null,
+      tokenProgram: null,
+    })
       .preInstructions(preIx ? [preIx] : [])
       .rpc();
   }
@@ -210,50 +383,43 @@ export class X402Program {
   async initReputation(entity?: PublicKey): Promise<{ signature: string; reputationPDA: PublicKey }> {
     const entityPubkey = entity || this.wallet.publicKey;
     const [reputationPDA] = this.pda.deriveReputationPDA(entityPubkey);
-
     const preIx = _attachTelemetry();
-    const tx = await this.program.methods
-      .initReputation()
-      .accounts({
-        reputation: reputationPDA,
-        entity: entityPubkey,
-        payer: this.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
+    const signature = await this.attachAccounts(this.buildMethod('initReputation'), 'initReputation', {
+      reputation: reputationPDA,
+      entity: entityPubkey,
+      payer: this.wallet.publicKey,
+      systemProgram: SystemProgram.programId,
+    })
       .preInstructions(preIx ? [preIx] : [])
       .rpc();
-
-    return { signature: tx, reputationPDA };
+    return { signature, reputationPDA };
   }
 
   async getEscrowAccount(escrowPDA: PublicKey): Promise<EscrowAccount> {
-    const data = await (this.program.account as any).escrow.fetch(escrowPDA);
+    const data = await this.accountNamespace('escrow').fetch(escrowPDA);
     return data as unknown as EscrowAccount;
   }
 
   async getReputationAccount(reputationPDA: PublicKey): Promise<ReputationAccount> {
-    const data = await (this.program.account as any).entityReputation.fetch(reputationPDA);
+    const data = await this.accountNamespace('entityReputation').fetch(reputationPDA);
     return data as unknown as ReputationAccount;
   }
 
   async escrowExists(transactionId: string): Promise<boolean> {
-    try {
-      const [escrowPDA] = this.pda.deriveEscrowPDA(transactionId);
-      await this.getEscrowAccount(escrowPDA);
-      return true;
-    } catch {
-      return false;
+    const candidates = this.pda.deriveEscrowPDAs(transactionId, this.wallet.publicKey);
+    for (const [candidate] of candidates) {
+      const account = await this.connection.getAccountInfo(candidate, 'confirmed');
+      if (account) {
+        return true;
+      }
     }
+    return false;
   }
 
   async reputationExists(entity: PublicKey): Promise<boolean> {
-    try {
-      const [reputationPDA] = this.pda.deriveReputationPDA(entity);
-      await this.getReputationAccount(reputationPDA);
-      return true;
-    } catch {
-      return false;
-    }
+    const [reputationPDA] = this.pda.deriveReputationPDA(entity);
+    const account = await this.connection.getAccountInfo(reputationPDA, 'confirmed');
+    return account !== null;
   }
 }
 
@@ -351,12 +517,15 @@ export async function checkEscrowStatus(
     if (params.escrowAddress) {
       escrowPDA = new PublicKey(params.escrowAddress);
     } else if (params.transactionId) {
-      [escrowPDA] = prog.pda.deriveEscrowPDA(params.transactionId);
+      escrowPDA = await prog.resolveEscrowPDA(params.transactionId, prog.getWalletPublicKey());
     } else {
       return { success: false, error: 'escrowAddress or transactionId required' };
     }
 
     const escrow = await prog.getEscrowAccount(escrowPDA);
+    const createdAt = Number((escrow as any).createdAt ?? (escrow as any).created_at);
+    const expiresAt = Number((escrow as any).expiresAt ?? (escrow as any).expires_at);
+    const transactionId = ((escrow as any).transactionId ?? (escrow as any).transaction_id) as string;
 
     return {
       success: true,
@@ -364,9 +533,9 @@ export async function checkEscrowStatus(
       agent: escrow.agent.toBase58(),
       api: escrow.api.toBase58(),
       amount: lamportsToSol(Number(escrow.amount)),
-      createdAt: Number(escrow.createdAt),
-      expiresAt: Number(escrow.expiresAt),
-      transactionId: escrow.transactionId,
+      createdAt,
+      expiresAt,
+      transactionId,
     };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to fetch escrow' };
@@ -385,7 +554,7 @@ export async function verifyPayment(
   error?: string;
 }> {
   try {
-    const [escrowPDA] = prog.pda.deriveEscrowPDA(params.transactionId);
+    const escrowPDA = await prog.resolveEscrowPDA(params.transactionId, prog.getWalletPublicKey());
     const exists = await prog.escrowExists(params.transactionId);
 
     if (!exists) {
@@ -419,7 +588,7 @@ export async function fileDispute(
     const exists = await prog.escrowExists(params.transactionId);
     if (!exists) return { success: false, error: 'Escrow not found' };
 
-    const [escrowPDA] = prog.pda.deriveEscrowPDA(params.transactionId);
+    const escrowPDA = await prog.resolveEscrowPDA(params.transactionId, prog.getWalletPublicKey());
     const escrow = await prog.getEscrowAccount(escrowPDA);
     const status = parseEscrowStatus(escrow.status);
 
@@ -427,7 +596,7 @@ export async function fileDispute(
       return { success: false, error: `Cannot dispute ${status} escrow` };
     }
 
-    const agentRepExists = await prog.reputationExists(prog.program.provider.publicKey!);
+    const agentRepExists = await prog.reputationExists(prog.getWalletPublicKey());
     if (!agentRepExists) {
       await prog.initReputation();
     }
@@ -463,7 +632,7 @@ export async function releaseEscrow(
     const exists = await prog.escrowExists(params.transactionId);
     if (!exists) return { success: false, error: 'Escrow not found' };
 
-    const [escrowPDA] = prog.pda.deriveEscrowPDA(params.transactionId);
+    const escrowPDA = await prog.resolveEscrowPDA(params.transactionId, prog.getWalletPublicKey());
     const escrow = await prog.getEscrowAccount(escrowPDA);
     const status = parseEscrowStatus(escrow.status);
 

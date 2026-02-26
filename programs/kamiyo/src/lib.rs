@@ -604,7 +604,7 @@ fn find_ed25519_instruction(
         };
 
         // Skip if not Ed25519 program
-        if ix.program_id != ed25519_program::ID {
+        if ix.program_id.as_ref() != ed25519_program::ID.as_ref() {
             continue;
         }
 

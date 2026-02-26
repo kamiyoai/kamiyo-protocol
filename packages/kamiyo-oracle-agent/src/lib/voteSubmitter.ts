@@ -9,7 +9,7 @@ import {
   VersionedTransaction,
   TransactionMessage,
 } from '@solana/web3.js';
-import { sha256 } from '@noble/hashes/sha256';
+import { sha256 } from '@noble/hashes/sha2.js';
 import nacl from 'tweetnacl';
 import BN from 'bn.js';
 import type { IAgentRuntime, VotingStrategy } from '../types';
@@ -30,13 +30,13 @@ const log = createLogger('vote-submitter');
 // Anchor instruction discriminator for submit_oracle_score
 // sha256("global:submit_oracle_score")[0..8]
 const SUBMIT_ORACLE_SCORE_DISCRIMINATOR = (() => {
-  const hash = sha256('global:submit_oracle_score');
+  const hash = sha256(new TextEncoder().encode('global:submit_oracle_score'));
   return Buffer.from(hash.slice(0, 8));
 })();
 
 // Anchor instruction discriminator for claim_oracle_rewards
 const CLAIM_ORACLE_REWARDS_DISCRIMINATOR = (() => {
-  const hash = sha256('global:claim_oracle_rewards');
+  const hash = sha256(new TextEncoder().encode('global:claim_oracle_rewards'));
   return Buffer.from(hash.slice(0, 8));
 })();
 

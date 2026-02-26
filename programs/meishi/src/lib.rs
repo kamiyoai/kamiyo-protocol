@@ -285,7 +285,7 @@ fn verify_ed25519_mandate_signature(
     let sig_ix = load_instruction_at_checked((current_index - 1) as usize, instructions)
         .map_err(|_| error!(MeishiError::MandateSignatureMissing))?;
     require!(
-        sig_ix.program_id == ed25519_program::id(),
+        sig_ix.program_id.as_ref() == ed25519_program::id().as_ref(),
         MeishiError::MandateSignatureMissing
     );
 

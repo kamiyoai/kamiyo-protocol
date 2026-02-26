@@ -115,7 +115,7 @@ export async function getApiReputation(
 export async function getAgentReputation(
   program: X402Program
 ): Promise<GetApiReputationResult> {
-  const agentPubkey = program.program.provider.publicKey!;
+  const agentPubkey = program.getWalletPublicKey();
   return getApiReputation({ apiProvider: agentPubkey.toBase58() }, program);
 }
 

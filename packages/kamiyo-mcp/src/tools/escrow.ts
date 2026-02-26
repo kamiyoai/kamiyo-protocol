@@ -135,13 +135,18 @@ export async function checkEscrowStatus(
     if (params.escrowAddress) {
       escrowPDA = new PublicKey(params.escrowAddress);
     } else if (params.transactionId) {
-      [escrowPDA] = program.pda.deriveEscrowPDA(params.transactionId);
+      escrowPDA = await program.resolveEscrowPDA(params.transactionId, program.getWalletPublicKey());
     } else {
       return { success: false, error: 'Either escrowAddress or transactionId is required' };
     }
 
     // Fetch escrow account
     const escrow = await program.getEscrowAccount(escrowPDA);
+    const createdAt = Number((escrow as any).createdAt ?? (escrow as any).created_at);
+    const expiresAt = Number((escrow as any).expiresAt ?? (escrow as any).expires_at);
+    const transactionId = ((escrow as any).transactionId ?? (escrow as any).transaction_id) as string;
+    const qualityScore = (escrow as any).qualityScore ?? (escrow as any).quality_score;
+    const refundPercentage = (escrow as any).refundPercentage ?? (escrow as any).refund_percentage;
 
     return {
       success: true,
@@ -149,11 +154,11 @@ export async function checkEscrowStatus(
       agent: escrow.agent.toBase58(),
       api: escrow.api.toBase58(),
       amount: lamportsToSol(Number(escrow.amount)),
-      createdAt: Number(escrow.createdAt),
-      expiresAt: Number(escrow.expiresAt),
-      transactionId: escrow.transactionId,
-      qualityScore: escrow.qualityScore !== null ? escrow.qualityScore : undefined,
-      refundPercentage: escrow.refundPercentage !== null ? escrow.refundPercentage : undefined,
+      createdAt,
+      expiresAt,
+      transactionId,
+      qualityScore: qualityScore !== null ? qualityScore : undefined,
+      refundPercentage: refundPercentage !== null ? refundPercentage : undefined,
     };
   } catch (error: any) {
     return {
@@ -171,7 +176,7 @@ export async function verifyPayment(
   program: X402Program
 ): Promise<VerifyPaymentResult> {
   try {
-    const [escrowPDA] = program.pda.deriveEscrowPDA(params.transactionId);
+    const escrowPDA = await program.resolveEscrowPDA(params.transactionId, program.getWalletPublicKey());
 
     // Check if escrow exists
     const exists = await program.escrowExists(params.transactionId);

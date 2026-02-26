@@ -65,19 +65,20 @@ describe('e2e', () => {
       const ix = client.buildCreateAgreementInstruction(agent.publicKey, {
         provider: provider.publicKey, amount: new BN(1e8), timeLockSeconds: new BN(86400), transactionId: 'ord-1',
       });
-      expect(ix.keys[2].pubkey.equals(provider.publicKey)).toBe(true);
+      expect(ix.keys[4].pubkey.equals(provider.publicKey)).toBe(true);
+      expect(ix.keys[3].isSigner).toBe(true);
     });
 
     test('releaseFunds', () => {
       const ix = client.buildReleaseFundsInstruction(agent.publicKey, 'ord-1', provider.publicKey);
-      expect(ix.keys[2].pubkey.equals(provider.publicKey)).toBe(true);
-      expect(ix.keys[2].isWritable).toBe(true);
+      expect(ix.keys[3].pubkey.equals(provider.publicKey)).toBe(true);
+      expect(ix.keys[3].isWritable).toBe(true);
     });
 
     test('markDisputed', () => {
       const ix = client.buildMarkDisputedInstruction(agent.publicKey, 'ord-1');
-      expect(ix.keys[0].isWritable).toBe(true);
-      expect(ix.keys[2].isSigner).toBe(true);
+      expect(ix.keys[1].isWritable).toBe(true);
+      expect(ix.keys[3].isSigner).toBe(true);
     });
   });
 

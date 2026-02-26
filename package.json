@@ -73,6 +73,7 @@
     ],
     "overrides": {
       "@types/express-serve-static-core": "^4.19.8",
+      "@types/bn.js": "4.11.6",
       "@solana/web3.js": "1.95.8",
       "fast-xml-parser": "^5.3.5",
       "form-data": "2.5.4"

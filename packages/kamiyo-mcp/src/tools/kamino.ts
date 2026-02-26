@@ -1,5 +1,6 @@
 import { PublicKey, type Commitment, VersionedTransaction } from '@solana/web3.js';
 import { TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 import type { SolanaClient } from '../solana/client.js';
 
@@ -9,6 +10,114 @@ const DEFAULT_USDC_MINT =
 
 const REQUEST_TIMEOUT_MS = 12_000;
 const DEFAULT_CONFIRM_TIMEOUT_MS = 90_000;
+
+export const KAMINO_TOOL_DEFINITIONS: Tool[] = [
+  {
+    name: 'kamino_list_vaults',
+    description: 'List Kamino KVaults for a token mint (defaults to USDC).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tokenMint: { type: 'string' },
+        limit: { type: 'number' },
+      },
+    },
+  },
+  {
+    name: 'kamino_vault_metrics',
+    description: 'Fetch APY and AUM metrics for a Kamino vault.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: { type: 'string' },
+      },
+      required: ['vault'],
+    },
+  },
+  {
+    name: 'kamino_suggest_vaults',
+    description: 'Rank Kamino vaults by APY and liquidity constraints.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tokenMint: { type: 'string' },
+        limit: { type: 'number' },
+        apyWindow: {
+          type: 'string',
+          enum: ['apy24h', 'apy7d', 'apy30d', 'apy90d', 'apy180d', 'apy365d', 'apy'],
+        },
+        minAumUsd: { type: 'number' },
+        includeMetadata: { type: 'boolean' },
+      },
+    },
+  },
+  {
+    name: 'kamino_positions',
+    description: 'Get KVault positions for a wallet.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        wallet: { type: 'string' },
+      },
+      required: ['wallet'],
+    },
+  },
+  {
+    name: 'kamino_deposit',
+    description: 'Build or submit a Kamino KVault deposit transaction.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: { type: 'string' },
+        amount: { type: 'string' },
+        wallet: { type: 'string' },
+        dryRun: { type: 'boolean' },
+        confirm: { type: 'boolean' },
+        commitment: { type: 'string', enum: ['processed', 'confirmed', 'finalized'] },
+        confirmTimeoutMs: { type: 'number' },
+      },
+      required: ['vault', 'amount'],
+    },
+  },
+  {
+    name: 'kamino_withdraw',
+    description: 'Build or submit a Kamino KVault withdraw transaction.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vault: { type: 'string' },
+        amount: { type: 'string' },
+        withdrawAll: { type: 'boolean' },
+        wallet: { type: 'string' },
+        dryRun: { type: 'boolean' },
+        confirm: { type: 'boolean' },
+        commitment: { type: 'string', enum: ['processed', 'confirmed', 'finalized'] },
+        confirmTimeoutMs: { type: 'number' },
+      },
+      required: ['vault'],
+    },
+  },
+  {
+    name: 'kamino_autosave_usdc',
+    description: 'Auto-route idle USDC into the highest-ranked Kamino vault.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        wallet: { type: 'string' },
+        bufferUsdc: { type: ['string', 'number'] as any },
+        minDepositUsdc: { type: ['string', 'number'] as any },
+        maxDepositUsdc: { type: ['string', 'number'] as any },
+        apyWindow: {
+          type: 'string',
+          enum: ['apy24h', 'apy7d', 'apy30d', 'apy90d', 'apy180d', 'apy365d', 'apy'],
+        },
+        minAumUsd: { type: 'number' },
+        vault: { type: 'string' },
+        dryRun: { type: 'boolean' },
+      },
+    },
+  },
+];
 
 type KaminoVault = {
   address: string;

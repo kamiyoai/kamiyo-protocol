@@ -198,8 +198,8 @@ export function createX402Tools(config: X402ToolsConfig) {
       parameters: z.object({
         url: z.string().url().describe('API endpoint URL'),
       }),
-      execute: ({ url }) => checkPricing(url, facilitatorPolicy),
-    }),
+      execute: ({ url }: { url: string }) => checkPricing(url, facilitatorPolicy),
+    } as any),
 
     x402_fetch: tool({
       description: 'Fetch from x402 API with automatic USDC payment',
@@ -209,8 +209,10 @@ export function createX402Tools(config: X402ToolsConfig) {
         body: z.string().optional().describe('JSON body for POST/PUT'),
         headers: z.record(z.string()).optional(),
       }),
-      execute: (params) => x402Fetch(params, config),
-    }),
+      execute: (
+        params: { url: string; method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: string; headers?: Record<string, string> }
+      ) => x402Fetch(params, config),
+    } as any),
   };
 }
 

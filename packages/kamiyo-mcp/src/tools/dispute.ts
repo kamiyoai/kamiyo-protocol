@@ -54,7 +54,7 @@ export async function fileDispute(
     }
 
     // Get escrow account to verify status
-    const [escrowPDA] = program.pda.deriveEscrowPDA(params.transactionId);
+    const escrowPDA = await program.resolveEscrowPDA(params.transactionId, program.getWalletPublicKey());
     const escrow = await program.getEscrowAccount(escrowPDA);
     const status = parseEscrowStatus(escrow.status);
 
@@ -67,7 +67,7 @@ export async function fileDispute(
     }
 
     // Check if agent reputation exists, if not create it
-    const agentReputationExists = await program.reputationExists(program.program.provider.publicKey!);
+    const agentReputationExists = await program.reputationExists(program.getWalletPublicKey());
     if (!agentReputationExists) {
       await program.initReputation();
     }

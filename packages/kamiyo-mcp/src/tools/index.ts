@@ -10,6 +10,7 @@ export * from './x402.js';
 export * from './market.js';
 export * from './search.js';
 export * from './paranet.js';
+export * from './dkg-quality.js';
 export * from './kamino.js';
 export * from './fundry.js';
 export * from './cdp.js';
@@ -21,6 +22,9 @@ import { SEARCH_TOOL_DEFINITIONS } from './search.js';
 import { PARANET_TOOLS } from './paranet.js';
 import { FUNDRY_TOOL_DEFINITIONS } from './fundry.js';
 import { ELFA_TOOL_DEFINITIONS } from './elfa.js';
+import { DKG_QUALITY_TOOLS } from './dkg-quality.js';
+import { KAMINO_TOOL_DEFINITIONS } from './kamino.js';
+import { CDP_TOOL_DEFINITIONS } from './cdp.js';
 
 export const TOOL_DEFINITIONS: Tool[] = [
   {
@@ -294,6 +298,12 @@ export const TOOL_DEFINITIONS: Tool[] = [
   ...SEARCH_TOOL_DEFINITIONS,
   // Agent Paranet tools
   ...PARANET_TOOLS,
+  // DKG quality tools
+  ...DKG_QUALITY_TOOLS,
+  // Kamino vault tools
+  ...KAMINO_TOOL_DEFINITIONS,
+  // Coinbase CDP tools
+  ...CDP_TOOL_DEFINITIONS,
   // Fundry trusted launch tools
   ...FUNDRY_TOOL_DEFINITIONS,
   // Elfa trusted trader tools

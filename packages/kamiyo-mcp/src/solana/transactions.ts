@@ -57,24 +57,26 @@ export function getAddressExplorerUrl(address: string, cluster: 'devnet' | 'main
  * Generate unique transaction ID
  */
 export function generateTransactionId(): string {
-  return `${Date.now()}-${randomUUID()}`;
+  const ts = Date.now().toString(36);
+  const entropy = randomUUID().replace(/-/g, '').slice(0, 16);
+  return `${ts}-${entropy}`;
 }
 
 /**
  * Validate transaction ID format
  */
 export function isValidTransactionId(transactionId: string): boolean {
-  return transactionId.length > 0 && transactionId.length <= 64;
+  return transactionId.length > 0 && transactionId.length <= 32;
 }
 
 /**
  * Parse escrow status from on-chain data
  */
 export function parseEscrowStatus(status: any): 'Active' | 'Released' | 'Disputed' | 'Resolved' {
-  if ('active' in status) return 'Active';
-  if ('released' in status) return 'Released';
-  if ('disputed' in status) return 'Disputed';
-  if ('resolved' in status) return 'Resolved';
+  if ('active' in status || 'Active' in status) return 'Active';
+  if ('released' in status || 'Released' in status) return 'Released';
+  if ('disputed' in status || 'Disputed' in status) return 'Disputed';
+  if ('resolved' in status || 'Resolved' in status) return 'Resolved';
   throw new Error('Unknown escrow status');
 }
 

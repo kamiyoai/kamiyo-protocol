@@ -1,5 +1,5 @@
 import * as anchor from '@coral-xyz/anchor';
-import { BN } from 'bn.js';
+import BN from 'bn.js';
 import { Connection, Keypair, PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import bs58 from 'bs58';
 import * as fs from 'fs';
