@@ -8,13 +8,15 @@ vi.mock('@solana/web3.js', async () => {
   const actual = await vi.importActual('@solana/web3.js');
   return {
     ...actual,
-    Connection: vi.fn().mockImplementation(() => ({
+    Connection: vi.fn(function MockConnection() {
+      return {
       getAccountInfo: vi.fn().mockResolvedValue(null),
       getSignaturesForAddress: vi.fn().mockResolvedValue([
         { blockTime: Date.now() / 1000 - 86400 * 30, signature: 'sig1' },
         { blockTime: Date.now() / 1000 - 86400 * 60, signature: 'sig2' },
       ]),
-    })),
+      };
+    }),
   };
 });
 
