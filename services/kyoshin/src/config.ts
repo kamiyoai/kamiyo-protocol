@@ -42,8 +42,6 @@ const envSchema = z.object({
     .default('false')
     .transform(v => v === 'true'),
   KAMIYO_LOOP_INTERVAL_SECONDS: z.coerce.number().int().positive().default(180),
-<<<<<<< HEAD
-=======
   KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
@@ -55,7 +53,6 @@ const envSchema = z.object({
     .transform(v => v === 'true'),
   KAMIYO_POLICY_HOT_RELOAD_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
   KAMIYO_POLICY_HOT_RELOAD_ENV_FILE: optionalNonEmptyString,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_DB_PATH: z.string().default('output/kyoshin/state.db'),
   KAMIYO_OUTBOX_DIR: z.string().default('output/kyoshin/outbox'),
@@ -131,8 +128,6 @@ const envSchema = z.object({
   KAMIYO_SWARM_KORE_FEED_URL: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_API_KEY: optionalNonEmptyString,
   KAMIYO_SWARM_KORE_AUTH_HEADER: z.string().min(1).default('authorization'),
-<<<<<<< HEAD
-=======
   KAMIYO_SWARM_NEAR_MARKET_FEED_URL: optionalNonEmptyString,
   KAMIYO_SWARM_NEAR_MARKET_API_KEY: optionalNonEmptyString,
   KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER: z.string().min(1).default('authorization'),
@@ -184,7 +179,6 @@ const envSchema = z.object({
   KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_INTERVAL_MINUTES: z.coerce.number().int().positive().default(5),
   KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_PENDING_MAX_MINUTES: z.coerce.number().int().positive().default(30),
   KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT: z.coerce.number().int().positive().default(20),
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_SWARM_JOB_MAX_OPEN: z.coerce.number().int().positive().default(12),
   KAMIYO_SWARM_JOB_MIN_REWARD_USD: z.coerce.number().nonnegative().default(5),
@@ -202,8 +196,6 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform(v => v === 'true'),
-<<<<<<< HEAD
-=======
   KAMIYO_SWARM_INTAKE_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
@@ -231,7 +223,6 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform(v => v === 'true'),
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KAMIYO_SWARM_X402_ENABLED: z
     .enum(['true', 'false'])
@@ -266,8 +257,6 @@ const envSchema = z.object({
   KAMIYO_SWARM_ROLLBACK_SOURCE_MIN_JOBS: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_MAX_DISABLED_SOURCES: z.coerce.number().int().positive().default(2),
   KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS: z.coerce.number().int().positive().default(24),
-<<<<<<< HEAD
-=======
   KAMIYO_REVENUE_POLICY_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
@@ -289,7 +278,6 @@ const envSchema = z.object({
   KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL: z.coerce.number().positive().default(0.0002),
   KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL: z.coerce.number().nonnegative().default(0.0002),
   KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK: z.coerce.number().int().positive().default(4),
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   KYOSHIN_HTTP_ENABLED: z
     .enum(['true', 'false'])

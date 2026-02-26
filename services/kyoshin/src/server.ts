@@ -8,8 +8,6 @@ export type KyoshinServerConfig = {
   token?: string;
   getStatus: () => RuntimeStatus;
   getMetrics: () => string;
-<<<<<<< HEAD
-=======
   enqueueIntakeJobs: (payload: unknown) => {
     accepted: string[];
     updated: string[];
@@ -20,7 +18,6 @@ export type KyoshinServerConfig = {
     limit?: number;
   }) => unknown;
   getEconomicsSnapshot: () => unknown;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 };
 
 function readToken(req: Request): string {
@@ -28,7 +25,6 @@ function readToken(req: Request): string {
   if (bearer.toLowerCase().startsWith('bearer ')) return bearer.slice(7).trim();
   return req.header('x-kyoshin-token')?.trim() ?? '';
 }
-<<<<<<< HEAD
 
 function isAuthorized(req: Request, expectedToken: string | undefined): boolean {
   if (!expectedToken) return true;
@@ -39,18 +35,6 @@ export class KyoshinServer {
   private readonly app = express();
   private readonly httpServer: HttpServer;
 
-=======
-
-function isAuthorized(req: Request, expectedToken: string | undefined): boolean {
-  if (!expectedToken) return true;
-  return readToken(req) === expectedToken;
-}
-
-export class KyoshinServer {
-  private readonly app = express();
-  private readonly httpServer: HttpServer;
-
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   constructor(private readonly config: KyoshinServerConfig) {
     this.httpServer = createServer(this.app);
     this.setupRoutes();
@@ -58,10 +42,7 @@ export class KyoshinServer {
 
   private setupRoutes(): void {
     this.app.disable('x-powered-by');
-<<<<<<< HEAD
-=======
     this.app.use(express.json({ limit: '256kb' }));
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     this.app.get('/health', (_req: Request, res: Response) => {
       const status = this.config.getStatus();
@@ -90,8 +71,6 @@ export class KyoshinServer {
     this.app.get('/metrics', (_req: Request, res: Response) => {
       res.type('text/plain').send(this.config.getMetrics());
     });
-<<<<<<< HEAD
-=======
 
     this.app.get('/jobs', (req: Request, res: Response) => {
       if (!isAuthorized(req, this.config.token)) {
@@ -140,7 +119,6 @@ export class KyoshinServer {
       }
       res.json(this.config.getEconomicsSnapshot());
     });
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   }
 
   async start(): Promise<void> {

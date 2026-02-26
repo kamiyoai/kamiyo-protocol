@@ -15,6 +15,12 @@ function writeExecutable(path: string, contents: string): void {
   chmodSync(path, 0o755);
 }
 
+function toText(value: string | Buffer | null | undefined): string {
+  if (typeof value === 'string') return value;
+  if (!value) return '';
+  return value.toString('utf8');
+}
+
 function setupHarness(
   t: TestContext,
   economicsJson: string,
@@ -22,7 +28,7 @@ function setupHarness(
   commandArgs: string[] = ['canary_1', 'false']
 ): {
   callsFile: string;
-  run: () => ReturnType<typeof spawnSync>;
+  run: () => { status: number | null; stdout: string; stderr: string };
 } {
   const tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-guarded-promote-'));
   t.after(() => {
@@ -82,11 +88,17 @@ function setupHarness(
 
   return {
     callsFile,
-    run: () =>
-      spawnSync(GUARDED_PROMOTE_PATH, commandArgs, {
+    run: () => {
+      const result = spawnSync(GUARDED_PROMOTE_PATH, commandArgs, {
         env,
         encoding: 'utf8',
-      }),
+      });
+      return {
+        status: result.status,
+        stdout: toText(result.stdout),
+        stderr: toText(result.stderr),
+      };
+    },
   };
 }
 

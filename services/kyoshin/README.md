@@ -3,11 +3,6 @@
 Kyoshin is an execution-first cloud worker for:
 
 - sourcing swarm jobs from file/URL/marketplace feeds,
-<<<<<<< HEAD
-- enforcing profitability and treasury guardrails before execution,
-- executing jobs (including x402 flows) without LLM inference,
-- self-tuning agent priorities from realized outcomes,
-=======
 - sourcing + bidding on NEAR Agent Market jobs with deferred settlement accounting,
 - auto-submitting accepted NEAR assignments with deterministic deliverable artifacts,
 - accepting inbound paid jobs over authenticated HTTP intake,
@@ -16,7 +11,6 @@ Kyoshin is an execution-first cloud worker for:
 - self-tuning agent priorities from realized outcomes,
 - adaptive self-improvement that tightens/loosens execution policy from live outcomes,
 - revenue allocation ledger hooks for route/reserve/operations splits,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 - routing SOL into configured staking pools with hard caps.
 
 ## Guarantees in this runtime
@@ -43,12 +37,9 @@ Kyoshin is an execution-first cloud worker for:
 - `GET /ready`
 - `GET /metrics`
 - `GET /status` (token-gated if `KYOSHIN_HTTP_TOKEN` is set)
-<<<<<<< HEAD
-=======
 - `POST /jobs` (token-gated; enqueue one or many inbound jobs)
 - `GET /jobs?status=pending|completed|deadletter&limit=100` (token-gated)
 - `GET /economics` (token-gated; revenue lane and self-improve snapshot)
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
 ## Run
 

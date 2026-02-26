@@ -13,10 +13,7 @@ export type SwarmOpportunitySource =
   | 'relevance'
   | 'agent_ai'
   | 'kore'
-<<<<<<< HEAD
-=======
   | 'near_market'
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   | 'direct'
   | 'internal';
 
@@ -67,13 +64,6 @@ export type SwarmOpportunityIntake = {
   }>;
 };
 
-<<<<<<< HEAD
-export type MarketplaceFeedConfig = {
-  source: 'relevance' | 'agent_ai' | 'kore';
-  url: string;
-  apiKey?: string;
-  authHeader?: string;
-=======
 type NearMarketAdapterConfig = {
   enabled: boolean;
   agentId?: string;
@@ -96,7 +86,6 @@ export type MarketplaceFeedConfig = {
   apiKey?: string;
   authHeader?: string;
   nearMarketAdapter?: NearMarketAdapterConfig;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 };
 
 export type LeadConversionPolicy = {
@@ -233,12 +222,9 @@ function normalizeSource(value: string | undefined): SwarmOpportunitySource {
   if (source === 'relevance' || source === 'relevance_ai') return 'relevance';
   if (source === 'agent.ai' || source === 'agentai' || source === 'agent_ai') return 'agent_ai';
   if (source === 'kore' || source === 'kore_ai') return 'kore';
-<<<<<<< HEAD
-=======
   if (source === 'near_market' || source === 'near-market' || source === 'nearai' || source === 'near') {
     return 'near_market';
   }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   if (source === 'internal') return 'internal';
   return 'direct';
 }
@@ -607,17 +593,10 @@ function filterRankedOpportunities(params: {
   });
 
   filtered.sort((a, b) => {
-<<<<<<< HEAD
-    const payoutA = a.payoutSolEstimate ?? -1;
-    const payoutB = b.payoutSolEstimate ?? -1;
-    if (payoutB !== payoutA) return payoutB - payoutA;
-    if (b.confidence !== a.confidence) return b.confidence - a.confidence;
-=======
     if (b.confidence !== a.confidence) return b.confidence - a.confidence;
     const payoutA = a.payoutSolEstimate ?? -1;
     const payoutB = b.payoutSolEstimate ?? -1;
     if (payoutB !== payoutA) return payoutB - payoutA;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     return a.id.localeCompare(b.id);
   });
 
@@ -671,10 +650,7 @@ function jobSourceForOpportunity(source: SwarmOpportunity['source']): SwarmJobSo
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
-<<<<<<< HEAD
-=======
   if (source === 'near_market') return 'near_market';
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   if (source === 'internal') return 'internal';
   return 'direct_api';
 }
@@ -685,10 +661,7 @@ function marketplaceSourceFromOpportunity(
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';
-<<<<<<< HEAD
-=======
   if (source === 'near_market') return 'near_market';
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   return null;
 }
 
@@ -907,13 +880,6 @@ function parseMarketplaceActions(
   return actions;
 }
 
-<<<<<<< HEAD
-function parseMarketplaceItem(params: {
-  source: 'relevance' | 'agent_ai' | 'kore';
-  record: Record<string, unknown>;
-  index: number;
-}): RawOpportunity | null {
-=======
 function formatNearAmount(value: number): string {
   const fixed = value.toFixed(4);
   return fixed.replace(/\.?0+$/, '');
@@ -1103,7 +1069,6 @@ function parseMarketplaceItem(params: {
     });
   }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const { source, record, index } = params;
   const id =
     pickString(record, ['id', 'jobId', 'taskId', 'listingId', 'slug']) ?? `${source}-${index + 1}`;
@@ -1210,16 +1175,10 @@ function parseMarketplaceItem(params: {
 }
 
 function parseMarketplaceFeed(params: {
-<<<<<<< HEAD
-  source: 'relevance' | 'agent_ai' | 'kore';
-  payload: unknown;
-}): RawOpportunity[] {
-=======
   feed: MarketplaceFeedConfig;
   payload: unknown;
 }): RawOpportunity[] {
   const source = params.feed.source;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const rootRecord = asRecord(params.payload);
   const items = Array.isArray(params.payload)
     ? params.payload
@@ -1242,16 +1201,10 @@ function parseMarketplaceFeed(params: {
     if (!record) return;
 
     const parsed = parseMarketplaceItem({
-<<<<<<< HEAD
-      source: params.source,
-      record,
-      index,
-=======
       source,
       record,
       index,
       feed: params.feed,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     });
     if (parsed) opportunities.push(parsed);
   });
@@ -1278,13 +1231,9 @@ export async function collectSwarmOpportunities(params: {
   feedUrls: string[];
   marketplaceFeeds?: MarketplaceFeedConfig[];
   leadConversionPolicy?: LeadConversionPolicy;
-<<<<<<< HEAD
-  disabledSources?: SwarmOpportunitySource[];
-=======
   extraOpportunities?: SwarmOpportunity[];
   disabledSources?: SwarmOpportunitySource[];
   excludedOpportunityIds?: string[];
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   sourceQualityBySource?: Partial<Record<SwarmOpportunitySource, number>>;
   minRewardUsd: number;
   maxOpen: number;
@@ -1367,11 +1316,7 @@ export async function collectSwarmOpportunities(params: {
         timeoutMs: params.fetchTimeoutMs,
         headers: authHeaders(feed),
       });
-<<<<<<< HEAD
-      const raw = parseMarketplaceFeed({ source: feed.source, payload });
-=======
       const raw = parseMarketplaceFeed({ feed, payload });
->>>>>>> origin/kamiyo/kyoshin-exec-canary
       const opportunities = raw
         .map((entry, index) =>
           normalizeOpportunity({
@@ -1394,8 +1339,6 @@ export async function collectSwarmOpportunities(params: {
     }
   }
 
-<<<<<<< HEAD
-=======
   if (params.extraOpportunities?.length) {
     normalized.push(...params.extraOpportunities);
     sourceStats.push({
@@ -1405,7 +1348,6 @@ export async function collectSwarmOpportunities(params: {
     });
   }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const deduped = dedupeOpportunities(normalized);
   const convertedLeadResult = buildLeadConversions({
     opportunities: deduped,
@@ -1426,10 +1368,6 @@ export async function collectSwarmOpportunities(params: {
   const disabledSources = new Set(
     (params.disabledSources ?? []).map(source => source.toLowerCase())
   );
-<<<<<<< HEAD
-  const gated = merged.filter(
-    opportunity => !disabledSources.has(opportunity.source.toLowerCase())
-=======
   const excludedOpportunityIds = new Set(
     (params.excludedOpportunityIds ?? []).map(id => id.trim()).filter(Boolean)
   );
@@ -1437,7 +1375,6 @@ export async function collectSwarmOpportunities(params: {
     opportunity =>
       !disabledSources.has(opportunity.source.toLowerCase()) &&
       !excludedOpportunityIds.has(opportunity.id)
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   );
   const opportunities = filterRankedOpportunities({
     opportunities: gated,

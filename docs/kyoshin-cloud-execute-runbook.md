@@ -12,26 +12,12 @@ Run Kyoshin in cloud `execute` mode with explicit safety gates:
 ## Required environment
 
 - `KAMIYO_MODE=execute`
-<<<<<<< HEAD
-- `KAMIYO_EXECUTION_STAGE=canary_1` (initial)
-- `KAMIYO_EXECUTION_HARD_STOP=false`
-=======
 - `KAMIYO_EXECUTION_STAGE=canary_0` (initial)
 - `KAMIYO_EXECUTION_HARD_STOP=true` (initial bootstrap safety)
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 - `KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST=true`
 - `KAMIYO_ALLOWED_STAKING_POOLS=<pool_a>,<pool_b>`
 - `KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD=true`
 
-<<<<<<< HEAD
-## Staged rollout
-
-1. `canary_0` (30-60 min): no mutations, verify health/status/metrics and feed intake quality.
-2. `canary_1` (12-24 h): limited paid-job execution, no route/claim operations.
-3. `canary_2` (24-72 h): controlled route/claim enabled with tighter auto-stake caps.
-4. `full`: only after sustained positive net SOL and stable SLOs.
-
-=======
 ## DigitalOcean deploy path
 
 Deploy from source on the droplet (not prebuilt artifacts):
@@ -91,7 +77,6 @@ Guarded promotion gate overrides (in `/etc/kamiyo/kyoshin-exec.env`):
 - `KAMIYO_CANARY_GATE_MAX_PENDING_INTAKE` (default `200`)
 - `KAMIYO_CANARY_GATE_GRACE_SECONDS` (default `900`)
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 ## Stage caps (runtime enforced)
 
 - `canary_0`

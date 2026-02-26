@@ -31,8 +31,6 @@ export type RuntimeStatus = {
     lastRouteSignature: string | null;
     lastClaimSignature: string | null;
   };
-<<<<<<< HEAD
-=======
   economics: {
     pendingIntakeJobs: number;
     completedIntakeJobs: number;
@@ -49,7 +47,6 @@ export type RuntimeStatus = {
     effectiveMinMarginSol: number;
     effectiveExecutionsPerTick: number;
   };
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 };
 
 export function createInitialStatus(mode: 'propose' | 'execute'): RuntimeStatus {
@@ -86,8 +83,6 @@ export function createInitialStatus(mode: 'propose' | 'execute'): RuntimeStatus 
       lastRouteSignature: null,
       lastClaimSignature: null,
     },
-<<<<<<< HEAD
-=======
     economics: {
       pendingIntakeJobs: 0,
       completedIntakeJobs: 0,
@@ -104,6 +99,5 @@ export function createInitialStatus(mode: 'propose' | 'execute'): RuntimeStatus 
       effectiveMinMarginSol: 0,
       effectiveExecutionsPerTick: 0,
     },
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   };
 }

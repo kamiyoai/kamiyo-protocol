@@ -22,6 +22,9 @@ Success criteria:
 3. `@kamiyo/mcp-server` devnet integration (escrow + dispute) passes end-to-end.
 4. `services/api` and `services/x402-facilitator` build and test successfully.
 5. Program IDL alignment for escrow/dispute path is corrected in MCP and API wrappers.
+6. SDK devnet smoke passes (fund wallet, create agent, init reputation, create agreement, mark disputed).
+7. `@kamiyo/mcp-server` full test bundle (`test:all`) passes, including truth-court suites.
+8. `@kamiyo/meishi-mcp` tool handlers execute deterministically with clear validation/config errors.
 
 ## Found Gaps
 
@@ -34,6 +37,12 @@ Success criteria:
    - No first-party script proving create-agent + escrow + dispute on devnet with a funded key.
 3. Inconsistent runtime behavior around optional env:
    - Several integrations silently degrade instead of returning actionable setup errors.
+4. Program ID usage is easy to misconfigure in ad-hoc runs:
+   - A single typo in `KAMIYO_PROGRAM_ID` produces non-obvious runtime failures.
+5. Native module drift can break tests after Node changes:
+   - `better-sqlite3` required rebuild for current Node ABI.
+6. Lockfile integrity can be corrupted by bad merges:
+   - `pnpm-lock.yaml` became unparsable and had to be regenerated.
 
 ### P1 gaps (high priority hardening)
 
@@ -83,10 +92,21 @@ Success criteria:
 2. Fixed workspace build/test blockers discovered during full recursive validation.
 3. Added MCP tool definition parity work for CDP/Kamino/DKG and dispatch wiring for DKG/Paranet.
 4. Added SDK devnet smoke runner: `packages/kamiyo-sdk/scripts/devnet-smoke.cjs`.
+5. Repaired bad kyoshin merge state (removed committed conflict markers, restored build/test stability).
+6. Rebuilt `better-sqlite3` to fix Node ABI mismatch and revalidated previously failing service tests.
+7. Regenerated broken `pnpm-lock.yaml` to restore deterministic dependency resolution.
+8. Revalidated live devnet flows using funded agent wallet:
+   - MCP integration: 14/14 pass
+   - SDK smoke: pass (`agreementStatus: disputed`)
+9. Exercised secondary MCP handlers:
+   - CDP: all tool functions return deterministic config errors without crashing when env is missing.
+   - DKG/Paranet: all tool handlers return deterministic validation/config responses.
+   - Meishi MCP: all exported tools execute and return expected validation/not-found outputs.
 
 ## Remaining Work to Reach A+
 
-1. Finalize and test Paranet runtime handlers against a configured DKG endpoint.
-2. Add meishi-mcp tool-level smoke coverage and explicit env diagnostics.
-3. Introduce root-level `smoke:enterprise` command and CI enforcement for tool parity.
-4. Convert warning-prone package export patterns and peer-dependency drift into tracked cleanup tickets.
+1. Finalize and test Paranet runtime handlers against a configured DKG endpoint with real credentials.
+2. Add root `smoke:enterprise` command that enforces canonical program ID/env detection and runs MCP+SDK+service smoke end-to-end.
+3. Add CI guard for lockfile integrity and native dependency ABI sanity checks.
+4. Add CI guard that asserts every listed MCP tool has dispatch coverage plus at least one test.
+5. Convert peer-dependency and export warnings into tracked cleanup tickets with owners and deadlines.

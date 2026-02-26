@@ -54,11 +54,7 @@ const STAGE_CAPS: Record<ExecutionStage, StageCaps> = {
     perTxCapSol: 0.003,
     maxTxPerDay: 4,
     swarmJobExecutionsPerTick: 1,
-<<<<<<< HEAD
-    minMarginSol: 0.0015,
-=======
     minMarginSol: 0.0005,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     allowSwarmExecution: true,
     allowAutoClaim: false,
     allowKyoshinClaim: false,
@@ -69,15 +65,9 @@ const STAGE_CAPS: Record<ExecutionStage, StageCaps> = {
   canary_2: {
     dailyCapSol: 0.05,
     perTxCapSol: 0.01,
-<<<<<<< HEAD
-    maxTxPerDay: 10,
-    swarmJobExecutionsPerTick: 1,
-    minMarginSol: 0.001,
-=======
     maxTxPerDay: 60,
     swarmJobExecutionsPerTick: 1,
     minMarginSol: 0.0001,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     allowSwarmExecution: true,
     allowAutoClaim: true,
     allowKyoshinClaim: true,

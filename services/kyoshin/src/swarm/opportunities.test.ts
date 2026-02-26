@@ -20,11 +20,7 @@ function createRegistry(): SwarmRegistry {
         mint: 'mint-1',
         status: 'active',
         priority: 1,
-<<<<<<< HEAD
-        jobSources: ['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'internal'],
-=======
         jobSources: ['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'near_market', 'internal'],
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         marketplaceProfiles: [],
         missionHints: [],
       },
@@ -194,8 +190,6 @@ test('source quality weighting influences assignment selection', async () => {
   assert.equal(intake.assignments.length, 1);
   assert.equal(intake.assignments[0]?.opportunityId, 'opp-x402');
 });
-<<<<<<< HEAD
-=======
 
 test('extra intake opportunities are merged into assignment pool', async () => {
   const intake = await collectSwarmOpportunities({
@@ -515,4 +509,3 @@ test('ranking prioritizes confidence before payout', async () => {
   assert.equal(intake.opportunities.length, 1);
   assert.equal(intake.opportunities[0]?.id, 'high-confidence-lower-payout');
 });
->>>>>>> origin/kamiyo/kyoshin-exec-canary

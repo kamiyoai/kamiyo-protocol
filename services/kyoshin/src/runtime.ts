@@ -1,9 +1,6 @@
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
-<<<<<<< HEAD
-=======
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,25 +15,13 @@ import { loadSwarmRegistry } from './swarm/registry.js';
 import { planSwarmMissions, type SwarmMissionOpportunityHint } from './swarm/planner.js';
 import {
   collectSwarmOpportunities,
-<<<<<<< HEAD
-=======
   type LeadConversionPolicy,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   type MarketplaceFeedConfig,
   type SwarmOpportunity,
   type SwarmOpportunityAssignment,
   type SwarmOpportunityIntake,
 } from './swarm/opportunities.js';
 import { executeAssignedOpportunity, type SourceAuthMap } from './swarm/jobs.js';
-<<<<<<< HEAD
-import { parseMarginCircuitState, pruneMarginCircuitState, isMarginCircuitOpen, updateMarginCircuit } from './swarm/circuitBreaker.js';
-import { parseRollbackState, pruneRollbackState, isRollbackSourceDisabled, evaluateRollbackPolicy } from './swarm/rollback.js';
-import { parsePriorityState, evaluateSwarmPerformance, type SwarmAgentRuntimeMetrics } from './swarm/performance.js';
-import { revenueLaneForOpportunitySource } from './swarm/revenue.js';
-import { buildAutonomySloReport } from './swarm/slo.js';
-import { checkBudget, applyBudget } from './policy/budget.js';
-import { buildExecutionPolicy, type ExecutionPolicy } from './policy/executeProfile.js';
-=======
 import {
   parseMarginCircuitState,
   pruneMarginCircuitState,
@@ -59,7 +44,6 @@ import {
 import { buildAutonomySloReport } from './swarm/slo.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
 import { buildExecutionPolicy, type ExecutionPolicy, type ExecutionPolicyInput } from './policy/executeProfile.js';
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 import type { SwarmRegistry } from './swarm/types.js';
 import { createInitialStatus, type RuntimeStatus } from './state.js';
 
@@ -102,8 +86,6 @@ function randomId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-<<<<<<< HEAD
-=======
 function parseBooleanLiteral(value: string | undefined): boolean | undefined {
   if (!value) return undefined;
   const normalized = value.trim().toLowerCase();
@@ -225,7 +207,6 @@ function executionPolicyFingerprint(policy: ExecutionPolicy): string {
   });
 }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   if (timeoutMs <= 0) return promise;
   let timer: NodeJS.Timeout | null = null;
@@ -294,13 +275,6 @@ type BudgetState = {
   txToday: number;
 };
 
-<<<<<<< HEAD
-export class KyoshinRuntime {
-  private readonly runtimeEnv: Env;
-  private readonly executionPolicy: ExecutionPolicy;
-  private readonly db = openDb(resolvePath(env.KAMIYO_DB_PATH));
-  private readonly status: RuntimeStatus = createInitialStatus(env.KAMIYO_MODE);
-=======
 type SwarmExecutionOutcome = {
   agentId: string;
   opportunityId: string;
@@ -378,26 +352,19 @@ export class KyoshinRuntime {
   private executionPolicy: ExecutionPolicy;
   private readonly db: ReturnType<typeof openDb>;
   private readonly status: RuntimeStatus;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   private readonly rpcConnections: Connection[];
   private readonly operatorKeypair: Keypair;
 
   private loopTimer: NodeJS.Timeout | null = null;
   private runningTick = false;
   private stopRequested = false;
-<<<<<<< HEAD
-=======
   private lastPolicyReloadMs = 0;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
     this.executionPolicy = buildExecutionPolicy(runtimeEnv);
-<<<<<<< HEAD
-=======
     this.db = openDb(resolvePath(runtimeEnv.KAMIYO_DB_PATH));
     this.status = createInitialStatus(runtimeEnv.KAMIYO_MODE);
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     let keypairInfo: { keypair: Keypair; source: string };
     try {
@@ -418,19 +385,8 @@ export class KyoshinRuntime {
     this.rpcConnections = endpoints.map(endpoint => new Connection(endpoint, 'confirmed'));
 
     this.status.mode = runtimeEnv.KAMIYO_MODE;
-<<<<<<< HEAD
-    this.status.execution.stage = this.executionPolicy.stage;
-    this.status.execution.hardStop = this.executionPolicy.hardStop;
-    this.status.execution.swarmJobExecutionEnabled = this.executionPolicy.swarmJobExecutionEnabled;
-    this.status.execution.autoClaimEnabled = this.executionPolicy.autoClaimEnabled;
-    this.status.execution.autoStakeEnabled = this.executionPolicy.autoStakeEnabled;
-    this.status.execution.requireStakingPoolAllowlist = this.executionPolicy.requireStakingPoolAllowlist;
-    this.status.treasury.dailyCapSol = this.executionPolicy.dailyCapSol;
-    this.status.treasury.maxTxPerDay = this.executionPolicy.maxTxPerDay;
-=======
     this.status.selfImprove.enabled = runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED;
     this.applyExecutionPolicyToStatus();
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     log('info', 'Kyoshin runtime initialized', {
       mode: runtimeEnv.KAMIYO_MODE,
@@ -448,8 +404,6 @@ export class KyoshinRuntime {
       execution: { ...this.status.execution },
       swarm: { ...this.status.swarm },
       treasury: { ...this.status.treasury },
-<<<<<<< HEAD
-=======
       economics: { ...this.status.economics },
       selfImprove: { ...this.status.selfImprove },
     };
@@ -530,7 +484,6 @@ export class KyoshinRuntime {
         lastAction: this.status.selfImprove.lastAction,
         lastEvaluatedAt: this.status.selfImprove.lastEvaluatedAt,
       },
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     };
   }
 
@@ -577,8 +530,6 @@ export class KyoshinRuntime {
       '# HELP kyoshin_treasury_tx_today Number of treasury tx attempts today.',
       '# TYPE kyoshin_treasury_tx_today gauge',
       `kyoshin_treasury_tx_today ${this.status.treasury.txToday}`,
-<<<<<<< HEAD
-=======
       '# HELP kyoshin_intake_jobs_pending Pending intake jobs.',
       '# TYPE kyoshin_intake_jobs_pending gauge',
       `kyoshin_intake_jobs_pending ${this.status.economics.pendingIntakeJobs}`,
@@ -591,14 +542,11 @@ export class KyoshinRuntime {
       '# HELP kyoshin_self_improve_effective_executions_per_tick Adaptive execution rate.',
       '# TYPE kyoshin_self_improve_effective_executions_per_tick gauge',
       `kyoshin_self_improve_effective_executions_per_tick ${this.status.selfImprove.effectiveExecutionsPerTick}`,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     ];
 
     return `${lines.join('\n')}\n`;
   }
 
-<<<<<<< HEAD
-=======
   private applyExecutionPolicyToStatus(): void {
     this.status.execution.stage = this.executionPolicy.stage;
     this.status.execution.hardStop = this.executionPolicy.hardStop;
@@ -704,7 +652,6 @@ export class KyoshinRuntime {
     }
   }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   async start(): Promise<void> {
     await this.runTickGuarded();
 
@@ -764,18 +711,13 @@ export class KyoshinRuntime {
   private async runTick(tickId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const dayStartIso = startOfUtcDayIso();
-<<<<<<< HEAD
-=======
     this.maybeRefreshExecutionPolicy({ tickId, nowIso });
     const effectiveSelfImprove = this.getEffectiveSelfImproveSnapshot();
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     let budget = this.calculateBudgetState(dayStartIso);
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
-<<<<<<< HEAD
-=======
     this.status.selfImprove.effectiveExecutionsPerTick = effectiveSelfImprove.effectiveExecutionsPerTick;
     this.status.selfImprove.effectiveMinMarginSol = effectiveSelfImprove.effectiveMinMarginSol;
     this.status.selfImprove.lastAction = effectiveSelfImprove.lastAction;
@@ -784,7 +726,6 @@ export class KyoshinRuntime {
     this.status.economics.pendingIntakeJobs = intakeStats.pending;
     this.status.economics.completedIntakeJobs = intakeStats.completed;
     this.status.economics.deadletterIntakeJobs = intakeStats.deadletter;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     const observation: Record<string, unknown> = {
       tickId,
@@ -794,11 +735,8 @@ export class KyoshinRuntime {
         stage: this.executionPolicy.stage,
         hardStop: this.executionPolicy.hardStop,
         swarmJobExecutionEnabled: this.executionPolicy.swarmJobExecutionEnabled,
-<<<<<<< HEAD
-=======
         effectiveSwarmJobExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
         effectiveSwarmJobMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         autoClaimEnabled: this.executionPolicy.autoClaimEnabled,
         autoStakeEnabled: this.executionPolicy.autoStakeEnabled,
       },
@@ -810,13 +748,8 @@ export class KyoshinRuntime {
       },
     };
 
-<<<<<<< HEAD
-    const registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
-    const swarmRegistry = registryResult.ok ? registryResult.registry : null;
-=======
     let registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
     let swarmRegistry = registryResult.ok ? registryResult.registry : null;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     let swarmOpportunityIntake: SwarmOpportunityIntake | null = null;
 
     if (this.runtimeEnv.KAMIYO_SWARM_ENABLED && swarmRegistry) {
@@ -830,10 +763,6 @@ export class KyoshinRuntime {
       const disabledSources = Object.values(rollbackState.sources)
         .filter(value => value != null)
         .map(value => value!.source);
-<<<<<<< HEAD
-
-      if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED) {
-=======
       const intakeJobs =
         this.runtimeEnv.KAMIYO_SWARM_INTAKE_ENABLED
           ? this.db.dueIntakeJobs({
@@ -850,7 +779,6 @@ export class KyoshinRuntime {
       }
 
       if (this.runtimeEnv.KAMIYO_SWARM_JOB_INTAKE_ENABLED || intakeOpportunities.length > 0) {
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         const marketplaceFeeds: MarketplaceFeedConfig[] = [];
         if (this.runtimeEnv.KAMIYO_SWARM_RELEVANCE_FEED_URL) {
           marketplaceFeeds.push({
@@ -876,8 +804,6 @@ export class KyoshinRuntime {
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
           });
         }
-<<<<<<< HEAD
-=======
         if (this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_FEED_URL) {
           marketplaceFeeds.push({
             source: 'near_market',
@@ -912,7 +838,6 @@ export class KyoshinRuntime {
           minConfidence: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE,
           validateSourceContracts: this.runtimeEnv.KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION,
         };
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
         swarmOpportunityIntake = await collectSwarmOpportunities({
           registry: swarmRegistry,
@@ -921,16 +846,11 @@ export class KyoshinRuntime {
             : undefined,
           feedUrls: this.runtimeEnv.KAMIYO_SWARM_JOB_FEED_URLS,
           marketplaceFeeds,
-<<<<<<< HEAD
-          sourceQualityBySource,
-          disabledSources,
-=======
           leadConversionPolicy,
           extraOpportunities: intakeOpportunities,
           sourceQualityBySource,
           disabledSources,
           excludedOpportunityIds,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
           minRewardUsd: this.runtimeEnv.KAMIYO_SWARM_JOB_MIN_REWARD_USD,
           maxOpen: this.runtimeEnv.KAMIYO_SWARM_JOB_MAX_OPEN,
           assignmentLimit: this.runtimeEnv.KAMIYO_SWARM_MISSIONS_PER_TICK,
@@ -973,21 +893,15 @@ export class KyoshinRuntime {
       if (
         this.runtimeEnv.KAMIYO_MODE === 'execute' &&
         this.executionPolicy.swarmJobExecutionEnabled &&
-<<<<<<< HEAD
-=======
         effectiveSelfImprove.effectiveExecutionsPerTick > 0 &&
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         swarmOpportunityIntake
       ) {
         const executionResult = await this.executeSwarmJobs({
           tickId,
           dayStartIso,
           budget,
-<<<<<<< HEAD
-=======
           effectiveMinMarginSol: effectiveSelfImprove.effectiveMinMarginSol,
           effectiveExecutionsPerTick: effectiveSelfImprove.effectiveExecutionsPerTick,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
           registry: swarmRegistry,
           missionPlan,
           opportunityIntake: swarmOpportunityIntake,
@@ -997,14 +911,11 @@ export class KyoshinRuntime {
         this.status.swarm.executedLastTick = executionResult.executed;
         this.status.swarm.skippedLastTick = executionResult.skipped;
         this.status.swarm.failedLastTick = executionResult.failed;
-<<<<<<< HEAD
-=======
         this.settleIntakeJobOutcomes({
           tickId,
           outcomes: executionResult.outcomes,
           nowIso,
         });
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
         const performance = evaluateSwarmPerformance({
           registry: swarmRegistry,
@@ -1017,13 +928,10 @@ export class KyoshinRuntime {
         await this.maybeEvaluateRollback({ tickId, nowIso });
       }
 
-<<<<<<< HEAD
-=======
       if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
         await this.maybeEvaluateSelfImprove({ tickId, nowIso });
       }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
       observation.swarm = {
         enabled: true,
         registryVersion: swarmRegistry.version,
@@ -1072,21 +980,16 @@ export class KyoshinRuntime {
           source: 'runtime_auto_stake_kyoshin',
         });
       }
-<<<<<<< HEAD
-=======
 
       await this.maybeProcessNearMarketSubmissions({ tickId, nowIso });
       await this.maybeCollectNearMarketSettlements({ tickId, nowIso });
       budget = await this.maybeSettleRevenuePolicy({ tickId, dayStartIso, nowIso, budget });
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     }
 
     await this.maybeRunRetention({ tickId, nowIso });
 
     this.status.treasury.spentTodaySol = budget.spentTodaySol;
     this.status.treasury.txToday = budget.txToday;
-<<<<<<< HEAD
-=======
     const revenueStatsToday = this.db.revenueLaneStatsSince(dayStartIso);
     const revenueNetToday = computeRevenueNet(revenueStatsToday);
     this.status.economics.grossRevenueTodaySol = revenueNetToday.grossSol;
@@ -1096,7 +999,6 @@ export class KyoshinRuntime {
     this.status.economics.pendingIntakeJobs = intakeStatsEnd.pending;
     this.status.economics.completedIntakeJobs = intakeStatsEnd.completed;
     this.status.economics.deadletterIntakeJobs = intakeStatsEnd.deadletter;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     observation.budgetsEnd = {
       spentTodaySol: budget.spentTodaySol,
@@ -1104,8 +1006,6 @@ export class KyoshinRuntime {
       dailyCapSol: this.executionPolicy.dailyCapSol,
       txCap: this.executionPolicy.maxTxPerDay,
     };
-<<<<<<< HEAD
-=======
     observation.economics = {
       grossRevenueSol: revenueNetToday.grossSol,
       costSol: revenueNetToday.costSol,
@@ -1113,7 +1013,6 @@ export class KyoshinRuntime {
       intakeJobs: intakeStatsEnd,
       selfImprove: this.status.selfImprove,
     };
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     this.db.addObservation(tickId, 'snapshot', observation);
     log('info', 'Tick complete', {
@@ -1129,11 +1028,8 @@ export class KyoshinRuntime {
     tickId: string;
     dayStartIso: string;
     budget: BudgetState;
-<<<<<<< HEAD
-=======
     effectiveMinMarginSol: number;
     effectiveExecutionsPerTick: number;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     registry: SwarmRegistry;
     missionPlan: ReturnType<typeof planSwarmMissions>;
     opportunityIntake: SwarmOpportunityIntake;
@@ -1143,10 +1039,7 @@ export class KyoshinRuntime {
     executed: number;
     skipped: number;
     failed: number;
-<<<<<<< HEAD
-=======
     outcomes: SwarmExecutionOutcome[];
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   }> {
     let budget = { ...params.budget };
 
@@ -1179,46 +1072,31 @@ export class KyoshinRuntime {
             authHeader: this.runtimeEnv.KAMIYO_SWARM_KORE_AUTH_HEADER,
           }
         : undefined,
-<<<<<<< HEAD
-=======
       near_market: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY
         ? {
             apiKey: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_API_KEY,
             authHeader: this.runtimeEnv.KAMIYO_SWARM_NEAR_MARKET_AUTH_HEADER,
           }
         : undefined,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     };
 
     let marginCircuitState = pruneMarginCircuitState({
       state: parseMarginCircuitState(this.db.kvGet('swarm_margin_circuit_state')),
       keepDays: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS,
     });
-<<<<<<< HEAD
-
-    const rollbackState = pruneRollbackState({
-=======
     marginCircuitState = this.clearTransientNearMarketCircuitBlocks(marginCircuitState);
 
     let rollbackState = pruneRollbackState({
->>>>>>> origin/kamiyo/kyoshin-exec-canary
       state: parseRollbackState(this.db.kvGet('swarm_rollback_state')),
     });
     this.db.kvSet('swarm_rollback_state', JSON.stringify(rollbackState));
 
     const runtimeMetrics: SwarmAgentRuntimeMetrics[] = [];
-<<<<<<< HEAD
-    let executed = 0;
-    let skipped = 0;
-    let failed = 0;
-    let remainingExecutions = this.executionPolicy.swarmJobExecutionsPerTick;
-=======
     const outcomes: SwarmExecutionOutcome[] = [];
     let executed = 0;
     let skipped = 0;
     let failed = 0;
     let remainingExecutions = params.effectiveExecutionsPerTick;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     for (const mission of params.missionPlan.missions) {
       const agent = params.registry.agents.find(row => row.id === mission.agentId);
@@ -1257,8 +1135,6 @@ export class KyoshinRuntime {
         runtimeMetrics.push(metric);
         continue;
       }
-<<<<<<< HEAD
-=======
       const intakeJobId =
         opportunity.metadata &&
         typeof opportunity.metadata === 'object' &&
@@ -1286,7 +1162,6 @@ export class KyoshinRuntime {
         runtimeMetrics.push(metric);
         continue;
       }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       const rollbackStatus = this.runtimeEnv.KAMIYO_SWARM_ROLLBACK_ENABLED
         ? isRollbackSourceDisabled({ state: rollbackState, source: opportunity.source })
@@ -1305,8 +1180,6 @@ export class KyoshinRuntime {
           error: rollbackStatus.reason,
           metadata: { reason: 'rollback_source_disabled', disabledUntil: rollbackStatus.disabledUntil },
         });
-<<<<<<< HEAD
-=======
         if (intakeJobId) {
           outcomes.push({
             agentId: agent.id,
@@ -1319,7 +1192,6 @@ export class KyoshinRuntime {
             intakeJobId,
           });
         }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -1341,8 +1213,6 @@ export class KyoshinRuntime {
           error: 'margin_circuit_open',
           metadata: { openUntil: circuitStatus.openUntil },
         });
-<<<<<<< HEAD
-=======
         if (intakeJobId) {
           outcomes.push({
             agentId: agent.id,
@@ -1355,7 +1225,6 @@ export class KyoshinRuntime {
             intakeJobId,
           });
         }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -1384,8 +1253,6 @@ export class KyoshinRuntime {
           error: budgetReason,
           metadata: { reason: 'budget_guard' },
         });
-<<<<<<< HEAD
-=======
         if (intakeJobId) {
           outcomes.push({
             agentId: agent.id,
@@ -1398,7 +1265,6 @@ export class KyoshinRuntime {
             intakeJobId,
           });
         }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         runtimeMetrics.push(metric);
         continue;
       }
@@ -1414,11 +1280,7 @@ export class KyoshinRuntime {
         signer: agentSigner,
         timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
         solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
-<<<<<<< HEAD
-        minMarginSol: this.executionPolicy.swarmJobMinMarginSol,
-=======
         minMarginSol: params.effectiveMinMarginSol,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
         requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
         sourceAuth,
@@ -1427,8 +1289,6 @@ export class KyoshinRuntime {
         x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
         x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
       });
-<<<<<<< HEAD
-=======
       const normalizedResult =
         opportunity.source === 'near_market' && result.status === 'failed' && result.httpStatus === 409
           ? {
@@ -1438,47 +1298,17 @@ export class KyoshinRuntime {
               error: undefined,
             }
           : result;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       this.db.addAction(params.tickId, 'swarm_execute_opportunity', {
         agentId: agent.id,
         opportunityId: assignment.opportunityId,
         source: opportunity.source,
-<<<<<<< HEAD
-      }, result, result.error);
-=======
       }, normalizedResult, normalizedResult.error);
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       this.db.recordSwarmJob({
         id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
         agentId: agent.id,
         source: opportunity.source,
-<<<<<<< HEAD
-        status: result.status,
-        url: result.endpoint,
-        paid: result.paid,
-        paymentNetwork: result.paymentNetwork,
-        paymentAmountUsd: result.paymentAmountUsd,
-        revenueSol: result.realizedRevenueSol,
-        revenueUsd: result.realizedRevenueUsd,
-        error: result.error ?? result.reason,
-        metadata: {
-          reason: result.reason,
-          paymentTransactionId: result.paymentTransactionId,
-          httpStatus: result.httpStatus,
-          output: result.output,
-        },
-      });
-
-      const paymentCostSol = result.paid && result.paymentAmountUsd
-        ? result.paymentAmountUsd / this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
-        : 0;
-      const feeCostSol = result.status === 'skipped' ? 0 : this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL;
-      const totalCostSol = feeCostSol + paymentCostSol;
-
-      if (result.status !== 'skipped') {
-=======
         status: normalizedResult.status,
         url: normalizedResult.endpoint,
         paid: normalizedResult.paid,
@@ -1522,7 +1352,6 @@ export class KyoshinRuntime {
       const totalCostSol = feeCostSol + paymentCostSol;
 
       if (normalizedResult.status !== 'skipped') {
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         budget = {
           ...budget,
           ...applyBudget({
@@ -1533,26 +1362,16 @@ export class KyoshinRuntime {
         };
       }
 
-<<<<<<< HEAD
-      if (result.realizedRevenueSol > 0) {
-=======
       if (normalizedResult.realizedRevenueSol > 0) {
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         this.db.recordRevenueEvent({
           id: `${params.tickId}:job:${agent.id}:${assignment.opportunityId}`,
           tickId: params.tickId,
           agentId: agent.id,
           lane: revenueLaneForOpportunitySource(opportunity.source),
           kind: 'job',
-<<<<<<< HEAD
-          amountSol: result.realizedRevenueSol,
-          amountUsd: result.realizedRevenueUsd,
-          metadata: { source: opportunity.source, status: result.status },
-=======
           amountSol: normalizedResult.realizedRevenueSol,
           amountUsd: normalizedResult.realizedRevenueUsd,
           metadata: { source: opportunity.source, status: normalizedResult.status },
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         });
       }
 
@@ -1569,19 +1388,11 @@ export class KyoshinRuntime {
             source: opportunity.source,
             paymentCostSol,
             feeCostSol,
-<<<<<<< HEAD
-            paid: result.paid,
-=======
             paid: normalizedResult.paid,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
           },
         });
       }
 
-<<<<<<< HEAD
-      if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && result.status !== 'skipped') {
-        const marginSol = result.realizedRevenueSol - totalCostSol;
-=======
       if (this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED && normalizedResult.status !== 'skipped') {
         const outputRecord =
           normalizedResult.output &&
@@ -1602,35 +1413,19 @@ export class KyoshinRuntime {
             ? deferredNearMarketExpectedRevenue
             : normalizedResult.realizedRevenueSol;
         const marginSol = realizedOrExpectedRevenue - totalCostSol;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         const circuitUpdate = updateMarginCircuit({
           state: marginCircuitState,
           agentId: agent.id,
           source: opportunity.source,
           marginSol,
-<<<<<<< HEAD
-          failed: result.status === 'failed',
-          error: result.error ?? result.reason,
-=======
           failed: normalizedResult.status === 'failed',
           error: normalizedResult.error ?? normalizedResult.reason,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
           negativeMarginThreshold: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_NEG_MARGIN_STREAK,
           cooldownMinutes: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES,
         });
         marginCircuitState = circuitUpdate.state;
       }
 
-<<<<<<< HEAD
-      if (result.status === 'executed') executed += 1;
-      if (result.status === 'failed') failed += 1;
-      if (result.status === 'skipped') skipped += 1;
-
-      metric.jobExecuted = result.status === 'executed' || result.status === 'failed';
-      metric.jobSucceeded = result.status === 'executed';
-      metric.jobRevenueSol = result.realizedRevenueSol;
-      metric.hadError = result.status === 'failed';
-=======
       if (normalizedResult.status === 'executed') executed += 1;
       if (normalizedResult.status === 'failed') failed += 1;
       if (normalizedResult.status === 'skipped') skipped += 1;
@@ -1639,7 +1434,6 @@ export class KyoshinRuntime {
       metric.jobSucceeded = normalizedResult.status === 'executed';
       metric.jobRevenueSol = normalizedResult.realizedRevenueSol;
       metric.hadError = normalizedResult.status === 'failed';
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
       runtimeMetrics.push(metric);
       remainingExecutions -= 1;
@@ -1664,11 +1458,6 @@ export class KyoshinRuntime {
       executed,
       skipped,
       failed,
-<<<<<<< HEAD
-    };
-  }
-
-=======
       outcomes,
     };
   }
@@ -2617,7 +2406,6 @@ export class KyoshinRuntime {
     return params.budget;
   }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   private async maybeClaimFeeVault(params: {
     tickId: string;
     dayStartIso: string;
@@ -3007,17 +2795,10 @@ export class KyoshinRuntime {
     this.db.addAction(params.tickId, 'retention_prune', cutoffs, result);
   }
 
-<<<<<<< HEAD
-  private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> {
-    const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
-    const stats = this.db.swarmSourceStatsSince(since);
-    const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal', number>> = {};
-=======
   private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> {
     const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
     const stats = this.db.swarmSourceStatsSince(since);
     const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> = {};
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
     for (const row of stats) {
       if (row.total < this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_MIN_SAMPLES) continue;
@@ -3030,10 +2811,7 @@ export class KyoshinRuntime {
         row.source === 'relevance' ||
         row.source === 'agent_ai' ||
         row.source === 'kore' ||
-<<<<<<< HEAD
-=======
         row.source === 'near_market' ||
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         row.source === 'direct' ||
         row.source === 'internal'
       ) {

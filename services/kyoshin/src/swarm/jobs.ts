@@ -61,11 +61,7 @@ type SourceAuth = {
   authHeader?: string;
 };
 
-<<<<<<< HEAD
-export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore', SourceAuth>>;
-=======
 export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore' | 'near_market', SourceAuth>>;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -220,13 +216,9 @@ function parseX402Body(raw: unknown): {
 
 function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthMap | undefined): Record<string, string> {
   if (!auth) return {};
-<<<<<<< HEAD
-  if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore') return {};
-=======
   if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore' && source !== 'near_market') {
     return {};
   }
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const sourceAuth = auth[source];
   if (!sourceAuth?.apiKey) return {};
 
@@ -240,8 +232,6 @@ function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthM
   return { [header]: value };
 }
 
-<<<<<<< HEAD
-=======
 function formatNearAmount(value: number): string {
   const fixed = value.toFixed(4);
   return fixed.replace(/\.?0+$/, '');
@@ -398,7 +388,6 @@ function nearMarketMinMarginSol(opportunity: SwarmOpportunity): number {
   return Math.max(0, configured);
 }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceActionStep | null {
   const urlFromString = asString(value);
   if (urlFromString) {
@@ -428,16 +417,12 @@ function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceAc
 }
 
 function marketplaceActionSteps(opportunity: SwarmOpportunity): MarketplaceActionStep[] {
-<<<<<<< HEAD
-  if (opportunity.source !== 'relevance' && opportunity.source !== 'agent_ai' && opportunity.source !== 'kore') {
-=======
   if (
     opportunity.source !== 'relevance' &&
     opportunity.source !== 'agent_ai' &&
     opportunity.source !== 'kore' &&
     opportunity.source !== 'near_market'
   ) {
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     return [];
   }
 
@@ -527,15 +512,12 @@ function marginCheck(params: {
   return { ok: true, marginSol };
 }
 
-<<<<<<< HEAD
-=======
 function marketplaceSettlementMode(opportunity: SwarmOpportunity): 'immediate' | 'deferred' {
   const metadata = asRecord(opportunity.metadata);
   const mode = asString(metadata?.settlementMode)?.toLowerCase();
   return mode === 'deferred' ? 'deferred' : 'immediate';
 }
 
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 async function executeMarketplaceLifecycle(params: {
   agentId: string;
   opportunity: SwarmOpportunity;
@@ -550,10 +532,7 @@ async function executeMarketplaceLifecycle(params: {
   solPriceUsd: number;
 }): Promise<SwarmJobExecutionResult> {
   const { agentId, opportunity, assignment } = params;
-<<<<<<< HEAD
-=======
   const settlementMode = marketplaceSettlementMode(opportunity);
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const common = {
     agentId,
     opportunityId: opportunity.id,
@@ -562,18 +541,11 @@ async function executeMarketplaceLifecycle(params: {
   };
 
   const costEstimate = params.estimatedFeeSol * Math.max(1, params.steps.length);
-<<<<<<< HEAD
-  const margin = marginCheck({
-    expectedRevenueSol: params.expectedRevenueSol,
-    estimatedCostSol: costEstimate,
-    minMarginSol: params.minMarginSol,
-=======
   const effectiveMinMarginSol = Math.max(params.minMarginSol, nearMarketMinMarginSol(opportunity));
   const margin = marginCheck({
     expectedRevenueSol: params.expectedRevenueSol,
     estimatedCostSol: costEstimate,
     minMarginSol: effectiveMinMarginSol,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     requireExpectedRevenue: params.requireExpectedRevenue,
   });
 
@@ -588,11 +560,7 @@ async function executeMarketplaceLifecycle(params: {
       output: {
         expectedRevenueSol: params.expectedRevenueSol,
         estimatedCostSol: costEstimate,
-<<<<<<< HEAD
-        minMarginSol: params.minMarginSol,
-=======
         minMarginSol: effectiveMinMarginSol,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
         marginSol: margin.marginSol,
       },
     };
@@ -601,9 +569,6 @@ async function executeMarketplaceLifecycle(params: {
   const sourceHeaders = sourceAuthHeaders(opportunity.source, params.sourceAuth);
   const stepOutputs: Array<Record<string, unknown>> = [];
 
-<<<<<<< HEAD
-  for (const step of params.steps) {
-=======
   for (const rawStep of params.steps) {
     const step = await maybeApplyNearMarketUndercut({
       opportunity,
@@ -611,7 +576,6 @@ async function executeMarketplaceLifecycle(params: {
       sourceHeaders,
       timeoutMs: params.timeoutMs,
     });
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     const method = step.method;
     const mergedHeaders: Record<string, string> = {
       ...sourceHeaders,
@@ -692,9 +656,6 @@ async function executeMarketplaceLifecycle(params: {
   }
 
   const realizedRevenueSol =
-<<<<<<< HEAD
-    revenue.sol > 0 ? revenue.sol : params.expectedRevenueSol != null ? params.expectedRevenueSol : 0;
-=======
     revenue.sol > 0
       ? revenue.sol
       : settlementMode === 'deferred'
@@ -702,7 +663,6 @@ async function executeMarketplaceLifecycle(params: {
         : params.expectedRevenueSol != null
           ? params.expectedRevenueSol
           : 0;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   const realizedRevenueUsd =
     revenue.usd > 0 ? revenue.usd : realizedRevenueSol > 0 ? realizedRevenueSol * params.solPriceUsd : 0;
 
@@ -714,13 +674,9 @@ async function executeMarketplaceLifecycle(params: {
     realizedRevenueUsd,
     output: {
       steps: stepOutputs,
-<<<<<<< HEAD
-      estimatedCostSol: costEstimate,
-=======
       settlementMode,
       estimatedCostSol: costEstimate,
       minMarginSol: effectiveMinMarginSol,
->>>>>>> origin/kamiyo/kyoshin-exec-canary
       marginSol: margin.marginSol,
     },
   };
@@ -762,9 +718,6 @@ export async function executeAssignedOpportunity(params: {
   }
 
   const marketplaceSteps = marketplaceActionSteps(opportunity);
-<<<<<<< HEAD
-  if (marketplaceSteps.length > 0 && (opportunity.source === 'relevance' || opportunity.source === 'agent_ai' || opportunity.source === 'kore')) {
-=======
   if (
     marketplaceSteps.length > 0 &&
     (opportunity.source === 'relevance' ||
@@ -772,7 +725,6 @@ export async function executeAssignedOpportunity(params: {
       opportunity.source === 'kore' ||
       opportunity.source === 'near_market')
   ) {
->>>>>>> origin/kamiyo/kyoshin-exec-canary
     return executeMarketplaceLifecycle({
       agentId,
       opportunity,

@@ -23,11 +23,6 @@ const optionalIsoTime = z
   .refine(value => value == null || Number.isFinite(Date.parse(value)), {
     message: 'Invalid ISO time',
   });
-<<<<<<< HEAD
-const swarmJobSourceSchema = z.enum(['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'internal']);
-const swarmMarketplaceProfileSchema = z.object({
-  source: z.enum(['relevance', 'agent_ai', 'kore']),
-=======
 const swarmJobSourceSchema = z.enum([
   'x402',
   'direct_api',
@@ -39,7 +34,6 @@ const swarmJobSourceSchema = z.enum([
 ]);
 const swarmMarketplaceProfileSchema = z.object({
   source: z.enum(['relevance', 'agent_ai', 'kore', 'near_market']),
->>>>>>> origin/kamiyo/kyoshin-exec-canary
   state: z.enum(['not_listed', 'draft', 'submitted', 'approved', 'rejected']).default('not_listed'),
   listingUrl: optionalUrl,
   ownerContact: optionalString,

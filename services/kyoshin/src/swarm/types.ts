@@ -1,8 +1,4 @@
 export type SwarmAgentStatus = 'active' | 'paused' | 'retired';
-<<<<<<< HEAD
-export type SwarmJobSource = 'x402' | 'direct_api' | 'relevance' | 'agent_ai' | 'kore' | 'internal';
-export type SwarmMarketplaceSource = Extract<SwarmJobSource, 'relevance' | 'agent_ai' | 'kore'>;
-=======
 export type SwarmJobSource =
   | 'x402'
   | 'direct_api'
@@ -12,7 +8,6 @@ export type SwarmJobSource =
   | 'near_market'
   | 'internal';
 export type SwarmMarketplaceSource = Extract<SwarmJobSource, 'relevance' | 'agent_ai' | 'kore' | 'near_market'>;
->>>>>>> origin/kamiyo/kyoshin-exec-canary
 export type SwarmMarketplaceProfileState = 'not_listed' | 'draft' | 'submitted' | 'approved' | 'rejected';
 
 export type SwarmMarketplaceProfile = {
