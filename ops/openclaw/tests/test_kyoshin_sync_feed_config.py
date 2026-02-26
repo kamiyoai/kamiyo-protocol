@@ -92,6 +92,27 @@ class KyoshinSyncFeedConfigTests(unittest.TestCase):
         self.assertEqual(source_summary.get('mode'), 'generated')
         self.assertTrue(bool(source_summary.get('hasGenerated')))
 
+    def test_build_config_prefers_generated_dx_terminal_feed_when_live_missing(self):
+        feeds_dir = self.runtime_dir / 'feeds'
+        feeds_dir.mkdir(parents=True, exist_ok=True)
+        generated = feeds_dir / 'dx-terminal-opportunities.json'
+        generated.write_text('{"opportunities":[]}', encoding='utf-8')
+
+        with patch.dict(os.environ, {'KYO_BOOTSTRAP_FEED_FALLBACK': 'true'}, clear=False):
+            config, summary = self.mod.build_config()
+
+        feeds = config.get('feeds', [])
+        dx_terminal = next((item for item in feeds if item.get('source') == 'dx_terminal'), None)
+        self.assertIsNotNone(dx_terminal)
+        self.assertTrue(bool(dx_terminal.get('enabled')))
+        self.assertEqual(dx_terminal.get('id'), 'dx_terminal_generated')
+        self.assertTrue(str(dx_terminal.get('url', '')).startswith('file://'))
+
+        source_summary = next((item for item in summary.get('sources', []) if item.get('source') == 'dx_terminal'), None)
+        self.assertIsNotNone(source_summary)
+        self.assertEqual(source_summary.get('mode'), 'generated')
+        self.assertTrue(bool(source_summary.get('hasGenerated')))
+
 
 if __name__ == '__main__':
     unittest.main()

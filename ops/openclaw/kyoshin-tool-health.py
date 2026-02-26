@@ -21,6 +21,13 @@ TIMEOUT_SECONDS = float(os.getenv('KYO_TOOL_HEALTH_TIMEOUT_SECONDS', '8'))
 ALLOW_INSECURE_HTTP = os.getenv('KYO_ALLOW_INSECURE_HTTP_FEEDS', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def env_flag(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -87,6 +94,27 @@ def read_registry() -> list[dict[str, Any]]:
                 'target': target,
                 'critical': bool(entry.get('critical', False)),
                 'headers': entry.get('headers') if isinstance(entry.get('headers'), dict) else {},
+            }
+        )
+    do_agent_url = os.getenv('KYO_DO_AGENT_URL', '').strip()
+    if do_agent_url:
+        out.append(
+            {
+                'id': 'digitalocean_agent_completion',
+                'kind': 'do_agent',
+                'target': do_agent_url,
+                'critical': env_flag('KYO_DO_AGENT_CHECK_CRITICAL', False),
+                'headers': {},
+            }
+        )
+    if env_flag('KYO_DX_TERMINAL_ENABLED', True):
+        out.append(
+            {
+                'id': 'dx_terminal_api_health',
+                'kind': 'http',
+                'target': 'https://api.terminal.markets/api/v1/leaderboard?limit=1&sortBy=total_pnl_usd',
+                'critical': False,
+                'headers': {},
             }
         )
     return out
@@ -159,6 +187,58 @@ def run_http(target: str, headers: dict[str, Any]) -> tuple[bool, str]:
         return False, str(exc)[:240]
 
 
+def run_do_agent(target: str) -> tuple[bool, str]:
+    parsed = urllib.parse.urlparse(target)
+    scheme = parsed.scheme.lower()
+    if scheme not in {'https', 'http'}:
+        return False, 'unsupported_scheme'
+    if scheme == 'http' and not (ALLOW_INSECURE_HTTP or parsed.hostname in {'127.0.0.1', 'localhost'}):
+        return False, 'http_blocked'
+    api_key = os.getenv('KYO_DO_AGENT_API_KEY', '').strip()
+    if not api_key:
+        return False, 'missing_api_key'
+
+    prompt = os.getenv(
+        'KYO_DO_AGENT_CHECK_PROMPT',
+        'Return JSON with key "ok" set to true for health check.',
+    ).strip()
+    retrieval_method = os.getenv('KYO_DO_AGENT_CHECK_RETRIEVAL_METHOD', 'none').strip().lower()
+    if retrieval_method not in {'rewrite', 'step_back', 'sub_queries', 'none'}:
+        retrieval_method = 'none'
+
+    endpoint = target.rstrip('/') + '/api/v1/chat/completions'
+    payload = {
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': 48,
+        'retrieval_method': retrieval_method,
+    }
+    body = json.dumps(payload, ensure_ascii=True).encode('utf-8')
+    req = urllib.request.Request(
+        endpoint,
+        data=body,
+        method='POST',
+        headers={
+            'authorization': f'Bearer {api_key}',
+            'content-type': 'application/json',
+            'user-agent': 'kyoshin-tool-health/1.0',
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
+            response_text = response.read().decode('utf-8', errors='replace')
+        try:
+            parsed_response = json.loads(response_text)
+        except Exception:
+            return False, 'invalid_json_response'
+        if isinstance(parsed_response, dict) and isinstance(parsed_response.get('choices'), list):
+            return True, 'http_200'
+        return False, 'invalid_completion_shape'
+    except urllib.error.HTTPError as exc:
+        return False, f'http_{exc.code}'
+    except Exception as exc:
+        return False, str(exc)[:240]
+
+
 def check(entry: dict[str, Any]) -> dict[str, Any]:
     kind = entry['kind']
     target = entry['target']
@@ -168,6 +248,8 @@ def check(entry: dict[str, Any]) -> dict[str, Any]:
         ok, detail = run_file(target)
     elif kind == 'http':
         ok, detail = run_http(target, entry.get('headers') or {})
+    elif kind == 'do_agent':
+        ok, detail = run_do_agent(target)
     else:
         ok, detail = False, 'unsupported_kind'
     return {

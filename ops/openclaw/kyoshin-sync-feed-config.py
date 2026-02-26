@@ -128,6 +128,16 @@ def source_definition() -> list[dict[str, str]]:
             'generated_enabled_key': 'KYO_X402_GENERATED_FEED_ENABLED',
         },
         {
+            'source': 'dx_terminal',
+            'live_url_key': 'KYO_DX_TERMINAL_FEED_URL',
+            'api_key_env': 'KYO_DX_TERMINAL_API_KEY',
+            'auth_header_key': 'KYO_DX_TERMINAL_AUTH_HEADER',
+            'auth_prefix_key': 'KYO_DX_TERMINAL_AUTH_PREFIX',
+            'seed_file': 'dx_terminal.json',
+            'generated_file': str((RUNTIME_DIR / 'feeds' / 'dx-terminal-opportunities.json').resolve()),
+            'generated_enabled_key': 'KYO_DX_TERMINAL_GENERATED_FEED_ENABLED',
+        },
+        {
             'source': 'direct_api',
             'live_url_key': 'KYO_DIRECT_API_FEED_URL',
             'api_key_env': 'KYO_DIRECT_API_KEY',

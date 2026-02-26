@@ -6,6 +6,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 
 - `kyoshin-marketplace-intake.py`: marketplace feed polling and normalization.
 - `kyoshin-x402-feed.py`: builds executable x402 opportunities from self-hosted facilitator pricing/manual endpoint specs.
+- `kyoshin-dx-terminal-feed.py`: builds DX Terminal Pro opportunities (leaderboard + token flow + optional owner-vault snapshot).
 - `kyoshin-swarm-planner.py`: opportunity-to-subagent assignment planner.
 - `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
 - `kyoshin-receipt-sync.py`: exports Kyoshin `swarm_jobs` outcomes into OpenClaw `execution-receipts.jsonl` for governor policy.
@@ -27,6 +28,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 ```bash
 sudo install -m 700 -o openclaw -g openclaw kyoshin-marketplace-intake.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-x402-feed.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-dx-terminal-feed.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-receipt-sync.py ~/bin/
@@ -58,6 +60,7 @@ Rollout helper for this specific hardening:
 - Feed config: `~/.openclaw/workspace/runtime/marketplace-feeds.json`
 - Feed output: `~/.openclaw/workspace/runtime/feeds/opportunities.json`
 - x402 generated feed output: `~/.openclaw/workspace/runtime/feeds/x402-opportunities.json`
+- DX Terminal generated feed output: `~/.openclaw/workspace/runtime/feeds/dx-terminal-opportunities.json`
 - Assignment output: `~/.openclaw/workspace/runtime/queue/assignments.json`
 - Tool health output: `~/.openclaw/workspace/runtime/tools/tool-health.json`
 - Kyoshin runtime bridge output: `~/.openclaw/workspace/runtime/state/kyoshin-runtime.json`
@@ -125,6 +128,19 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_X402_EXPECTED_MARGIN_MULTIPLIER=3`
   - `KYO_X402_MIN_PAYOUT_USD=0.01`
   - `KYO_X402_GENERATED_FEED_ENABLED=true|false` (default `true`)
+- DX Terminal feed controls:
+  - `KYO_DX_TERMINAL_ENABLED=true|false` (default `true`)
+  - `KYO_DX_TERMINAL_GENERATED_FEED_ENABLED=true|false` (default `true`)
+  - `KYO_DX_TERMINAL_FEED_URL=https://...` (optional override; if set, live URL wins)
+  - `KYO_DX_TERMINAL_API_BASE_URL=https://api.terminal.markets/api/v1`
+  - `KYO_DX_TERMINAL_MAX_OPPORTUNITIES=24`
+  - `KYO_DX_TERMINAL_MAX_LEADERBOARD=8`
+  - `KYO_DX_TERMINAL_MAX_TOKENS=12`
+  - `KYO_DX_TERMINAL_MIN_TOKEN_VOLUME_USD=5000`
+  - `KYO_DX_TERMINAL_MIN_TOKEN_HOLDERS=50`
+  - `KYO_DX_TERMINAL_TIMEFRAME=15m`
+  - `KYO_DX_TERMINAL_OWNER_ADDRESS=0x...` (optional owner-vault snapshot)
+  - `KYO_REQUIRE_DX_TERMINAL_FEED=true|false` (default `false`, turns DX feed into a hard gate)
 - receipt sync controls:
   - `KYO_KYOSHIN_DB_PATH=/absolute/path/to/services/kyoshin/output/kyoshin/state.db`
   - `KYO_RECEIPT_SYNC_MAX_BATCH=1000`
@@ -152,9 +168,15 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_GOVERNOR_MAX_LOSS_STREAK=3`
 - tool-health controls:
   - `KYO_TOOL_HEALTH_TIMEOUT_SECONDS=8`
+  - `KYO_DO_AGENT_URL=https://<agent-id>.agents.do-ai.run` (optional, adds authenticated completion probe)
+  - `KYO_DO_AGENT_API_KEY=...` (required when `KYO_DO_AGENT_URL` is set)
+  - `KYO_DO_AGENT_CHECK_RETRIEVAL_METHOD=none|rewrite|step_back|sub_queries` (default `none`)
+  - `KYO_DO_AGENT_CHECK_PROMPT=...` (optional lightweight probe prompt)
+  - `KYO_DO_AGENT_CHECK_CRITICAL=true|false` (default `false`)
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
 For x402 specifically, if `KYO_X402_FEED_URL` is empty and generated feed is enabled, feed sync automatically uses `runtime/feeds/x402-opportunities.json`.
+For DX specifically, if `KYO_DX_TERMINAL_FEED_URL` is empty and generated feed is enabled, feed sync automatically uses `runtime/feeds/dx-terminal-opportunities.json`.
 You can start from [`ops/openclaw/revenue-mode.env.example`](./revenue-mode.env.example) and copy values into `~/.openclaw/.env`.
 
 ### Zero-inference baseline

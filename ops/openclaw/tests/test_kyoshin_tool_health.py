@@ -1,6 +1,8 @@
 import importlib.util
+import os
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 
 SCRIPT_PATH = Path(__file__).resolve().parent.parent / 'kyoshin-tool-health.py'
@@ -44,6 +46,46 @@ class KyoshinToolHealthTests(unittest.TestCase):
         ok, detail = self.mod.run_http('http://example.com/health', {})
         self.assertFalse(ok)
         self.assertEqual(detail, 'http_blocked')
+
+    def test_read_registry_adds_do_agent_probe_when_url_is_set(self):
+        with patch.dict(os.environ, {'KYO_DO_AGENT_URL': 'https://example.agents.do-ai.run'}, clear=False):
+            tools = self.mod.read_registry()
+        probe = next((entry for entry in tools if entry.get('id') == 'digitalocean_agent_completion'), None)
+        self.assertIsNotNone(probe)
+        self.assertEqual(probe.get('kind'), 'do_agent')
+
+    def test_run_do_agent_requires_api_key(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('KYO_DO_AGENT_API_KEY', None)
+            ok, detail = self.mod.run_do_agent('https://example.agents.do-ai.run')
+        self.assertFalse(ok)
+        self.assertEqual(detail, 'missing_api_key')
+
+    def test_run_do_agent_accepts_valid_completion_shape(self):
+        class FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"choices":[{"index":0,"message":{"role":"assistant","content":"ok"}}]}'
+
+        with patch.dict(
+            os.environ,
+            {
+                'KYO_DO_AGENT_API_KEY': 'test-key',
+                'KYO_DO_AGENT_CHECK_PROMPT': 'ping',
+            },
+            clear=False,
+        ):
+            with patch.object(self.mod.urllib.request, 'urlopen', return_value=FakeResponse()):
+                ok, detail = self.mod.run_do_agent('https://example.agents.do-ai.run')
+        self.assertTrue(ok)
+        self.assertEqual(detail, 'http_200')
 
 
 if __name__ == '__main__':

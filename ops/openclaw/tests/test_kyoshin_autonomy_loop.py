@@ -10,6 +10,7 @@ SCRIPT_PATH = Path(__file__).resolve().parent.parent / 'kyoshin-autonomy-loop.sh
 
 EXPECTED_STAGE_ORDER = [
     'x402_feed',
+    'dx_terminal_feed',
     'feed_sync',
     'context_guard',
     'tool_health',
@@ -46,6 +47,14 @@ class KyoshinAutonomyLoopContractTests(unittest.TestCase):
             f"""#!/usr/bin/env bash
 set -euo pipefail
 echo "x402_feed" >> "{self.order_file}"
+echo '{{"ok":true,"accepted":0}}'
+""",
+        )
+        self._write_exec(
+            self.bin_dir / 'kyoshin-dx-terminal-feed.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "dx_terminal_feed" >> "{self.order_file}"
 echo '{{"ok":true,"accepted":0}}'
 """,
         )
@@ -282,6 +291,23 @@ echo '{{"ok":true,"accepted":0}}'
 
         state = self._read_state()
         self.assertIn('x402_feed_failed', state.get('lastError', ''))
+
+    def test_dx_terminal_feed_requires_non_zero_output_when_hard_required(self):
+        self._write_default_scripts()
+        self._write_exec(
+            self.bin_dir / 'kyoshin-dx-terminal-feed.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "dx_terminal_feed" >> "{self.order_file}"
+echo '{{"ok":false,"accepted":0}}'
+""",
+        )
+
+        result = self._run_loop({'KYO_REQUIRE_DX_TERMINAL_FEED': 'true'})
+        self.assertEqual(result.returncode, 1)
+
+        state = self._read_state()
+        self.assertIn('dx_terminal_feed_failed', state.get('lastError', ''))
 
 
 if __name__ == '__main__':

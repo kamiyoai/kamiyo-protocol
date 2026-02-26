@@ -76,6 +76,7 @@ REQUIRE_RUNTIME_ARTIFACT_CONTRACTS="${KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS:-tr
 PROACTIVE_HOUR_RAW="${KYO_PROACTIVE_HOUR_UTC:-2}"
 REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
 REQUIRE_X402_FEED="${KYO_REQUIRE_X402_FEED:-false}"
+REQUIRE_DX_TERMINAL_FEED="${KYO_REQUIRE_DX_TERMINAL_FEED:-false}"
 REQUIRE_RECEIPT_SYNC="${KYO_REQUIRE_RECEIPT_SYNC:-false}"
 
 if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
@@ -179,6 +180,36 @@ else
   x402_feed_summary='{"ok":false,"error":"missing_x402_feed_builder"}'
   if is_true "$REQUIRE_X402_FEED"; then
     x402_feed_ok=0
+  fi
+fi
+
+dx_terminal_feed_ok=1
+dx_terminal_feed_summary='{"ok":false,"error":"not_run"}'
+if [ -x "$HOME/bin/kyoshin-dx-terminal-feed.py" ]; then
+  if "$HOME/bin/kyoshin-dx-terminal-feed.py" >"$TMP_DIR/dx-terminal-feed.json" 2>"$TMP_DIR/dx-terminal-feed.err"; then
+    dx_terminal_feed_summary="$(as_json_line "$TMP_DIR/dx-terminal-feed.json")"
+    dx_terminal_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/dx-terminal-feed.json" 2>/dev/null || echo true)"
+    dx_terminal_accepted="$(jq -r '.accepted // 0' "$TMP_DIR/dx-terminal-feed.json" 2>/dev/null || echo 0)"
+    if is_true "$REQUIRE_DX_TERMINAL_FEED"; then
+      if [ "$dx_terminal_inner_ok" != "true" ] || ! [[ "$dx_terminal_accepted" =~ ^[0-9]+$ ]] || [ "$dx_terminal_accepted" -le 0 ]; then
+        dx_terminal_feed_ok=0
+      fi
+    fi
+  else
+    if [ -s "$TMP_DIR/dx-terminal-feed.json" ]; then
+      dx_terminal_feed_summary="$(as_json_line "$TMP_DIR/dx-terminal-feed.json")"
+    else
+      dx_terminal_feed_err="$(tr -d '\n' <"$TMP_DIR/dx-terminal-feed.err" | sed 's/"/\\"/g')"
+      dx_terminal_feed_summary="{\"ok\":false,\"error\":\"$dx_terminal_feed_err\"}"
+    fi
+    if is_true "$REQUIRE_DX_TERMINAL_FEED"; then
+      dx_terminal_feed_ok=0
+    fi
+  fi
+else
+  dx_terminal_feed_summary='{"ok":false,"error":"missing_dx_terminal_feed_builder"}'
+  if is_true "$REQUIRE_DX_TERMINAL_FEED"; then
+    dx_terminal_feed_ok=0
   fi
 fi
 
@@ -494,6 +525,7 @@ combined_error=""
 if [ "$agent_ok" -eq 1 ] \
   && [ "$proactive_ok" -eq 1 ] \
   && [ "$x402_feed_ok" -eq 1 ] \
+  && [ "$dx_terminal_feed_ok" -eq 1 ] \
   && [ "$marketplace_ok" -eq 1 ] \
   && [ "$receipt_sync_ok" -eq 1 ] \
   && [ "$planner_ok" -eq 1 ] \
@@ -525,6 +557,9 @@ else
   fi
   if [ "$x402_feed_ok" -ne 1 ]; then
     combined_error+="x402_feed_failed;"
+  fi
+  if [ "$dx_terminal_feed_ok" -ne 1 ]; then
+    combined_error+="dx_terminal_feed_failed;"
   fi
   if [ "$planner_ok" -ne 1 ]; then
     combined_error+="planner_failed;"
@@ -583,8 +618,8 @@ if [ "$status" = "ok" ] && [ "$learning_ok" -ne 1 ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$LOG_FILE"
