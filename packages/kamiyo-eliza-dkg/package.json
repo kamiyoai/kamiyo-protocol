@@ -92,7 +92,7 @@
   "devDependencies": {
     "@types/node": "^20.14.10",
     "typescript": "^5.5.3",
-    "vitest": "^1.6.0"
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
     "@elizaos/core": ">=1.0.0"
