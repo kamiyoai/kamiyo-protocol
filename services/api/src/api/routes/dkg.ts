@@ -145,20 +145,34 @@ function summarizeKnowledgeAsset(publicAsset: unknown): ResolveSummary {
   return { name: null, description: null, types: null, issuer: null, id: null };
 }
 
-function getParanetConfig(): ParanetConfig {
-  const endpoint = process.env.DKG_ENDPOINT;
-  const blockchain = process.env.DKG_BLOCKCHAIN as ParanetConfig['blockchain'];
-
-  if (!endpoint || !blockchain) {
-    throw new Error('DKG_ENDPOINT and DKG_BLOCKCHAIN must be set');
+function firstNonEmpty(keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim();
+    if (value) return value;
   }
+  return undefined;
+}
+
+function getParanetConfig(): ParanetConfig {
+  const endpoint = firstNonEmpty(['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT']);
+  const blockchainValue = firstNonEmpty(['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN']);
+
+  if (!endpoint) {
+    throw new Error('DKG endpoint missing. Set DKG_ENDPOINT or KAMIYO_DKG_ENDPOINT');
+  }
+
+  const blockchain = (blockchainValue === 'gnosis:100' || blockchainValue === 'otp:2043' ? blockchainValue : 'base:8453') as ParanetConfig['blockchain'];
+  const portRaw = firstNonEmpty(['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT']);
+  const portParsed = portRaw ? parseInt(portRaw, 10) : NaN;
 
   return {
     dkgEndpoint: endpoint,
-    dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
+    dkgPort: Number.isFinite(portParsed) && portParsed > 0 && portParsed <= 65535 ? portParsed : 8900,
     blockchain,
-    privateKey: process.env.DKG_PRIVATE_KEY,
-    paranetUAL: process.env.PARANET_UAL,
+    privateKey: firstNonEmpty(['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY']),
+    paranetUAL: firstNonEmpty(['PARANET_UAL', 'DKG_PARANET_UAL', 'KAMIYO_DKG_PARANET_UAL', 'MEISHI_PARANET_UAL']),
   };
 }
 

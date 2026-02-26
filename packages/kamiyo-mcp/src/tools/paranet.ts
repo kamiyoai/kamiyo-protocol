@@ -24,6 +24,16 @@ export const PARANET_TOOLS: Array<{
   };
 }> = [
   {
+    name: 'paranet_env_status',
+    description:
+      'Inspect Paranet runtime configuration and report whether read/write paths are ready.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: 'paranet_find_providers',
     description:
       'Find AI agent providers on the KAMIYO Paranet matching search criteria. ' +
@@ -375,47 +385,227 @@ type ParanetClientResult =
 
 let paranetClientPromise: Promise<ParanetClientResult> | null = null;
 
+const PARANET_ENV_KEYS = {
+  endpoint: ['PARANET_DKG_ENDPOINT', 'DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'OT_NODE_ENDPOINT'],
+  blockchain: ['PARANET_BLOCKCHAIN', 'DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN'],
+  dkgPort: ['PARANET_DKG_PORT', 'DKG_PORT', 'KAMIYO_DKG_PORT'],
+  privateKey: ['PARANET_PRIVATE_KEY', 'DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY'],
+  epochs: ['PARANET_EPOCHS', 'DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS'],
+  paranetUAL: ['PARANET_UAL', 'DKG_PARANET_UAL', 'KAMIYO_DKG_PARANET_UAL', 'MEISHI_PARANET_UAL'],
+  operatorGlobalId: ['PARANET_OPERATOR_GLOBAL_ID', 'PARANET_CLIENT_GLOBAL_ID', 'KAMIYO_DKG_AGENT_ID', 'DKG_AGENT_ID'],
+  attestorGlobalId: [
+    'PARANET_ATTESTOR_GLOBAL_ID',
+    'PARANET_OPERATOR_GLOBAL_ID',
+    'PARANET_CLIENT_GLOBAL_ID',
+    'KAMIYO_DKG_AGENT_ID',
+    'DKG_AGENT_ID',
+  ],
+} as const;
+
+type EnvStringResolution = {
+  value: string | null;
+  source: string | null;
+  aliases: readonly string[];
+};
+
+type EnvIntResolution = EnvStringResolution & {
+  parsed: number | null;
+  error: string | null;
+};
+
+type ParanetEnvSnapshot = {
+  endpoint: EnvStringResolution;
+  blockchain: EnvStringResolution;
+  dkgPort: EnvIntResolution;
+  privateKey: EnvStringResolution;
+  epochs: EnvIntResolution;
+  paranetUAL: EnvStringResolution;
+  operatorGlobalId: EnvStringResolution;
+  attestorGlobalId: EnvStringResolution;
+};
+
+function resolveEnvString(aliases: readonly string[]): EnvStringResolution {
+  for (const key of aliases) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim();
+    if (!value) continue;
+    return { value, source: key, aliases };
+  }
+
+  return { value: null, source: null, aliases };
+}
+
+function resolveEnvInt(
+  aliases: readonly string[],
+  defaultValue: number,
+  label: string,
+  bounds?: { min?: number; max?: number }
+): EnvIntResolution {
+  const resolved = resolveEnvString(aliases);
+  if (!resolved.value) {
+    return { ...resolved, parsed: defaultValue, error: null };
+  }
+
+  const parsed = Number(resolved.value);
+  if (!Number.isInteger(parsed)) {
+    return { ...resolved, parsed: null, error: `${label} must be an integer` };
+  }
+
+  if (bounds?.min !== undefined && parsed < bounds.min) {
+    return { ...resolved, parsed: null, error: `${label} must be >= ${bounds.min}` };
+  }
+
+  if (bounds?.max !== undefined && parsed > bounds.max) {
+    return { ...resolved, parsed: null, error: `${label} must be <= ${bounds.max}` };
+  }
+
+  return { ...resolved, parsed, error: null };
+}
+
+function readParanetEnv(): ParanetEnvSnapshot {
+  return {
+    endpoint: resolveEnvString(PARANET_ENV_KEYS.endpoint),
+    blockchain: resolveEnvString(PARANET_ENV_KEYS.blockchain),
+    dkgPort: resolveEnvInt(PARANET_ENV_KEYS.dkgPort, 8900, 'DKG port', { min: 1, max: 65535 }),
+    privateKey: resolveEnvString(PARANET_ENV_KEYS.privateKey),
+    epochs: resolveEnvInt(PARANET_ENV_KEYS.epochs, 12, 'Epochs', { min: 1 }),
+    paranetUAL: resolveEnvString(PARANET_ENV_KEYS.paranetUAL),
+    operatorGlobalId: resolveEnvString(PARANET_ENV_KEYS.operatorGlobalId),
+    attestorGlobalId: resolveEnvString(PARANET_ENV_KEYS.attestorGlobalId),
+  };
+}
+
+function formatAliases(aliases: readonly string[]): string {
+  return aliases.join(' | ');
+}
+
+function computeParanetEnvStatus(snapshot: ParanetEnvSnapshot) {
+  const blockchainValue = snapshot.blockchain.value ?? 'base:8453';
+  const blockchainValid = ['base:8453', 'gnosis:100', 'otp:2043'].includes(blockchainValue);
+
+  const warnings: string[] = [];
+  if (snapshot.dkgPort.error) warnings.push(snapshot.dkgPort.error);
+  if (snapshot.epochs.error) warnings.push(snapshot.epochs.error);
+  if (!blockchainValid) warnings.push('PARANET_BLOCKCHAIN must be one of: base:8453, gnosis:100, otp:2043');
+
+  const missingReadOnly: string[] = [];
+  if (!snapshot.endpoint.value) missingReadOnly.push(formatAliases(snapshot.endpoint.aliases));
+  if (!blockchainValid) missingReadOnly.push(formatAliases(snapshot.blockchain.aliases));
+  if (snapshot.dkgPort.error) missingReadOnly.push(formatAliases(snapshot.dkgPort.aliases));
+
+  const missingPublish = [...missingReadOnly];
+  if (!snapshot.privateKey.value) missingPublish.push(formatAliases(snapshot.privateKey.aliases));
+  if (!snapshot.operatorGlobalId.value) missingPublish.push(formatAliases(snapshot.operatorGlobalId.aliases));
+
+  const missingAttest = [...missingReadOnly];
+  if (!snapshot.privateKey.value) missingAttest.push(formatAliases(snapshot.privateKey.aliases));
+  if (!snapshot.attestorGlobalId.value) missingAttest.push(formatAliases(snapshot.attestorGlobalId.aliases));
+
+  const missingTrust = [...missingReadOnly];
+  if (!snapshot.privateKey.value) missingTrust.push(formatAliases(snapshot.privateKey.aliases));
+  if (!snapshot.operatorGlobalId.value) missingTrust.push(formatAliases(snapshot.operatorGlobalId.aliases));
+
+  return {
+    ok: missingReadOnly.length === 0 && warnings.length === 0,
+    config: {
+      endpoint: {
+        configured: snapshot.endpoint.value !== null,
+        source: snapshot.endpoint.source,
+        aliases: snapshot.endpoint.aliases,
+      },
+      blockchain: {
+        value: blockchainValue,
+        configured: snapshot.blockchain.value !== null,
+        source: snapshot.blockchain.source,
+        aliases: snapshot.blockchain.aliases,
+        valid: blockchainValid,
+      },
+      dkgPort: {
+        value: snapshot.dkgPort.parsed,
+        configured: snapshot.dkgPort.value !== null,
+        source: snapshot.dkgPort.source,
+        aliases: snapshot.dkgPort.aliases,
+        valid: !snapshot.dkgPort.error,
+      },
+      privateKey: {
+        configured: snapshot.privateKey.value !== null,
+        source: snapshot.privateKey.source,
+        aliases: snapshot.privateKey.aliases,
+      },
+      epochs: {
+        value: snapshot.epochs.parsed,
+        configured: snapshot.epochs.value !== null,
+        source: snapshot.epochs.source,
+        aliases: snapshot.epochs.aliases,
+        valid: !snapshot.epochs.error,
+      },
+      paranetUAL: {
+        configured: snapshot.paranetUAL.value !== null,
+        source: snapshot.paranetUAL.source,
+        aliases: snapshot.paranetUAL.aliases,
+      },
+      operatorGlobalId: {
+        configured: snapshot.operatorGlobalId.value !== null,
+        source: snapshot.operatorGlobalId.source,
+        aliases: snapshot.operatorGlobalId.aliases,
+      },
+      attestorGlobalId: {
+        configured: snapshot.attestorGlobalId.value !== null,
+        source: snapshot.attestorGlobalId.source,
+        aliases: snapshot.attestorGlobalId.aliases,
+      },
+    },
+    ready: {
+      readOnly: missingReadOnly.length === 0,
+      publish: missingPublish.length === 0,
+      attest: missingAttest.length === 0,
+      trust: missingTrust.length === 0,
+    },
+    missing: {
+      readOnly: missingReadOnly,
+      publish: missingPublish,
+      attest: missingAttest,
+      trust: missingTrust,
+    },
+    warnings,
+  };
+}
+
+export function paranetEnvStatus() {
+  return computeParanetEnvStatus(readParanetEnv());
+}
+
 function resolveParanetConfig():
   | { ok: true; config: ParanetConfig }
   | { ok: false; error: string } {
-  const dkgEndpoint =
-    process.env.PARANET_DKG_ENDPOINT ||
-    process.env.DKG_ENDPOINT ||
-    process.env.OT_NODE_ENDPOINT;
-  if (!dkgEndpoint) {
+  const snapshot = readParanetEnv();
+  const status = computeParanetEnvStatus(snapshot);
+  if (!status.ready.readOnly) {
     return {
       ok: false,
-      error:
-        'Paranet is not configured. Set PARANET_DKG_ENDPOINT (or DKG_ENDPOINT/OT_NODE_ENDPOINT).',
+      error: `Paranet is not configured for read operations. Missing: ${status.missing.readOnly.join(', ')}`,
     };
   }
 
-  const blockchainRaw = (process.env.PARANET_BLOCKCHAIN || 'base:8453') as string;
-  if (!['base:8453', 'gnosis:100', 'otp:2043'].includes(blockchainRaw)) {
+  if (status.warnings.length > 0) {
     return {
       ok: false,
-      error: 'PARANET_BLOCKCHAIN must be one of: base:8453, gnosis:100, otp:2043',
+      error: status.warnings.join('; '),
     };
   }
 
-  const portRaw = process.env.PARANET_DKG_PORT;
-  const dkgPort = portRaw ? Number(portRaw) : undefined;
-  if (portRaw && (!Number.isInteger(dkgPort) || dkgPort <= 0 || dkgPort > 65535)) {
-    return {
-      ok: false,
-      error: 'PARANET_DKG_PORT must be an integer between 1 and 65535',
-    };
-  }
+  const blockchainRaw = status.config.blockchain.value;
 
   return {
     ok: true,
     config: {
-      dkgEndpoint,
-      dkgPort,
+      dkgEndpoint: snapshot.endpoint.value as string,
+      dkgPort: snapshot.dkgPort.value ? snapshot.dkgPort.parsed ?? undefined : undefined,
       blockchain: blockchainRaw as ParanetConfig['blockchain'],
-      privateKey: process.env.PARANET_PRIVATE_KEY,
-      epochs: process.env.PARANET_EPOCHS ? Number(process.env.PARANET_EPOCHS) : undefined,
-      paranetUAL: process.env.PARANET_UAL,
+      privateKey: snapshot.privateKey.value ?? undefined,
+      epochs: snapshot.epochs.value ? snapshot.epochs.parsed ?? undefined : undefined,
+      paranetUAL: snapshot.paranetUAL.value ?? undefined,
     },
   };
 }
@@ -439,18 +629,11 @@ async function getParanetClient(): Promise<ParanetClientResult> {
 }
 
 function getOperatorGlobalId(): string | null {
-  const value = process.env.PARANET_OPERATOR_GLOBAL_ID || process.env.PARANET_CLIENT_GLOBAL_ID;
-  if (!value) return null;
-  return value.trim();
+  return readParanetEnv().operatorGlobalId.value;
 }
 
 function getAttestorGlobalId(): string | null {
-  const value =
-    process.env.PARANET_ATTESTOR_GLOBAL_ID ||
-    process.env.PARANET_OPERATOR_GLOBAL_ID ||
-    process.env.PARANET_CLIENT_GLOBAL_ID;
-  if (!value) return null;
-  return value.trim();
+  return readParanetEnv().attestorGlobalId.value;
 }
 
 function parseError(error: unknown): string {
@@ -466,6 +649,10 @@ function parseValidation<T extends z.ZodTypeAny>(
   } catch (error) {
     return { ok: false, error: parseError(error) };
   }
+}
+
+function handleParanetEnvStatus(): unknown {
+  return paranetEnvStatus();
 }
 
 async function handleFindProviders(args: unknown): Promise<unknown> {
@@ -543,7 +730,7 @@ async function handlePublishTaskCompletion(args: unknown): Promise<unknown> {
     return {
       success: false,
       error:
-        'PARANET_OPERATOR_GLOBAL_ID (or PARANET_CLIENT_GLOBAL_ID) is required for publish operations.',
+        'Operator global ID is required for publish operations (set PARANET_OPERATOR_GLOBAL_ID, PARANET_CLIENT_GLOBAL_ID, KAMIYO_DKG_AGENT_ID, or DKG_AGENT_ID).',
     };
   }
 
@@ -584,7 +771,7 @@ async function handleAttestCapability(args: unknown): Promise<unknown> {
     return {
       success: false,
       error:
-        'PARANET_ATTESTOR_GLOBAL_ID (or PARANET_OPERATOR_GLOBAL_ID / PARANET_CLIENT_GLOBAL_ID) is required for attestations.',
+        'Attestor global ID is required for attestations (set PARANET_ATTESTOR_GLOBAL_ID or one of PARANET_OPERATOR_GLOBAL_ID / PARANET_CLIENT_GLOBAL_ID / KAMIYO_DKG_AGENT_ID / DKG_AGENT_ID).',
     };
   }
 
@@ -611,7 +798,7 @@ async function handleRecordTrust(args: unknown): Promise<unknown> {
     return {
       success: false,
       error:
-        'PARANET_OPERATOR_GLOBAL_ID (or PARANET_CLIENT_GLOBAL_ID) is required to record trust.',
+        'Operator global ID is required to record trust (set PARANET_OPERATOR_GLOBAL_ID, PARANET_CLIENT_GLOBAL_ID, KAMIYO_DKG_AGENT_ID, or DKG_AGENT_ID).',
     };
   }
 
@@ -673,6 +860,8 @@ async function handleCompareProviders(args: unknown): Promise<unknown> {
 
 export async function handleParanetTool(toolName: string, args: unknown): Promise<unknown> {
   switch (toolName) {
+    case 'paranet_env_status':
+      return handleParanetEnvStatus();
     case 'paranet_find_providers':
       return handleFindProviders(args);
     case 'paranet_get_credit_score':

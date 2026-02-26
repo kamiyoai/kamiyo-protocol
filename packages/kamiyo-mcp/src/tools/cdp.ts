@@ -1,5 +1,6 @@
 import {
   CDP_ENV,
+  inspectCdpEnv,
   createCdpClient,
   compileUsdcSpendPolicy,
   type CdpPolicyNetwork,
@@ -104,22 +105,26 @@ export const CDP_TOOL_DEFINITIONS: Tool[] = [
   },
 ];
 
-function hasEnv(key: string): boolean {
-  const v = process.env[key];
-  return typeof v === 'string' && v.trim().length > 0;
-}
-
 export function cdpEnvStatus(): {
   ok: boolean;
   env: Record<string, boolean>;
+  resolvedFrom: Record<string, string | null>;
+  missing: string[];
 } {
+  const inspection = inspectCdpEnv();
   const env = {
-    [CDP_ENV.apiKeyId]: hasEnv(CDP_ENV.apiKeyId),
-    [CDP_ENV.apiKeySecret]: hasEnv(CDP_ENV.apiKeySecret),
-    [CDP_ENV.walletSecret]: hasEnv(CDP_ENV.walletSecret),
+    [CDP_ENV.apiKeyId]: inspection.fields.apiKeyId.configured,
+    [CDP_ENV.apiKeySecret]: inspection.fields.apiKeySecret.configured,
+    [CDP_ENV.walletSecret]: inspection.fields.walletSecret.configured,
   };
 
-  return { ok: Object.values(env).every(Boolean), env };
+  const resolvedFrom = {
+    [CDP_ENV.apiKeyId]: inspection.fields.apiKeyId.source,
+    [CDP_ENV.apiKeySecret]: inspection.fields.apiKeySecret.source,
+    [CDP_ENV.walletSecret]: inspection.fields.walletSecret.source,
+  };
+
+  return { ok: inspection.ok, env, resolvedFrom, missing: inspection.missing };
 }
 
 export async function cdpEvmGetOrCreateAccount(params: {

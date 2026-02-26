@@ -102,6 +102,13 @@ Success criteria:
    - CDP: all tool functions return deterministic config errors without crashing when env is missing.
    - DKG/Paranet: all tool handlers return deterministic validation/config responses.
    - Meishi MCP: all exported tools execute and return expected validation/not-found outputs.
+10. Added live credential/endpoints readiness hardening:
+    - CDP env resolution now supports canonical + Coinbase alias keys with deterministic missing-var diagnostics.
+    - MCP now exposes `paranet_env_status` and upgraded `cdp_env_status` with env source tracing.
+    - MCP Paranet runtime now accepts `PARANET_*`, `DKG_*`, and `KAMIYO_DKG_*` aliases.
+    - API Paranet/DKG routes now resolve the same alias families.
+    - Agent-paranet pre-deploy verifier now resolves alias env families and reports source keys.
+    - Added `@kamiyo/mcp-server` live preflight command: `test:live-config`.
 
 ## Remaining Work to Reach A+
 

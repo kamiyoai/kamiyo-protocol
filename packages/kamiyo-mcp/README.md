@@ -78,6 +78,50 @@ AGENT_PRIVATE_KEY=<base58_key>
 AGENT_KEYPAIR_PATH=./keypair.json
 ```
 
+### Live CDP + Paranet Credentials
+
+For production CDP calls, set:
+
+```bash
+CDP_API_KEY_ID=...
+CDP_API_KEY_SECRET=...
+CDP_WALLET_SECRET=...
+```
+
+Accepted CDP aliases:
+- `COINBASE_CDP_API_KEY_ID`
+- `COINBASE_API_KEY_ID`
+- `COINBASE_CDP_API_KEY_SECRET`
+- `COINBASE_API_KEY_SECRET`
+- `COINBASE_CDP_WALLET_SECRET`
+- `COINBASE_WALLET_SECRET`
+
+For Paranet/DKG live transaction calls, set:
+
+```bash
+PARANET_DKG_ENDPOINT=...
+PARANET_BLOCKCHAIN=base:8453
+PARANET_DKG_PORT=8900
+PARANET_PRIVATE_KEY=...
+PARANET_UAL=...
+PARANET_OPERATOR_GLOBAL_ID=...
+PARANET_ATTESTOR_GLOBAL_ID=...
+```
+
+Accepted Paranet aliases include existing operator env names such as:
+- `DKG_ENDPOINT`, `DKG_BLOCKCHAIN`, `DKG_PORT`, `DKG_PRIVATE_KEY`, `DKG_EPOCHS`, `DKG_PARANET_UAL`
+- `KAMIYO_DKG_ENDPOINT`, `KAMIYO_DKG_BLOCKCHAIN`, `KAMIYO_DKG_PORT`, `KAMIYO_DKG_PRIVATE_KEY`, `KAMIYO_DKG_EPOCHS`, `KAMIYO_DKG_PARANET_UAL`, `KAMIYO_DKG_AGENT_ID`
+
+Run preflight before live demos:
+
+```bash
+pnpm --filter @kamiyo/mcp-server run test:live-config
+```
+
+You can also call MCP tools:
+- `cdp_env_status`
+- `paranet_env_status`
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):

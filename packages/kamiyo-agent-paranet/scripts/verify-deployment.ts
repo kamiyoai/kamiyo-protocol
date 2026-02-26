@@ -15,63 +15,107 @@ interface CheckResult {
 
 const logger = createLogger({ level: 'info' });
 
+const DKG_ENV_KEYS = {
+  endpoint: ['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT'],
+  blockchain: ['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN'],
+  port: ['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT'],
+  privateKey: ['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY'],
+  epochs: ['DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS', 'PARANET_EPOCHS'],
+} as const;
+
+function resolveEnvValue(keys: readonly string[]): { value: string | undefined; source: string | null } {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim();
+    if (!value) continue;
+    return { value, source: key };
+  }
+
+  return { value: undefined, source: null };
+}
+
 async function verifyEnvironment(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
-  // Required environment variables
-  const required = ['DKG_ENDPOINT', 'DKG_BLOCKCHAIN'];
-  const recommended = ['DKG_PRIVATE_KEY', 'DKG_EPOCHS'];
+  const endpoint = resolveEnvValue(DKG_ENV_KEYS.endpoint);
+  const blockchain = resolveEnvValue(DKG_ENV_KEYS.blockchain);
+  const privateKey = resolveEnvValue(DKG_ENV_KEYS.privateKey);
+  const epochsEnv = resolveEnvValue(DKG_ENV_KEYS.epochs);
 
-  for (const envVar of required) {
-    if (process.env[envVar]) {
-      results.push({
-        name: `env:${envVar}`,
-        status: 'pass',
-        message: 'Set',
-      });
-    } else {
-      results.push({
-        name: `env:${envVar}`,
-        status: 'fail',
-        message: 'Missing required environment variable',
-      });
-    }
+  if (endpoint.value) {
+    results.push({
+      name: 'env:DKG_ENDPOINT',
+      status: 'pass',
+      message: endpoint.source ? `Set via ${endpoint.source}` : 'Set',
+    });
+  } else {
+    results.push({
+      name: 'env:DKG_ENDPOINT',
+      status: 'fail',
+      message: `Missing required environment variable (checked: ${DKG_ENV_KEYS.endpoint.join(', ')})`,
+    });
   }
 
-  for (const envVar of recommended) {
-    if (process.env[envVar]) {
-      results.push({
-        name: `env:${envVar}`,
-        status: 'pass',
-        message: 'Set',
-      });
-    } else {
-      results.push({
-        name: `env:${envVar}`,
-        status: 'warn',
-        message: 'Not set (recommended for production)',
-      });
-    }
+  if (blockchain.value) {
+    results.push({
+      name: 'env:DKG_BLOCKCHAIN',
+      status: 'pass',
+      message: blockchain.source ? `Set via ${blockchain.source}` : 'Set',
+    });
+  } else {
+    results.push({
+      name: 'env:DKG_BLOCKCHAIN',
+      status: 'fail',
+      message: `Missing required environment variable (checked: ${DKG_ENV_KEYS.blockchain.join(', ')})`,
+    });
+  }
+
+  if (privateKey.value) {
+    results.push({
+      name: 'env:DKG_PRIVATE_KEY',
+      status: 'pass',
+      message: privateKey.source ? `Set via ${privateKey.source}` : 'Set',
+    });
+  } else {
+    results.push({
+      name: 'env:DKG_PRIVATE_KEY',
+      status: 'warn',
+      message: `Not set (recommended for production; checked: ${DKG_ENV_KEYS.privateKey.join(', ')})`,
+    });
+  }
+
+  if (epochsEnv.value) {
+    results.push({
+      name: 'env:DKG_EPOCHS',
+      status: 'pass',
+      message: epochsEnv.source ? `Set via ${epochsEnv.source}` : 'Set',
+    });
+  } else {
+    results.push({
+      name: 'env:DKG_EPOCHS',
+      status: 'warn',
+      message: `Not set (recommended for production; checked: ${DKG_ENV_KEYS.epochs.join(', ')})`,
+    });
   }
 
   // Validate blockchain format
-  const blockchain = process.env.DKG_BLOCKCHAIN;
-  if (blockchain && /^(base|gnosis|otp):\d+$/.test(blockchain)) {
+  if (blockchain.value && /^(base|gnosis|otp):\d+$/.test(blockchain.value)) {
     results.push({
       name: 'config:blockchain_format',
       status: 'pass',
-      message: `Valid format: ${blockchain}`,
+      message: `Valid format: ${blockchain.value}`,
     });
-  } else if (blockchain) {
+  } else if (blockchain.value) {
     results.push({
       name: 'config:blockchain_format',
       status: 'fail',
-      message: `Invalid format: ${blockchain} (expected: base:8453, gnosis:100, or otp:2043)`,
+      message: `Invalid format: ${blockchain.value} (expected: base:8453, gnosis:100, or otp:2043)`,
     });
   }
 
   // Validate epochs
-  const epochs = parseInt(process.env.DKG_EPOCHS || '12', 10);
+  const epochs = parseInt(epochsEnv.value || '12', 10);
   if (epochs >= 1 && epochs <= 100) {
     results.push({
       name: 'config:epochs',
@@ -92,7 +136,13 @@ async function verifyEnvironment(): Promise<CheckResult[]> {
 async function verifyConnectivity(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
-  if (!process.env.DKG_ENDPOINT || !process.env.DKG_BLOCKCHAIN) {
+  const endpoint = resolveEnvValue(DKG_ENV_KEYS.endpoint).value;
+  const blockchainRaw = resolveEnvValue(DKG_ENV_KEYS.blockchain).value;
+  const portRaw = resolveEnvValue(DKG_ENV_KEYS.port).value;
+  const privateKey = resolveEnvValue(DKG_ENV_KEYS.privateKey).value;
+  const epochsRaw = resolveEnvValue(DKG_ENV_KEYS.epochs).value;
+
+  if (!endpoint || !blockchainRaw) {
     results.push({
       name: 'connectivity:skip',
       status: 'warn',
@@ -102,11 +152,11 @@ async function verifyConnectivity(): Promise<CheckResult[]> {
   }
 
   const config: ParanetConfig = {
-    dkgEndpoint: process.env.DKG_ENDPOINT,
-    dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
-    blockchain: process.env.DKG_BLOCKCHAIN as ParanetConfig['blockchain'],
-    privateKey: process.env.DKG_PRIVATE_KEY,
-    epochs: parseInt(process.env.DKG_EPOCHS || '12', 10),
+    dkgEndpoint: endpoint,
+    dkgPort: parseInt(portRaw || '8900', 10),
+    blockchain: blockchainRaw as ParanetConfig['blockchain'],
+    privateKey,
+    epochs: parseInt(epochsRaw || '12', 10),
   };
 
   try {

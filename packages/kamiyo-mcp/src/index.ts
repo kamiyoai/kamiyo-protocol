@@ -1235,6 +1235,7 @@ class KamiyoMCPServer {
             break;
 
           // Agent Paranet tools
+          case 'paranet_env_status':
           case 'paranet_find_providers':
           case 'paranet_get_credit_score':
           case 'paranet_check_requirements':

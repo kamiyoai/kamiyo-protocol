@@ -1,6 +1,6 @@
 export { CAIP2, CDP_ENV, USDC } from './constants.js';
-export type { CdpEnv } from './env.js';
-export { readCdpEnv } from './env.js';
+export type { CdpEnv, CdpEnvFieldStatus, CdpEnvInspection } from './env.js';
+export { inspectCdpEnv, readCdpEnv } from './env.js';
 export type { KamiyoCdpClientOptions } from './client.js';
 export { createCdpClient } from './client.js';
 export {

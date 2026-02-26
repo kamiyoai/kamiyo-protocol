@@ -1,4 +1,4 @@
-import { CDP_ENV } from '@kamiyo/cdp';
+import { CDP_ENV, inspectCdpEnv } from '@kamiyo/cdp';
 import { PublicKey } from '@solana/web3.js';
 
 export type Config = {
@@ -12,9 +12,6 @@ export type Config = {
 const REQUIRED_VARS = [
   'DATABASE_URL',
   'SOLANA_RPC_URL',
-  CDP_ENV.apiKeyId,
-  CDP_ENV.apiKeySecret,
-  CDP_ENV.walletSecret,
 ] as const;
 
 const DEFAULTS: Pick<Config, 'MEISHI_PROGRAM_ID' | 'PORT' | 'NODE_ENV'> = {
@@ -37,6 +34,17 @@ export function validateConfig(): ValidationResult {
 
   for (const key of REQUIRED_VARS) {
     if (!process.env[key]?.trim()) errors.push(`Missing required: ${key}`);
+  }
+
+  const cdpEnv = inspectCdpEnv();
+  if (!cdpEnv.fields.apiKeyId.configured) {
+    errors.push(`Missing required: ${CDP_ENV.apiKeyId}`);
+  }
+  if (!cdpEnv.fields.apiKeySecret.configured) {
+    errors.push(`Missing required: ${CDP_ENV.apiKeySecret}`);
+  }
+  if (!cdpEnv.fields.walletSecret.configured) {
+    errors.push(`Missing required: ${CDP_ENV.walletSecret}`);
   }
 
   const rpc = process.env.SOLANA_RPC_URL;

@@ -71,21 +71,67 @@ let clientInitPromise: Promise<AgentParanetClient> | null = null;
 let lastHealthCheck = 0;
 const HEALTH_INTERVAL = 60000;
 
-function getParanetConfig(): ParanetConfig {
-  const endpoint = process.env.DKG_ENDPOINT;
-  const blockchain = process.env.DKG_BLOCKCHAIN as ParanetConfig['blockchain'];
+function firstNonEmpty(keys: readonly string[]): string | undefined {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
 
-  if (!endpoint || !blockchain) {
-    throw new Error('DKG_ENDPOINT and DKG_BLOCKCHAIN must be set');
+function resolveDkgEndpoint(): string | undefined {
+  return firstNonEmpty(['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT']);
+}
+
+function resolveDkgBlockchain(): ParanetConfig['blockchain'] {
+  const value = firstNonEmpty(['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN']);
+  if (value === 'gnosis:100' || value === 'otp:2043') return value;
+  return 'base:8453';
+}
+
+function resolveDkgPort(): number {
+  const raw = firstNonEmpty(['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT']);
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0 && parsed <= 65535) return parsed;
+  return 8900;
+}
+
+function resolveDkgPrivateKey(): string | undefined {
+  return firstNonEmpty(['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY']);
+}
+
+function resolveDkgEpochs(): number {
+  const raw = firstNonEmpty(['DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS', 'PARANET_EPOCHS']);
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return 12;
+}
+
+function resolveParanetUal(): string | undefined {
+  return firstNonEmpty([
+    'PARANET_UAL',
+    'DKG_PARANET_UAL',
+    'KAMIYO_DKG_PARANET_UAL',
+    'MEISHI_PARANET_UAL',
+  ]);
+}
+
+function getParanetConfig(): ParanetConfig {
+  const endpoint = resolveDkgEndpoint();
+
+  if (!endpoint) {
+    throw new Error('DKG endpoint missing. Set DKG_ENDPOINT or KAMIYO_DKG_ENDPOINT');
   }
 
   return {
     dkgEndpoint: endpoint,
-    dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
-    blockchain,
-    privateKey: process.env.DKG_PRIVATE_KEY,
-    epochs: parseInt(process.env.DKG_EPOCHS || '12', 10),
-    paranetUAL: process.env.PARANET_UAL,
+    dkgPort: resolveDkgPort(),
+    blockchain: resolveDkgBlockchain(),
+    privateKey: resolveDkgPrivateKey(),
+    epochs: resolveDkgEpochs(),
+    paranetUAL: resolveParanetUal(),
   };
 }
 
@@ -396,7 +442,7 @@ router.post('/task', publishLimiter, async (req: Request, res: Response) => {
 
   const task = req.body;
 
-  if (!process.env.DKG_PRIVATE_KEY) {
+  if (!resolveDkgPrivateKey()) {
     return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
@@ -455,7 +501,7 @@ router.post('/attestation', publishLimiter, async (req: Request, res: Response) 
 
   const attestation = req.body;
 
-  if (!process.env.DKG_PRIVATE_KEY) {
+  if (!resolveDkgPrivateKey()) {
     return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
@@ -511,7 +557,7 @@ router.post('/trust', publishLimiter, async (req: Request, res: Response) => {
 
   const trust = req.body;
 
-  if (!process.env.DKG_PRIVATE_KEY) {
+  if (!resolveDkgPrivateKey()) {
     return sendError(res, 503, 'NOT_CONFIGURED', 'Publishing not enabled (no private key)');
   }
 
