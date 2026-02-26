@@ -18,10 +18,10 @@
   },
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
-    "@lucid-agents/core": "^2.0.0",
+    "@lucid-agents/core": "^2.5.0",
     "@lucid-agents/payments": "^2.5.0",
-    "@lucid-agents/a2a": "^0.5.4",
-    "@lucid-agents/types": "^1.5.6",
+    "@lucid-agents/a2a": "^0.6.2",
+    "@lucid-agents/types": "^1.7.0",
     "x402-fetch": "^0.7.3",
     "zod": "^4.1.12"
   },

@@ -23,7 +23,7 @@ import {
   readFundryUserPosition,
   type FundryUserPosition,
 } from './tools/fundryStaking.js';
-import { depositToStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
+import { depositToStakingPeriod, ensureOpenStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
 import { createDkgActivityPublisher, type DkgActivityEvent } from './dkgActivity.js';
 import { ensureMeishiTrust } from './meishiTrust.js';
@@ -58,6 +58,8 @@ import {
   pruneRollbackState,
 } from './swarm/rollback.js';
 import type { SwarmRegistry } from './swarm/types.js';
+
+const STAKING_PERIOD_MAINTENANCE_INTERVAL_MS = 15 * 60_000;
 
 function startOfUtcDayIso(now = new Date()): string {
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -509,6 +511,86 @@ function getClaimablePeriodNumbers(position: FundryUserPosition, maxPeriods: num
   return [...new Set(numbers)].slice(0, Math.max(1, maxPeriods));
 }
 
+async function maintainOpenStakingPeriod(params: {
+  connection: Connection;
+  db: ReturnType<typeof openDb>;
+  tickId: string;
+  poolAddress: string;
+  admin: Keypair;
+  source: string;
+}) {
+  const meta = {
+    source: params.source,
+    pool: params.poolAddress,
+    wallet: params.admin.publicKey.toBase58(),
+  };
+
+  try {
+    const pool = new PublicKey(params.poolAddress);
+    let period = await withTimeout(
+      findLatestOpenStakingPeriod(params.connection, pool),
+      env.KAMIYO_RPC_READ_TIMEOUT_MS,
+      `find_latest_open_staking_period timed out after ${env.KAMIYO_RPC_READ_TIMEOUT_MS}ms`
+    );
+    if (period) {
+      return { checked: true, maintained: false, reason: 'open_period_exists', period, ...meta };
+    }
+
+    const rollover = await withTimeout(
+      ensureOpenStakingPeriod({
+        connection: params.connection,
+        admin: params.admin,
+        pool,
+      }),
+      Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 3, 60_000),
+      'ensure_open_staking_period timed out'
+    );
+    period = rollover.period;
+
+    if (rollover.createSignature || rollover.activateSignature) {
+      params.db.addAction(
+        params.tickId,
+        'staking_period_rollover',
+        {
+          source: params.source,
+          wallet: params.admin.publicKey.toBase58(),
+          pool: pool.toBase58(),
+          createdPeriod: rollover.createdPeriod?.address ?? null,
+          createdPeriodNumber: rollover.createdPeriod?.periodNumber ?? null,
+        },
+        {
+          success: true,
+          data: {
+            createSignature: rollover.createSignature,
+            activateSignature: rollover.activateSignature,
+            period,
+          },
+        }
+      );
+    }
+
+    if (!period) {
+      const error = 'no_open_period_after_rollover';
+      params.db.addAction(params.tickId, 'staking_period_rollover', meta, null, error);
+      return { checked: true, maintained: false, reason: error, period: null, ...meta };
+    }
+
+    return {
+      checked: true,
+      maintained: Boolean(rollover.createSignature || rollover.activateSignature),
+      reason: 'open_period_ready',
+      period,
+      createSignature: rollover.createSignature,
+      activateSignature: rollover.activateSignature,
+      ...meta,
+    };
+  } catch (error) {
+    const message = toErrorMessage(error);
+    params.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
+    return { checked: true, maintained: false, reason: 'rollover_failed', error: message, period: null, ...meta };
+  }
+}
+
 async function runAutoStakePolicy(params: {
   connection: Connection;
   db: ReturnType<typeof openDb>;
@@ -564,11 +646,50 @@ async function runAutoStakePolicy(params: {
 
   try {
     const pool = new PublicKey(params.poolAddress);
-    const period = await withTimeout(
+    let period = await withTimeout(
       findLatestOpenStakingPeriod(params.connection, pool),
       env.KAMIYO_RPC_READ_TIMEOUT_MS,
       `find_latest_open_staking_period timed out after ${env.KAMIYO_RPC_READ_TIMEOUT_MS}ms`
     );
+
+    let rolloverResult:
+      | Awaited<ReturnType<typeof ensureOpenStakingPeriod>>
+      | null = null;
+    if (!period) {
+      rolloverResult = await withTimeout(
+        ensureOpenStakingPeriod({
+          connection: params.connection,
+          admin: params.depositor,
+          pool,
+        }),
+        Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 3, 60_000),
+        'ensure_open_staking_period timed out'
+      );
+      period = rolloverResult.period;
+
+      if (rolloverResult.createSignature || rolloverResult.activateSignature) {
+        params.db.addAction(
+          params.tickId,
+          'staking_period_rollover',
+          {
+            source: params.source,
+            wallet: params.depositor.publicKey.toBase58(),
+            pool: pool.toBase58(),
+            createdPeriod: rolloverResult.createdPeriod?.address ?? null,
+            createdPeriodNumber: rolloverResult.createdPeriod?.periodNumber ?? null,
+          },
+          {
+            success: true,
+            data: {
+              createSignature: rolloverResult.createSignature,
+              activateSignature: rolloverResult.activateSignature,
+              period: period,
+            },
+          }
+        );
+      }
+    }
+
     if (!period) {
       return {
         observation: { executed: false, reason: 'no_open_period', ...meta },
@@ -1357,6 +1478,8 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+
+  let lastStakingPeriodMaintenanceMs = 0;
 
   for (;;) {
     const tickId =
@@ -2523,6 +2646,21 @@ async function main(): Promise<void> {
               claimer: claimerAddress,
             };
           }
+        }
+      }
+
+      if (env.KAMIYO_MODE === 'execute' && env.KAMIYO_STAKING_POOL) {
+        const nowMs = Date.now();
+        if (nowMs - lastStakingPeriodMaintenanceMs >= STAKING_PERIOD_MAINTENANCE_INTERVAL_MS) {
+          lastStakingPeriodMaintenanceMs = nowMs;
+          observation.stakingPeriodMaintenance = await maintainOpenStakingPeriod({
+            connection,
+            db,
+            tickId,
+            poolAddress: env.KAMIYO_STAKING_POOL,
+            admin: keypair,
+            source: 'runtime_period_maintenance',
+          });
         }
       }
 

@@ -81,10 +81,29 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.program-path }}/..
-        anchor build
-        anchor keys sync --provider.cluster localnet
-        node scripts/sync-anchor-localnet-program-ids.cjs
-        anchor build
+        build_programs() {
+          anchor build
+          anchor keys sync --provider.cluster localnet
+          node scripts/sync-anchor-localnet-program-ids.cjs
+          anchor build
+        }
+
+        ATTEMPTS=3
+        DELAY_SECONDS=10
+
+        for attempt in $(seq 1 "$ATTEMPTS"); do
+          if build_programs; then
+            exit 0
+          fi
+
+          if [ "$attempt" -lt "$ATTEMPTS" ]; then
+            echo "Build attempt $attempt/$ATTEMPTS failed. Retrying in ${DELAY_SECONDS}s..."
+            sleep "$DELAY_SECONDS"
+          fi
+        done
+
+        echo "Build Programs failed after $ATTEMPTS attempts."
+        exit 1
 
     - name: Start Surfpool
       shell: bash

@@ -10,7 +10,7 @@ import { writeOutbox } from './outbox.js';
 import { loadOperatorKeypair, loadOptionalKeypair } from './wallet.js';
 import { claimFeeVault, readFeeVault } from './tools/feeVault.js';
 import { claimFundryStakingPeriods, getClaimableLamports, readFundryUserPosition, type FundryUserPosition } from './tools/fundryStaking.js';
-import { depositToStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
+import { depositToStakingPeriod, ensureOpenStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
 import { loadSwarmRegistry } from './swarm/registry.js';
 import { planSwarmMissions, type SwarmMissionOpportunityHint } from './swarm/planner.js';
 import {
@@ -48,6 +48,7 @@ import type { SwarmRegistry } from './swarm/types.js';
 import { createInitialStatus, type RuntimeStatus } from './state.js';
 
 const SERVICE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const STAKING_PERIOD_MAINTENANCE_INTERVAL_MS = 15 * 60_000;
 
 function log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>): void {
   const payload = {
@@ -359,6 +360,7 @@ export class KyoshinRuntime {
   private runningTick = false;
   private stopRequested = false;
   private lastPolicyReloadMs = 0;
+  private lastStakingPeriodMaintenanceMs = 0;
 
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
@@ -950,6 +952,15 @@ export class KyoshinRuntime {
     }
 
     if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
+      if (this.runtimeEnv.KAMIYO_STAKING_POOL) {
+        await this.maybeMaintainOpenStakingPeriod({
+          tickId,
+          poolAddress: this.runtimeEnv.KAMIYO_STAKING_POOL,
+          admin: this.operatorKeypair,
+          source: 'runtime_period_maintenance',
+        });
+      }
+
       budget = await this.maybeClaimFeeVault({ tickId, dayStartIso, budget });
       budget = await this.maybeClaimKyoshinStaking({ tickId, dayStartIso, budget });
 
@@ -2593,6 +2604,70 @@ export class KyoshinRuntime {
     };
   }
 
+  private async maybeMaintainOpenStakingPeriod(params: {
+    tickId: string;
+    poolAddress: string;
+    admin: Keypair;
+    source: string;
+  }): Promise<void> {
+    const nowMs = Date.now();
+    if (nowMs - this.lastStakingPeriodMaintenanceMs < STAKING_PERIOD_MAINTENANCE_INTERVAL_MS) return;
+    this.lastStakingPeriodMaintenanceMs = nowMs;
+
+    const meta = {
+      source: params.source,
+      pool: params.poolAddress,
+      wallet: params.admin.publicKey.toBase58(),
+    };
+
+    try {
+      const pool = new PublicKey(params.poolAddress);
+      const existingOpen = await this.rpcRead('find_latest_open_staking_period', connection =>
+        findLatestOpenStakingPeriod(connection, pool)
+      );
+      if (existingOpen) return;
+
+      const rollover = await withTimeout(
+        ensureOpenStakingPeriod({
+          connection: this.rpcConnections[0],
+          admin: params.admin,
+          pool,
+        }),
+        Math.max(this.runtimeEnv.KAMIYO_RPC_READ_TIMEOUT_MS * 3, 60_000),
+        'ensure_open_staking_period timed out'
+      );
+
+      if (rollover.createSignature || rollover.activateSignature) {
+        this.db.addAction(
+          params.tickId,
+          'staking_period_rollover',
+          {
+            source: params.source,
+            wallet: params.admin.publicKey.toBase58(),
+            pool: pool.toBase58(),
+            createdPeriod: rollover.createdPeriod?.address ?? null,
+            createdPeriodNumber: rollover.createdPeriod?.periodNumber ?? null,
+          },
+          {
+            success: true,
+            data: {
+              createSignature: rollover.createSignature,
+              activateSignature: rollover.activateSignature,
+              period: rollover.period,
+            },
+          }
+        );
+      }
+
+      if (!rollover.period) {
+        this.db.addAction(params.tickId, 'staking_period_rollover', meta, null, 'no_open_period_after_rollover');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
+    }
+  }
+
   private async maybeRouteToStakingPool(params: {
     tickId: string;
     dayStartIso: string;
@@ -2652,9 +2727,43 @@ export class KyoshinRuntime {
     }
 
     const pool = new PublicKey(params.poolAddress);
-    const stakingPeriod = await this.rpcRead('find_latest_open_staking_period', connection =>
+    let stakingPeriod = await this.rpcRead('find_latest_open_staking_period', connection =>
       findLatestOpenStakingPeriod(connection, pool)
     );
+    if (!stakingPeriod) {
+      const rollover = await withTimeout(
+        ensureOpenStakingPeriod({
+          connection: this.rpcConnections[0],
+          admin: params.depositor,
+          pool,
+        }),
+        Math.max(this.runtimeEnv.KAMIYO_RPC_READ_TIMEOUT_MS * 3, 60_000),
+        'ensure_open_staking_period timed out'
+      );
+      stakingPeriod = rollover.period;
+
+      if (rollover.createSignature || rollover.activateSignature) {
+        this.db.addAction(
+          params.tickId,
+          'staking_period_rollover',
+          {
+            source: params.source,
+            wallet: params.depositor.publicKey.toBase58(),
+            pool: pool.toBase58(),
+            createdPeriod: rollover.createdPeriod?.address ?? null,
+            createdPeriodNumber: rollover.createdPeriod?.periodNumber ?? null,
+          },
+          {
+            success: true,
+            data: {
+              createSignature: rollover.createSignature,
+              activateSignature: rollover.activateSignature,
+              period: stakingPeriod,
+            },
+          }
+        );
+      }
+    }
     if (!stakingPeriod) return params.budget;
 
     const depositResult = await depositToStakingPeriod({

@@ -6,6 +6,7 @@ OPENCLAW_HOME="${OPENCLAW_HOME:-/home/$OPENCLAW_USER}"
 SYSTEMD_UNIT="${SYSTEMD_UNIT:-kyoshin-autonomy-loop.service}"
 ENFORCE_REVENUE_GATES="${ENFORCE_REVENUE_GATES:-true}"
 KYOSHIN_DB_PATH="${KYOSHIN_DB_PATH:-}"
+SYSTEMCTL_REQUIRED="${SYSTEMCTL_REQUIRED:-false}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_BIN_DIR="$OPENCLAW_HOME/bin"
@@ -37,7 +38,6 @@ append_env_if_missing() {
 run() {
   require_cmd sudo
   require_cmd install
-  require_cmd systemctl
   require_cmd jq
 
   echo "[1/6] installing updated loop + runtime scripts"
@@ -79,12 +79,34 @@ run() {
     append_env_if_missing "KYO_REQUIRE_RECEIPT_SYNC" "false"
   fi
 
-  echo "[3/6] starting single control-loop tick"
-  sudo systemctl start "$SYSTEMD_UNIT"
-  sleep 2
+  local has_systemctl=0
+  if command -v systemctl >/dev/null 2>&1; then
+    has_systemctl=1
+  fi
 
-  echo "[4/6] service status"
-  sudo systemctl --no-pager --full status "$SYSTEMD_UNIT" || true
+  if [ "$has_systemctl" -eq 0 ] && [[ "$SYSTEMCTL_REQUIRED" =~ ^(1|true|TRUE|True|yes|YES|on|ON)$ ]]; then
+    echo "systemctl is required but not available (set SYSTEMCTL_REQUIRED=false to allow manual fallback)" >&2
+    exit 1
+  fi
+
+  echo "[3/6] running single control-loop tick"
+  if [ "$has_systemctl" -eq 1 ]; then
+    sudo systemctl start "$SYSTEMD_UNIT"
+    sleep 2
+  else
+    echo "systemctl not found; running loop script directly"
+    sudo -u "$OPENCLAW_USER" -H bash -lc "
+      set -euo pipefail
+      \"$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh\"
+    "
+  fi
+
+  echo "[4/6] runtime control status"
+  if [ "$has_systemctl" -eq 1 ]; then
+    sudo systemctl --no-pager --full status "$SYSTEMD_UNIT" || true
+  else
+    echo "systemctl unavailable; service status skipped"
+  fi
 
   echo "[5/6] runtime verification snapshots"
   sudo -u "$OPENCLAW_USER" -H bash -lc "
@@ -127,7 +149,11 @@ run() {
   echo "Set one of:"
   echo "  - KYO_X402_FACILITATOR_BASE_URL=https://<your-api-origin>"
   echo "  - KYO_X402_PRICING_URL(S)=..."
-  echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
+  if [ "$has_systemctl" -eq 1 ]; then
+    echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
+  else
+    echo "and rerun: sudo -u $OPENCLAW_USER -H bash -lc '$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh'"
+  fi
 }
 
 run "$@"

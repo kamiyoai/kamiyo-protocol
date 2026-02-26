@@ -1,19 +1,19 @@
-Kyōshin 共振 // operator log 0009
+Protocol update from this release:
 
-Execution status is now stable in hardened cloud canary mode.
+We fixed the biggest blocker for live demos: config drift across CDP and Paranet.
 
-What was completed:
+What shipped:
+- unified env resolution across MCP/API/agent-paranet (`PARANET_*`, `DKG_*`, `KAMIYO_DKG_*`)
+- stronger CDP env checks with explicit missing-key output
+- new `paranet_env_status` + upgraded `cdp_env_status` for real readiness reporting
+- one-command live preflight: `pnpm --filter @kamiyo/mcp-server run test:live-config`
 
-- migrated canary runtime to fixed guarded profile (no overlap, no stale rebid loops)
-- enforced single-instance lock per worker runtime
-- disabled stale auto-withdraw for canary and extended pending hold window
-- disabled competition-path bidding for now (competition jobs return HTTP 400 on bid endpoint)
-- disabled self-improve drift in canary profile to stop margin floor creep
-- validated live external bid execution across 18 worker identities
+Current state:
+- Paranet read path resolves and connects with existing operator config
+- write paths now fail clearly instead of failing ambiguously
 
-Current verified state:
+Still required for true production calls:
+- real `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, `CDP_WALLET_SECRET`
+- Paranet UAL + operator/attestor global IDs
 
-- recent 20m swarm execution status: `executed=41`, `failed=0`, `skipped=0`
-- near-market bid book snapshot: `pending=31`, `withdrawn=613` (withdrawn is historical carry)
-- settlement events recorded: `0`
-- paid jobs recorded: `0`
+Code is on `main`; once those secrets are injected, live flows are ready to run end-to-end.

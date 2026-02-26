@@ -11,6 +11,9 @@ import {
 const STAKING_PROGRAM_ID = new PublicKey('CaNvmbFzMhoAYnHijnDQcs57GwveazZETBAv3XUdpTcb');
 const STAKING_PERIOD_DISCRIMINATOR = Buffer.from([239, 137, 140, 7, 183, 139, 119, 57]);
 const DEPOSIT_TO_PERIOD_DISCRIMINATOR = Buffer.from([186, 73, 80, 101, 8, 61, 232, 107]);
+const CREATE_STAKING_PERIOD_DISCRIMINATOR = Buffer.from([202, 135, 16, 155, 165, 246, 201, 241]);
+const ACTIVATE_PERIOD_DISCRIMINATOR = Buffer.from([54, 213, 53, 207, 247, 10, 172, 34]);
+const DEFAULT_PERIOD_DURATION_SECONDS = 7 * 24 * 60 * 60;
 
 const STAKING_PERIOD_DATA_LEN = 200;
 const STAKING_PERIOD_POOL_OFFSET = 8;
@@ -21,6 +24,8 @@ const STAKING_PERIOD_TOTAL_TREASURY_OFFSET = 96;
 const STAKING_PERIOD_TOTAL_CLAIMED_OFFSET = 104;
 const STAKING_PERIOD_STATUS_OFFSET = 132;
 const U64_MAX = (1n << 64n) - 1n;
+const I64_MIN = -(1n << 63n);
+const I64_MAX = (1n << 63n) - 1n;
 
 export type StakingPeriodStatus = 0 | 1 | 2 | 3;
 
@@ -45,6 +50,13 @@ export type StakingPeriodSnapshot = {
   totalClaimedLamports: string;
   status: StakingPeriodStatus;
   statusLabel: 'pending' | 'active' | 'finalized' | 'cancelled' | 'unknown';
+};
+
+export type EnsureOpenStakingPeriodResult = {
+  period: StakingPeriodSnapshot | null;
+  createdPeriod: StakingPeriodSnapshot | null;
+  createSignature: string | null;
+  activateSignature: string | null;
 };
 
 function statusLabel(status: number): StakingPeriodSnapshot['statusLabel'] {
@@ -97,12 +109,54 @@ function encodeU64(value: bigint): Buffer {
   return out;
 }
 
+function encodeI64(value: bigint): Buffer {
+  if (value < I64_MIN || value > I64_MAX) {
+    throw new Error(`i64 out of range: ${value.toString()}`);
+  }
+  const out = Buffer.alloc(8);
+  out.writeBigInt64LE(value, 0);
+  return out;
+}
+
+function getStakingConfig(): PublicKey {
+  const [config] = PublicKey.findProgramAddressSync([Buffer.from('config', 'utf8')], STAKING_PROGRAM_ID);
+  return config;
+}
+
+function getStakingPeriod(pool: PublicKey, periodNumber: bigint): PublicKey {
+  const [stakingPeriod] = PublicKey.findProgramAddressSync(
+    [Buffer.from('staking_period', 'utf8'), pool.toBuffer(), encodeU64(periodNumber)],
+    STAKING_PROGRAM_ID
+  );
+  return stakingPeriod;
+}
+
 function getPeriodVault(pool: PublicKey, periodNumber: bigint): PublicKey {
   const [vault] = PublicKey.findProgramAddressSync(
     [Buffer.from('period_vault', 'utf8'), pool.toBuffer(), encodeU64(periodNumber)],
     STAKING_PROGRAM_ID
   );
   return vault;
+}
+
+async function findPoolStakingPeriods(
+  connection: Connection,
+  pool: PublicKey
+): Promise<ParsedStakingPeriod[]> {
+  const accounts = await connection.getProgramAccounts(STAKING_PROGRAM_ID, {
+    commitment: 'confirmed',
+    filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(STAKING_PERIOD_DISCRIMINATOR) } },
+      { memcmp: { offset: STAKING_PERIOD_POOL_OFFSET, bytes: pool.toBase58() } },
+    ],
+  });
+
+  const periods = accounts
+    .map(account => parseStakingPeriodAccount(account.pubkey, account.account.data))
+    .filter((period): period is ParsedStakingPeriod => period !== null);
+
+  periods.sort((a, b) => (a.periodNumber === b.periodNumber ? 0 : a.periodNumber > b.periodNumber ? -1 : 1));
+  return periods;
 }
 
 export async function readStakingPeriod(
@@ -120,22 +174,239 @@ export async function findLatestOpenStakingPeriod(
   connection: Connection,
   pool: PublicKey
 ): Promise<StakingPeriodSnapshot | null> {
-  const accounts = await connection.getProgramAccounts(STAKING_PROGRAM_ID, {
-    commitment: 'confirmed',
-    filters: [
-      { memcmp: { offset: 0, bytes: bs58.encode(STAKING_PERIOD_DISCRIMINATOR) } },
-      { memcmp: { offset: STAKING_PERIOD_POOL_OFFSET, bytes: pool.toBase58() } },
-    ],
-  });
-
-  const openPeriods = accounts
-    .map(account => parseStakingPeriodAccount(account.pubkey, account.account.data))
-    .filter((period): period is ParsedStakingPeriod => period !== null)
-    .filter(period => period.status === 0 || period.status === 1);
+  const openPeriods = (await findPoolStakingPeriods(connection, pool)).filter(
+    period => period.status === 0 || period.status === 1
+  );
 
   if (openPeriods.length === 0) return null;
-  openPeriods.sort((a, b) => (a.periodNumber === b.periodNumber ? 0 : a.periodNumber > b.periodNumber ? -1 : 1));
   return toSnapshot(openPeriods[0]);
+}
+
+export async function findLatestStakingPeriod(
+  connection: Connection,
+  pool: PublicKey
+): Promise<StakingPeriodSnapshot | null> {
+  const periods = await findPoolStakingPeriods(connection, pool);
+  return periods[0] ? toSnapshot(periods[0]) : null;
+}
+
+export async function createStakingPeriod(params: {
+  connection: Connection;
+  admin: Keypair;
+  pool: PublicKey;
+  periodNumber: bigint;
+  startTime: number;
+  endTime: number;
+}) {
+  const { connection, admin, pool, periodNumber, startTime, endTime } = params;
+
+  if (!Number.isInteger(startTime) || !Number.isInteger(endTime)) {
+    throw new Error('startTime and endTime must be unix-second integers');
+  }
+  if (endTime <= startTime) {
+    throw new Error(`invalid period window: start=${startTime} end=${endTime}`);
+  }
+  if (periodNumber < 0n || periodNumber > U64_MAX) {
+    throw new Error(`periodNumber out of range: ${periodNumber.toString()}`);
+  }
+
+  const config = getStakingConfig();
+  const stakingPeriod = getStakingPeriod(pool, periodNumber);
+  const periodVault = getPeriodVault(pool, periodNumber);
+
+  const ix = new TransactionInstruction({
+    programId: STAKING_PROGRAM_ID,
+    keys: [
+      { pubkey: admin.publicKey, isSigner: true, isWritable: true },
+      { pubkey: config, isSigner: false, isWritable: false },
+      { pubkey: pool, isSigner: false, isWritable: false },
+      { pubkey: stakingPeriod, isSigner: false, isWritable: true },
+      { pubkey: periodVault, isSigner: false, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    data: Buffer.concat([
+      CREATE_STAKING_PERIOD_DISCRIMINATOR,
+      encodeU64(periodNumber),
+      encodeI64(BigInt(startTime)),
+      encodeI64(BigInt(endTime)),
+    ]),
+  });
+
+  const tx = new Transaction().add(ix);
+  const latest = await connection.getLatestBlockhash('confirmed');
+  tx.feePayer = admin.publicKey;
+  tx.recentBlockhash = latest.blockhash;
+  tx.sign(admin);
+
+  const signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+  await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latest.blockhash,
+      lastValidBlockHeight: latest.lastValidBlockHeight,
+    },
+    'confirmed'
+  );
+
+  return {
+    signature,
+    periodNumber: periodNumber.toString(),
+    startTime,
+    endTime,
+    stakingPeriod: stakingPeriod.toBase58(),
+    periodVault: periodVault.toBase58(),
+  };
+}
+
+export async function activateStakingPeriod(params: {
+  connection: Connection;
+  caller: Keypair;
+  pool: PublicKey;
+  stakingPeriod: PublicKey;
+}) {
+  const { connection, caller, pool, stakingPeriod } = params;
+
+  const ix = new TransactionInstruction({
+    programId: STAKING_PROGRAM_ID,
+    keys: [
+      { pubkey: caller.publicKey, isSigner: true, isWritable: false },
+      { pubkey: pool, isSigner: false, isWritable: false },
+      { pubkey: stakingPeriod, isSigner: false, isWritable: true },
+    ],
+    data: ACTIVATE_PERIOD_DISCRIMINATOR,
+  });
+
+  const tx = new Transaction().add(ix);
+  const latest = await connection.getLatestBlockhash('confirmed');
+  tx.feePayer = caller.publicKey;
+  tx.recentBlockhash = latest.blockhash;
+  tx.sign(caller);
+
+  const signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+  await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latest.blockhash,
+      lastValidBlockHeight: latest.lastValidBlockHeight,
+    },
+    'confirmed'
+  );
+  return signature;
+}
+
+export async function ensureOpenStakingPeriod(params: {
+  connection: Connection;
+  admin: Keypair;
+  pool: PublicKey;
+  defaultDurationSeconds?: number;
+}): Promise<EnsureOpenStakingPeriodResult> {
+  const { connection, admin, pool } = params;
+  const now = Math.floor(Date.now() / 1000);
+  const defaultDuration = Math.max(1, params.defaultDurationSeconds ?? DEFAULT_PERIOD_DURATION_SECONDS);
+
+  let period = await findLatestOpenStakingPeriod(connection, pool);
+  if (period) {
+    if (period.status === 0 && period.startTime <= now) {
+      try {
+        const activateSignature = await activateStakingPeriod({
+          connection,
+          caller: admin,
+          pool,
+          stakingPeriod: new PublicKey(period.address),
+        });
+        const refreshed = await readStakingPeriod(connection, new PublicKey(period.address));
+        return {
+          period: refreshed ?? period,
+          createdPeriod: null,
+          createSignature: null,
+          activateSignature,
+        };
+      } catch {
+        const refreshed = await readStakingPeriod(connection, new PublicKey(period.address));
+        return {
+          period: refreshed ?? period,
+          createdPeriod: null,
+          createSignature: null,
+          activateSignature: null,
+        };
+      }
+    }
+
+    return {
+      period,
+      createdPeriod: null,
+      createSignature: null,
+      activateSignature: null,
+    };
+  }
+
+  const latest = await findLatestStakingPeriod(connection, pool);
+  if (!latest) {
+    return {
+      period: null,
+      createdPeriod: null,
+      createSignature: null,
+      activateSignature: null,
+    };
+  }
+
+  const previousPeriodNumber = BigInt(latest.periodNumber);
+  const nextPeriodNumber = previousPeriodNumber + 1n;
+  const previousDuration = latest.endTime - latest.startTime;
+  const duration = previousDuration > 0 ? previousDuration : defaultDuration;
+  const startTime = Math.max(now, latest.endTime);
+  const endTime = startTime + duration;
+
+  let createSignature: string | null = null;
+  let activateSignature: string | null = null;
+  let createdPeriod: StakingPeriodSnapshot | null = null;
+
+  try {
+    const created = await createStakingPeriod({
+      connection,
+      admin,
+      pool,
+      periodNumber: nextPeriodNumber,
+      startTime,
+      endTime,
+    });
+    createSignature = created.signature;
+    createdPeriod = await readStakingPeriod(connection, new PublicKey(created.stakingPeriod));
+  } catch (error) {
+    const maybeOpen = await findLatestOpenStakingPeriod(connection, pool);
+    if (maybeOpen) {
+      return {
+        period: maybeOpen,
+        createdPeriod: null,
+        createSignature: null,
+        activateSignature: null,
+      };
+    }
+    throw error;
+  }
+
+  if (startTime <= now) {
+    try {
+      const stakingPeriod = createdPeriod ? new PublicKey(createdPeriod.address) : getStakingPeriod(pool, nextPeriodNumber);
+      activateSignature = await activateStakingPeriod({
+        connection,
+        caller: admin,
+        pool,
+        stakingPeriod,
+      });
+      createdPeriod = (await readStakingPeriod(connection, stakingPeriod)) ?? createdPeriod;
+    } catch {
+      // Best-effort activation; pending periods are still valid targets for deposits.
+    }
+  }
+
+  period = (await findLatestOpenStakingPeriod(connection, pool)) ?? createdPeriod;
+  return {
+    period,
+    createdPeriod,
+    createSignature,
+    activateSignature,
+  };
 }
 
 export async function depositToStakingPeriod(params: {
