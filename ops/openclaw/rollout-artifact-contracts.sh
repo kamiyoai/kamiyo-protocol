@@ -129,13 +129,13 @@ run() {
     set_env_value "KYO_KYOSHIN_DB_PATH" "$KYOSHIN_DB_PATH"
   fi
   if [[ "$ENFORCE_REVENUE_GATES" =~ ^(1|true|TRUE|True|yes|YES|on|ON)$ ]]; then
-    append_env_if_missing "KYO_REQUIRE_X402_FEED" "true"
-    append_env_if_missing "KYO_REQUIRE_RECEIPT_SYNC" "true"
-    append_env_if_missing "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
+    set_env_value "KYO_REQUIRE_X402_FEED" "true"
+    set_env_value "KYO_REQUIRE_RECEIPT_SYNC" "true"
+    set_env_value "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   else
-    append_env_if_missing "KYO_REQUIRE_X402_FEED" "false"
-    append_env_if_missing "KYO_REQUIRE_RECEIPT_SYNC" "false"
-    append_env_if_missing "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
+    set_env_value "KYO_REQUIRE_X402_FEED" "false"
+    set_env_value "KYO_REQUIRE_RECEIPT_SYNC" "false"
+    set_env_value "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   fi
 
   local has_systemctl=0
