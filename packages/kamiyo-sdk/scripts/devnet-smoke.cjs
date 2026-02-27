@@ -10,6 +10,10 @@ const { KamiyoClient, AgentType } = require('../dist');
 const DEFAULT_RPC = 'https://api.devnet.solana.com';
 const DEFAULT_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
 const DEFAULT_MINIMUM_PAYER_SOL = 0.25;
+const DEFAULT_WORKER_FUNDING_SOL = 0.2;
+const DEFAULT_STAKE_LAMPORTS = 100_000_000;
+const DEFAULT_AGREEMENT_LAMPORTS = 10_000_000;
+const DEFAULT_BALANCE_BUFFER_SOL = 0.01;
 const DEFAULT_RETRY_ATTEMPTS = 6;
 const DEFAULT_RETRY_DELAY_MS = 400;
 
@@ -77,6 +81,14 @@ function isRateLimitError(error) {
   return /\b429\b|too many requests|rate limit/i.test(message);
 }
 
+function parseBoolean(value, fallback) {
+  if (value == null || value === '') return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  throw new Error(`Invalid boolean value: ${value}`);
+}
+
 async function withRetry(operation, label, attempts = DEFAULT_RETRY_ATTEMPTS, delayMs = DEFAULT_RETRY_DELAY_MS) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -135,11 +147,32 @@ async function main() {
   const inlinePrivateKey = process.env.AGENT_PRIVATE_KEY?.trim() || null;
   const minimumPayerSolRaw = process.env.KAMIYO_SDK_SMOKE_MIN_PAYER_SOL || `${DEFAULT_MINIMUM_PAYER_SOL}`;
   const minimumPayerSol = Number.parseFloat(minimumPayerSolRaw);
+  const workerFundingSolRaw = process.env.KAMIYO_SDK_SMOKE_WORKER_FUNDING_SOL || `${DEFAULT_WORKER_FUNDING_SOL}`;
+  const workerFundingSol = Number.parseFloat(workerFundingSolRaw);
+  const stakeLamportsRaw = process.env.KAMIYO_SDK_SMOKE_STAKE_LAMPORTS || `${DEFAULT_STAKE_LAMPORTS}`;
+  const stakeLamports = Number.parseInt(stakeLamportsRaw, 10);
+  const agreementLamportsRaw = process.env.KAMIYO_SDK_SMOKE_AGREEMENT_LAMPORTS || `${DEFAULT_AGREEMENT_LAMPORTS}`;
+  const agreementLamports = Number.parseInt(agreementLamportsRaw, 10);
+  const balanceBufferSolRaw = process.env.KAMIYO_SDK_SMOKE_BALANCE_BUFFER_SOL || `${DEFAULT_BALANCE_BUFFER_SOL}`;
+  const balanceBufferSol = Number.parseFloat(balanceBufferSolRaw);
+  const failOnLowBalance = parseBoolean(process.env.KAMIYO_SDK_SMOKE_FAIL_ON_LOW_BALANCE, false);
   const retryAttempts = Number.parseInt(process.env.KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS || `${DEFAULT_RETRY_ATTEMPTS}`, 10);
   const retryDelayMs = Number.parseInt(process.env.KAMIYO_SDK_SMOKE_RETRY_DELAY_MS || `${DEFAULT_RETRY_DELAY_MS}`, 10);
 
   if (!Number.isFinite(minimumPayerSol) || minimumPayerSol <= 0) {
     throw new Error(`Invalid KAMIYO_SDK_SMOKE_MIN_PAYER_SOL value: ${minimumPayerSolRaw}`);
+  }
+  if (!Number.isFinite(workerFundingSol) || workerFundingSol <= 0) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_WORKER_FUNDING_SOL value: ${workerFundingSolRaw}`);
+  }
+  if (!Number.isInteger(stakeLamports) || stakeLamports <= 0) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_STAKE_LAMPORTS value: ${stakeLamportsRaw}`);
+  }
+  if (!Number.isInteger(agreementLamports) || agreementLamports <= 0) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_AGREEMENT_LAMPORTS value: ${agreementLamportsRaw}`);
+  }
+  if (!Number.isFinite(balanceBufferSol) || balanceBufferSol < 0) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_BALANCE_BUFFER_SOL value: ${balanceBufferSolRaw}`);
   }
   if (!Number.isInteger(retryAttempts) || retryAttempts < 1) {
     throw new Error(`Invalid KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS value: ${process.env.KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS}`);
@@ -162,15 +195,36 @@ async function main() {
       })();
   const payerBalance = await call(() => connection.getBalance(payer.publicKey, 'confirmed'), 'getBalance');
   const minimumLamports = Math.ceil(minimumPayerSol * LAMPORTS_PER_SOL);
+  const workerFundingLamports = Math.ceil(workerFundingSol * LAMPORTS_PER_SOL);
+  const balanceBufferLamports = Math.ceil(balanceBufferSol * LAMPORTS_PER_SOL);
+  const requiredLamports = Math.max(minimumLamports, workerFundingLamports + stakeLamports + balanceBufferLamports);
 
-  if (payerBalance < minimumLamports) {
-    throw new Error(
-      `Payer balance too low: ${payerBalance / LAMPORTS_PER_SOL} SOL (min ${minimumPayerSol} SOL).`
+  if (payerBalance < requiredLamports) {
+    const reason = `Payer balance too low for full SDK smoke: ${payerBalance / LAMPORTS_PER_SOL} SOL (required ${requiredLamports / LAMPORTS_PER_SOL} SOL).`;
+    if (failOnLowBalance) {
+      throw new Error(reason);
+    }
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          skipped: true,
+          reason,
+          payer: payer.publicKey.toBase58(),
+          minPayerSol: minimumPayerSol,
+          workerFundingSol,
+          stakeLamports,
+          agreementLamports,
+        },
+        null,
+        2
+      )
     );
+    return;
   }
 
   const worker = Keypair.generate();
-  const workerFundingSig = await fundWorker(connection, payer, worker, 0.2 * LAMPORTS_PER_SOL);
+  const workerFundingSig = await fundWorker(connection, payer, worker, workerFundingLamports);
   const workerWallet = createWallet(worker);
   const client = new KamiyoClient({ connection, wallet: workerWallet, programId });
 
@@ -180,7 +234,7 @@ async function main() {
       client.createAgent({
         name: agentName,
         agentType: AgentType.Service,
-        stakeAmount: new BN(100_000_000),
+        stakeAmount: new BN(stakeLamports),
       }),
     'createAgent'
   );
@@ -198,7 +252,7 @@ async function main() {
     () =>
       client.createAgreement({
         provider,
-        amount: new BN(10_000_000),
+        amount: new BN(agreementLamports),
         timeLockSeconds: new BN(3600),
         transactionId,
       }),
