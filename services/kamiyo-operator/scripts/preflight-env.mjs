@@ -178,14 +178,20 @@ try {
   fail([`Operator runtime env preflight failed. Invalid SOLANA_RPC_URL: ${runtimeEnv.SOLANA_RPC_URL}`]);
 }
 
-const anthropicApiKey = runtimeEnv.ANTHROPIC_API_KEY.trim();
-if (anthropicApiKey.length < ANTHROPIC_API_KEY_MIN_LENGTH) {
-  fail([
-    `Operator runtime env preflight failed. ANTHROPIC_API_KEY must be at least ${ANTHROPIC_API_KEY_MIN_LENGTH} characters.`,
-  ]);
+const llmEnabled = parseBoolean(runtimeEnv.KAMIYO_LLM_ENABLED);
+if (llmEnabled === null && hasNonEmpty(runtimeEnv.KAMIYO_LLM_ENABLED)) {
+  fail(['Operator runtime env preflight failed. KAMIYO_LLM_ENABLED must be true/false.']);
 }
-if (isPlaceholderSecret(anthropicApiKey)) {
-  fail(['Operator runtime env preflight failed. ANTHROPIC_API_KEY appears to be a placeholder value.']);
+if (llmEnabled !== false) {
+  const anthropicApiKey = runtimeEnv.ANTHROPIC_API_KEY.trim();
+  if (anthropicApiKey.length < ANTHROPIC_API_KEY_MIN_LENGTH) {
+    fail([
+      `Operator runtime env preflight failed. ANTHROPIC_API_KEY must be at least ${ANTHROPIC_API_KEY_MIN_LENGTH} characters.`,
+    ]);
+  }
+  if (isPlaceholderSecret(anthropicApiKey)) {
+    fail(['Operator runtime env preflight failed. ANTHROPIC_API_KEY appears to be a placeholder value.']);
+  }
 }
 
 const dkgEnabled = parseBoolean(runtimeEnv.KAMIYO_DKG_ACTIVITY_ENABLED);

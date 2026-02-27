@@ -1532,80 +1532,89 @@ async function main(): Promise<void> {
     });
   }
 
-  const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const modelSelection = resolveAnthropicModelAlias(env.ANTHROPIC_MODEL);
-  if (modelSelection.aliasedFrom) {
-    console.warn(
-      `[kamiyo-operator] remapped deprecated model ${modelSelection.aliasedFrom} -> ${modelSelection.model}`
-    );
-  }
-
   const allowedChannels = Array.from(new Set(env.KAMIYO_ANNOUNCE_CHANNELS));
 
   const identity = identityFromEnv(env.KAMIYO_IDENTITY);
   const identityBlock = identityPrompt(identity);
-
-  const toolChoice = (() => {
-    const disableParallel = env.ANTHROPIC_DISABLE_PARALLEL_TOOL_USE ? true : undefined;
-    switch (env.ANTHROPIC_TOOL_CHOICE) {
-      case 'auto':
-        return {
-          type: 'auto' as const,
-          ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}),
-        };
-      case 'any':
-        return {
-          type: 'any' as const,
-          ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}),
-        };
-      case 'none':
-        return { type: 'none' as const };
+  let agent: KamiyoAgent | null = null;
+  if (env.KAMIYO_LLM_ENABLED) {
+    if (!env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is required when KAMIYO_LLM_ENABLED=true');
     }
-  })();
-
-  const thinking = (() => {
-    const budget = env.ANTHROPIC_THINKING_BUDGET_TOKENS;
-    if (budget <= 0) return undefined;
-    if (budget < 1024) throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be >= 1024');
-    if (budget >= env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN) {
-      throw new Error(
-        'ANTHROPIC_THINKING_BUDGET_TOKENS must be < KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN'
+    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const modelSelection = resolveAnthropicModelAlias(env.ANTHROPIC_MODEL);
+    if (modelSelection.aliasedFrom) {
+      console.warn(
+        `[kamiyo-operator] remapped deprecated model ${modelSelection.aliasedFrom} -> ${modelSelection.model}`
       );
     }
-    return { type: 'enabled' as const, budget_tokens: budget };
-  })();
 
-  const agent = new KamiyoAgent({
-    db,
-    outboxDir,
-    mode: env.KAMIYO_MODE,
-    client: anthropic,
-    model: modelSelection.model,
-    maxOutputTokens: env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN,
-    maxTurnsPerTick: env.KAMIYO_MAX_TURNS_PER_TICK,
-    allowedChannels,
-    temperature: env.ANTHROPIC_TEMPERATURE,
-    thinking,
-    toolChoice,
-    requestTimeoutMs: env.KAMIYO_ANTHROPIC_REQUEST_TIMEOUT_MS,
-  });
+    const toolChoice = (() => {
+      const disableParallel = env.ANTHROPIC_DISABLE_PARALLEL_TOOL_USE ? true : undefined;
+      switch (env.ANTHROPIC_TOOL_CHOICE) {
+        case 'auto':
+          return {
+            type: 'auto' as const,
+            ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}),
+          };
+        case 'any':
+          return {
+            type: 'any' as const,
+            ...(disableParallel != null ? { disable_parallel_tool_use: disableParallel } : {}),
+          };
+        case 'none':
+          return { type: 'none' as const };
+      }
+    })();
 
-  agent.registerTool(
-    toolTokenStatus({ getConnection: () => connection, defaultMint: env.KAMIYO_TARGET_MINT })
-  );
-  agent.registerTool(
-    toolFeeVaultRead({ getConnection: () => connection, defaultVault: env.KAMIYO_FEE_VAULT })
-  );
-  agent.registerTool(
-    toolFeeVaultClaim({
-      getConnection: () => connection,
-      user: keypair,
-      defaultVault: env.KAMIYO_FEE_VAULT,
+    const thinking = (() => {
+      const budget = env.ANTHROPIC_THINKING_BUDGET_TOKENS;
+      if (budget <= 0) return undefined;
+      if (budget < 1024) throw new Error('ANTHROPIC_THINKING_BUDGET_TOKENS must be >= 1024');
+      if (budget >= env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN) {
+        throw new Error(
+          'ANTHROPIC_THINKING_BUDGET_TOKENS must be < KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN'
+        );
+      }
+      return { type: 'enabled' as const, budget_tokens: budget };
+    })();
+
+    agent = new KamiyoAgent({
       db,
       outboxDir,
-    })
-  );
-  agent.registerTool(toolRecordLearning({ db, outboxDir }));
+      mode: env.KAMIYO_MODE,
+      client: anthropic,
+      model: modelSelection.model,
+      maxOutputTokens: env.KAMIYO_MAX_OUTPUT_TOKENS_PER_TURN,
+      maxTurnsPerTick: env.KAMIYO_MAX_TURNS_PER_TICK,
+      allowedChannels,
+      temperature: env.ANTHROPIC_TEMPERATURE,
+      thinking,
+      toolChoice,
+      requestTimeoutMs: env.KAMIYO_ANTHROPIC_REQUEST_TIMEOUT_MS,
+    });
+
+    agent.registerTool(
+      toolTokenStatus({ getConnection: () => connection, defaultMint: env.KAMIYO_TARGET_MINT })
+    );
+    agent.registerTool(
+      toolFeeVaultRead({ getConnection: () => connection, defaultVault: env.KAMIYO_FEE_VAULT })
+    );
+    agent.registerTool(
+      toolFeeVaultClaim({
+        getConnection: () => connection,
+        user: keypair,
+        defaultVault: env.KAMIYO_FEE_VAULT,
+        db,
+        outboxDir,
+      })
+    );
+    agent.registerTool(toolRecordLearning({ db, outboxDir }));
+  } else {
+    console.warn(
+      '[kamiyo-operator] KAMIYO_LLM_ENABLED=false; running deterministic policy loop without Anthropic calls.'
+    );
+  }
 
   const shutdown = () => {
     cleanup();
@@ -4292,6 +4301,22 @@ async function main(): Promise<void> {
       }
 
       db.addObservation(tickId, 'snapshot', observation);
+
+      if (!agent) {
+        const summaryText =
+          'LLM disabled: completed deterministic operator tick (claims/routing/policy) without Anthropic.';
+        db.kvSet('last_summary', summaryText);
+        const reportPath = writeOutbox(outboxDir, 'summary', {
+          at: new Date().toISOString(),
+          summary: summaryText,
+          warning: 'llm_disabled',
+        });
+        db.addAction(tickId, 'write_summary', { reason: 'llm_disabled' }, { reportPath });
+        db.finishTick(tickId, 'ok');
+        if (env.KAMIYO_RUN_ONCE) break;
+        await sleep(env.KAMIYO_LOOP_INTERVAL_SECONDS * 1000);
+        continue;
+      }
 
       const llmOverBudget =
         llmCallsToday >= env.KAMIYO_LLM_MAX_TURNS_PER_DAY ||

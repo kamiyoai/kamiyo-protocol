@@ -22,7 +22,8 @@ const csvList = z
       .filter(Boolean)
   );
 
-const envSchema = z.object({
+const envSchema = z
+  .object({
   SOLANA_RPC_URL: z.string().url().default('https://api.mainnet-beta.solana.com'),
   SOLANA_RPC_FALLBACK_URLS: csvList,
   KAMIYO_RPC_READ_TIMEOUT_MS: z.coerce.number().int().positive().default(12_000),
@@ -145,7 +146,11 @@ const envSchema = z.object({
   KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX: z.coerce.number().int().nonnegative().default(0),
   KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY: z.coerce.number().int().positive().default(24),
 
-  ANTHROPIC_API_KEY: z.string().min(1),
+  KAMIYO_LLM_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  ANTHROPIC_API_KEY: optionalNonEmptyString,
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-4-20250514'),
   ANTHROPIC_TEMPERATURE: z.coerce.number().min(0).max(1).default(0.3),
   ANTHROPIC_TOOL_CHOICE: z.enum(['auto', 'any', 'none']).default('auto'),
@@ -317,7 +322,16 @@ const envSchema = z.object({
   KAMIYO_ALERT_FUNDRY_MIN_ATTEMPTS: z.coerce.number().int().nonnegative().default(5),
   KAMIYO_ALERT_FUNDRY_MAX_ERROR_RATE: z.coerce.number().min(0).max(1).default(0.25),
   KAMIYO_ALERT_FUNDRY_MAX_429_COUNT: z.coerce.number().int().nonnegative().default(8),
-});
+  })
+  .superRefine((value, ctx) => {
+    if (value.KAMIYO_LLM_ENABLED && !value.ANTHROPIC_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ANTHROPIC_API_KEY'],
+        message: 'ANTHROPIC_API_KEY is required when KAMIYO_LLM_ENABLED=true',
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

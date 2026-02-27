@@ -27,10 +27,6 @@ export async function getOrCreateAgentIdentity(params: {
   const existing = await client.getAgent(pda);
 
   if (existing) {
-    if (!existing.isActive) {
-      throw new Error('Agent identity exists but is inactive. Refusing to proceed.');
-    }
-
     return { exists: true, created: false, agent: existing, pda };
   }
 
