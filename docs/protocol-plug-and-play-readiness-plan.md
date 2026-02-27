@@ -135,3 +135,11 @@ Success criteria:
 9. Added service env checks into `scripts/enterprise-readiness.mjs`:
    - contract checks in CI mode
    - runtime checks in live mode
+10. Added runtime smoke checks in `scripts/enterprise-readiness.mjs` live mode:
+    - API health (`services/api/scripts/smoke-health.mjs`)
+    - Operator boot (`services/kamiyo-operator/scripts/smoke-boot.mjs`)
+    - MCP stdio handshake (`packages/kamiyo-mcp/scripts/smoke-stdio.mjs`)
+11. Extended MCP parity gate with per-tool coverage metadata:
+    - `packages/kamiyo-mcp/scripts/tool-test-coverage.json`
+12. Added nightly live canary workflow:
+    - `.github/workflows/nightly-enterprise-canary.yml`

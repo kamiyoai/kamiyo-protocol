@@ -1,0 +1,50 @@
+name: Nightly Enterprise Canary
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  canary:
+    name: Enterprise Live Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOLANA_RPC_URL: ${{ secrets.KAMIYO_CANARY_SOLANA_RPC_URL }}
+      JWT_SECRET: ${{ secrets.KAMIYO_CANARY_JWT_SECRET }}
+      API_SECRET: ${{ secrets.KAMIYO_CANARY_API_SECRET }}
+      API_PORT: '3001'
+      ANTHROPIC_API_KEY: ${{ secrets.KAMIYO_CANARY_ANTHROPIC_API_KEY }}
+      KAMIYO_OPERATOR_PRIVATE_KEY: ${{ secrets.KAMIYO_CANARY_OPERATOR_PRIVATE_KEY }}
+      AGENT_PRIVATE_KEY: ${{ secrets.KAMIYO_CANARY_AGENT_PRIVATE_KEY }}
+      KAMIYO_PROGRAM_ID: '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr'
+      CDP_API_KEY_ID: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_ID }}
+      CDP_API_KEY_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_SECRET }}
+      CDP_WALLET_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_WALLET_SECRET }}
+      PARANET_DKG_ENDPOINT: ${{ secrets.KAMIYO_CANARY_PARANET_DKG_ENDPOINT }}
+      PARANET_BLOCKCHAIN: 'base:8453'
+      PARANET_DKG_PORT: '8900'
+      PARANET_PRIVATE_KEY: ${{ secrets.KAMIYO_CANARY_PARANET_PRIVATE_KEY }}
+      PARANET_UAL: ${{ secrets.KAMIYO_CANARY_PARANET_UAL }}
+      PARANET_OPERATOR_GLOBAL_ID: ${{ secrets.KAMIYO_CANARY_PARANET_OPERATOR_GLOBAL_ID }}
+      PARANET_ATTESTOR_GLOBAL_ID: ${{ secrets.KAMIYO_CANARY_PARANET_ATTESTOR_GLOBAL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Enterprise preflight
+        run: pnpm run preflight:enterprise
+
+      - name: Enterprise live smoke
+        run: pnpm run smoke:enterprise

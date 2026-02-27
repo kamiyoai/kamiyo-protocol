@@ -38,6 +38,12 @@ For live credential validation and devnet transaction smoke:
 pnpm run smoke:enterprise
 ```
 
+Run MCP stdio handshake smoke directly:
+
+```bash
+pnpm --filter @kamiyo/mcp-server run smoke:stdio
+```
+
 ## Remote MCP Server
 
 Connect directly to the hosted MCP server at `https://api.kamiyo.ai/mcp`.

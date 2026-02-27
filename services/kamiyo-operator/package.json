@@ -10,6 +10,7 @@
     "test": "tsx --test src/**/*.test.ts",
     "preflight:contract": "node scripts/preflight-env.mjs --mode contract",
     "preflight:env": "node scripts/preflight-env.mjs --mode runtime",
+    "smoke:boot": "node scripts/smoke-boot.mjs",
     "benchmark:autonomy": "node dist/scripts/autonomyBenchmarkReport.js",
     "soak:swarm": "node dist/scripts/swarmSoakTest.js",
     "proof:bundle": "node dist/scripts/aiProofBundle.js",

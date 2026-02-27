@@ -74,6 +74,13 @@ Run full live smoke (requires live env and funded devnet agent keypair):
 pnpm run smoke:enterprise
 ```
 
+`smoke:enterprise` includes:
+
+- API runtime env + `/health` and `/ready` smoke
+- Operator runtime env + boot smoke
+- MCP stdio handshake + live credential preflight
+- SDK devnet lifecycle smoke
+
 ## Trust Layer Service
 
 The trust layer service provides:

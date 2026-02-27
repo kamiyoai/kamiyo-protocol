@@ -132,8 +132,27 @@ function runCiChecks() {
 
 function runLiveChecks() {
   let ok = true;
-  ok = runCommand('API runtime env preflight', PNPM, ['--filter', 'kamiyo-companion', 'run', 'preflight:env']) && ok;
-  ok = runCommand('Operator runtime env preflight', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'preflight:env']) && ok;
+  ok = runCommand('API build', PNPM, ['--filter', 'kamiyo-companion', 'run', 'build']) && ok;
+  ok = runCommand('Operator build', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'build']) && ok;
+  ok = runCommand('MCP build', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'build']) && ok;
+
+  const apiEnvReady = runCommand('API runtime env preflight', PNPM, ['--filter', 'kamiyo-companion', 'run', 'preflight:env']);
+  ok = apiEnvReady && ok;
+  if (apiEnvReady) {
+    ok = runCommand('API runtime health smoke', PNPM, ['--filter', 'kamiyo-companion', 'run', 'smoke:health']) && ok;
+  } else {
+    record('API runtime health smoke', 'skip', 'skipped because API env preflight failed');
+  }
+
+  const operatorEnvReady = runCommand('Operator runtime env preflight', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'preflight:env']);
+  ok = operatorEnvReady && ok;
+  if (operatorEnvReady) {
+    ok = runCommand('Operator runtime boot smoke', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'smoke:boot']) && ok;
+  } else {
+    record('Operator runtime boot smoke', 'skip', 'skipped because operator env preflight failed');
+  }
+
+  ok = runCommand('MCP stdio handshake smoke', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'smoke:stdio']) && ok;
   ok = runCommand('MCP live credentials preflight', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:live-config']) && ok;
 
   const sdkReady = hasAgentKeyConfigured();

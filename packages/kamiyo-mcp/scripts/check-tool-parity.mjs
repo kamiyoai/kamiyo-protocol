@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const mcpRoot = path.resolve(scriptDir, '..');
 const indexPath = path.join(mcpRoot, 'src', 'index.ts');
+const packageJsonPath = path.join(mcpRoot, 'package.json');
+const coverageMapPath = path.join(mcpRoot, 'scripts', 'tool-test-coverage.json');
 
 const source = fs.readFileSync(indexPath, 'utf8');
 
@@ -70,7 +72,42 @@ const undocumentedDispatch = [...dispatchSet]
   .filter((name) => !listedSet.has(name) && !dispatchAliases.has(name))
   .sort();
 
-if (missingDispatch.length > 0 || undocumentedDispatch.length > 0) {
+let coverageMap = {};
+if (!fs.existsSync(coverageMapPath)) {
+  console.error(`Missing coverage map: ${coverageMapPath}`);
+  process.exit(1);
+}
+coverageMap = JSON.parse(fs.readFileSync(coverageMapPath, 'utf8'));
+
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const availableScripts = new Set(Object.keys(packageJson.scripts ?? {}));
+
+const missingCoverage = [];
+const invalidCoverage = [];
+for (const toolName of [...listedSet].sort()) {
+  const coverage = coverageMap[toolName];
+  if (!Array.isArray(coverage) || coverage.length === 0) {
+    missingCoverage.push(toolName);
+    continue;
+  }
+
+  const unknownScripts = coverage.filter((scriptName) => !availableScripts.has(scriptName));
+  if (unknownScripts.length > 0) {
+    invalidCoverage.push({ toolName, unknownScripts });
+  }
+}
+
+const staleCoverageEntries = Object.keys(coverageMap)
+  .filter((toolName) => !listedSet.has(toolName))
+  .sort();
+
+if (
+  missingDispatch.length > 0 ||
+  undocumentedDispatch.length > 0 ||
+  missingCoverage.length > 0 ||
+  invalidCoverage.length > 0 ||
+  staleCoverageEntries.length > 0
+) {
   console.error('MCP tool parity check failed.');
   if (missingDispatch.length > 0) {
     console.error('Listed tools missing dispatch handlers:');
@@ -84,7 +121,27 @@ if (missingDispatch.length > 0 || undocumentedDispatch.length > 0) {
       console.error(`- ${name}`);
     }
   }
+  if (missingCoverage.length > 0) {
+    console.error('Tools missing test coverage metadata:');
+    for (const name of missingCoverage) {
+      console.error(`- ${name}`);
+    }
+  }
+  if (invalidCoverage.length > 0) {
+    console.error('Tools mapped to unknown npm scripts:');
+    for (const entry of invalidCoverage) {
+      console.error(`- ${entry.toolName}: ${entry.unknownScripts.join(', ')}`);
+    }
+  }
+  if (staleCoverageEntries.length > 0) {
+    console.error('Coverage metadata contains unknown tools:');
+    for (const name of staleCoverageEntries) {
+      console.error(`- ${name}`);
+    }
+  }
   process.exit(1);
 }
 
-console.log(`MCP tool parity passed (${listedSet.size} listed tools, ${dispatchSet.size} dispatch handlers including aliases).`);
+console.log(
+  `MCP tool parity passed (${listedSet.size} listed tools, ${dispatchSet.size} dispatch handlers including aliases, full coverage metadata).`
+);

@@ -35,3 +35,9 @@ Validate env contract and runtime values:
 pnpm --filter kamiyo-companion run preflight:contract
 pnpm --filter kamiyo-companion run preflight:env
 ```
+
+Run runtime health smoke (starts standalone API server, checks `/health` + `/ready`, then exits):
+
+```bash
+pnpm --filter kamiyo-companion run smoke:health
+```

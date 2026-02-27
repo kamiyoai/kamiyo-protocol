@@ -85,6 +85,14 @@ Reference URLs:
   - `services/api/scripts/preflight-env.mjs`
   - `services/kamiyo-operator/scripts/preflight-env.mjs`
 - [x] Wired service env preflights into enterprise readiness runner (contract + runtime mode).
+- [x] Added runtime smoke checks:
+  - API `/health` + `/ready` smoke
+  - operator isolated boot smoke
+  - MCP stdio handshake smoke
+- [x] Added per-tool MCP test coverage metadata gate:
+  - `packages/kamiyo-mcp/scripts/tool-test-coverage.json`
+- [x] Added nightly live enterprise canary:
+  - `.github/workflows/nightly-enterprise-canary.yml`
 - [x] Updated onboarding docs to surface the golden path:
   - root README
   - MCP README
@@ -95,6 +103,5 @@ Reference URLs:
 ## Remaining Gaps (Not Done Yet)
 
 - [ ] Add deeper env schema/type validation (ranges, enums, mutual exclusion) beyond required-key checks.
-- [ ] Add one-command service-level runtime health smoke (API + operator + MCP stdio live handshake).
-- [ ] Nightly live credentialed canary for CDP + Paranet transaction paths.
+- [ ] Populate canary secrets and verify first green nightly run for CDP + Paranet transaction paths.
 - [ ] Unified enterprise runbook that maps each major use case to exact commands and expected outputs.

@@ -35,3 +35,9 @@ Validate env contract and runtime values:
 pnpm --filter @kamiyo/kamiyo-operator run preflight:contract
 pnpm --filter @kamiyo/kamiyo-operator run preflight:env
 ```
+
+Run runtime boot smoke (starts operator in isolated run-once mode, verifies RPC init, then exits):
+
+```bash
+pnpm --filter @kamiyo/kamiyo-operator run smoke:boot
+```

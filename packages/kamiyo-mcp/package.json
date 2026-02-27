@@ -47,6 +47,7 @@
     "test:truth-court:gauntlet": "tsx tests/test-truth-court-gauntlet.ts",
     "test:truth-court:attestation": "tsx tests/test-truth-court-attestation.ts",
     "test:tool-parity": "node scripts/check-tool-parity.mjs",
+    "smoke:stdio": "node scripts/smoke-stdio.mjs",
     "test:mcp": "tsx tests/test-mcp-tools.ts",
     "test:live-config": "tsx tests/test-live-config.ts",
     "test:kamino": "tsx tests/test-kamino.ts",
