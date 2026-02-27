@@ -95,6 +95,15 @@ function getBlockchainId(): BlockchainId {
   return 'base:8453';
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  const value = endpoint.trim();
+  if (!value) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+    return value;
+  }
+  return `http://${value}`;
+}
+
 function getQueryOpts(): { repository: string; paranetUAL?: string } {
   const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
   const paranetUAL =
@@ -242,14 +251,15 @@ let clientInitPromise: Promise<AgentParanetClient> | null = null;
 async function getClient(): Promise<AgentParanetClient> {
   if (client) return client;
 
-  const endpoint = process.env.DKG_ENDPOINT;
+  const endpoint = process.env.DKG_ENDPOINT?.trim();
   if (!endpoint) {
     throw new Error('DKG_ENDPOINT not configured');
   }
+  const normalizedEndpoint = normalizeDkgEndpoint(endpoint);
 
   if (!clientInitPromise) {
     clientInitPromise = AgentParanetClient.create({
-      dkgEndpoint: endpoint,
+      dkgEndpoint: normalizedEndpoint,
       dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
       blockchain: getBlockchainId(),
       privateKey: process.env.DKG_PRIVATE_KEY,
@@ -263,7 +273,8 @@ async function getClient(): Promise<AgentParanetClient> {
 }
 
 router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
-  const endpoint = process.env.DKG_ENDPOINT?.trim() || null;
+  const endpointRaw = process.env.DKG_ENDPOINT?.trim() || null;
+  const endpoint = endpointRaw ? normalizeDkgEndpoint(endpointRaw) : null;
   const blockchain = getBlockchainId();
   const paranetUAL = getParanetUAL();
   const timestamp = new Date().toISOString();
@@ -332,7 +343,11 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       }
     }
 
-    const status = checks.some((c) => c.status === 'fail') ? 'unhealthy' : (checks.some((c) => c.status === 'warn') ? 'degraded' : 'ok');
+    const hasFailures = checks.some((c) => c.status === 'fail');
+    const hasBlockingWarnings = checks.some(
+      (c) => c.status === 'warn' && c.name !== 'paranet_access'
+    );
+    const status = hasFailures ? 'unhealthy' : hasBlockingWarnings ? 'degraded' : 'ok';
 
     res.json({
       service: 'meishi-dkg',
