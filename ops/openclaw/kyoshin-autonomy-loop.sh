@@ -84,6 +84,8 @@ ENABLE_SENTRY_PIPELINE="${KYO_ENABLE_SENTRY_PIPELINE:-true}"
 REQUIRE_SENTRY_PIPELINE="${KYO_REQUIRE_SENTRY_PIPELINE:-false}"
 ENABLE_MEMORY_EXTRACTION="${KYO_ENABLE_MEMORY_EXTRACTION:-true}"
 REQUIRE_MEMORY_EXTRACTION="${KYO_REQUIRE_MEMORY_EXTRACTION:-false}"
+ENABLE_CLAWMART_MONITOR="${KYO_ENABLE_CLAWMART_MONITOR:-true}"
+REQUIRE_CLAWMART_MONITOR="${KYO_REQUIRE_CLAWMART_MONITOR:-false}"
 
 if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
   if is_true "$ENABLE_AGENT_HEARTBEAT"; then
@@ -452,6 +454,38 @@ else
   fi
 fi
 
+clawmart_monitor_ok=1
+clawmart_monitor_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_CLAWMART_MONITOR"; then
+  clawmart_monitor_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-clawmart-monitor.py" ]; then
+    if "$HOME/bin/kyoshin-clawmart-monitor.py" >"$TMP_DIR/clawmart-monitor.json" 2>"$TMP_DIR/clawmart-monitor.err"; then
+      clawmart_monitor_summary="$(as_json_line "$TMP_DIR/clawmart-monitor.json")"
+      clawmart_monitor_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/clawmart-monitor.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_CLAWMART_MONITOR"; then
+        if [ "$clawmart_monitor_inner_ok" != "true" ]; then
+          clawmart_monitor_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/clawmart-monitor.json" ]; then
+        clawmart_monitor_summary="$(as_json_line "$TMP_DIR/clawmart-monitor.json")"
+      else
+        clawmart_monitor_err="$(tr -d '\n' <"$TMP_DIR/clawmart-monitor.err" | sed 's/"/\\"/g')"
+        clawmart_monitor_summary="{\"ok\":false,\"error\":\"$clawmart_monitor_err\"}"
+      fi
+      if is_true "$REQUIRE_CLAWMART_MONITOR"; then
+        clawmart_monitor_ok=0
+      fi
+    fi
+  else
+    clawmart_monitor_summary='{"ok":false,"error":"missing_clawmart_monitor"}'
+    if is_true "$REQUIRE_CLAWMART_MONITOR"; then
+      clawmart_monitor_ok=0
+    fi
+  fi
+fi
+
 artifact_contracts_ok=1
 artifact_contracts_summary='{"ok":false,"error":"not_run"}'
 if [ -x "$HOME/bin/kyoshin-artifact-contracts.py" ]; then
@@ -589,6 +623,7 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$tool_health_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
+  && [ "$clawmart_monitor_ok" -eq 1 ] \
   && [ "$artifact_contracts_ok" -eq 1 ]; then
   cat >"$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
@@ -640,6 +675,9 @@ else
   fi
   if [ "$mission_control_ok" -ne 1 ]; then
     combined_error+="mission_control_failed;"
+  fi
+  if [ "$clawmart_monitor_ok" -ne 1 ]; then
+    combined_error+="clawmart_monitor_failed;"
   fi
   if [ "$artifact_contracts_ok" -ne 1 ]; then
     combined_error+="artifact_contracts_failed;"
@@ -718,8 +756,8 @@ if [ "$status" = "ok" ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"clawMartMonitor":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$clawmart_monitor_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"

@@ -187,11 +187,27 @@ def run_http(target: str, headers: dict[str, Any]) -> tuple[bool, str]:
         return False, str(exc)[:240]
 
 
+def has_valid_hostname_labels(hostname: str) -> bool:
+    if not hostname:
+        return False
+    if len(hostname) > 253:
+        return False
+    labels = hostname.split('.')
+    if not labels:
+        return False
+    for label in labels:
+        if not label or len(label) > 63:
+            return False
+    return True
+
+
 def run_do_agent(target: str) -> tuple[bool, str]:
     parsed = urllib.parse.urlparse(target)
     scheme = parsed.scheme.lower()
     if scheme not in {'https', 'http'}:
         return False, 'unsupported_scheme'
+    if not has_valid_hostname_labels(parsed.hostname or ''):
+        return False, 'invalid_target_host'
     if scheme == 'http' and not (ALLOW_INSECURE_HTTP or parsed.hostname in {'127.0.0.1', 'localhost'}):
         return False, 'http_blocked'
     api_key = os.getenv('KYO_DO_AGENT_API_KEY', '').strip()

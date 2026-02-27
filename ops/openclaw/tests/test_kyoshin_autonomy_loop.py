@@ -23,11 +23,13 @@ EXPECTED_STAGE_ORDER = [
     'swarm_planner',
     'runtime_bridge',
     'mission_control',
+    'clawmart_monitor',
     'artifact_contracts',
     'learnings',
 ]
 EXPECTED_STAGE_ORDER_WITH_MEMORY_EXTRACT = EXPECTED_STAGE_ORDER + ['memory_extract']
 EXPECTED_STAGE_ORDER_WITHOUT_SENTRY_PIPELINE = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'sentry_pipeline']
+EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_MONITOR = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'clawmart_monitor']
 
 
 class KyoshinAutonomyLoopContractTests(unittest.TestCase):
@@ -144,6 +146,14 @@ echo '{{"ok":true}}'
 """,
         )
         self._write_exec(
+            self.bin_dir / 'kyoshin-clawmart-monitor.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "clawmart_monitor" >> "{self.order_file}"
+echo '{{"ok":true,"tasksAdded":0}}'
+""",
+        )
+        self._write_exec(
             self.bin_dir / 'kyoshin-artifact-contracts.py',
             f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -201,6 +211,7 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
                 'KYO_REQUIRE_LEARNINGS': 'true',
                 'KYO_ENABLE_MEMORY_EXTRACTION': 'false',
                 'KYO_ENABLE_SENTRY_PIPELINE': 'true',
+                'KYO_ENABLE_CLAWMART_MONITOR': 'true',
                 'KYO_REQUIRE_KYOSHIN_RUNTIME': 'true',
                 'KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS': 'true',
             }
@@ -353,6 +364,28 @@ echo '{{"ok":false,"accepted":0}}'
 
         state = self._read_state()
         self.assertIn('sentry_pipeline_failed', state.get('lastError', ''))
+
+    def test_clawmart_monitor_can_be_disabled(self):
+        self._write_default_scripts()
+
+        result = self._run_loop({'KYO_ENABLE_CLAWMART_MONITOR': 'false'})
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_MONITOR)
+
+    def test_clawmart_monitor_is_hard_gate_when_required(self):
+        self._write_default_scripts()
+        (self.bin_dir / 'kyoshin-clawmart-monitor.py').unlink()
+
+        result = self._run_loop(
+            {
+                'KYO_ENABLE_CLAWMART_MONITOR': 'true',
+                'KYO_REQUIRE_CLAWMART_MONITOR': 'true',
+            }
+        )
+        self.assertEqual(result.returncode, 1)
+
+        state = self._read_state()
+        self.assertIn('clawmart_monitor_failed', state.get('lastError', ''))
 
     def test_memory_extract_runs_when_due_and_enabled(self):
         self._write_default_scripts()

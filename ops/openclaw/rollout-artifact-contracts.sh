@@ -101,6 +101,7 @@ run() {
     "kyoshin-swarm-governor.py"
     "kyoshin-swarm-planner.py"
     "kyoshin-mission-control.py"
+    "kyoshin-clawmart-monitor.py"
     "kyoshin-artifact-contracts.py"
     "kyoshin-learnings.py"
     "kyoshin-memory-extract.py"
@@ -123,6 +124,9 @@ run() {
   append_env_if_missing "KYO_ENABLE_MEMORY_EXTRACTION" "true"
   append_env_if_missing "KYO_REQUIRE_MEMORY_EXTRACTION" "false"
   append_env_if_missing "KYO_MEMORY_EXTRACTION_HOUR_UTC" "23"
+  append_env_if_missing "KYO_ENABLE_CLAWMART_MONITOR" "true"
+  append_env_if_missing "KYO_REQUIRE_CLAWMART_MONITOR" "false"
+  append_env_if_missing "KYO_CLAWMART_MONITOR_MAX_TASKS" "8"
   append_env_if_missing "KYO_X402_GENERATED_FEED_ENABLED" "true"
   append_env_if_missing "KYO_DX_TERMINAL_ENABLED" "true"
   append_env_if_missing "KYO_DX_TERMINAL_GENERATED_FEED_ENABLED" "true"
@@ -218,6 +222,14 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/memory-extract-state.json\"
     else
       echo 'missing memory-extract-state.json'
+    fi
+
+    echo
+    echo '--- clawmart-monitor-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\"
+    else
+      echo 'missing clawmart-monitor-state.json'
     fi
 
     echo

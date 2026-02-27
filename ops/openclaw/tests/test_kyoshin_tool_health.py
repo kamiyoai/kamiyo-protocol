@@ -61,6 +61,18 @@ class KyoshinToolHealthTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertEqual(detail, 'missing_api_key')
 
+    def test_run_do_agent_rejects_invalid_target_host(self):
+        with patch.dict(
+            os.environ,
+            {
+                'KYO_DO_AGENT_API_KEY': 'test-key',
+            },
+            clear=False,
+        ):
+            ok, detail = self.mod.run_do_agent('https://' + ('a' * 64) + '.agents.do-ai.run')
+        self.assertFalse(ok)
+        self.assertEqual(detail, 'invalid_target_host')
+
     def test_run_do_agent_accepts_valid_completion_shape(self):
         class FakeResponse:
             status = 200

@@ -16,6 +16,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-runtime-bridge.py`: ingests Kyoshin execution runtime `/health` + `/status` into OpenClaw runtime state.
 - `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
 - `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
+- `kyoshin-clawmart-monitor.py`: ClawMart sales/listing monitor that appends fulfillment tasks into mission-control backlog.
 - `kyoshin-artifact-contracts.py`: validates JSON contracts for runtime artifacts before autonomy tick is accepted as healthy.
 - `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
 - `kyoshin-memory-extract.py`: nightly extraction of durable `MEMORY.md` facts from daily workspace notes.
@@ -40,6 +41,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-runtime-bridge.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-clawmart-monitor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-artifact-contracts.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-memory-extract.py ~/bin/
@@ -71,6 +73,7 @@ Rollout helper for this specific hardening:
 - Governor output: `~/.openclaw/workspace/runtime/state/swarm-governor.json`
 - Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
 - Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
+- ClawMart monitor state: `~/.openclaw/workspace/runtime/state/clawmart-monitor-state.json`
 - Artifact contracts report: `~/.openclaw/workspace/runtime/state/runtime-artifact-contracts.json`
 - Learnings file: `~/.openclaw/workspace/.learnings/LEARNINGS.md`
 - Learnings state: `~/.openclaw/workspace/runtime/state/learnings-state.json`
@@ -175,6 +178,13 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_REQUIRE_LEARNINGS=true|false` (default `true`)
   - `KYO_LEARNINGS_MAX_ENTRIES=661`
   - `KYO_LEARNINGS_RECENT_SIGNATURES=200`
+- ClawMart monitor controls:
+  - `KYO_ENABLE_CLAWMART_MONITOR=true|false` (default `true`)
+  - `KYO_REQUIRE_CLAWMART_MONITOR=true|false` (default `false`)
+  - `KYO_CLAWMART_MONITOR_MAX_TASKS=8`
+  - `KYO_CLAWMART_MONITOR_TIMEOUT_SECONDS=12`
+  - `KYO_CLAWMART_DASHBOARD_URL=https://www.shopclawmart.com/dashboard`
+  - `CLAWMART_API_KEY=...` (required for API polling)
 - work-or-die policy controls:
   - `KYO_GOVERNOR_WINDOW_DAYS=7`
   - `KYO_GOVERNOR_MIN_ATTEMPTS=3`
