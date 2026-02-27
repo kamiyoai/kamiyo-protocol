@@ -1,0 +1,53 @@
+{
+  "at": "2026-02-27T22:09:46.110Z",
+  "ok": true,
+  "errors": [],
+  "results": {
+    "cdp_env_status": {
+      "ok": true,
+      "env": {
+        "CDP_API_KEY_ID": true,
+        "CDP_API_KEY_SECRET": true,
+        "CDP_WALLET_SECRET": true
+      },
+      "resolvedFrom": {
+        "CDP_API_KEY_ID": "CDP_API_KEY_ID",
+        "CDP_API_KEY_SECRET": "CDP_API_KEY_SECRET",
+        "CDP_WALLET_SECRET": "CDP_WALLET_SECRET"
+      },
+      "missing": []
+    },
+    "cdp_evm_get_or_create_account": {
+      "success": true,
+      "address": "0x5Bc3cAd3C970D9E005d688cce9e08DD8d386b1BE",
+      "name": "kmy-evm-mm5g3drq"
+    },
+    "cdp_solana_get_or_create_account": {
+      "success": true,
+      "address": "DpBiFzurYSCJCd7b8gJT2j2Pt1BY3vhf1HkZmyzvv2N7",
+      "name": "kmy-sol-mm5g3drq"
+    },
+    "cdp_create_usdc_policy": {
+      "success": true,
+      "policyId": "419c67be-0d72-4bd0-8af5-0fd3b024a743",
+      "scope": "account",
+      "description": "scope ok 2026 02 27"
+    },
+    "cdp_evm_set_account_policy": {
+      "success": true,
+      "address": "0x5Bc3cAd3C970D9E005d688cce9e08DD8d386b1BE",
+      "policyId": "419c67be-0d72-4bd0-8af5-0fd3b024a743",
+      "policies": [
+        "419c67be-0d72-4bd0-8af5-0fd3b024a743"
+      ]
+    },
+    "cdp_solana_set_account_policy": {
+      "success": true,
+      "address": "DpBiFzurYSCJCd7b8gJT2j2Pt1BY3vhf1HkZmyzvv2N7",
+      "policyId": "419c67be-0d72-4bd0-8af5-0fd3b024a743",
+      "policies": [
+        "419c67be-0d72-4bd0-8af5-0fd3b024a743"
+      ]
+    }
+  }
+}

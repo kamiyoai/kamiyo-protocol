@@ -18,6 +18,7 @@ Tool handlers exercised:
 - `docs/artifacts/cdp-live-smoke-20260227T212205Z.json`
 - `docs/artifacts/cdp-live-smoke-manual-20260227T212658Z.json`
 - `docs/artifacts/cdp-live-smoke-scope-check-20260227T215605Z.json`
+- `docs/artifacts/cdp-live-smoke-post-scope-20260227T220942Z-shortname.json`
 
 ## Results
 
@@ -37,17 +38,25 @@ Tool handlers exercised:
    - `cdp_create_usdc_policy.success = false` with:
      - `Missing required scope: policies#manage`
 
+## Final verification (scope fixed)
+
+After `policies#manage` scope was added and smoke rerun:
+
+- `cdp_evm_get_or_create_account.success = true`
+- `cdp_solana_get_or_create_account.success = true`
+- `cdp_create_usdc_policy.success = true`
+- `cdp_evm_set_account_policy.success = true`
+- `cdp_solana_set_account_policy.success = true`
+
 ## Conclusion
 
-Credential authorization is now partially fixed: wallet/account creation paths are live and working. The remaining production blocker is API-key scope configuration in CDP for policy management.
+Live CDP transaction path is now fully operational end-to-end for account creation, policy creation, and policy attachment through MCP CDP handlers.
 
 ## Next action required
 
-1. In CDP Portal, grant `policies#manage` scope to API key `b778836b-29aa-42f4-969d-27fe98d6ee98` (or issue a new key with that scope).
-2. If a new key is issued, update:
-   - Render `kamiyo-api`: `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, `CDP_WALLET_SECRET`
-   - GitHub secrets: `KAMIYO_CANARY_CDP_API_KEY_ID`, `KAMIYO_CANARY_CDP_API_KEY_SECRET`, `KAMIYO_CANARY_CDP_WALLET_SECRET`
-3. Rerun this same smoke and record the first successful policy receipt (`cdp_create_usdc_policy` + policy attachment).
+1. Keep current key scopes aligned in CDP (do not remove `policies#manage`).
+2. Retain weekly parity audit job to catch secret/env drift.
+3. Continue appending fresh receipt artifacts for each credential rotation.
 
 ## Alert webhook note
 
