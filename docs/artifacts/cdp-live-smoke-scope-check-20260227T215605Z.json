@@ -1,0 +1,35 @@
+{
+  "at": "2026-02-27T21:56:07.703Z",
+  "tag": "canary-2026-02-27T21-56-06-525Z",
+  "ok": false,
+  "results": {
+    "cdp_env_status": {
+      "ok": true,
+      "env": {
+        "CDP_API_KEY_ID": true,
+        "CDP_API_KEY_SECRET": true,
+        "CDP_WALLET_SECRET": true
+      },
+      "resolvedFrom": {
+        "CDP_API_KEY_ID": "CDP_API_KEY_ID",
+        "CDP_API_KEY_SECRET": "CDP_API_KEY_SECRET",
+        "CDP_WALLET_SECRET": "CDP_WALLET_SECRET"
+      },
+      "missing": []
+    },
+    "cdp_evm_get_or_create_account": {
+      "success": true,
+      "address": "0xFEa4741542E75D28743690879bB4C5B6569C7c33",
+      "name": "canary-2026-02-27T21-56-06-525Z-evm"
+    },
+    "cdp_solana_get_or_create_account": {
+      "success": true,
+      "address": "DcfjSWJKRaFi4vgp6b8DKQqisVaNvEZktsmNUbqhjmnY",
+      "name": "canary-2026-02-27T21-56-06-525Z-sol"
+    },
+    "cdp_create_usdc_policy": {
+      "success": false,
+      "error": "Missing required scope: policies#manage, configure your API Key to have this scope via the CDP Portal."
+    }
+  }
+}
