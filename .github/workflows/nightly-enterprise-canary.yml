@@ -29,6 +29,7 @@ jobs:
       PARANET_UAL: ${{ secrets.KAMIYO_CANARY_PARANET_UAL }}
       PARANET_OPERATOR_GLOBAL_ID: ${{ secrets.KAMIYO_CANARY_PARANET_OPERATOR_GLOBAL_ID }}
       PARANET_ATTESTOR_GLOBAL_ID: ${{ secrets.KAMIYO_CANARY_PARANET_ATTESTOR_GLOBAL_ID }}
+      KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
     steps:
       - uses: actions/checkout@v4
 
@@ -58,9 +59,7 @@ jobs:
         run: pnpm run smoke:enterprise
 
       - name: Notify canary failure
-        if: ${{ failure() && secrets.KAMIYO_CANARY_ALERT_WEBHOOK != '' }}
-        env:
-          KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
+        if: ${{ failure() && env.KAMIYO_CANARY_ALERT_WEBHOOK != '' }}
         run: |
           payload="$(jq -nc \
             --arg workflow "$GITHUB_WORKFLOW" \
