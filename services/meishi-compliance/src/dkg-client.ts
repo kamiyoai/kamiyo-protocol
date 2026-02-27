@@ -16,6 +16,15 @@ export interface OriginTrailDKGClientConfig {
   minimumNumberOfNodeReplications?: number;
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  const value = endpoint.trim();
+  if (!value) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+    return value;
+  }
+  return `http://${value}`;
+}
+
 async function requestJson<T>(
   url: string,
   body: Record<string, unknown>,
@@ -97,7 +106,7 @@ type DkgJsClient = {
   asset: {
     create: (
       content: { public: Record<string, unknown>; private?: Record<string, unknown> },
-      opts?: { epochsNum?: number }
+      opts?: { epochsNum?: number; tokenAmount?: number }
     ) => Promise<{ UAL?: string }>;
     submitToParanet?: (ual: string, paranetUal: string, opts?: Record<string, unknown>) => Promise<unknown>;
     get: (ual: string, opts?: Record<string, unknown>) => Promise<unknown>;
@@ -144,6 +153,7 @@ export class OriginTrailDKGClient implements DKGClient {
   async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
     const result = await this.dkg.asset.create(content, {
       ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+      tokenAmount: 0,
       ...(this.paranetUal ? { paranetUAL: this.paranetUal } : {}),
       ...(typeof this.minimumNumberOfFinalizationConfirmations === 'number'
         ? { minimumNumberOfFinalizationConfirmations: this.minimumNumberOfFinalizationConfirmations }
@@ -188,7 +198,7 @@ export class OriginTrailDKGClient implements DKGClient {
 export async function createOriginTrailDKGClient(config: OriginTrailDKGClientConfig): Promise<OriginTrailDKGClient> {
   const DKG = await import('dkg.js').then((m: any) => m?.default ?? m);
   const dkg: DkgJsClient = new DKG({
-    endpoint: config.endpoint,
+    endpoint: normalizeDkgEndpoint(config.endpoint),
     port: config.port ?? 8900,
     blockchain: {
       name: config.blockchain,
