@@ -24,6 +24,20 @@ Works with Claude Desktop, OpenClaw, and any MCP-compatible client.
 
 **Local (your wallet)**: Install and configure with your Solana keypair
 
+### Enterprise Preflight
+
+From repo root, run deterministic preflight before demos/deployments:
+
+```bash
+pnpm run preflight:enterprise
+```
+
+For live credential validation and devnet transaction smoke:
+
+```bash
+pnpm run smoke:enterprise
+```
+
 ## Remote MCP Server
 
 Connect directly to the hosted MCP server at `https://api.kamiyo.ai/mcp`.

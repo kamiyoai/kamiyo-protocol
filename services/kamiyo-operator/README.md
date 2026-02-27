@@ -28,3 +28,10 @@ pnpm --filter @kamiyo/kamiyo-operator run proof:24h
 ## Environment
 
 Use `services/kamiyo-operator/.env.example` as the baseline config.
+
+Validate env contract and runtime values:
+
+```bash
+pnpm --filter @kamiyo/kamiyo-operator run preflight:contract
+pnpm --filter @kamiyo/kamiyo-operator run preflight:env
+```

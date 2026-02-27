@@ -8,6 +8,22 @@ TypeScript SDK for KAMIYO - Agent Identity and Conflict Resolution Protocol on S
 npm install @kamiyo/sdk
 ```
 
+## Devnet Smoke Test
+
+Validate full agent lifecycle (create agent, create agreement, dispute) on devnet:
+
+```bash
+pnpm --filter @kamiyo/sdk run smoke:devnet
+```
+
+Optional env overrides:
+
+```bash
+SOLANA_RPC_URL=https://api.devnet.solana.com
+KAMIYO_PROGRAM_ID=3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr
+AGENT_KEYPAIR_PATH=~/.config/solana/id.json
+```
+
 ## Usage
 
 ```typescript

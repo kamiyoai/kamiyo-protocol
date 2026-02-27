@@ -129,6 +129,9 @@ jobs:
       - name: Service Onboarding Check
         run: pnpm run check:onboarding
 
+      - name: MCP Tool Parity Gate
+        run: pnpm run check:mcp:parity
+
       - name: Workspace Build
         run: pnpm -r --if-present --no-bail run build
 

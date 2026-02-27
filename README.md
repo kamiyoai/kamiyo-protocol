@@ -60,6 +60,20 @@ cargo test -p kamiyo-trust-layer
 cargo test -p trust-layer-service
 ```
 
+### Enterprise Readiness Gate
+
+Run deterministic onboarding and tool-wiring checks from the repo root:
+
+```bash
+pnpm run preflight:enterprise
+```
+
+Run full live smoke (requires live env and funded devnet agent keypair):
+
+```bash
+pnpm run smoke:enterprise
+```
+
 ## Trust Layer Service
 
 The trust layer service provides:

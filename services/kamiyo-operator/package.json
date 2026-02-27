@@ -8,6 +8,8 @@
   "scripts": {
     "build": "tsc",
     "test": "tsx --test src/**/*.test.ts",
+    "preflight:contract": "node scripts/preflight-env.mjs --mode contract",
+    "preflight:env": "node scripts/preflight-env.mjs --mode runtime",
     "benchmark:autonomy": "node dist/scripts/autonomyBenchmarkReport.js",
     "soak:swarm": "node dist/scripts/swarmSoakTest.js",
     "proof:bundle": "node dist/scripts/aiProofBundle.js",

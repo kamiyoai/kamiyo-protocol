@@ -379,7 +379,7 @@ const TOOL_DEFINITIONS: Tool[] = [
     },
   },
   {
-    name: 'check_x402_api_price',
+    name: 'x402_check_pricing',
     description:
       'REQUIRED for x402/HTTP-402 paid APIs. Returns USDC pricing and supported payment networks (Base, Solana, Polygon, Arbitrum). Regular web fetch will get 402 Payment Required - only this tool extracts the pricing info correctly. Use for any URL that requires payment.',
     inputSchema: {
@@ -776,6 +776,9 @@ const TOOL_DEFINITIONS: Tool[] = [
       },
     },
   },
+  ...tools.PARANET_TOOLS,
+  ...tools.DKG_QUALITY_TOOLS,
+  ...tools.ELFA_TOOL_DEFINITIONS,
   ...tools.FUNDRY_TOOL_DEFINITIONS,
 ];
 

@@ -28,3 +28,10 @@ At minimum for local startup, configure:
 - `API_SECRET`
 
 This service has a large number of feature-gated integrations (LLM, social, DKG, marketplace, telemetry). The full env contract is listed in `.env.example`.
+
+Validate env contract and runtime values:
+
+```bash
+pnpm --filter kamiyo-companion run preflight:contract
+pnpm --filter kamiyo-companion run preflight:env
+```

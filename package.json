@@ -63,6 +63,9 @@
     "operator-log:validate": "tsx scripts/operator-logbook.ts validate",
     "check:docs": "node scripts/check-doc-commands.mjs",
     "check:onboarding": "node scripts/check-service-onboarding.mjs",
+    "check:mcp:parity": "pnpm --filter @kamiyo/mcp-server run test:tool-parity",
+    "preflight:enterprise": "node scripts/enterprise-readiness.mjs --mode ci",
+    "smoke:enterprise": "node scripts/enterprise-readiness.mjs --mode live",
     "audit:policy": "node scripts/check-security-policy.mjs",
     "audit": "pnpm audit && cargo audit"
   },

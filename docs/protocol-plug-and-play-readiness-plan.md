@@ -113,7 +113,25 @@ Success criteria:
 ## Remaining Work to Reach A+
 
 1. Finalize and test Paranet runtime handlers against a configured DKG endpoint with real credentials.
-2. Add root `smoke:enterprise` command that enforces canonical program ID/env detection and runs MCP+SDK+service smoke end-to-end.
+2. Expand root `smoke:enterprise` command to include explicit API/operator runtime health probes in addition to MCP+SDK checks.
 3. Add CI guard for lockfile integrity and native dependency ABI sanity checks.
-4. Add CI guard that asserts every listed MCP tool has dispatch coverage plus at least one test.
+4. Extend MCP parity gate to also enforce minimum per-tool test coverage metadata.
 5. Convert peer-dependency and export warnings into tracked cleanup tickets with owners and deadlines.
+
+## Update 2026-02-27 (T54 Competitive Pass)
+
+1. Added root enterprise readiness runner: `scripts/enterprise-readiness.mjs`.
+2. Added root commands:
+   - `pnpm run preflight:enterprise`
+   - `pnpm run smoke:enterprise`
+3. Added MCP parity checker: `packages/kamiyo-mcp/scripts/check-tool-parity.mjs`.
+4. Added package-level script: `pnpm --filter @kamiyo/mcp-server run test:tool-parity`.
+5. Added CI gate (`.github/workflows/ci.yml`) to block MCP list/dispatch drift.
+6. Fixed MCP listTools gaps by exposing Paranet, DKG, and Elfa tool families in `packages/kamiyo-mcp/src/index.ts`.
+7. Added canonical `x402_check_pricing` to listTools while preserving legacy dispatch alias support.
+8. Added service-level env preflight scripts:
+   - `services/api/scripts/preflight-env.mjs`
+   - `services/kamiyo-operator/scripts/preflight-env.mjs`
+9. Added service env checks into `scripts/enterprise-readiness.mjs`:
+   - contract checks in CI mode
+   - runtime checks in live mode
