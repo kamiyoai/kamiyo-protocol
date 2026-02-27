@@ -9,10 +9,12 @@ HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
+INCIDENTS_DIR = RUNTIME_DIR / 'incidents'
 QUEUE_PATH = RUNTIME_DIR / 'queue' / 'assignments.json'
 TOOL_HEALTH_PATH = RUNTIME_DIR / 'tools' / 'tool-health.json'
 GOVERNOR_PATH = STATE_DIR / 'swarm-governor.json'
 KYOSHIN_RUNTIME_PATH = STATE_DIR / 'kyoshin-runtime.json'
+SENTRY_TRIAGE_PATH = INCIDENTS_DIR / 'sentry-triage.json'
 MISSION_PATH = WORKSPACE / 'MISSION_STATEMENT.md'
 GOALS_PATH = WORKSPACE / 'GOALS.md'
 OUTPUT_DIR = RUNTIME_DIR / 'mission-control'
@@ -20,6 +22,7 @@ BOARD_PATH = OUTPUT_DIR / 'board.json'
 BACKLOG_PATH = OUTPUT_DIR / 'backlog.json'
 
 MAX_BACKLOG_ITEMS = max(5, min(100, int(os.getenv('KYO_MISSION_CONTROL_MAX_BACKLOG', '40'))))
+MAX_SENTRY_BACKLOG_ITEMS = max(0, min(40, int(os.getenv('KYO_MISSION_CONTROL_MAX_SENTRY_BACKLOG', '12'))))
 
 
 def now_iso() -> str:
@@ -92,6 +95,14 @@ def run() -> int:
         checks = []
     critical_failures = [row for row in checks if isinstance(row, dict) and row.get('critical') and not row.get('ok')]
 
+    sentry_triage = read_json(SENTRY_TRIAGE_PATH, {'incidents': [], 'totals': {}})
+    sentry_incidents = sentry_triage.get('incidents') if isinstance(sentry_triage, dict) else []
+    sentry_totals = sentry_triage.get('totals') if isinstance(sentry_triage, dict) else {}
+    if not isinstance(sentry_incidents, list):
+        sentry_incidents = []
+    if not isinstance(sentry_totals, dict):
+        sentry_totals = {}
+
     governor = read_json(GOVERNOR_PATH, {'decisions': []})
     decisions = governor.get('decisions') if isinstance(governor, dict) else []
     if not isinstance(decisions, list):
@@ -130,6 +141,38 @@ def run() -> int:
                 'status': 'todo',
             }
         )
+
+    sentry_backlog_items = 0
+    for row in sentry_incidents:
+        if len(backlog) >= MAX_BACKLOG_ITEMS or sentry_backlog_items >= MAX_SENTRY_BACKLOG_ITEMS:
+            break
+        if not isinstance(row, dict):
+            continue
+        issue_id = str(row.get('issueId', '')).strip()
+        if not issue_id:
+            continue
+        short_id = str(row.get('shortId', '')).strip() or issue_id
+        triage = row.get('triage') if isinstance(row.get('triage'), dict) else {}
+        policy = row.get('policy') if isinstance(row.get('policy'), dict) else {}
+        route = str(triage.get('route', 'escalate')).strip().lower()
+        environment_class = str(row.get('environmentClass', 'unknown')).strip().lower()
+        level = str(row.get('level', 'error')).strip().lower()
+        priority = 'high' if environment_class == 'production' or level in {'fatal', 'error'} else 'medium'
+        backlog.append(
+            {
+                'id': f'sentry-{issue_id}',
+                'type': 'sentry_auto_fix' if route == 'auto_fix' else 'sentry_escalation',
+                'priority': priority,
+                'title': f"[Sentry] {short_id} {str(row.get('title', 'incident')).strip()[:140]}",
+                'objective': str(row.get('nextAction', '')).strip()[:280],
+                'status': 'todo',
+                'environment': environment_class,
+                'route': route,
+                'targetBranch': str(policy.get('targetBranch', '')).strip(),
+                'issueUrl': str(row.get('permalink', '')).strip(),
+            }
+        )
+        sentry_backlog_items += 1
 
     for row in queued:
         if len(backlog) >= MAX_BACKLOG_ITEMS:
@@ -173,6 +216,9 @@ def run() -> int:
         'treasuryNearCap': treasury_near_cap,
         'assignmentQueue': len(queued),
         'criticalToolFailures': len(critical_failures),
+        'sentryIncidents': len(sentry_incidents),
+        'sentryAutoFixCandidates': int(sentry_totals.get('autoFixCandidates') or 0),
+        'sentryEscalations': int(sentry_totals.get('escalations') or 0),
         'pausedAgents': len(paused_agents),
         'backlogCount': len(backlog),
         'focus': [
@@ -191,6 +237,8 @@ def run() -> int:
                 'backlogPath': str(BACKLOG_PATH),
                 'backlogCount': len(backlog),
                 'criticalToolFailures': len(critical_failures),
+                'sentryIncidents': len(sentry_incidents),
+                'sentryBacklogItems': sentry_backlog_items,
                 'pausedAgents': len(paused_agents),
                 'runtimeOk': runtime_ok,
                 'treasuryNearCap': treasury_near_cap,

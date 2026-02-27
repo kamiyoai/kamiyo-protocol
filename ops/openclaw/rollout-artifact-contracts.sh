@@ -95,6 +95,7 @@ run() {
     "kyoshin-dx-terminal-feed.py"
     "kyoshin-receipt-sync.py"
     "kyoshin-context-guard.py"
+    "kyoshin-sentry-pipeline.py"
     "kyoshin-tool-health.py"
     "kyoshin-runtime-bridge.py"
     "kyoshin-swarm-governor.py"
@@ -125,6 +126,8 @@ run() {
   append_env_if_missing "KYO_X402_GENERATED_FEED_ENABLED" "true"
   append_env_if_missing "KYO_DX_TERMINAL_ENABLED" "true"
   append_env_if_missing "KYO_DX_TERMINAL_GENERATED_FEED_ENABLED" "true"
+  append_env_if_missing "KYO_ENABLE_SENTRY_PIPELINE" "true"
+  append_env_if_missing "KYO_REQUIRE_SENTRY_PIPELINE" "false"
   if [ -n "$KYOSHIN_DB_PATH" ]; then
     set_env_value "KYO_KYOSHIN_DB_PATH" "$KYOSHIN_DB_PATH"
   fi
@@ -199,6 +202,14 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/kyoshin-receipt-sync-state.json\"
     else
       echo 'missing kyoshin-receipt-sync-state.json'
+    fi
+
+    echo
+    echo '--- sentry-triage.json ---'
+    if [ -f \"$OPENCLAW_HOME/.openclaw/workspace/runtime/incidents/sentry-triage.json\" ]; then
+      jq . \"$OPENCLAW_HOME/.openclaw/workspace/runtime/incidents/sentry-triage.json\"
+    else
+      echo 'missing sentry-triage.json'
     fi
 
     echo

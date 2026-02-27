@@ -15,6 +15,7 @@ EXPECTED_STAGE_ORDER = [
     'dx_terminal_feed',
     'feed_sync',
     'context_guard',
+    'sentry_pipeline',
     'tool_health',
     'marketplace_intake',
     'receipt_sync',
@@ -26,6 +27,7 @@ EXPECTED_STAGE_ORDER = [
     'learnings',
 ]
 EXPECTED_STAGE_ORDER_WITH_MEMORY_EXTRACT = EXPECTED_STAGE_ORDER + ['memory_extract']
+EXPECTED_STAGE_ORDER_WITHOUT_SENTRY_PIPELINE = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'sentry_pipeline']
 
 
 class KyoshinAutonomyLoopContractTests(unittest.TestCase):
@@ -75,6 +77,14 @@ echo '{{"ok":true}}'
 set -euo pipefail
 echo "context_guard" >> "{self.order_file}"
 echo '{{"ok":true,"requiredMissing":[]}}'
+""",
+        )
+        self._write_exec(
+            self.bin_dir / 'kyoshin-sentry-pipeline.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "sentry_pipeline" >> "{self.order_file}"
+echo '{{"ok":true,"status":"ok","totalIncidents":0}}'
 """,
         )
         self._write_exec(
@@ -190,6 +200,7 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
                 'KYO_REQUIRE_RUNTIME_GUARDS': 'true',
                 'KYO_REQUIRE_LEARNINGS': 'true',
                 'KYO_ENABLE_MEMORY_EXTRACTION': 'false',
+                'KYO_ENABLE_SENTRY_PIPELINE': 'true',
                 'KYO_REQUIRE_KYOSHIN_RUNTIME': 'true',
                 'KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS': 'true',
             }
@@ -320,6 +331,28 @@ echo '{{"ok":false,"accepted":0}}'
 
         state = self._read_state()
         self.assertIn('dx_terminal_feed_failed', state.get('lastError', ''))
+
+    def test_sentry_pipeline_can_be_disabled(self):
+        self._write_default_scripts()
+
+        result = self._run_loop({'KYO_ENABLE_SENTRY_PIPELINE': 'false'})
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITHOUT_SENTRY_PIPELINE)
+
+    def test_sentry_pipeline_is_hard_gate_when_required(self):
+        self._write_default_scripts()
+        (self.bin_dir / 'kyoshin-sentry-pipeline.py').unlink()
+
+        result = self._run_loop(
+            {
+                'KYO_ENABLE_SENTRY_PIPELINE': 'true',
+                'KYO_REQUIRE_SENTRY_PIPELINE': 'true',
+            }
+        )
+        self.assertEqual(result.returncode, 1)
+
+        state = self._read_state()
+        self.assertIn('sentry_pipeline_failed', state.get('lastError', ''))
 
     def test_memory_extract_runs_when_due_and_enabled(self):
         self._write_default_scripts()

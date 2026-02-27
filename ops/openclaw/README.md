@@ -11,6 +11,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
 - `kyoshin-receipt-sync.py`: exports Kyoshin `swarm_jobs` outcomes into OpenClaw `execution-receipts.jsonl` for governor policy.
 - `kyoshin-context-guard.py`: brain-dump and mission-context completeness guard.
+- `kyoshin-sentry-pipeline.py`: ingests Sentry webhooks and maintains auto-fix vs escalate triage artifacts.
 - `kyoshin-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
 - `kyoshin-runtime-bridge.py`: ingests Kyoshin execution runtime `/health` + `/status` into OpenClaw runtime state.
 - `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
@@ -34,6 +35,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-receipt-sync.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-sentry-pipeline.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-runtime-bridge.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
@@ -75,6 +77,9 @@ Rollout helper for this specific hardening:
 - Memory extraction state: `~/.openclaw/workspace/runtime/state/memory-extract-state.json`
 - Receipt sync state: `~/.openclaw/workspace/runtime/state/kyoshin-receipt-sync-state.json`
 - Context guard output: `~/.openclaw/workspace/runtime/state/context-guard.json`
+- Sentry inbox: `~/.openclaw/workspace/runtime/hooks/sentry-alerts.jsonl`
+- Sentry triage output: `~/.openclaw/workspace/runtime/incidents/sentry-triage.json`
+- Sentry pipeline state: `~/.openclaw/workspace/runtime/state/sentry-pipeline-state.json`
 - Nightly mission state: `~/.openclaw/workspace/runtime/state/nightly-mission-state.json`
 - Execution receipts input: `~/.openclaw/workspace/runtime/receipts/execution-receipts.jsonl`
 - Loop state: `~/.openclaw/workspace/runtime/state/autonomy-loop-state.json`
@@ -122,6 +127,8 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS=true|false` (default `true`)
   - `KYO_REQUIRE_X402_FEED=true|false` (default `false`)
   - `KYO_REQUIRE_RECEIPT_SYNC=true|false` (default `false`)
+  - `KYO_ENABLE_SENTRY_PIPELINE=true|false` (default `true`)
+  - `KYO_REQUIRE_SENTRY_PIPELINE=true|false` (default `false`)
   - `KYO_HEARTBEAT_MAX_ASSIGNMENTS=3`
 - x402 self-facilitator feed controls:
   - `KYO_X402_FACILITATOR_BASE_URL=https://<your-api-origin>` (if set and `KYO_X402_PRICING_URL{,S}` unset, defaults to `<base>/api/paid/pricing`)
@@ -181,6 +188,17 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_DO_AGENT_CHECK_RETRIEVAL_METHOD=none|rewrite|step_back|sub_queries` (default `none`)
   - `KYO_DO_AGENT_CHECK_PROMPT=...` (optional lightweight probe prompt)
   - `KYO_DO_AGENT_CHECK_CRITICAL=true|false` (default `false`)
+- sentry pipeline controls:
+  - `KYO_SENTRY_WEBHOOK_INBOX_PATH=/absolute/path/to/sentry-alerts.jsonl`
+  - `KYO_SENTRY_TRIAGE_OUTPUT_PATH=/absolute/path/to/sentry-triage.json`
+  - `KYO_SENTRY_TRIAGE_STATE_PATH=/absolute/path/to/sentry-pipeline-state.json`
+  - `KYO_SENTRY_MAX_INCIDENTS=200`
+
+To ingest one Sentry webhook payload into the runtime queue:
+
+```bash
+cat sentry-payload.json | ~/bin/kyoshin-sentry-pipeline.py --ingest
+```
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
 For x402 specifically, if `KYO_X402_FEED_URL` is empty and generated feed is enabled, feed sync automatically uses `runtime/feeds/x402-opportunities.json`.

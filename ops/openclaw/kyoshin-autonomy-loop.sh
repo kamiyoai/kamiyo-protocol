@@ -80,6 +80,8 @@ REQUIRE_LEARNINGS="${KYO_REQUIRE_LEARNINGS:-true}"
 REQUIRE_X402_FEED="${KYO_REQUIRE_X402_FEED:-false}"
 REQUIRE_DX_TERMINAL_FEED="${KYO_REQUIRE_DX_TERMINAL_FEED:-false}"
 REQUIRE_RECEIPT_SYNC="${KYO_REQUIRE_RECEIPT_SYNC:-false}"
+ENABLE_SENTRY_PIPELINE="${KYO_ENABLE_SENTRY_PIPELINE:-true}"
+REQUIRE_SENTRY_PIPELINE="${KYO_REQUIRE_SENTRY_PIPELINE:-false}"
 ENABLE_MEMORY_EXTRACTION="${KYO_ENABLE_MEMORY_EXTRACTION:-true}"
 REQUIRE_MEMORY_EXTRACTION="${KYO_REQUIRE_MEMORY_EXTRACTION:-false}"
 
@@ -280,6 +282,38 @@ else
   context_summary='{"ok":false,"error":"missing_context_guard"}'
   if is_true "$REQUIRE_RUNTIME_GUARDS"; then
     context_ok=0
+  fi
+fi
+
+sentry_pipeline_ok=1
+sentry_pipeline_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_SENTRY_PIPELINE"; then
+  sentry_pipeline_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-sentry-pipeline.py" ]; then
+    if "$HOME/bin/kyoshin-sentry-pipeline.py" >"$TMP_DIR/sentry-pipeline.json" 2>"$TMP_DIR/sentry-pipeline.err"; then
+      sentry_pipeline_summary="$(as_json_line "$TMP_DIR/sentry-pipeline.json")"
+      sentry_pipeline_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/sentry-pipeline.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_SENTRY_PIPELINE"; then
+        if [ "$sentry_pipeline_inner_ok" != "true" ]; then
+          sentry_pipeline_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/sentry-pipeline.json" ]; then
+        sentry_pipeline_summary="$(as_json_line "$TMP_DIR/sentry-pipeline.json")"
+      else
+        sentry_pipeline_err="$(tr -d '\n' <"$TMP_DIR/sentry-pipeline.err" | sed 's/"/\\"/g')"
+        sentry_pipeline_summary="{\"ok\":false,\"error\":\"$sentry_pipeline_err\"}"
+      fi
+      if is_true "$REQUIRE_SENTRY_PIPELINE"; then
+        sentry_pipeline_ok=0
+      fi
+    fi
+  else
+    sentry_pipeline_summary='{"ok":false,"error":"missing_sentry_pipeline"}'
+    if is_true "$REQUIRE_SENTRY_PIPELINE"; then
+      sentry_pipeline_ok=0
+    fi
   fi
 fi
 
@@ -551,6 +585,7 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$gateway_ok" -eq 1 ] \
   && [ "$runtime_bridge_ok" -eq 1 ] \
   && [ "$context_ok" -eq 1 ] \
+  && [ "$sentry_pipeline_ok" -eq 1 ] \
   && [ "$tool_health_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
@@ -593,6 +628,9 @@ else
   fi
   if [ "$context_ok" -ne 1 ]; then
     combined_error+="context_incomplete;"
+  fi
+  if [ "$sentry_pipeline_ok" -ne 1 ]; then
+    combined_error+="sentry_pipeline_failed;"
   fi
   if [ "$tool_health_ok" -ne 1 ]; then
     combined_error+="tool_health_failed;"
@@ -680,8 +718,8 @@ if [ "$status" = "ok" ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"
