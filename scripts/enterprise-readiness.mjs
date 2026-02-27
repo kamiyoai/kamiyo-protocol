@@ -205,6 +205,9 @@ function runCiChecks() {
     env: ciEnv,
   }) && ok;
   ok = runCommand('MCP tool parity gate', PNPM, ['run', 'check:mcp:parity'], { env: ciEnv }) && ok;
+  ok = runCommand('CDP build', PNPM, ['--filter', '@kamiyo/cdp', 'run', 'build'], { env: ciEnv }) && ok;
+  ok = runCommand('Paranet build', PNPM, ['--filter', '@kamiyo/agent-paranet', 'run', 'build'], { env: ciEnv }) && ok;
+  ok = runCommand('MCP build', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'build'], { env: ciEnv }) && ok;
   ok = runCommand('MCP tool functionality test', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:mcp'], {
     env: ciEnv,
   }) && ok;
