@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import {
-  meishiClient as client,
+  getMeishiClient,
   parsePubkey,
   parseNonNegativeInt,
   pk,
@@ -28,6 +28,7 @@ router.get('/agent/:agentIdentity/verify', asyncRoute(async (req: Request, res: 
     return;
   }
 
+  const client = await getMeishiClient();
   const [passportAddress] = client.getPassportPDA(agentIdentity);
   const result = await client.verifyPassport(agentIdentity);
   res.json({
@@ -44,6 +45,7 @@ router.get('/passport/:passportAddress', asyncRoute(async (req: Request, res: Re
     return;
   }
 
+  const client = await getMeishiClient();
   const passport = await client.fetchPassport(passportAddress);
   if (!passport) {
     res.status(404).json({ error: 'passport_not_found' });
@@ -71,6 +73,7 @@ router.get('/passport/:passportAddress/mandate/:version', asyncRoute(async (req:
     return;
   }
 
+  const client = await getMeishiClient();
   const mandate = await client.getMandate(passportAddress, version);
   if (!mandate) {
     res.status(404).json({ error: 'mandate_not_found' });
@@ -93,6 +96,7 @@ router.get('/passport/:passportAddress/audit/:nonce', asyncRoute(async (req: Req
     return;
   }
 
+  const client = await getMeishiClient();
   const audit = await client.getAudit(passportAddress, nonce);
   if (!audit) {
     res.status(404).json({ error: 'audit_not_found' });

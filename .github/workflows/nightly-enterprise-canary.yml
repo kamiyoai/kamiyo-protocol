@@ -43,8 +43,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Materialize SDK signer keypair
+        if: ${{ env.AGENT_PRIVATE_KEY != '' }}
+        run: |
+          keyfile="$(mktemp -t kamiyo-canary-agent-XXXXXX.json)"
+          printf '%s' "$AGENT_PRIVATE_KEY" > "$keyfile"
+          chmod 600 "$keyfile"
+          echo "AGENT_KEYPAIR_PATH=$keyfile" >> "$GITHUB_ENV"
+
       - name: Enterprise preflight
         run: pnpm run preflight:enterprise
 
       - name: Enterprise live smoke
         run: pnpm run smoke:enterprise
+
+      - name: Notify canary failure
+        if: ${{ failure() && secrets.KAMIYO_CANARY_ALERT_WEBHOOK != '' }}
+        env:
+          KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
+        run: |
+          payload="$(jq -nc \
+            --arg workflow "$GITHUB_WORKFLOW" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_number "$GITHUB_RUN_NUMBER" \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg sha "$GITHUB_SHA" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{text: ("Nightly enterprise canary failed (" + $workflow + " #" + $run_number + ") on " + $repo + " at " + $sha + ". Triggered by " + $actor + ". " + $url)}')"
+          curl -fsSL -X POST \
+            -H 'Content-Type: application/json' \
+            -d "$payload" \
+            "$KAMIYO_CANARY_ALERT_WEBHOOK"

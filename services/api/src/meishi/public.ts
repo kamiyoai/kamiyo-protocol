@@ -1,16 +1,51 @@
 import { Keypair, PublicKey } from '@solana/web3.js';
-import { MeishiClient } from '@kamiyo/meishi';
 import { getSolanaConnection } from '../solana';
 
 const MEISHI_PROGRAM_ID = process.env.MEISHI_PROGRAM_ID;
+const meishiConnection = getSolanaConnection();
 
-export const meishiConnection = getSolanaConnection();
-export const meishiClient = new MeishiClient({
-  connection: meishiConnection,
-  // Read-only usage for API/MCP. No private key is required.
-  keypair: Keypair.generate(),
-  programId: MEISHI_PROGRAM_ID,
-});
+type MeishiClientLike = {
+  getPassportPDA(agentIdentity: PublicKey): [PublicKey, number];
+  verifyPassport(agentIdentity: PublicKey): Promise<Record<string, unknown>>;
+  fetchPassport(passportAddress: PublicKey): Promise<any | null>;
+  getLatestMandate(passportAddress: PublicKey): Promise<any | null>;
+  getMandate(passportAddress: PublicKey, version: number): Promise<any | null>;
+  getAudit(passportAddress: PublicKey, nonce: number): Promise<any | null>;
+};
+type MeishiClientCtor = new (input: {
+  connection: ReturnType<typeof getSolanaConnection>;
+  keypair: Keypair;
+  programId?: string;
+}) => MeishiClientLike;
+
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+  specifier: string
+) => Promise<unknown>;
+
+let meishiClientPromise: Promise<MeishiClientLike> | null = null;
+
+async function loadMeishiClientCtor(): Promise<MeishiClientCtor> {
+  const mod = (await dynamicImport('@kamiyo/meishi')) as { MeishiClient?: MeishiClientCtor };
+  if (!mod.MeishiClient) {
+    throw new Error('MeishiClient export is missing from @kamiyo/meishi');
+  }
+  return mod.MeishiClient;
+}
+
+export async function getMeishiClient(): Promise<MeishiClientLike> {
+  if (!meishiClientPromise) {
+    meishiClientPromise = (async () => {
+      const MeishiClient = await loadMeishiClientCtor();
+      return new MeishiClient({
+        connection: meishiConnection,
+        keypair: Keypair.generate(),
+        programId: MEISHI_PROGRAM_ID,
+      });
+    })();
+  }
+
+  return meishiClientPromise;
+}
 
 export function parsePubkey(value: string): PublicKey | null {
   try {
@@ -37,7 +72,11 @@ function bn(value: unknown): string {
   return typeof (value as any)?.toString === 'function' ? (value as any).toString(10) : String(value);
 }
 
-export function serializePassport(passport: Awaited<ReturnType<MeishiClient['fetchPassport']>>) {
+type MeishiPassport = Awaited<ReturnType<MeishiClientLike['fetchPassport']>>;
+type MeishiMandate = Awaited<ReturnType<MeishiClientLike['getMandate']>>;
+type MeishiAudit = Awaited<ReturnType<MeishiClientLike['getAudit']>>;
+
+export function serializePassport(passport: MeishiPassport) {
   if (!passport) return null;
   return {
     agentIdentity: pk(passport.agentIdentity),
@@ -64,7 +103,7 @@ export function serializePassport(passport: Awaited<ReturnType<MeishiClient['fet
   };
 }
 
-export function serializeMandate(mandate: Awaited<ReturnType<MeishiClient['getMandate']>>) {
+export function serializeMandate(mandate: MeishiMandate) {
   if (!mandate) return null;
   return {
     meishi: pk(mandate.meishi),
@@ -85,7 +124,7 @@ export function serializeMandate(mandate: Awaited<ReturnType<MeishiClient['getMa
   };
 }
 
-export function serializeAudit(audit: Awaited<ReturnType<MeishiClient['getAudit']>>) {
+export function serializeAudit(audit: MeishiAudit) {
   if (!audit) return null;
   return {
     meishi: pk(audit.meishi),

@@ -18,6 +18,8 @@ if (mode !== 'ci' && mode !== 'live') {
 
 const isLive = mode === 'live';
 const PNPM = 'pnpm';
+const FAILURE_LINE_IGNORES = [/^npm warn /i, /^bigint: Failed to load bindings/i, /^node:internal\//i];
+const OPERATOR_SERVICE_ROOT = path.join(repoRoot, 'services', 'kamiyo-operator');
 
 /** @typedef {'pass' | 'fail' | 'skip'} StepStatus */
 /** @typedef {{ name: string; status: StepStatus; detail: string }} StepResult */
@@ -29,6 +31,29 @@ function record(name, status, detail) {
   results.push({ name, status, detail });
   const symbol = status === 'pass' ? 'PASS' : status === 'skip' ? 'SKIP' : 'FAIL';
   console.log(`[${symbol}] ${name}${detail ? ` - ${detail}` : ''}`);
+}
+
+function summarizeFailureOutput(stdout, stderr, fallback) {
+  const stdoutLines = (stdout ?? '').split('\n').map((line) => line.trim());
+  const stderrLines = (stderr ?? '').split('\n').map((line) => line.trim());
+  const allLines = [...stderrLines, ...stdoutLines]
+    .filter(Boolean)
+    .filter((line) => FAILURE_LINE_IGNORES.every((pattern) => !pattern.test(line)));
+
+  const priorityLine =
+    allLines.find((line) => /(failed|error|missing|not ready|ERR_|ELIFECYCLE)/i.test(line)) ??
+    allLines[0] ??
+    fallback;
+
+  let detail = priorityLine;
+  if (/Missing values:$/i.test(priorityLine)) {
+    const missingItems = allLines.filter((line) => line.startsWith('- ')).slice(0, 4);
+    if (missingItems.length > 0) {
+      detail = `${priorityLine} ${missingItems.join(' ')}`;
+    }
+  }
+
+  return detail.slice(0, 220);
 }
 
 function runCommand(name, cmd, args, options = {}) {
@@ -45,28 +70,12 @@ function runCommand(name, cmd, args, options = {}) {
     return true;
   }
 
-  const stdoutLines = (child.stdout ?? '').split('\n').map((line) => line.trim());
-  const stderrLines = (child.stderr ?? '').split('\n').map((line) => line.trim());
-  const allLines = [...stderrLines, ...stdoutLines]
-    .filter(Boolean)
-    .filter((line) => !/^npm warn /i.test(line))
-    .filter((line) => !/^bigint: Failed to load bindings/i.test(line))
-    .filter((line) => !/^node:internal\//i.test(line));
-
-  const priorityLine =
-    allLines.find((line) => /(failed|error|missing|not ready|ERR_|ELIFECYCLE)/i.test(line)) ??
-    allLines[0] ??
-    `${cmd} exited with code ${child.status}`;
-
-  let detail = priorityLine;
-  if (/Missing values:$/i.test(priorityLine)) {
-    const missingItems = allLines.filter((line) => line.startsWith('- ')).slice(0, 4);
-    if (missingItems.length > 0) {
-      detail = `${priorityLine} ${missingItems.join(' ')}`;
-    }
-  }
-
-  record(name, 'fail', detail.slice(0, 220));
+  const detail = summarizeFailureOutput(
+    child.stdout,
+    child.stderr,
+    `${cmd} exited with code ${child.status}`
+  );
+  record(name, 'fail', detail);
   return false;
 }
 
@@ -117,24 +126,99 @@ function hasAgentKeyConfigured() {
   };
 }
 
+function createCiCommandEnv() {
+  const env = { ...process.env };
+  const noisyKeys = [
+    'AGENT_PRIVATE_KEY',
+    'AGENT_KEYPAIR_PATH',
+    'KAMIYO_OPERATOR_PRIVATE_KEY',
+    'KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY',
+    'KAMIYO_DKG_PRIVATE_KEY',
+    'DKG_PRIVATE_KEY',
+    'PARANET_PRIVATE_KEY',
+    'MCP_AGENT_KEYPAIR',
+  ];
+  for (const key of noisyKeys) {
+    delete env[key];
+  }
+  return env;
+}
+
+function ensureNativeSqliteBinding() {
+  const loadProbe = spawnSync('node', ['-e', 'require("better-sqlite3")'], {
+    cwd: OPERATOR_SERVICE_ROOT,
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+
+  if (loadProbe.status === 0) {
+    record('Native sqlite binding', 'pass', 'ok');
+    return true;
+  }
+
+  const rebuild = spawnSync(PNPM, ['rebuild', 'better-sqlite3'], {
+    cwd: repoRoot,
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (rebuild.status !== 0) {
+    record(
+      'Native sqlite binding',
+      'fail',
+      summarizeFailureOutput(rebuild.stdout, rebuild.stderr, 'pnpm rebuild better-sqlite3 failed')
+    );
+    return false;
+  }
+
+  const verify = spawnSync('node', ['-e', 'require("better-sqlite3")'], {
+    cwd: OPERATOR_SERVICE_ROOT,
+    env: process.env,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (verify.status === 0) {
+    record('Native sqlite binding', 'pass', 'rebuilt');
+    return true;
+  }
+
+  record(
+    'Native sqlite binding',
+    'fail',
+    summarizeFailureOutput(verify.stdout, verify.stderr, 'better-sqlite3 is unavailable after rebuild')
+  );
+  return false;
+}
+
 function runCiChecks() {
   let ok = true;
+  const ciEnv = createCiCommandEnv();
   ok = checkNodeVersion() && ok;
   ok = checkPnpmInstalled() && ok;
-  ok = runCommand('Docs command drift check', PNPM, ['run', 'check:docs']) && ok;
-  ok = runCommand('Service onboarding check', PNPM, ['run', 'check:onboarding']) && ok;
-  ok = runCommand('API env contract check', PNPM, ['--filter', 'kamiyo-companion', 'run', 'preflight:contract']) && ok;
-  ok = runCommand('Operator env contract check', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'preflight:contract']) && ok;
-  ok = runCommand('MCP tool parity gate', PNPM, ['run', 'check:mcp:parity']) && ok;
-  ok = runCommand('MCP tool functionality test', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:mcp']) && ok;
+  ok = runCommand('Docs command drift check', PNPM, ['run', 'check:docs'], { env: ciEnv }) && ok;
+  ok = runCommand('Service onboarding check', PNPM, ['run', 'check:onboarding'], { env: ciEnv }) && ok;
+  ok = runCommand('API env contract check', PNPM, ['--filter', 'kamiyo-companion', 'run', 'preflight:contract'], {
+    env: ciEnv,
+  }) && ok;
+  ok = runCommand('Operator env contract check', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'preflight:contract'], {
+    env: ciEnv,
+  }) && ok;
+  ok = runCommand('MCP tool parity gate', PNPM, ['run', 'check:mcp:parity'], { env: ciEnv }) && ok;
+  ok = runCommand('MCP tool functionality test', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:mcp'], {
+    env: ciEnv,
+  }) && ok;
   return ok;
 }
 
 function runLiveChecks() {
   let ok = true;
+  ok = runCommand('Hive build', PNPM, ['--filter', '@kamiyo/hive', 'run', 'build']) && ok;
+  ok = runCommand('Agent core build', PNPM, ['--filter', '@kamiyo/agent-core', 'run', 'build']) && ok;
   ok = runCommand('API build', PNPM, ['--filter', 'kamiyo-companion', 'run', 'build']) && ok;
   ok = runCommand('Operator build', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'build']) && ok;
   ok = runCommand('MCP build', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'build']) && ok;
+  ok = ensureNativeSqliteBinding() && ok;
 
   const apiEnvReady = runCommand('API runtime env preflight', PNPM, ['--filter', 'kamiyo-companion', 'run', 'preflight:env']);
   ok = apiEnvReady && ok;
@@ -161,7 +245,11 @@ function runLiveChecks() {
     return ok;
   }
 
-  ok = runCommand('SDK devnet smoke', PNPM, ['--filter', '@kamiyo/sdk', 'run', 'smoke:devnet']) && ok;
+  const sdkEnv = {
+    ...process.env,
+    SOLANA_RPC_URL: process.env.KAMIYO_SDK_SMOKE_RPC_URL?.trim() || 'https://api.devnet.solana.com',
+  };
+  ok = runCommand('SDK devnet smoke', PNPM, ['--filter', '@kamiyo/sdk', 'run', 'smoke:devnet'], { env: sdkEnv }) && ok;
   return ok;
 }
 

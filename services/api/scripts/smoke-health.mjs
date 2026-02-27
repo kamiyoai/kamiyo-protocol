@@ -48,11 +48,21 @@ function sleep(ms) {
 }
 
 function firstUsefulLine(text) {
-  return text
+  const lines = text
     .split('\n')
     .map((line) => line.trim())
-    .filter(Boolean)
-    .find((line) => !/^npm warn /i.test(line)) || 'service exited without output';
+    .filter(Boolean);
+
+  const visible = lines.filter(
+    (line) =>
+      !/^npm warn /i.test(line) &&
+      !/^bigint: Failed to load bindings/i.test(line)
+  );
+  return (
+    visible.find((line) => /(error|failed|exception|ERR_)/i.test(line)) ??
+    visible[0] ??
+    'service exited without output'
+  );
 }
 
 async function waitForHealth(url, deadlineMs) {

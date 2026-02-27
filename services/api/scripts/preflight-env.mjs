@@ -16,6 +16,8 @@ if (mode !== 'contract' && mode !== 'runtime') {
 
 const REQUIRED_KEYS = ['SOLANA_RPC_URL', 'JWT_SECRET', 'API_SECRET'];
 const PORT_GROUP = ['PORT', 'API_PORT'];
+const JWT_SECRET_MIN_LENGTH = 32;
+const API_SECRET_MIN_LENGTH = 24;
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -42,6 +44,19 @@ function fail(lines) {
     console.error(line);
   }
   process.exit(1);
+}
+
+function isPlaceholderSecret(value) {
+  const lower = value.trim().toLowerCase();
+  return [
+    'changeme',
+    'replace-me',
+    'replace_me',
+    'example',
+    'your-jwt-secret',
+    'your-api-secret',
+    'test-secret',
+  ].some((pattern) => lower.includes(pattern));
 }
 
 if (mode === 'contract') {
@@ -113,6 +128,30 @@ try {
   }
 } catch {
   fail([`API runtime env preflight failed. Invalid SOLANA_RPC_URL: ${runtimeEnv.SOLANA_RPC_URL}`]);
+}
+
+const jwtSecret = runtimeEnv.JWT_SECRET.trim();
+if (jwtSecret.length < JWT_SECRET_MIN_LENGTH) {
+  fail([
+    `API runtime env preflight failed. JWT_SECRET must be at least ${JWT_SECRET_MIN_LENGTH} characters.`,
+  ]);
+}
+if (isPlaceholderSecret(jwtSecret)) {
+  fail(['API runtime env preflight failed. JWT_SECRET appears to be a placeholder value.']);
+}
+
+const apiSecret = runtimeEnv.API_SECRET.trim();
+if (apiSecret.length < API_SECRET_MIN_LENGTH) {
+  fail([
+    `API runtime env preflight failed. API_SECRET must be at least ${API_SECRET_MIN_LENGTH} characters.`,
+  ]);
+}
+if (isPlaceholderSecret(apiSecret)) {
+  fail(['API runtime env preflight failed. API_SECRET appears to be a placeholder value.']);
+}
+
+if (apiSecret === jwtSecret) {
+  fail(['API runtime env preflight failed. API_SECRET must not match JWT_SECRET.']);
 }
 
 console.log('API runtime env preflight passed.');

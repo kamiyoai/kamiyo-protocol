@@ -5,18 +5,59 @@
  * Agents prove tier qualification without revealing actual score.
  */
 
-import {
-  DarkForestProver,
-  getTierThreshold,
-  getQualifyingTier,
-  qualifiesForTier,
-  type GeneratedProof,
-  type Commitment,
-  type TierLevel,
-  type TierName,
-  TIER_NAMES,
-  TIER_THRESHOLDS,
-} from '@kamiyo/hive';
+import type { GeneratedProof, TierLevel, TierName } from '@kamiyo/hive';
+
+const TIER_THRESHOLDS = [0, 25, 50, 75, 90] as const;
+const TIER_NAMES = ['Default', 'Bronze', 'Silver', 'Gold', 'Platinum'] as const;
+
+type GeneratedCommitment = { value: bigint; secret: bigint };
+type ProofVerificationResult = { valid: boolean; error?: string };
+type DarkForestProverInstance = {
+  init(): Promise<void>;
+  generateCommitment(score: number): Promise<GeneratedCommitment>;
+  generateProof(input: { score: number; secret: bigint; threshold: number }): Promise<GeneratedProof>;
+  verifyProof(proof: GeneratedProof): Promise<ProofVerificationResult>;
+};
+type DarkForestProverCtor = {
+  new (): DarkForestProverInstance;
+  isAvailable(): boolean;
+};
+
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (
+  specifier: string
+) => Promise<unknown>;
+
+let darkForestProverCtorPromise: Promise<DarkForestProverCtor> | null = null;
+
+async function loadDarkForestProverCtor(): Promise<DarkForestProverCtor> {
+  if (!darkForestProverCtorPromise) {
+    darkForestProverCtorPromise = (async () => {
+      const mod = (await dynamicImport('@kamiyo/hive')) as { DarkForestProver?: DarkForestProverCtor };
+      if (!mod.DarkForestProver) {
+        throw new Error('DarkForestProver export is missing from @kamiyo/hive');
+      }
+      return mod.DarkForestProver;
+    })();
+  }
+
+  return darkForestProverCtorPromise;
+}
+
+function getTierThreshold(tier: TierLevel): number {
+  return TIER_THRESHOLDS[tier];
+}
+
+function getQualifyingTier(score: number): TierLevel {
+  if (score >= TIER_THRESHOLDS[4]) return 4;
+  if (score >= TIER_THRESHOLDS[3]) return 3;
+  if (score >= TIER_THRESHOLDS[2]) return 2;
+  if (score >= TIER_THRESHOLDS[1]) return 1;
+  return 0;
+}
+
+function qualifiesForTier(score: number, tier: TierLevel): boolean {
+  return score >= getTierThreshold(tier);
+}
 
 export interface ReputationMemory {
   commitment: string | null;
@@ -136,7 +177,7 @@ const DEFAULT_PROOF_CACHE_TTL = 3600000; // 1 hour
 const MAX_CACHED_PROOFS = 10;
 
 export class ReputationManager {
-  private prover: DarkForestProver | null = null;
+  private prover: DarkForestProverInstance | null = null;
   private memory: ReputationMemory;
   private secret: bigint | null = null;
   private proofCache = new Map<number, CachedProof>();
@@ -162,8 +203,9 @@ export class ReputationManager {
     this.secret = null;
   }
 
-  private async ensureProver(): Promise<DarkForestProver> {
+  private async ensureProver(): Promise<DarkForestProverInstance> {
     if (!this.prover) {
+      const DarkForestProver = await loadDarkForestProverCtor();
       if (!DarkForestProver.isAvailable()) {
         throw new Error('DarkForest circuit artifacts not available');
       }

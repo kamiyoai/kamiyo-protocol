@@ -14,7 +14,7 @@ import {
   getApiReputation,
 } from './solana';
 import {
-  meishiClient,
+  getMeishiClient,
   parsePubkey,
   pk,
   serializePassport,
@@ -578,6 +578,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const agentIdentity = parsePubkey(args.agentIdentity as string);
     if (!agentIdentity) return { success: false, error: 'invalid_agent_identity' };
 
+    const meishiClient = await getMeishiClient();
     const [passportAddress] = meishiClient.getPassportPDA(agentIdentity);
     const result = await meishiClient.verifyPassport(agentIdentity);
     return {
@@ -595,6 +596,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const passportAddress = parsePubkey(args.passportAddress as string);
     if (!passportAddress) return { success: false, error: 'invalid_passport_address' };
 
+    const meishiClient = await getMeishiClient();
     const passport = await meishiClient.fetchPassport(passportAddress);
     if (!passport) return { success: false, error: 'passport_not_found' };
 
@@ -617,6 +619,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const version = parseNonNegativeNumber(args.version);
     if (version === null) return { success: false, error: 'invalid_version' };
 
+    const meishiClient = await getMeishiClient();
     const mandate = await meishiClient.getMandate(passportAddress, version);
     if (!mandate) return { success: false, error: 'mandate_not_found' };
 
@@ -636,6 +639,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const nonce = parseNonNegativeNumber(args.nonce);
     if (nonce === null) return { success: false, error: 'invalid_nonce' };
 
+    const meishiClient = await getMeishiClient();
     const audit = await meishiClient.getAudit(passportAddress, nonce);
     if (!audit) return { success: false, error: 'audit_not_found' };
 

@@ -9,11 +9,38 @@ const { KamiyoClient, AgentType } = require('../dist');
 
 const DEFAULT_RPC = 'https://api.devnet.solana.com';
 const DEFAULT_PROGRAM_ID = '3ZYPtFBF8rfRYvLi5QUnU4teHPzFEpHuz6dUZry9FRKr';
+const DEFAULT_MINIMUM_PAYER_SOL = 0.25;
+const DEFAULT_RETRY_ATTEMPTS = 6;
+const DEFAULT_RETRY_DELAY_MS = 400;
+
+function loadKeypairFromRaw(raw) {
+  const value = raw.trim();
+
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return Keypair.fromSecretKey(Uint8Array.from(parsed));
+    }
+  } catch {
+    // continue
+  }
+
+  try {
+    const bytes = Buffer.from(value, 'base64');
+    if (bytes.length >= 64) {
+      return Keypair.fromSecretKey(Uint8Array.from(bytes.slice(0, 64)));
+    }
+  } catch {
+    // continue
+  }
+
+  throw new Error('AGENT_PRIVATE_KEY must be a JSON array or base64-encoded secret key');
+}
 
 function loadKeypair(filePath) {
   const resolved = path.resolve(filePath);
-  const secret = JSON.parse(fs.readFileSync(resolved, 'utf8'));
-  return Keypair.fromSecretKey(Uint8Array.from(secret));
+  const secret = fs.readFileSync(resolved, 'utf8');
+  return loadKeypairFromRaw(secret);
 }
 
 function createWallet(keypair) {
@@ -45,15 +72,41 @@ function nextId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function isRateLimitError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\b429\b|too many requests|rate limit/i.test(message);
+}
+
+async function withRetry(operation, label, attempts = DEFAULT_RETRY_ATTEMPTS, delayMs = DEFAULT_RETRY_DELAY_MS) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isRateLimitError(error) || attempt === attempts) break;
+      const backoff = delayMs * attempt;
+      await new Promise((resolve) => setTimeout(resolve, backoff));
+    }
+  }
+
+  const message = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`${label} failed after ${attempts} attempts: ${message}`);
+}
+
 async function confirm(connection, signature) {
-  const latest = await connection.getLatestBlockhash('confirmed');
-  await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    'confirmed'
+  const latest = await withRetry(() => connection.getLatestBlockhash('confirmed'), 'getLatestBlockhash');
+  await withRetry(
+    () =>
+      connection.confirmTransaction(
+        {
+          signature,
+          blockhash: latest.blockhash,
+          lastValidBlockHeight: latest.lastValidBlockHeight,
+        },
+        'confirmed'
+      ),
+    'confirmTransaction'
   );
 }
 
@@ -67,10 +120,10 @@ async function fundWorker(connection, payer, worker, lamports) {
   );
 
   tx.feePayer = payer.publicKey;
-  tx.recentBlockhash = (await connection.getLatestBlockhash('confirmed')).blockhash;
+  tx.recentBlockhash = (await withRetry(() => connection.getLatestBlockhash('confirmed'), 'getLatestBlockhash')).blockhash;
   tx.sign(payer);
 
-  const signature = await connection.sendRawTransaction(tx.serialize());
+  const signature = await withRetry(() => connection.sendRawTransaction(tx.serialize()), 'sendRawTransaction');
   await confirm(connection, signature);
   return signature;
 }
@@ -79,17 +132,41 @@ async function main() {
   const rpcUrl = process.env.SOLANA_RPC_URL || DEFAULT_RPC;
   const programId = new PublicKey(process.env.KAMIYO_PROGRAM_ID || DEFAULT_PROGRAM_ID);
   const payerPath = process.env.AGENT_KEYPAIR_PATH || path.join(os.homedir(), '.config/solana/id.json');
+  const inlinePrivateKey = process.env.AGENT_PRIVATE_KEY?.trim() || null;
+  const minimumPayerSolRaw = process.env.KAMIYO_SDK_SMOKE_MIN_PAYER_SOL || `${DEFAULT_MINIMUM_PAYER_SOL}`;
+  const minimumPayerSol = Number.parseFloat(minimumPayerSolRaw);
+  const retryAttempts = Number.parseInt(process.env.KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS || `${DEFAULT_RETRY_ATTEMPTS}`, 10);
+  const retryDelayMs = Number.parseInt(process.env.KAMIYO_SDK_SMOKE_RETRY_DELAY_MS || `${DEFAULT_RETRY_DELAY_MS}`, 10);
 
-  if (!fs.existsSync(payerPath)) {
-    throw new Error(`Missing keypair at ${payerPath}. Set AGENT_KEYPAIR_PATH to a funded devnet keypair.`);
+  if (!Number.isFinite(minimumPayerSol) || minimumPayerSol <= 0) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_MIN_PAYER_SOL value: ${minimumPayerSolRaw}`);
+  }
+  if (!Number.isInteger(retryAttempts) || retryAttempts < 1) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS value: ${process.env.KAMIYO_SDK_SMOKE_RETRY_ATTEMPTS}`);
+  }
+  if (!Number.isInteger(retryDelayMs) || retryDelayMs < 50) {
+    throw new Error(`Invalid KAMIYO_SDK_SMOKE_RETRY_DELAY_MS value: ${process.env.KAMIYO_SDK_SMOKE_RETRY_DELAY_MS}`);
   }
 
   const connection = new Connection(rpcUrl, 'confirmed');
-  const payer = loadKeypair(payerPath);
-  const payerBalance = await connection.getBalance(payer.publicKey, 'confirmed');
+  const call = (fn, label) => withRetry(fn, label, retryAttempts, retryDelayMs);
+  const payer = inlinePrivateKey
+    ? loadKeypairFromRaw(inlinePrivateKey)
+    : (() => {
+        if (!fs.existsSync(payerPath)) {
+          throw new Error(
+            `Missing keypair at ${payerPath}. Set AGENT_KEYPAIR_PATH or AGENT_PRIVATE_KEY to a funded devnet keypair.`
+          );
+        }
+        return loadKeypair(payerPath);
+      })();
+  const payerBalance = await call(() => connection.getBalance(payer.publicKey, 'confirmed'), 'getBalance');
+  const minimumLamports = Math.ceil(minimumPayerSol * LAMPORTS_PER_SOL);
 
-  if (payerBalance < 0.3 * LAMPORTS_PER_SOL) {
-    throw new Error(`Payer balance too low: ${payerBalance / LAMPORTS_PER_SOL} SOL (min 0.3 SOL).`);
+  if (payerBalance < minimumLamports) {
+    throw new Error(
+      `Payer balance too low: ${payerBalance / LAMPORTS_PER_SOL} SOL (min ${minimumPayerSol} SOL).`
+    );
   }
 
   const worker = Keypair.generate();
@@ -98,41 +175,50 @@ async function main() {
   const client = new KamiyoClient({ connection, wallet: workerWallet, programId });
 
   const agentName = nextId('smoke').slice(0, 28);
-  const createAgentSig = await client.createAgent({
-    name: agentName,
-    agentType: AgentType.Service,
-    stakeAmount: new BN(100_000_000),
-  });
-  const initReputationSig = await client.initReputation(worker.publicKey);
+  const createAgentSig = await call(
+    () =>
+      client.createAgent({
+        name: agentName,
+        agentType: AgentType.Service,
+        stakeAmount: new BN(100_000_000),
+      }),
+    'createAgent'
+  );
+  const initReputationSig = await call(() => client.initReputation(worker.publicKey), 'initReputation');
 
   const [agentPda] = client.getAgentPDA(worker.publicKey);
-  const agent = await client.getAgent(agentPda);
+  const agent = await call(() => client.getAgent(agentPda), 'getAgent');
   if (!agent) {
     throw new Error('Agent was not readable after createAgent.');
   }
 
   const provider = Keypair.generate().publicKey;
   const transactionId = nextId('esc').slice(0, 30);
-  const createAgreementSig = await client.createAgreement({
-    provider,
-    amount: new BN(10_000_000),
-    timeLockSeconds: new BN(3600),
-    transactionId,
-  });
+  const createAgreementSig = await call(
+    () =>
+      client.createAgreement({
+        provider,
+        amount: new BN(10_000_000),
+        timeLockSeconds: new BN(3600),
+        transactionId,
+      }),
+    'createAgreement'
+  );
 
   const [agreementPda] = client.getAgreementPDA(worker.publicKey, transactionId);
-  const agreement = await client.getAgreement(agreementPda);
+  const agreement = await call(() => client.getAgreement(agreementPda), 'getAgreement');
   if (!agreement) {
     throw new Error('Agreement was not readable after createAgreement.');
   }
 
-  const markDisputedSig = await client.markDisputed(transactionId);
-  const disputed = await client.getAgreement(agreementPda);
+  const markDisputedSig = await call(() => client.markDisputed(transactionId), 'markDisputed');
+  const disputed = await call(() => client.getAgreement(agreementPda), 'getAgreement(disputed)');
 
   const output = {
     ok: true,
     rpcUrl,
     programId: programId.toBase58(),
+    signerSource: inlinePrivateKey ? 'AGENT_PRIVATE_KEY' : 'AGENT_KEYPAIR_PATH',
     payer: payer.publicKey.toBase58(),
     worker: worker.publicKey.toBase58(),
     fundingSignature: workerFundingSig,
