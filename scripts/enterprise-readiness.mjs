@@ -216,9 +216,7 @@ function runCiChecks() {
 
 function runLiveChecks() {
   let ok = true;
-  ok = runCommand('Hive build', PNPM, ['--filter', '@kamiyo/hive', 'run', 'build']) && ok;
-  ok = runCommand('Agent core build', PNPM, ['--filter', '@kamiyo/agent-core', 'run', 'build']) && ok;
-  ok = runCommand('API build', PNPM, ['--filter', 'kamiyo-companion', 'run', 'build']) && ok;
+  ok = runCommand('API dependency build', PNPM, ['run', 'build:api']) && ok;
   ok = runCommand('Operator build', PNPM, ['--filter', '@kamiyo/kamiyo-operator', 'run', 'build']) && ok;
   ok = runCommand('MCP build', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'build']) && ok;
   ok = ensureNativeSqliteBinding() && ok;
