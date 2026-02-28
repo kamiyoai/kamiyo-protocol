@@ -74,10 +74,66 @@ export interface PoCHContributionInput {
   };
 }
 
+export interface PoCHXContributionInput {
+  identityDid: string;
+  chain: PoCHChain;
+  xPostId: string;
+  threadText: string;
+  xHandle?: string;
+  policyId?: string;
+  contributionType?: PoCHContributionInput["contributionType"];
+  autoRequestChallenge?: boolean;
+  provenanceRefs?: string[];
+  contextMetadata?: Record<string, unknown>;
+  daysBack?: number;
+}
+
 export interface PoCHPublished {
   success: boolean;
   assetDid: string;
   ual?: string;
+}
+
+export interface PoCHXContributionPublished extends PoCHPublished {
+  source: "x";
+  chain: PoCHChain;
+  contentHash: string;
+  challenge?: PoCHChallenge;
+}
+
+export type PoCHXReferralStatus = "created" | "claimed" | "awarded" | "rejected";
+
+export interface PoCHXReferralCreateInput {
+  inviterIdentityDid: string;
+  chain: PoCHChain;
+  xPostId?: string;
+}
+
+export interface PoCHXReferralCreateResponse {
+  inviteCode: string;
+  status: PoCHXReferralStatus;
+  inviterIdentityDid: string;
+  chain: PoCHChain;
+  shareUrl: string;
+}
+
+export interface PoCHXReferralClaimInput {
+  inviteCode: string;
+  inviteeIdentityDid: string;
+  chain: PoCHChain;
+  xPostId?: string;
+}
+
+export interface PoCHXReferralClaimResponse {
+  inviteCode: string;
+  status: PoCHXReferralStatus;
+  inviterIdentityDid: string;
+  inviteeIdentityDid?: string;
+  inviterChain: PoCHChain;
+  inviteeChain?: PoCHChain;
+  rewardUnits: number;
+  rewardMultiplier: number;
+  pendingReason?: "inviter_not_verified" | "invitee_not_verified";
 }
 
 export interface PoCHChallengeRequest {

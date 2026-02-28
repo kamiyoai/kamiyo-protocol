@@ -94,6 +94,88 @@ describe("KamiyoClient PoCH API", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3001/api/poch/disputes/7/resolve");
   });
 
+  test("submits x contribution and referral lifecycle requests", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          source: "x",
+          assetDid: "urn:kamiyo:poch:x:asset",
+          chain: "solana",
+          contentHash: "0xabc",
+          challenge: {
+            challengeId: "poch_x_challenge_1",
+            assetDid: "urn:kamiyo:poch:x:asset",
+            identityDid: "did:pkh:solana:mainnet:abc",
+            chain: "solana",
+            policyId: "v1",
+            scoreBundle: {
+              policyId: "v1",
+              uniquenessScore: 87,
+              graphDivergence: 74,
+              clusterOverlapRisk: 22,
+              nonMembershipSignal: true,
+              evaluatedAt: "2026-03-01T00:00:00.000Z",
+            },
+            scoreBundleCommitment: "0xscorebundle",
+            createdAt: "2026-03-01T00:00:00.000Z",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          inviteCode: "kx123abc999",
+          status: "created",
+          inviterIdentityDid: "did:pkh:solana:mainnet:abc",
+          chain: "solana",
+          shareUrl: "https://x.com/intent/post?text=test",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          inviteCode: "kx123abc999",
+          status: "awarded",
+          inviterIdentityDid: "did:pkh:solana:mainnet:abc",
+          inviteeIdentityDid: "did:pkh:solana:mainnet:def",
+          inviterChain: "solana",
+          inviteeChain: "base",
+          rewardUnits: 125,
+          rewardMultiplier: 1.25,
+        }),
+      });
+
+    const contribution = await client.submitPoCHXContribution({
+      identityDid: "did:pkh:solana:mainnet:abc",
+      chain: "solana",
+      xPostId: "1899981122334455667",
+      threadText: "This is a substantial X thread contribution for PoCH validation.",
+      xHandle: "kamiyoai",
+    });
+    expect(contribution.source).toBe("x");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:3001/api/poch/x/contributions");
+
+    const createdInvite = await client.createPoCHXReferralInvite({
+      inviterIdentityDid: "did:pkh:solana:mainnet:abc",
+      chain: "solana",
+      xPostId: "1899981122334455667",
+    });
+    expect(createdInvite.status).toBe("created");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3001/api/poch/x/referrals/create");
+
+    const claimedInvite = await client.claimPoCHXReferralInvite({
+      inviteCode: "kx123abc999",
+      inviteeIdentityDid: "did:pkh:solana:mainnet:def",
+      chain: "base",
+      xPostId: "1899989988776655443",
+    });
+    expect(claimedInvite.status).toBe("awarded");
+    expect(claimedInvite.rewardMultiplier).toBe(1.25);
+    expect(fetchMock.mock.calls[2][0]).toBe("http://localhost:3001/api/poch/x/referrals/claim");
+  });
+
   test("handles rollout status and admin rollout controls", async () => {
     client = new KamiyoClient({
       connection: conn,
