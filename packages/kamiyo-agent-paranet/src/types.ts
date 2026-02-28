@@ -122,6 +122,107 @@ export interface TrustRelationship {
   reason?: string;
 }
 
+export const POCH_CONTRIBUTION_TYPES = [
+  'knowledge_artifact',
+  'creative_work',
+  'attested_action',
+  'research_note',
+  'custom',
+] as const;
+
+export type PoCHContributionType = (typeof POCH_CONTRIBUTION_TYPES)[number];
+export type PoCHChain = 'solana' | 'base';
+export type PoCHEnforcementMode = 'observe' | 'soft' | 'gate_high_impact';
+export type PoCHSlashingMode = 'none' | 'progressive' | 'hard';
+
+export interface PoCHChainAnchors {
+  solanaTxId?: string;
+  baseTxHash?: string;
+}
+
+export interface PoCHContribution {
+  assetDid?: string;
+  identityDid: string;
+  contentHash: string;
+  createdAt: string;
+  contributionType: PoCHContributionType;
+  provenanceRefs?: string[];
+  contextMetadata?: Record<string, unknown>;
+  scoreBundleCommitment?: string;
+  oracleRoundId?: string;
+  proofStatementId?: string;
+  chainAnchors?: PoCHChainAnchors;
+}
+
+export interface PoCHScoreBundle {
+  policyId: string;
+  uniquenessScore: number;
+  graphDivergence: number;
+  clusterOverlapRisk: number;
+  nonMembershipSignal: boolean;
+  evaluatedAt: string;
+}
+
+export interface PoCHChallengeRequest {
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  policyId: string;
+}
+
+export interface PoCHChallenge {
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  policyId: string;
+  scoreBundle: PoCHScoreBundle;
+  scoreBundleCommitment: string;
+  createdAt: string;
+}
+
+export interface PoCHProofSubmission {
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  zkProof: string;
+  identityNullifier: string;
+}
+
+export interface PoCHSubmissionReceipt {
+  accepted: boolean;
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  verifiedAt: string;
+  proofStatementId: string;
+}
+
+export interface PoCHStatus {
+  identityDid: string;
+  chain: PoCHChain;
+  status: 'pending' | 'verified' | 'rejected' | 'disputed';
+  scoreBundleCommitment?: string;
+  oracleRoundId?: string;
+  proofStatementId?: string;
+  updatedAt: string;
+}
+
+export interface PoCHActionCheck {
+  identityDid: string;
+  chain: PoCHChain;
+  action: 'stake_amplification' | 'premium_attestation' | 'high_trust_agent_action';
+}
+
+export interface PoCHGateDecision {
+  allowed: boolean;
+  mode: PoCHEnforcementMode;
+  reason?: string;
+  status?: PoCHStatus;
+}
+
 // Credit score components
 export interface CreditScoreComponents {
   taskQuality: number;
@@ -241,4 +342,18 @@ export function buildAttestationURN(agentId: string, capability: string, attesto
 export function buildTrustURN(trustorId: string, trusteeId: string): string {
   if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId)) throw new Error('Invalid global ID');
   return `urn:kamiyo:trust:${trustorId}:${trusteeId}`;
+}
+
+export function buildPoCHURN(identityDid: string, contentHash: string, createdAt: string): string {
+  if (typeof identityDid !== 'string' || identityDid.length === 0) throw new Error('Invalid identity DID');
+  if (typeof contentHash !== 'string' || contentHash.length < 8 || contentHash.length > 128) {
+    throw new Error('Invalid content hash');
+  }
+  if (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt))) {
+    throw new Error('Invalid createdAt');
+  }
+  const safeDid = identityDid.replace(/[^a-zA-Z0-9:_-]/g, '_');
+  const safeHash = contentHash.replace(/[^a-zA-Z0-9]/g, '').slice(0, 32);
+  const ts = Date.parse(createdAt);
+  return `urn:kamiyo:poch:${safeDid}:${safeHash}:${ts}`;
 }

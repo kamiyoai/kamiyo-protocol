@@ -24,6 +24,13 @@ export const DISCRIMINATORS = {
   // Blacklist instructions
   addToBlacklist: Buffer.from([90, 115, 98, 231, 173, 119, 117, 176]),
 
+  // PoCH instructions
+  initPoCHSubmission: Buffer.from([48, 98, 0, 229, 195, 156, 171, 163]),
+  commitPoCHScoreBundle: Buffer.from([15, 201, 24, 249, 109, 35, 95, 19]),
+  verifyPoCHProof: Buffer.from([166, 233, 168, 112, 217, 114, 72, 148]),
+  finalizePoCH: Buffer.from([237, 71, 27, 71, 155, 130, 21, 160]),
+  applyPoCHPenalty: Buffer.from([191, 218, 119, 20, 29, 122, 57, 135]),
+
   // Trusted launch instructions
   createTrustedLaunch: Buffer.from([125, 132, 155, 54, 52, 252, 242, 150]),
   recordGraduation: Buffer.from([89, 93, 12, 76, 198, 56, 162, 242]),

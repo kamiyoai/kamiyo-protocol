@@ -71,18 +71,28 @@ pub enum EvidenceKind {
     Slash = 4,
     ManualCredit = 5,
     ManualDebit = 6,
+    PoCHVerified = 7,
+    PoCHRejected = 8,
+    PoCHDisputed = 9,
 }
 
 impl EvidenceKind {
     pub fn is_positive(self) -> bool {
         matches!(
             self,
-            Self::VerifiedSuccess | Self::DisputeWon | Self::ManualCredit
+            Self::VerifiedSuccess | Self::DisputeWon | Self::ManualCredit | Self::PoCHVerified
         )
     }
 
     pub fn is_negative(self) -> bool {
-        matches!(self, Self::DisputeLost | Self::Slash | Self::ManualDebit)
+        matches!(
+            self,
+            Self::DisputeLost
+                | Self::Slash
+                | Self::ManualDebit
+                | Self::PoCHRejected
+                | Self::PoCHDisputed
+        )
     }
 }
 
@@ -359,6 +369,9 @@ pub fn score_delta(kind: EvidenceKind, weight: u16) -> i32 {
         EvidenceKind::Slash => -8 * w,
         EvidenceKind::ManualCredit => 10 * w,
         EvidenceKind::ManualDebit => -10 * w,
+        EvidenceKind::PoCHVerified => 3 * w,
+        EvidenceKind::PoCHRejected => -6 * w,
+        EvidenceKind::PoCHDisputed => -3 * w,
     }
 }
 

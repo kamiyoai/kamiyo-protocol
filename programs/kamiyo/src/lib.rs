@@ -191,6 +191,15 @@ const DEFAULT_TRADE_TIME_LOCK: i64 = 86_400; // 24 hours
 const MAX_ELFA_SESSION_ID_LEN: usize = 36;
 const MAX_TRADE_ID_LEN: usize = 64;
 
+// PoCH constants
+const MAX_POCH_ASSET_DID_LEN: usize = 192;
+const MAX_POCH_IDENTITY_DID_LEN: usize = 256;
+const MAX_POCH_POLICY_ID_LEN: usize = 32;
+const MAX_POCH_CHAIN_LEN: usize = 16;
+const MAX_POCH_CHALLENGE_ID_LEN: usize = 64;
+const MAX_POCH_ORACLE_ROUND_ID_LEN: usize = 64;
+const MAX_POCH_PROOF_STATEMENT_ID_LEN: usize = 96;
+
 // ============================================================================
 // Events
 // ============================================================================
@@ -551,6 +560,48 @@ pub struct OracleScoreRevealed {
     pub quality_score: u8,
 }
 
+#[event]
+pub struct PoCHSubmissionInitialized {
+    pub submission: Pubkey,
+    pub owner: Pubkey,
+    pub asset_did: String,
+    pub identity_did: String,
+    pub chain: String,
+    pub policy_id: String,
+}
+
+#[event]
+pub struct PoCHScoreBundleCommitted {
+    pub submission: Pubkey,
+    pub owner: Pubkey,
+    pub challenge_id: String,
+    pub score_bundle_commitment: [u8; 32],
+}
+
+#[event]
+pub struct PoCHProofVerified {
+    pub submission: Pubkey,
+    pub owner: Pubkey,
+    pub challenge_id: String,
+    pub identity_nullifier: [u8; 32],
+}
+
+#[event]
+pub struct PoCHFinalized {
+    pub submission: Pubkey,
+    pub owner: Pubkey,
+    pub accepted: bool,
+    pub oracle_round_id: String,
+    pub proof_statement_id: String,
+}
+
+#[event]
+pub struct PoCHPenaltyApplied {
+    pub owner: Pubkey,
+    pub adverse_count: u16,
+    pub slash_tier: u8,
+}
+
 // ============================================================================
 // Trusted Trader Events (Elfa × Hyperliquid)
 // ============================================================================
@@ -665,6 +716,11 @@ fn compute_commitment_hash(transaction_id: &str, score: u8, salt: &[u8; 32]) -> 
     data.extend_from_slice(salt);
 
     hash(&data).to_bytes()
+}
+
+fn hash_bytes32(data: &[u8]) -> [u8; 32] {
+    use solana_program::hash::hash;
+    hash(data).to_bytes()
 }
 
 /// Calculate weighted consensus score from oracle submissions
@@ -3675,6 +3731,333 @@ pub mod kamiyo {
     }
 
     // ========================================================================
+    // Proof of Contribution Humanity (PoCH)
+    // ========================================================================
+
+    pub fn init_poch_submission(
+        ctx: Context<InitPoCHSubmission>,
+        chain: String,
+        asset_did: String,
+        identity_did: String,
+        policy_id: String,
+    ) -> Result<()> {
+        require!(
+            chain.len() <= MAX_POCH_CHAIN_LEN && (chain == "solana" || chain == "base"),
+            KamiyoError::InvalidPoCHChain
+        );
+        require!(
+            !asset_did.is_empty() && asset_did.len() <= MAX_POCH_ASSET_DID_LEN,
+            KamiyoError::InvalidPoCHAssetDid
+        );
+        require!(
+            !identity_did.is_empty() && identity_did.len() <= MAX_POCH_IDENTITY_DID_LEN,
+            KamiyoError::InvalidPoCHIdentityDid
+        );
+        require!(
+            !policy_id.is_empty() && policy_id.len() <= MAX_POCH_POLICY_ID_LEN,
+            KamiyoError::InvalidPoCHPolicyId
+        );
+
+        let now = Clock::get()?.unix_timestamp;
+        let submission = &mut ctx.accounts.poch_submission;
+        submission.owner = ctx.accounts.owner.key();
+        submission.asset_did = asset_did.clone();
+        submission.identity_did = identity_did.clone();
+        submission.chain = chain.clone();
+        submission.policy_id = policy_id.clone();
+        submission.score_bundle_commitment = [0u8; 32];
+        submission.challenge_id = String::new();
+        submission.proof_verified = false;
+        submission.has_blocking_dispute = false;
+        submission.finalized = false;
+        submission.accepted = false;
+        submission.created_at = now;
+        submission.updated_at = now;
+        submission.bump = ctx.bumps.poch_submission;
+
+        let status = &mut ctx.accounts.poch_status;
+        if status.owner == Pubkey::default() {
+            status.owner = ctx.accounts.owner.key();
+            status.bump = ctx.bumps.poch_status;
+        }
+        status.identity_did = identity_did.clone();
+        status.chain = chain.clone();
+        status.status = PoCHVerificationStatus::Pending;
+        status.score_bundle_commitment = [0u8; 32];
+        status.oracle_round_id = String::new();
+        status.proof_statement_id = String::new();
+        status.updated_at = now;
+
+        emit!(PoCHSubmissionInitialized {
+            submission: submission.key(),
+            owner: submission.owner,
+            asset_did,
+            identity_did,
+            chain,
+            policy_id,
+        });
+
+        Ok(())
+    }
+
+    pub fn commit_poch_score_bundle(
+        ctx: Context<CommitPoCHScoreBundle>,
+        challenge_id: String,
+        score_bundle_commitment: [u8; 32],
+    ) -> Result<()> {
+        require!(
+            !challenge_id.is_empty() && challenge_id.len() <= MAX_POCH_CHALLENGE_ID_LEN,
+            KamiyoError::InvalidPoCHChallengeId
+        );
+
+        let submission = &mut ctx.accounts.poch_submission;
+        require!(
+            submission.owner == ctx.accounts.owner.key(),
+            KamiyoError::Unauthorized
+        );
+        require!(
+            !submission.finalized,
+            KamiyoError::PoCHAlreadyFinalized
+        );
+
+        submission.challenge_id = challenge_id.clone();
+        submission.score_bundle_commitment = score_bundle_commitment;
+        submission.proof_verified = false;
+        submission.updated_at = Clock::get()?.unix_timestamp;
+
+        let commitment = &mut ctx.accounts.poch_commitment;
+        if commitment.owner == Pubkey::default() {
+            commitment.owner = ctx.accounts.owner.key();
+            commitment.submission = submission.key();
+            commitment.chain = submission.chain.clone();
+            commitment.policy_id = submission.policy_id.clone();
+            commitment.bump = ctx.bumps.poch_commitment;
+        }
+        commitment.challenge_id = challenge_id.clone();
+        commitment.score_bundle_commitment = score_bundle_commitment;
+        commitment.committed_at = Clock::get()?.unix_timestamp;
+
+        let status = &mut ctx.accounts.poch_status;
+        status.status = PoCHVerificationStatus::Pending;
+        status.score_bundle_commitment = score_bundle_commitment;
+        status.updated_at = Clock::get()?.unix_timestamp;
+
+        emit!(PoCHScoreBundleCommitted {
+            submission: submission.key(),
+            owner: submission.owner,
+            challenge_id,
+            score_bundle_commitment,
+        });
+
+        Ok(())
+    }
+
+    pub fn verify_poch_proof(
+        ctx: Context<VerifyPoCHProof>,
+        chain: String,
+        proof_a: [u8; 64],
+        proof_b: [u8; 128],
+        proof_c: [u8; 64],
+        policy_id: String,
+        challenge_id: String,
+        identity_nullifier: [u8; 32],
+    ) -> Result<()> {
+        require!(
+            chain.len() <= MAX_POCH_CHAIN_LEN && (chain == "solana" || chain == "base"),
+            KamiyoError::InvalidPoCHChain
+        );
+        require!(
+            !policy_id.is_empty() && policy_id.len() <= MAX_POCH_POLICY_ID_LEN,
+            KamiyoError::InvalidPoCHPolicyId
+        );
+        require!(
+            !challenge_id.is_empty() && challenge_id.len() <= MAX_POCH_CHALLENGE_ID_LEN,
+            KamiyoError::InvalidPoCHChallengeId
+        );
+
+        let submission = &mut ctx.accounts.poch_submission;
+        let commitment = &ctx.accounts.poch_commitment;
+        require!(
+            submission.owner == ctx.accounts.owner.key(),
+            KamiyoError::Unauthorized
+        );
+        require!(
+            commitment.owner == submission.owner,
+            KamiyoError::PoCHCommitmentMismatch
+        );
+        require!(
+            commitment.submission == submission.key(),
+            KamiyoError::PoCHCommitmentMismatch
+        );
+        require!(
+            commitment.chain == chain,
+            KamiyoError::InvalidPoCHChain
+        );
+        require!(submission.chain == chain, KamiyoError::InvalidPoCHChain);
+        require!(
+            submission.policy_id == policy_id,
+            KamiyoError::PoCHPolicyMismatch
+        );
+        require!(
+            commitment.policy_id == policy_id,
+            KamiyoError::PoCHPolicyMismatch
+        );
+        require!(
+            submission.challenge_id == challenge_id,
+            KamiyoError::PoCHChallengeMismatch
+        );
+        require!(
+            commitment.challenge_id == challenge_id,
+            KamiyoError::PoCHChallengeMismatch
+        );
+        require!(
+            commitment.score_bundle_commitment == submission.score_bundle_commitment,
+            KamiyoError::PoCHCommitmentMismatch
+        );
+        require!(
+            !submission.finalized,
+            KamiyoError::PoCHAlreadyFinalized
+        );
+        require!(
+            identity_nullifier.iter().any(|&b| b != 0),
+            KamiyoError::PoCHNullifierInvalid
+        );
+
+        let mut public_inputs: [[u8; 32]; 4] = [[0u8; 32]; 4];
+        public_inputs[0] = submission.score_bundle_commitment;
+        public_inputs[1] = hash_bytes32(policy_id.as_bytes());
+        public_inputs[2] = hash_bytes32(challenge_id.as_bytes());
+        public_inputs[3] = identity_nullifier;
+
+        zk::verify_poch_uniqueness_proof(&proof_a, &proof_b, &proof_c, &public_inputs)
+            .map_err(|_| KamiyoError::InvalidZKProof)?;
+
+        let now = Clock::get()?.unix_timestamp;
+        let nullifier = &mut ctx.accounts.poch_nullifier;
+        nullifier.nullifier = identity_nullifier;
+        nullifier.owner = ctx.accounts.owner.key();
+        nullifier.chain_domain_hash = hash_bytes32(chain.as_bytes());
+        nullifier.verified_at = now;
+        nullifier.bump = ctx.bumps.poch_nullifier;
+
+        submission.proof_verified = true;
+        submission.updated_at = now;
+
+        emit!(PoCHProofVerified {
+            submission: submission.key(),
+            owner: submission.owner,
+            challenge_id,
+            identity_nullifier,
+        });
+
+        Ok(())
+    }
+
+    pub fn finalize_poch(
+        ctx: Context<FinalizePoCH>,
+        accepted: bool,
+        oracle_round_id: String,
+        proof_statement_id: String,
+        has_blocking_dispute: bool,
+    ) -> Result<()> {
+        require!(
+            !oracle_round_id.is_empty() && oracle_round_id.len() <= MAX_POCH_ORACLE_ROUND_ID_LEN,
+            KamiyoError::InvalidPoCHOracleRoundId
+        );
+        require!(
+            !proof_statement_id.is_empty()
+                && proof_statement_id.len() <= MAX_POCH_PROOF_STATEMENT_ID_LEN,
+            KamiyoError::InvalidPoCHProofStatementId
+        );
+
+        let submission = &mut ctx.accounts.poch_submission;
+        let commitment = &ctx.accounts.poch_commitment;
+        require!(
+            !submission.finalized,
+            KamiyoError::PoCHAlreadyFinalized
+        );
+        require!(submission.proof_verified, KamiyoError::PoCHProofNotVerified);
+        require!(
+            commitment.submission == submission.key()
+                && commitment.challenge_id == submission.challenge_id
+                && commitment.score_bundle_commitment == submission.score_bundle_commitment,
+            KamiyoError::PoCHCommitmentMismatch
+        );
+        require!(
+            !has_blocking_dispute,
+            KamiyoError::PoCHBlockingDispute
+        );
+
+        let now = Clock::get()?.unix_timestamp;
+        submission.has_blocking_dispute = has_blocking_dispute;
+        submission.finalized = true;
+        submission.accepted = accepted;
+        submission.updated_at = now;
+
+        let status = &mut ctx.accounts.poch_status;
+        status.status = if accepted {
+            PoCHVerificationStatus::Verified
+        } else {
+            PoCHVerificationStatus::Rejected
+        };
+        status.score_bundle_commitment = submission.score_bundle_commitment;
+        status.oracle_round_id = oracle_round_id.clone();
+        status.proof_statement_id = proof_statement_id.clone();
+        status.updated_at = now;
+
+        emit!(PoCHFinalized {
+            submission: submission.key(),
+            owner: submission.owner,
+            accepted,
+            oracle_round_id,
+            proof_statement_id,
+        });
+
+        Ok(())
+    }
+
+    pub fn apply_poch_penalty(
+        ctx: Context<ApplyPoCHPenalty>,
+        adverse_outcome: bool,
+    ) -> Result<()> {
+        if !adverse_outcome {
+            return Ok(());
+        }
+
+        let penalty = &mut ctx.accounts.poch_penalty_state;
+        if penalty.owner == Pubkey::default() {
+            penalty.owner = ctx.accounts.owner.key();
+            penalty.bump = ctx.bumps.poch_penalty_state;
+        }
+
+        penalty.adverse_count = penalty.adverse_count.saturating_add(1);
+        penalty.last_outcome_at = Clock::get()?.unix_timestamp;
+        penalty.slash_tier = match penalty.adverse_count {
+            0 | 1 => 0,
+            2 | 3 => 1,
+            _ => 2,
+        };
+        penalty.restriction_expires_at = if penalty.adverse_count == 1 {
+            Some(
+                Clock::get()?
+                    .unix_timestamp
+                    .checked_add(24 * 60 * 60)
+                    .ok_or(KamiyoError::ArithmeticOverflow)?,
+            )
+        } else {
+            penalty.restriction_expires_at
+        };
+
+        emit!(PoCHPenaltyApplied {
+            owner: penalty.owner,
+            adverse_count: penalty.adverse_count,
+            slash_tier: penalty.slash_tier,
+        });
+
+        Ok(())
+    }
+
+    // ========================================================================
     // Migration Instructions
     // ========================================================================
 
@@ -5180,6 +5563,158 @@ pub struct VerifyAgentReputation<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+#[instruction(chain: String)]
+pub struct InitPoCHSubmission<'info> {
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + PoCHSubmission::INIT_SPACE,
+        seeds = [b"poch_submission", owner.key().as_ref(), chain.as_bytes()],
+        bump
+    )]
+    pub poch_submission: Account<'info, PoCHSubmission>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + PoCHStatus::INIT_SPACE,
+        seeds = [b"poch_status", owner.key().as_ref(), chain.as_bytes()],
+        bump
+    )]
+    pub poch_status: Account<'info, PoCHStatus>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CommitPoCHScoreBundle<'info> {
+    #[account(
+        mut,
+        seeds = [b"poch_submission", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump = poch_submission.bump
+    )]
+    pub poch_submission: Account<'info, PoCHSubmission>,
+
+    #[account(
+        mut,
+        seeds = [b"poch_status", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump = poch_status.bump
+    )]
+    pub poch_status: Account<'info, PoCHStatus>,
+
+    #[account(
+        init_if_needed,
+        payer = owner,
+        space = 8 + PoCHCommitment::INIT_SPACE,
+        seeds = [b"poch_commitment", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump
+    )]
+    pub poch_commitment: Account<'info, PoCHCommitment>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(chain: String, identity_nullifier: [u8; 32])]
+pub struct VerifyPoCHProof<'info> {
+    #[account(
+        mut,
+        seeds = [b"poch_submission", owner.key().as_ref(), chain.as_bytes()],
+        bump = poch_submission.bump
+    )]
+    pub poch_submission: Account<'info, PoCHSubmission>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    #[account(
+        seeds = [b"poch_commitment", owner.key().as_ref(), chain.as_bytes()],
+        bump = poch_commitment.bump
+    )]
+    pub poch_commitment: Account<'info, PoCHCommitment>,
+
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + PoCHNullifier::INIT_SPACE,
+        seeds = [b"poch_nullifier", chain.as_bytes(), identity_nullifier.as_ref()],
+        bump
+    )]
+    pub poch_nullifier: Account<'info, PoCHNullifier>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinalizePoCH<'info> {
+    #[account(
+        mut,
+        seeds = [b"poch_submission", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump = poch_submission.bump
+    )]
+    pub poch_submission: Account<'info, PoCHSubmission>,
+
+    #[account(
+        mut,
+        seeds = [b"poch_status", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump = poch_status.bump
+    )]
+    pub poch_status: Account<'info, PoCHStatus>,
+
+    #[account(
+        seeds = [b"poch_commitment", owner.key().as_ref(), poch_submission.chain.as_bytes()],
+        bump = poch_commitment.bump
+    )]
+    pub poch_commitment: Account<'info, PoCHCommitment>,
+
+    #[account(constraint = owner.key() == poch_submission.owner @ KamiyoError::Unauthorized)]
+    pub owner: SystemAccount<'info>,
+
+    #[account(
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump,
+        constraint = oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_signer.key())
+            @ KamiyoError::UnregisteredOracle
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    pub oracle_signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ApplyPoCHPenalty<'info> {
+    #[account(
+        init_if_needed,
+        payer = oracle_signer,
+        space = 8 + PoCHPenaltyState::INIT_SPACE,
+        seeds = [b"poch_penalty", owner.key().as_ref()],
+        bump
+    )]
+    pub poch_penalty_state: Account<'info, PoCHPenaltyState>,
+
+    pub owner: SystemAccount<'info>,
+
+    #[account(
+        seeds = [b"oracle_registry"],
+        bump = oracle_registry.bump,
+        constraint = oracle_registry.oracles.iter().any(|o| o.pubkey == oracle_signer.key())
+            @ KamiyoError::UnregisteredOracle
+    )]
+    pub oracle_registry: Account<'info, OracleRegistry>,
+
+    #[account(mut)]
+    pub oracle_signer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 // ============================================================================
 // Trusted Launch Account Validation
 // ============================================================================
@@ -5437,6 +5972,93 @@ pub struct ReputationNullifier {
     pub min_reputation: u8,    // 1 - threshold proven
     pub min_transactions: u32, // 4 - min tx count proven
     pub bump: u8,              // 1
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PoCHSubmission {
+    pub owner: Pubkey,
+    #[max_len(192)]
+    pub asset_did: String,
+    #[max_len(256)]
+    pub identity_did: String,
+    #[max_len(16)]
+    pub chain: String,
+    #[max_len(32)]
+    pub policy_id: String,
+    pub score_bundle_commitment: [u8; 32],
+    #[max_len(64)]
+    pub challenge_id: String,
+    pub proof_verified: bool,
+    pub has_blocking_dispute: bool,
+    pub finalized: bool,
+    pub accepted: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PoCHStatus {
+    pub owner: Pubkey,
+    #[max_len(256)]
+    pub identity_did: String,
+    #[max_len(16)]
+    pub chain: String,
+    pub status: PoCHVerificationStatus,
+    pub score_bundle_commitment: [u8; 32],
+    #[max_len(64)]
+    pub oracle_round_id: String,
+    #[max_len(96)]
+    pub proof_statement_id: String,
+    pub updated_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PoCHCommitment {
+    pub owner: Pubkey,
+    pub submission: Pubkey,
+    #[max_len(16)]
+    pub chain: String,
+    #[max_len(32)]
+    pub policy_id: String,
+    #[max_len(64)]
+    pub challenge_id: String,
+    pub score_bundle_commitment: [u8; 32],
+    pub committed_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PoCHPenaltyState {
+    pub owner: Pubkey,
+    pub adverse_count: u16,
+    pub slash_tier: u8,
+    pub restriction_expires_at: Option<i64>,
+    pub last_outcome_at: i64,
+    pub bump: u8,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct PoCHNullifier {
+    pub nullifier: [u8; 32],
+    pub owner: Pubkey,
+    pub chain_domain_hash: [u8; 32],
+    pub verified_at: i64,
+    pub bump: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum PoCHVerificationStatus {
+    Pending,
+    Verified,
+    Rejected,
+    Disputed,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
@@ -6005,4 +6627,46 @@ pub enum KamiyoError {
 
     #[msg("Invalid creator allocation bps (must be <= 10000)")]
     InvalidCreatorAllocationBps,
+
+    #[msg("Invalid PoCH chain")]
+    InvalidPoCHChain,
+
+    #[msg("Invalid PoCH asset DID")]
+    InvalidPoCHAssetDid,
+
+    #[msg("Invalid PoCH identity DID")]
+    InvalidPoCHIdentityDid,
+
+    #[msg("Invalid PoCH policy id")]
+    InvalidPoCHPolicyId,
+
+    #[msg("Invalid PoCH challenge id")]
+    InvalidPoCHChallengeId,
+
+    #[msg("Invalid PoCH oracle round id")]
+    InvalidPoCHOracleRoundId,
+
+    #[msg("Invalid PoCH proof statement id")]
+    InvalidPoCHProofStatementId,
+
+    #[msg("PoCH proof has not been verified")]
+    PoCHProofNotVerified,
+
+    #[msg("PoCH challenge mismatch")]
+    PoCHChallengeMismatch,
+
+    #[msg("PoCH policy mismatch")]
+    PoCHPolicyMismatch,
+
+    #[msg("PoCH submission is already finalized")]
+    PoCHAlreadyFinalized,
+
+    #[msg("PoCH has unresolved blocking dispute")]
+    PoCHBlockingDispute,
+
+    #[msg("PoCH nullifier is invalid")]
+    PoCHNullifierInvalid,
+
+    #[msg("PoCH commitment mismatch")]
+    PoCHCommitmentMismatch,
 }

@@ -14,7 +14,7 @@
 //   - nullifier: Prevents double-use in same epoch
 //   - epoch: Time period for nullifier scoping
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global TREE_DEPTH: u32 = 20; // Supports 2^20 = ~1M agents
 

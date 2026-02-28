@@ -23,6 +23,17 @@ import {
   CreateAgreementParams,
   InitializeOracleRegistryParams,
   AgentType,
+  PoCHActionCheck,
+  PoCHChallenge,
+  PoCHChallengeRequest,
+  PoCHGateDecision,
+  PoCHOracleCommitInput,
+  PoCHOracleRevealInput,
+  PoCHPublished,
+  PoCHProofSubmission,
+  PoCHStatus,
+  PoCHSubmissionReceipt,
+  PoCHContributionInput,
 } from "./types";
 import { DISCRIMINATORS } from "./discriminators";
 
@@ -46,6 +57,7 @@ export interface KamiyoClientConfig {
   connection: Connection;
   wallet: Wallet;
   programId?: PublicKey;
+  apiBaseUrl?: string;
 }
 
 /**
@@ -55,11 +67,52 @@ export class KamiyoClient {
   public readonly connection: Connection;
   public readonly wallet: Wallet;
   public readonly programId: PublicKey;
+  private readonly apiBaseUrl?: string;
 
   constructor(config: KamiyoClientConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
     this.programId = config.programId ?? KAMIYO_PROGRAM_ID;
+    this.apiBaseUrl = config.apiBaseUrl;
+  }
+
+  private getApiBaseUrl(): string {
+    const raw = this.apiBaseUrl || process.env.KAMIYO_API_URL || "http://localhost:3001";
+    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+  }
+
+  private async postJson<T>(path: string, body: unknown): Promise<T> {
+    const fetchImpl = (globalThis as typeof globalThis & { fetch?: typeof fetch }).fetch;
+    if (!fetchImpl) {
+      throw new Error("Global fetch is unavailable in this runtime");
+    }
+
+    const response = await fetchImpl(`${this.getApiBaseUrl()}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`API request failed (${response.status}): ${text || response.statusText}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  private async getJson<T>(path: string): Promise<T> {
+    const fetchImpl = (globalThis as typeof globalThis & { fetch?: typeof fetch }).fetch;
+    if (!fetchImpl) {
+      throw new Error("Global fetch is unavailable in this runtime");
+    }
+
+    const response = await fetchImpl(`${this.getApiBaseUrl()}${path}`);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`API request failed (${response.status}): ${text || response.statusText}`);
+    }
+    return response.json() as Promise<T>;
   }
 
   // ========================================================================
@@ -198,6 +251,98 @@ export class KamiyoClient {
       [Buffer.from("trade_escrow"), session.toBuffer(), Buffer.from(tradeId)],
       this.programId
     );
+  }
+
+  getPoCHSubmissionPDA(owner: PublicKey, chain: "solana" | "base"): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("poch_submission"), owner.toBuffer(), Buffer.from(chain)],
+      this.programId
+    );
+  }
+
+  getPoCHStatusPDA(owner: PublicKey, chain: "solana" | "base"): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("poch_status"), owner.toBuffer(), Buffer.from(chain)],
+      this.programId
+    );
+  }
+
+  getPoCHCommitmentPDA(owner: PublicKey, chain: "solana" | "base"): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("poch_commitment"), owner.toBuffer(), Buffer.from(chain)],
+      this.programId
+    );
+  }
+
+  getPoCHPenaltyPDA(owner: PublicKey): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("poch_penalty"), owner.toBuffer()],
+      this.programId
+    );
+  }
+
+  // ========================================================================
+  // PoCH API
+  // ========================================================================
+
+  async publishPoCHContribution(
+    input: PoCHContributionInput
+  ): Promise<PoCHPublished> {
+    return this.postJson<PoCHPublished>("/api/poch/contributions", input);
+  }
+
+  async requestPoCHChallenge(
+    input: PoCHChallengeRequest
+  ): Promise<PoCHChallenge> {
+    return this.postJson<PoCHChallenge>("/api/poch/challenges", input);
+  }
+
+  async submitPoCHProof(
+    input: PoCHProofSubmission
+  ): Promise<PoCHSubmissionReceipt> {
+    return this.postJson<PoCHSubmissionReceipt>("/api/poch/proofs", input);
+  }
+
+  async submitPoCHOracleCommit(
+    input: PoCHOracleCommitInput
+  ): Promise<{ accepted: boolean; challengeId: string; oracleId: string; weight: number }> {
+    return this.postJson<{ accepted: boolean; challengeId: string; oracleId: string; weight: number }>(
+      "/api/poch/oracle/commit",
+      input
+    );
+  }
+
+  async submitPoCHOracleReveal(
+    input: PoCHOracleRevealInput
+  ): Promise<{
+    accepted: boolean;
+    finalized: boolean;
+    acceptedDecision?: boolean;
+    finalizeReason?: string;
+    oracleRoundId?: string;
+  }> {
+    return this.postJson<{
+      accepted: boolean;
+      finalized: boolean;
+      acceptedDecision?: boolean;
+      finalizeReason?: string;
+      oracleRoundId?: string;
+    }>("/api/poch/oracle/reveal", input);
+  }
+
+  async getPoCHStatus(input: {
+    identity: string;
+    chain: "solana" | "base";
+  }): Promise<PoCHStatus> {
+    const identity = encodeURIComponent(input.identity);
+    const chain = encodeURIComponent(input.chain);
+    return this.getJson<PoCHStatus>(`/api/poch/status/${identity}?chain=${chain}`);
+  }
+
+  async verifyPoCHForAction(
+    input: PoCHActionCheck
+  ): Promise<PoCHGateDecision> {
+    return this.postJson<PoCHGateDecision>("/api/poch/verify-action", input);
   }
 
   // ========================================================================

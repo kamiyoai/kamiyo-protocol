@@ -15,7 +15,7 @@
 //   - approved: Whether action passed (1) or failed (0)
 //   - epoch: Coordination epoch
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global MAX_VOTERS: u32 = 16; // Max agents in a swarm action
 

@@ -16,7 +16,7 @@
 //   - min_confidence: Minimum confidence to be valid
 //   - agent_nullifier: Links signal to agent without revealing identity
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global MAX_CONFIDENCE: u8 = 100;
 global MAX_MAGNITUDE: u8 = 100;

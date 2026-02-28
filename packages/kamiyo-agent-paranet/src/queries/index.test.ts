@@ -125,6 +125,30 @@ describe('SPARQL query builders', () => {
       expect(query).toContain('COUNT');
     });
   });
+
+  describe('PoCH queries', () => {
+    it('builds similarity neighborhood query', () => {
+      const query = queries.queryPoCHSimilarityNeighborhood(
+        'did:pkh:eip155:8453:0x1111111111111111111111111111111111111111',
+        '0xabc123',
+        { limit: 5, daysBack: 30 }
+      );
+      expect(query).toContain('PoCHContribution');
+      expect(query).toContain('identityDid');
+      expect(query).toContain('contentHash');
+      expect(query).toContain('LIMIT 5');
+    });
+
+    it('builds cluster overlap query', () => {
+      const query = queries.queryPoCHClusterOverlap(
+        'did:pkh:eip155:8453:0x1111111111111111111111111111111111111111',
+        { limit: 8 }
+      );
+      expect(query).toContain('provenanceRefs');
+      expect(query).toContain('sharedCount');
+      expect(query).toContain('LIMIT 8');
+    });
+  });
 });
 
 describe('SPARQL escaping', () => {

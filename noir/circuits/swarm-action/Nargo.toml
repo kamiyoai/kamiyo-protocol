@@ -1,7 +1,8 @@
 [package]
 name = "swarm_action"
 type = "bin"
-authors = ["KAMIYO <dev@kamiyo.ai>"]
-compiler_version = ">=1.0.0-beta.13"
+authors = ["KAMIYO"]
+compiler_version = ">=1.0.0"
 
 [dependencies]
+poseidon = { tag = "v0.2.6", git = "https://github.com/noir-lang/poseidon" }

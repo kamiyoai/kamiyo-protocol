@@ -1,6 +1,6 @@
 // Oracle vote circuit: proves score in [0,100] and commitment validity
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global MAX_SCORE: u8 = 100;
 

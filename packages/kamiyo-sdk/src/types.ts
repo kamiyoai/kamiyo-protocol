@@ -50,6 +50,124 @@ export enum VerificationLevel {
   KYC = 3,
 }
 
+export type PoCHChain = "solana" | "base";
+export type PoCHEnforcementMode = "observe" | "soft" | "gate_high_impact";
+
+export interface PoCHContributionInput {
+  identityDid: string;
+  contentHash: string;
+  createdAt?: string;
+  contributionType:
+    | "knowledge_artifact"
+    | "creative_work"
+    | "attested_action"
+    | "research_note"
+    | "custom";
+  provenanceRefs?: string[];
+  contextMetadata?: Record<string, unknown>;
+  scoreBundleCommitment?: string;
+  oracleRoundId?: string;
+  proofStatementId?: string;
+  chainAnchors?: {
+    solanaTxId?: string;
+    baseTxHash?: string;
+  };
+}
+
+export interface PoCHPublished {
+  success: boolean;
+  assetDid: string;
+  ual?: string;
+}
+
+export interface PoCHChallengeRequest {
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  policyId: string;
+  contentHash?: string;
+}
+
+export interface PoCHScoreBundle {
+  policyId: string;
+  uniquenessScore: number;
+  graphDivergence: number;
+  clusterOverlapRisk: number;
+  nonMembershipSignal: boolean;
+  evaluatedAt: string;
+}
+
+export interface PoCHChallenge {
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  policyId: string;
+  scoreBundle: PoCHScoreBundle;
+  scoreBundleCommitment: string;
+  createdAt: string;
+}
+
+export interface PoCHProofSubmission {
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  zkProof: string;
+  identityNullifier: string;
+}
+
+export interface PoCHOracleCommitInput {
+  challengeId: string;
+  oracleId: string;
+  commitmentHash: string;
+}
+
+export interface PoCHOracleRevealInput {
+  challengeId: string;
+  oracleId: string;
+  authenticityVerdict: boolean;
+  uniquenessVerdict: boolean;
+  confidence?: number;
+  salt: string;
+}
+
+export interface PoCHSubmissionReceipt {
+  accepted: boolean;
+  challengeId: string;
+  assetDid: string;
+  identityDid: string;
+  chain: PoCHChain;
+  verifiedAt: string;
+  proofStatementId: string;
+  pending?: boolean;
+  finalizeReason?: string;
+  oracleRoundId?: string;
+}
+
+export interface PoCHStatus {
+  identityDid: string;
+  chain: PoCHChain;
+  status: "pending" | "verified" | "rejected" | "disputed";
+  scoreBundleCommitment?: string;
+  oracleRoundId?: string;
+  proofStatementId?: string;
+  updatedAt: string;
+}
+
+export interface PoCHActionCheck {
+  identityDid: string;
+  chain: PoCHChain;
+  action: "stake_amplification" | "premium_attestation" | "high_trust_agent_action";
+}
+
+export interface PoCHGateDecision {
+  allowed: boolean;
+  mode: PoCHEnforcementMode;
+  reason?: string;
+  status?: PoCHStatus;
+}
+
 // Agent Identity Account
 export interface AgentIdentity {
   owner: PublicKey;
@@ -63,6 +181,55 @@ export interface AgentIdentity {
   totalEscrows: BN;
   successfulEscrows: BN;
   disputedEscrows: BN;
+  bump: number;
+}
+
+export interface PoCHSubmissionAccount {
+  owner: PublicKey;
+  assetDid: string;
+  identityDid: string;
+  chain: string;
+  policyId: string;
+  scoreBundleCommitment: Uint8Array;
+  challengeId: string;
+  proofVerified: boolean;
+  hasBlockingDispute: boolean;
+  finalized: boolean;
+  accepted: boolean;
+  createdAt: BN;
+  updatedAt: BN;
+  bump: number;
+}
+
+export interface PoCHStatusAccount {
+  owner: PublicKey;
+  identityDid: string;
+  chain: string;
+  status: number;
+  scoreBundleCommitment: Uint8Array;
+  oracleRoundId: string;
+  proofStatementId: string;
+  updatedAt: BN;
+  bump: number;
+}
+
+export interface PoCHCommitmentAccount {
+  owner: PublicKey;
+  submission: PublicKey;
+  chain: string;
+  policyId: string;
+  challengeId: string;
+  scoreBundleCommitment: Uint8Array;
+  committedAt: BN;
+  bump: number;
+}
+
+export interface PoCHPenaltyStateAccount {
+  owner: PublicKey;
+  adverseCount: number;
+  slashTier: number;
+  restrictionExpiresAt: BN | null;
+  lastOutcomeAt: BN;
   bump: number;
 }
 

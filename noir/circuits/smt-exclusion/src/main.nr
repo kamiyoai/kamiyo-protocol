@@ -1,7 +1,7 @@
 // SMT exclusion proof: proves oracle is NOT in blacklist
 // Based on solana-foundation/noir-examples
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global TREE_DEPTH: u32 = 256;
 global EMPTY_LEAF: Field = 0;
@@ -13,7 +13,7 @@ fn hash_pair(left: Field, right: Field) -> Field {
 fn get_bit(key: Field, position: u32) -> bool {
     let key_bytes: [u8; 32] = key.to_be_bytes();
     let byte_index = position / 8;
-    let bit_index = 7 - (position % 8);
+    let bit_index: u8 = (7 - (position % 8)) as u8;
     ((key_bytes[byte_index] >> bit_index) & 1) == 1
 }
 

@@ -3,6 +3,7 @@ import type {
   TaskCompletion,
   CapabilityAttestation,
   TrustRelationship,
+  PoCHContribution,
 } from '../types';
 
 const SCHEMA_ORG = 'https://schema.org/';
@@ -22,6 +23,13 @@ const KAMIYO_PARANET_CONTEXT = {
   trustType: 'https://kamiyo.ai/paranet/trustType',
   stakeAmount: 'https://kamiyo.ai/paranet/stakeAmount',
   stakeCurrency: 'https://kamiyo.ai/paranet/stakeCurrency',
+  identityDid: 'https://kamiyo.ai/paranet/identityDid',
+  contentHash: 'https://kamiyo.ai/paranet/contentHash',
+  contributionType: 'https://kamiyo.ai/paranet/contributionType',
+  scoreBundleCommitment: 'https://kamiyo.ai/paranet/scoreBundleCommitment',
+  oracleRoundId: 'https://kamiyo.ai/paranet/oracleRoundId',
+  proofStatementId: 'https://kamiyo.ai/paranet/proofStatementId',
+  chainAnchors: 'https://kamiyo.ai/paranet/chainAnchors',
 } as const;
 
 export const SCHEMA_VERSION = '1.0.0';
@@ -85,6 +93,29 @@ export const TrustRelationshipSchema = z.object({
   until: z.string().datetime().optional(),
   evidenceUALs: z.array(z.string()).optional(),
   reason: z.string().max(500).optional(),
+});
+
+export const PoCHContributionSchema = z.object({
+  assetDid: z.string().optional(),
+  identityDid: z.string().min(3).max(256),
+  contentHash: z.string().min(8).max(128),
+  createdAt: z.string().datetime(),
+  contributionType: z.enum([
+    'knowledge_artifact',
+    'creative_work',
+    'attested_action',
+    'research_note',
+    'custom',
+  ]),
+  provenanceRefs: z.array(z.string()).max(32).optional(),
+  contextMetadata: z.record(z.string(), z.unknown()).optional(),
+  scoreBundleCommitment: z.string().max(128).optional(),
+  oracleRoundId: z.string().max(64).optional(),
+  proofStatementId: z.string().max(96).optional(),
+  chainAnchors: z.object({
+    solanaTxId: z.string().max(128).optional(),
+    baseTxHash: z.string().max(128).optional(),
+  }).optional(),
 });
 
 export function buildTaskCompletionAsset(task: TaskCompletion): object {
@@ -189,6 +220,49 @@ export function buildTrustRelationshipAsset(trust: TrustRelationship): object {
     ...(trust.evidenceUALs?.length && {
       instrument: trust.evidenceUALs.map(ual => ({ '@id': ual })),
     }),
+  };
+}
+
+export function buildPoCHContributionAsset(contribution: PoCHContribution): object {
+  const assetDid = contribution.assetDid || `urn:kamiyo:poch:${contribution.identityDid}:${Date.parse(contribution.createdAt)}`;
+  const metadata = contribution.contextMetadata || {};
+  const chainAnchors = contribution.chainAnchors || {};
+
+  return {
+    '@context': [SCHEMA_ORG, KAMIYO_PARANET_CONTEXT],
+    '@type': 'CreativeWork',
+    '@id': assetDid,
+    name: 'PoCHContribution',
+    version: SCHEMA_VERSION,
+    dateCreated: contribution.createdAt,
+    creator: {
+      '@type': 'Person',
+      identifier: contribution.identityDid,
+    },
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'schemaVersion', value: SCHEMA_VERSION },
+      { '@type': 'PropertyValue', name: 'identityDid', value: contribution.identityDid },
+      { '@type': 'PropertyValue', name: 'contentHash', value: contribution.contentHash },
+      { '@type': 'PropertyValue', name: 'contributionType', value: contribution.contributionType },
+      ...(contribution.provenanceRefs?.length
+        ? [{ '@type': 'PropertyValue', name: 'provenanceRefs', value: contribution.provenanceRefs.join(',') }]
+        : []),
+      ...(Object.keys(metadata).length
+        ? [{ '@type': 'PropertyValue', name: 'contextMetadata', value: JSON.stringify(metadata) }]
+        : []),
+      ...(contribution.scoreBundleCommitment
+        ? [{ '@type': 'PropertyValue', name: 'scoreBundleCommitment', value: contribution.scoreBundleCommitment }]
+        : []),
+      ...(contribution.oracleRoundId
+        ? [{ '@type': 'PropertyValue', name: 'oracleRoundId', value: contribution.oracleRoundId }]
+        : []),
+      ...(contribution.proofStatementId
+        ? [{ '@type': 'PropertyValue', name: 'proofStatementId', value: contribution.proofStatementId }]
+        : []),
+      ...(Object.keys(chainAnchors).length
+        ? [{ '@type': 'PropertyValue', name: 'chainAnchors', value: JSON.stringify(chainAnchors) }]
+        : []),
+    ],
   };
 }
 
@@ -306,6 +380,39 @@ export function parseTrustRelationshipResult(result: Record<string, { value?: un
     trustType: String(result.trustType?.value || 'general') as TrustRelationship['trustType'],
     capability: result.capability?.value ? String(result.capability.value) : undefined,
     since: String(result.since?.value || ''),
+    schemaVersion: result.schemaVersion?.value ? String(result.schemaVersion.value) : undefined,
+  };
+}
+
+export function parsePoCHContributionResult(result: Record<string, { value?: unknown }>): Partial<PoCHContribution> & { schemaVersion?: string } {
+  const parsedChainAnchors = result.chainAnchors?.value
+    ? (() => {
+        try {
+          const parsed = JSON.parse(String(result.chainAnchors?.value));
+          if (parsed && typeof parsed === 'object') {
+            return parsed as PoCHContribution['chainAnchors'];
+          }
+        } catch {
+          return undefined;
+        }
+        return undefined;
+      })()
+    : undefined;
+
+  return {
+    assetDid: result.assetDid?.value ? String(result.assetDid.value) : undefined,
+    identityDid: String(result.identityDid?.value || ''),
+    contentHash: String(result.contentHash?.value || ''),
+    contributionType: String(result.contributionType?.value || 'custom') as PoCHContribution['contributionType'],
+    createdAt: String(result.createdAt?.value || ''),
+    scoreBundleCommitment: result.scoreBundleCommitment?.value
+      ? String(result.scoreBundleCommitment.value)
+      : undefined,
+    oracleRoundId: result.oracleRoundId?.value ? String(result.oracleRoundId.value) : undefined,
+    proofStatementId: result.proofStatementId?.value
+      ? String(result.proofStatementId.value)
+      : undefined,
+    chainAnchors: parsedChainAnchors,
     schemaVersion: result.schemaVersion?.value ? String(result.schemaVersion.value) : undefined,
   };
 }

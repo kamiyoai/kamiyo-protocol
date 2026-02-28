@@ -1,6 +1,6 @@
 // Reputation proof: prove threshold without revealing exact score
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global MAX_HISTORY: u32 = 64;
 
@@ -41,18 +41,18 @@ fn compute_weighted_score(
     disputes_lost: u64
 ) -> u64 {
     if total == 0 {
-        return 50;
-    }
-
-    let base_rate = (successful * 100) / total;
-    let total_disputes = disputes_won + disputes_lost;
-    let dispute_rate = if total_disputes > 0 {
-        (disputes_won * 100) / total_disputes
-    } else {
         50
-    };
+    } else {
+        let base_rate = (successful * 100) / total;
+        let total_disputes = disputes_won + disputes_lost;
+        let dispute_rate = if total_disputes > 0 {
+            (disputes_won * 100) / total_disputes
+        } else {
+            50
+        };
 
-    (base_rate * 60 + dispute_rate * 40) / 100
+        (base_rate * 60 + dispute_rate * 40) / 100
+    }
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn test_good_reputation() {
     let won = 8;
     let lost = 2;
     let blinding = 0x123456789;
-    let agent_pk = 0xagent;
+    let agent_pk = 0xabc123;
     let threshold = 90;
 
     let commitment = Poseidon2::hash([

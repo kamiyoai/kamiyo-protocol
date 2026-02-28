@@ -1,6 +1,6 @@
 // Aggregate vote: batch N votes into 1 proof
 
-use std::hash::poseidon2::Poseidon2;
+use poseidon::poseidon2::Poseidon2;
 
 global MAX_VOTES: u32 = 16;
 global MAX_SCORE: u8 = 100;

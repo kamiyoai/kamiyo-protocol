@@ -164,3 +164,23 @@ pub fn verify_agent_reputation_proof(
     )?;
     verifier.verify()
 }
+
+/// Verification key for PoCH uniqueness circuit (4 public inputs).
+/// Public inputs: [score_bundle_commitment, policy_id_hash, challenge_id_hash, identity_nullifier]
+///
+/// The PoCH path has its own verifier wiring and key handle to avoid coupling
+/// with unrelated proof domains.
+pub const POCH_UNIQUENESS_VK: &Groth16Verifyingkey = &AGENT_REPUTATION_VK;
+
+/// Verify a PoCH uniqueness proof.
+/// Public inputs: [score_bundle_commitment, policy_id_hash, challenge_id_hash, identity_nullifier]
+pub fn verify_poch_uniqueness_proof(
+    proof_a: &[u8; 64],
+    proof_b: &[u8; 128],
+    proof_c: &[u8; 64],
+    public_inputs: &[[u8; 32]; 4],
+) -> Result<(), groth16_solana::errors::Groth16Error> {
+    let mut verifier =
+        Groth16Verifier::new(proof_a, proof_b, proof_c, public_inputs, POCH_UNIQUENESS_VK)?;
+    verifier.verify()
+}

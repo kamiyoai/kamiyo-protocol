@@ -3,12 +3,15 @@ import {
   TaskCompletionSchema,
   CapabilityAttestationSchema,
   TrustRelationshipSchema,
+  PoCHContributionSchema,
   buildTaskCompletionAsset,
   buildCapabilityAttestationAsset,
   buildTrustRelationshipAsset,
+  buildPoCHContributionAsset,
   parseTaskCompletionResult,
   parseCapabilityAttestationResult,
   parseTrustRelationshipResult,
+  parsePoCHContributionResult,
   DKGQueryResponseSchema,
   TaskSummaryResultSchema,
   TrustSummaryResultSchema,
@@ -123,6 +126,25 @@ describe('TrustRelationshipSchema', () => {
   });
 });
 
+describe('PoCHContributionSchema', () => {
+  const contribution = {
+    identityDid: 'did:pkh:eip155:8453:0x1111111111111111111111111111111111111111',
+    contentHash: '0xabc123ef',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    contributionType: 'knowledge_artifact',
+    provenanceRefs: ['urn:test:1'],
+    contextMetadata: { topic: 'proofs' },
+  } as const;
+
+  it('validates a valid PoCH contribution', () => {
+    expect(PoCHContributionSchema.safeParse(contribution).success).toBe(true);
+  });
+
+  it('rejects invalid content hash', () => {
+    expect(PoCHContributionSchema.safeParse({ ...contribution, contentHash: 'x' }).success).toBe(false);
+  });
+});
+
 describe('buildTaskCompletionAsset', () => {
   const task: TaskCompletion = {
     providerGlobalId: validGlobalId,
@@ -199,6 +221,22 @@ describe('buildTrustRelationshipAsset', () => {
   });
 });
 
+describe('buildPoCHContributionAsset', () => {
+  it('builds a CreativeWork JSON-LD asset', () => {
+    const asset = buildPoCHContributionAsset({
+      identityDid: 'did:pkh:eip155:8453:0x1111111111111111111111111111111111111111',
+      contentHash: '0xabc123ef',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      contributionType: 'creative_work',
+      provenanceRefs: ['urn:test:1'],
+      contextMetadata: { foo: 'bar' },
+    }) as Record<string, unknown>;
+
+    expect(asset['@type']).toBe('CreativeWork');
+    expect(asset['name']).toBe('PoCHContribution');
+  });
+});
+
 describe('parse functions', () => {
   it('parseTaskCompletionResult handles SPARQL result', () => {
     const result = parseTaskCompletionResult({
@@ -236,6 +274,23 @@ describe('parse functions', () => {
     expect(result.trustorGlobalId).toBe(validGlobalId);
     expect(result.trustLevel).toBe(80);
     expect(result.trustType).toBe('general');
+  });
+
+  it('parsePoCHContributionResult handles SPARQL result', () => {
+    const result = parsePoCHContributionResult({
+      assetDid: { value: 'urn:kamiyo:poch:1' },
+      identityDid: { value: 'did:pkh:eip155:8453:0x1111111111111111111111111111111111111111' },
+      contentHash: { value: '0xabc123' },
+      contributionType: { value: 'knowledge_artifact' },
+      createdAt: { value: '2026-01-01T00:00:00.000Z' },
+      scoreBundleCommitment: { value: '0xcommit' },
+      chainAnchors: { value: '{"solanaTxId":"5abc","baseTxHash":"0xdef"}' },
+    });
+
+    expect(result.assetDid).toBe('urn:kamiyo:poch:1');
+    expect(result.contributionType).toBe('knowledge_artifact');
+    expect(result.scoreBundleCommitment).toBe('0xcommit');
+    expect(result.chainAnchors?.solanaTxId).toBe('5abc');
   });
 });
 

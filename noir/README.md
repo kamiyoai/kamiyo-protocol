@@ -12,6 +12,7 @@ Four production circuits powering privacy-preserving dispute resolution:
 | `smt-exclusion` | Prove oracle not blacklisted | ~150k CU |
 | `aggregate-vote` | Batch 16 votes into 1 proof | ~250k CU (vs 3.2M) |
 | `reputation-proof` | Prove reputation threshold without revealing score | ~200k CU |
+| `poch-uniqueness` | Prove contribution uniqueness thresholds for PoCH | ~220k CU |
 
 ## Architecture
 

@@ -27,6 +27,7 @@ import meishiRoutes from './routes/meishi';
 import meishiDkgRoutes from './routes/meishi-dkg';
 import dkgRoutes from './routes/dkg';
 import paranetRoutes from './routes/paranet';
+import pochRoutes from './routes/poch';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
@@ -281,6 +282,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Agent Paranet - decentralized credit scores (public read, auth for write)
   app.use('/api/paranet', paranetRoutes);
+
+  // PoCH contribution humanity routes (public read/write with service-level controls)
+  app.use('/api/poch', pochRoutes);
 
   // BabyAGI bridge routes (public by default; set BABYAGI_BRIDGE_API_KEY to require auth)
   app.use('/babyagi/v1', babyagiRoutes);

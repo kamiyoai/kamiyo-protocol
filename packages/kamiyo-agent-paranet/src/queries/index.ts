@@ -472,3 +472,67 @@ export function queryTrustScore(globalId: string): string {
     }
   `;
 }
+
+export interface PoCHSimilarityParams extends PaginationParams {
+  daysBack?: number;
+}
+
+export function queryPoCHSimilarityNeighborhood(
+  identityDid: string,
+  contentHash: string,
+  params: PoCHSimilarityParams = {}
+): string {
+  const safeIdentity = escape(identityDid);
+  const safeHash = escape(contentHash);
+  const { sql } = applyPagination(params);
+  const daysBack = clamp(params.daysBack ?? 90, 1, 3650);
+
+  return `
+    PREFIX schema: <http://schema.org/>
+    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    SELECT
+      ?asset
+      ?identityDid
+      ?contentHash
+      ?contributionType
+      ?createdAt
+    WHERE {
+      ?asset a schema:CreativeWork ;
+            schema:name "PoCHContribution" ;
+            schema:dateCreated ?createdAt ;
+            schema:additionalProperty ?identityProp, ?hashProp, ?typeProp .
+      ?identityProp schema:name "identityDid" ; schema:value ?identityDid .
+      ?hashProp schema:name "contentHash" ; schema:value ?contentHash .
+      ?typeProp schema:name "contributionType" ; schema:value ?contributionType .
+      FILTER(?createdAt >= NOW() - "P${daysBack}D"^^xsd:duration)
+      FILTER(?identityDid != "${safeIdentity}" || ?contentHash != "${safeHash}")
+    }
+    ORDER BY DESC(?createdAt)
+    ${sql}
+  `;
+}
+
+export function queryPoCHClusterOverlap(identityDid: string, params?: PaginationParams): string {
+  const safeIdentity = escape(identityDid);
+  const { sql } = applyPagination(params);
+  return `
+    PREFIX schema: <http://schema.org/>
+    SELECT
+      ?relatedIdentity
+      (COUNT(DISTINCT ?asset) as ?sharedCount)
+      (MAX(?createdAt) as ?lastSeen)
+    WHERE {
+      ?asset a schema:CreativeWork ;
+            schema:name "PoCHContribution" ;
+            schema:dateCreated ?createdAt ;
+            schema:additionalProperty ?identityProp, ?refProp .
+      ?identityProp schema:name "identityDid" ; schema:value ?relatedIdentity .
+      ?refProp schema:name "provenanceRefs" ; schema:value ?provenanceRefs .
+      FILTER(CONTAINS(LCASE(STR(?provenanceRefs)), LCASE("${safeIdentity}")))
+      FILTER(?relatedIdentity != "${safeIdentity}")
+    }
+    GROUP BY ?relatedIdentity
+    ORDER BY DESC(?sharedCount) DESC(?lastSeen)
+    ${sql}
+  `;
+}

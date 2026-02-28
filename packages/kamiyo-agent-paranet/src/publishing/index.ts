@@ -4,15 +4,18 @@ import type {
   TaskCompletion,
   CapabilityAttestation,
   TrustRelationship,
+  PoCHContribution,
   PublishResult,
 } from '../types';
 import {
   TaskCompletionSchema,
   CapabilityAttestationSchema,
   TrustRelationshipSchema,
+  PoCHContributionSchema,
   buildTaskCompletionAsset,
   buildCapabilityAttestationAsset,
   buildTrustRelationshipAsset,
+  buildPoCHContributionAsset,
 } from '../schemas/index';
 import { getLogger, createTimer } from '../logger';
 import type { Logger } from '../logger';
@@ -127,6 +130,43 @@ export class ParanetPublisher {
     }
   }
 
+  async publishPoCHContribution(contribution: PoCHContribution): Promise<PublishResult> {
+    const timer = createTimer();
+    const log = this.logger.child({
+      operation: 'publishPoCHContribution',
+      identityDid: contribution.identityDid,
+      contributionType: contribution.contributionType,
+    });
+
+    const validation = PoCHContributionSchema.safeParse(contribution);
+    if (!validation.success) {
+      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      log.warn('Validation failed', { error: errorMsg });
+      return { success: false, error: `Validation failed: ${errorMsg}` };
+    }
+
+    const asset = buildPoCHContributionAsset(contribution);
+
+    try {
+      log.debug('Publishing contribution');
+      const result = await this.dkg.asset.create(
+        { public: asset },
+        {
+          epochsNum: this.config.epochs ?? 12,
+          paranetUAL: this.config.paranetUAL,
+        }
+      );
+      log.info('PoCH contribution published', { duration: timer(), ual: result.UAL });
+      return { success: true, ual: result.UAL };
+    } catch (error) {
+      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Publishing failed',
+      };
+    }
+  }
+
   async publishTaskCompletionBatch(tasks: TaskCompletion[]): Promise<PublishResult[]> {
     return Promise.all(tasks.map(task => this.publishTaskCompletion(task)));
   }
@@ -175,12 +215,21 @@ export class ParanetPublisher {
   }
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  const value = endpoint.trim();
+  if (!value) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+    return value;
+  }
+  return `http://${value}`;
+}
+
 export async function createDKGClient(config: ParanetConfig): Promise<DKGClient> {
   try {
     const DKG = await import('dkg.js').then(m => m.default || m);
 
     const dkg = new DKG({
-      endpoint: config.dkgEndpoint,
+      endpoint: normalizeDkgEndpoint(config.dkgEndpoint),
       port: config.dkgPort || 8900,
       blockchain: {
         name: config.blockchain,

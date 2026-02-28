@@ -81,8 +81,23 @@ function firstNonEmpty(keys: readonly string[]): string | undefined {
   return undefined;
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  const value = endpoint.trim();
+  if (!value) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+    return value;
+  }
+  return `http://${value}`;
+}
+
 function resolveDkgEndpoint(): string | undefined {
-  return firstNonEmpty(['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT']);
+  const endpoint = firstNonEmpty([
+    'DKG_ENDPOINT',
+    'KAMIYO_DKG_ENDPOINT',
+    'PARANET_DKG_ENDPOINT',
+    'OT_NODE_ENDPOINT',
+  ]);
+  return endpoint ? normalizeDkgEndpoint(endpoint) : undefined;
 }
 
 function resolveDkgBlockchain(): ParanetConfig['blockchain'] {

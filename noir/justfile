@@ -11,17 +11,11 @@ install:
 
 # Compile all circuits
 compile-all:
-    nargo compile --package oracle_vote
-    nargo compile --package smt_exclusion
-    nargo compile --package aggregate_vote
-    nargo compile --package reputation_proof
+    for circuit in circuits/*; do cd "$$circuit" && nargo compile && cd - >/dev/null; done
 
 # Test all circuits
 test-all:
-    nargo test --package oracle_vote
-    nargo test --package smt_exclusion
-    nargo test --package aggregate_vote
-    nargo test --package reputation_proof
+    for circuit in circuits/*; do cd "$$circuit" && nargo test && cd - >/dev/null; done
 
 # Build TypeScript library
 build-lib:
@@ -43,6 +37,7 @@ setup-all:
     just setup smt-exclusion
     just setup aggregate-vote
     just setup reputation-proof
+    just setup poch-uniqueness
 
 # Generate proofs
 prove circuit:
@@ -58,6 +53,7 @@ build-verifiers:
     cd circuits/smt-exclusion && sunspot build-verifier
     cd circuits/aggregate-vote && sunspot build-verifier
     cd circuits/reputation-proof && sunspot build-verifier
+    cd circuits/poch-uniqueness && sunspot build-verifier
 
 # Deploy to devnet
 deploy-devnet keypair:
@@ -79,11 +75,11 @@ clean:
 
 # Format
 fmt:
-    nargo fmt
+    for circuit in circuits/*; do cd "$$circuit" && nargo fmt && cd - >/dev/null; done
 
 # Check
 check:
-    nargo check
+    for circuit in circuits/*; do cd "$$circuit" && nargo check && cd - >/dev/null; done
 
 # CI
 ci: check test-all build

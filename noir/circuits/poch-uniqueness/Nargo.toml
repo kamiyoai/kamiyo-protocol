@@ -1,5 +1,5 @@
 [package]
-name = "reputation_proof"
+name = "poch_uniqueness"
 type = "bin"
 authors = ["KAMIYO"]
 compiler_version = ">=1.0.0"

@@ -181,6 +181,9 @@ pub enum EvidenceKindWire {
     Slash,
     ManualCredit,
     ManualDebit,
+    PoCHVerified,
+    PoCHRejected,
+    PoCHDisputed,
 }
 
 impl From<EvidenceKindWire> for EvidenceKind {
@@ -192,6 +195,9 @@ impl From<EvidenceKindWire> for EvidenceKind {
             EvidenceKindWire::Slash => EvidenceKind::Slash,
             EvidenceKindWire::ManualCredit => EvidenceKind::ManualCredit,
             EvidenceKindWire::ManualDebit => EvidenceKind::ManualDebit,
+            EvidenceKindWire::PoCHVerified => EvidenceKind::PoCHVerified,
+            EvidenceKindWire::PoCHRejected => EvidenceKind::PoCHRejected,
+            EvidenceKindWire::PoCHDisputed => EvidenceKind::PoCHDisputed,
         }
     }
 }
@@ -262,6 +268,9 @@ pub fn evidence_kind_from_code(code: i16) -> Option<EvidenceKind> {
         4 => Some(EvidenceKind::Slash),
         5 => Some(EvidenceKind::ManualCredit),
         6 => Some(EvidenceKind::ManualDebit),
+        7 => Some(EvidenceKind::PoCHVerified),
+        8 => Some(EvidenceKind::PoCHRejected),
+        9 => Some(EvidenceKind::PoCHDisputed),
         _ => None,
     }
 }

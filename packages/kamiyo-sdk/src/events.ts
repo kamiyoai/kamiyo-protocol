@@ -140,6 +140,43 @@ export interface AgentSlashedEvent {
   reason: string;
 }
 
+export interface PoCHSubmissionInitializedEvent {
+  submission: PublicKey;
+  owner: PublicKey;
+  assetDid: string;
+  identityDid: string;
+  chain: string;
+  policyId: string;
+}
+
+export interface PoCHScoreBundleCommittedEvent {
+  submission: PublicKey;
+  owner: PublicKey;
+  challengeId: string;
+  scoreBundleCommitment: Uint8Array;
+}
+
+export interface PoCHProofVerifiedEvent {
+  submission: PublicKey;
+  owner: PublicKey;
+  challengeId: string;
+  identityNullifier: Uint8Array;
+}
+
+export interface PoCHFinalizedEvent {
+  submission: PublicKey;
+  owner: PublicKey;
+  accepted: boolean;
+  oracleRoundId: string;
+  proofStatementId: string;
+}
+
+export interface PoCHPenaltyAppliedEvent {
+  owner: PublicKey;
+  adverseCount: number;
+  slashTier: number;
+}
+
 /**
  * Treasury Deposit Event
  */
@@ -194,6 +231,11 @@ export interface KamiyoEventCallbacks {
   onOracleRewardsClaimed?: (event: OracleRewardsClaimedEvent) => void;
   onMultiOracleDisputeResolved?: (event: MultiOracleDisputeResolvedEvent) => void;
   onTreasuryDeposit?: (event: TreasuryDepositEvent) => void;
+  onPoCHSubmissionInitialized?: (event: PoCHSubmissionInitializedEvent) => void;
+  onPoCHScoreBundleCommitted?: (event: PoCHScoreBundleCommittedEvent) => void;
+  onPoCHProofVerified?: (event: PoCHProofVerifiedEvent) => void;
+  onPoCHFinalized?: (event: PoCHFinalizedEvent) => void;
+  onPoCHPenaltyApplied?: (event: PoCHPenaltyAppliedEvent) => void;
 }
 
 /**
@@ -321,6 +363,48 @@ export class KamiyoEventListener {
         this.program.addEventListener(
           "ExpiredEscrowClaimed",
           callbacks.onExpiredEscrowClaimed
+        )
+      );
+    }
+
+    if (callbacks.onPoCHSubmissionInitialized) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "PoCHSubmissionInitialized",
+          callbacks.onPoCHSubmissionInitialized
+        )
+      );
+    }
+
+    if (callbacks.onPoCHScoreBundleCommitted) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "PoCHScoreBundleCommitted",
+          callbacks.onPoCHScoreBundleCommitted
+        )
+      );
+    }
+
+    if (callbacks.onPoCHProofVerified) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "PoCHProofVerified",
+          callbacks.onPoCHProofVerified
+        )
+      );
+    }
+
+    if (callbacks.onPoCHFinalized) {
+      this.listeners.push(
+        this.program.addEventListener("PoCHFinalized", callbacks.onPoCHFinalized)
+      );
+    }
+
+    if (callbacks.onPoCHPenaltyApplied) {
+      this.listeners.push(
+        this.program.addEventListener(
+          "PoCHPenaltyApplied",
+          callbacks.onPoCHPenaltyApplied
         )
       );
     }

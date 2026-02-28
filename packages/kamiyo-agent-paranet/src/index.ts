@@ -101,12 +101,15 @@ export {
   TaskCompletionSchema,
   CapabilityAttestationSchema,
   TrustRelationshipSchema,
+  PoCHContributionSchema,
   buildTaskCompletionAsset,
   buildCapabilityAttestationAsset,
   buildTrustRelationshipAsset,
+  buildPoCHContributionAsset,
   parseTaskCompletionResult,
   parseCapabilityAttestationResult,
   parseTrustRelationshipResult,
+  parsePoCHContributionResult,
   SCHEMA_VERSION,
   CURRENT_VERSION,
   isCompatibleVersion,
@@ -157,12 +160,29 @@ export {
   findBestProvider,
 } from './discovery/index';
 
+export {
+  computePoCHScoreBundle,
+  hashPoCHScoreBundle,
+  buildPoCHChallengeId,
+  loadPoCHObservations,
+} from './poch/index';
+export type {
+  ComputePoCHScoreBundleInput,
+  PoCHScoreBundleResult,
+  PoCHSimilarityObservation,
+  PoCHClusterObservation,
+} from './poch/index';
+
 import type {
   DKGClient,
   ParanetConfig,
   TaskCompletion,
   CapabilityAttestation,
   TrustRelationship,
+  PoCHContribution,
+  PoCHChallenge,
+  PoCHChain,
+  PoCHScoreBundle,
   ProviderSearchCriteria,
   ProviderSearchResult,
   CreditScore,
@@ -172,6 +192,7 @@ import type {
 import { ParanetPublisher, createDKGClient } from './publishing/index';
 import { ProviderDiscovery } from './discovery/index';
 import { CreditScoreCalculator } from './scoring/index';
+import { buildPoCHChallengeId, hashPoCHScoreBundle, loadPoCHObservations } from './poch/index';
 
 export class AgentParanetClient {
   private dkg: DKGClient;
@@ -214,6 +235,10 @@ export class AgentParanetClient {
     return this.publisher.publishTaskWithQuality(task, autoAttest);
   }
 
+  async publishPoCHContribution(contribution: PoCHContribution): Promise<PublishResult> {
+    return this.publisher.publishPoCHContribution(contribution);
+  }
+
   // Discovery
 
   async findProviders(criteria: ProviderSearchCriteria): Promise<QueryResult<ProviderSearchResult[]>> {
@@ -245,6 +270,44 @@ export class AgentParanetClient {
 
   async calculateCreditScore(globalId: string): Promise<QueryResult<CreditScore>> {
     return this.scorer.calculateScore(globalId);
+  }
+
+  async computePoCHScoreBundle(input: {
+    identityDid: string;
+    contentHash: string;
+    policyId: string;
+    daysBack?: number;
+  }): Promise<PoCHScoreBundle> {
+    const result = await loadPoCHObservations(this.dkg, input);
+    return result.scoreBundle;
+  }
+
+  async createPoCHChallenge(input: {
+    assetDid: string;
+    identityDid: string;
+    contentHash: string;
+    chain: PoCHChain;
+    policyId: string;
+    daysBack?: number;
+  }): Promise<PoCHChallenge> {
+    const scored = await loadPoCHObservations(this.dkg, {
+      identityDid: input.identityDid,
+      contentHash: input.contentHash,
+      policyId: input.policyId,
+      daysBack: input.daysBack,
+    });
+
+    const commitment = hashPoCHScoreBundle(scored.scoreBundle);
+    return {
+      challengeId: buildPoCHChallengeId(input.assetDid, commitment, input.chain),
+      assetDid: input.assetDid,
+      identityDid: input.identityDid,
+      chain: input.chain,
+      policyId: input.policyId,
+      scoreBundle: scored.scoreBundle,
+      scoreBundleCommitment: commitment,
+      createdAt: new Date().toISOString(),
+    };
   }
 
   clearScoreCache(globalId?: string): void {

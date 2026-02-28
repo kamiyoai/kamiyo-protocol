@@ -7,6 +7,13 @@ function required(name: string): string {
   return value;
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(endpoint)) {
+    return endpoint;
+  }
+  return `http://${endpoint}`;
+}
+
 async function main() {
   const endpoint = required('DKG_ENDPOINT');
   const blockchain = required('DKG_BLOCKCHAIN') as 'base:8453' | 'gnosis:100' | 'otp:2043';
@@ -17,7 +24,7 @@ async function main() {
   const epochsNum = parseInt(process.env.DKG_DEFAULT_EPOCHS || '2', 10) || 2;
 
   const dkg = new (DKG as any)({
-    endpoint,
+    endpoint: normalizeDkgEndpoint(endpoint),
     port,
     blockchain: {
       name: blockchain,
@@ -70,4 +77,3 @@ main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 });
-

@@ -145,6 +145,15 @@ function isRateLimitError(message: string): boolean {
   return lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('429');
 }
 
+function normalizeDkgEndpoint(endpoint: string): string {
+  const value = endpoint.trim();
+  if (!value) return value;
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
+    return value;
+  }
+  return `http://${value}`;
+}
+
 function buildReviewAsset(params: {
   input: PublishDkgActivityInput;
   score: number;
@@ -225,7 +234,7 @@ export class DkgActivityPublisher {
     }
 
     this.clientPromise = AgentParanetClient.create({
-      dkgEndpoint: endpoint,
+      dkgEndpoint: normalizeDkgEndpoint(endpoint),
       dkgPort: this.config.port,
       blockchain: this.config.blockchain,
       privateKey,
