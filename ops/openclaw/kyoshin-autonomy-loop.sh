@@ -86,6 +86,16 @@ ENABLE_MEMORY_EXTRACTION="${KYO_ENABLE_MEMORY_EXTRACTION:-true}"
 REQUIRE_MEMORY_EXTRACTION="${KYO_REQUIRE_MEMORY_EXTRACTION:-false}"
 ENABLE_CLAWMART_MONITOR="${KYO_ENABLE_CLAWMART_MONITOR:-true}"
 REQUIRE_CLAWMART_MONITOR="${KYO_REQUIRE_CLAWMART_MONITOR:-false}"
+ENABLE_CLAWMART_STAKING_ROUTE="${KYO_ENABLE_CLAWMART_STAKING_ROUTE:-true}"
+REQUIRE_CLAWMART_STAKING_ROUTE="${KYO_REQUIRE_CLAWMART_STAKING_ROUTE:-true}"
+ENABLE_REVENUE_GUARD="${KYO_ENABLE_REVENUE_GUARD:-true}"
+REQUIRE_REVENUE_GUARD="${KYO_REQUIRE_REVENUE_GUARD:-true}"
+ENABLE_X402_AGENTCASH="${KYO_ENABLE_X402_AGENTCASH:-true}"
+REQUIRE_X402_AGENTCASH="${KYO_REQUIRE_X402_AGENTCASH:-false}"
+ENABLE_DISTRIBUTION_ENGINE="${KYO_ENABLE_DISTRIBUTION_ENGINE:-true}"
+REQUIRE_DISTRIBUTION_ENGINE="${KYO_REQUIRE_DISTRIBUTION_ENGINE:-false}"
+ENABLE_OPERATOR_LOG="${KYO_ENABLE_OPERATOR_LOG:-true}"
+REQUIRE_OPERATOR_LOG="${KYO_REQUIRE_OPERATOR_LOG:-false}"
 
 if [ -z "$REQUIRE_GATEWAY_HEALTH" ]; then
   if is_true "$ENABLE_AGENT_HEARTBEAT"; then
@@ -454,6 +464,109 @@ else
   fi
 fi
 
+revenue_guard_ok=1
+revenue_guard_summary='{"ok":true,"status":"disabled"}'
+revenue_guard_blocks_paid=0
+if is_true "$ENABLE_REVENUE_GUARD"; then
+  revenue_guard_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-revenue-guard.py" ]; then
+    if "$HOME/bin/kyoshin-revenue-guard.py" >"$TMP_DIR/revenue-guard.json" 2>"$TMP_DIR/revenue-guard.err"; then
+      revenue_guard_summary="$(as_json_line "$TMP_DIR/revenue-guard.json")"
+      revenue_guard_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/revenue-guard.json" 2>/dev/null || echo true)"
+      revenue_guard_block_paid_value="$(jq -r '.blockPaidExecution // false' "$TMP_DIR/revenue-guard.json" 2>/dev/null || echo false)"
+      if [ "$revenue_guard_block_paid_value" = "true" ]; then
+        revenue_guard_blocks_paid=1
+      fi
+      if is_true "$REQUIRE_REVENUE_GUARD"; then
+        if [ "$revenue_guard_inner_ok" != "true" ]; then
+          revenue_guard_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/revenue-guard.json" ]; then
+        revenue_guard_summary="$(as_json_line "$TMP_DIR/revenue-guard.json")"
+      else
+        revenue_guard_err="$(tr -d '\n' <"$TMP_DIR/revenue-guard.err" | sed 's/"/\\"/g')"
+        revenue_guard_summary="{\"ok\":false,\"error\":\"$revenue_guard_err\"}"
+      fi
+      if is_true "$REQUIRE_REVENUE_GUARD"; then
+        revenue_guard_ok=0
+      fi
+    fi
+  else
+    revenue_guard_summary='{"ok":false,"error":"missing_revenue_guard"}'
+    if is_true "$REQUIRE_REVENUE_GUARD"; then
+      revenue_guard_ok=0
+    fi
+  fi
+fi
+
+x402_agentcash_ok=1
+x402_agentcash_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_X402_AGENTCASH"; then
+  x402_agentcash_summary='{"ok":false,"error":"not_run"}'
+  if [ "$revenue_guard_blocks_paid" -eq 1 ]; then
+    x402_agentcash_summary='{"ok":false,"status":"blocked","reason":"revenue_guard_block_paid_execution"}'
+  elif [ -x "$HOME/bin/kyoshin-x402-agentcash.py" ]; then
+    if "$HOME/bin/kyoshin-x402-agentcash.py" >"$TMP_DIR/x402-agentcash.json" 2>"$TMP_DIR/x402-agentcash.err"; then
+      x402_agentcash_summary="$(as_json_line "$TMP_DIR/x402-agentcash.json")"
+      x402_agentcash_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/x402-agentcash.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_X402_AGENTCASH"; then
+        if [ "$x402_agentcash_inner_ok" != "true" ]; then
+          x402_agentcash_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/x402-agentcash.json" ]; then
+        x402_agentcash_summary="$(as_json_line "$TMP_DIR/x402-agentcash.json")"
+      else
+        x402_agentcash_err="$(tr -d '\n' <"$TMP_DIR/x402-agentcash.err" | sed 's/"/\\"/g')"
+        x402_agentcash_summary="{\"ok\":false,\"error\":\"$x402_agentcash_err\"}"
+      fi
+      if is_true "$REQUIRE_X402_AGENTCASH"; then
+        x402_agentcash_ok=0
+      fi
+    fi
+  else
+    x402_agentcash_summary='{"ok":false,"error":"missing_x402_agentcash"}'
+    if is_true "$REQUIRE_X402_AGENTCASH"; then
+      x402_agentcash_ok=0
+    fi
+  fi
+fi
+
+clawmart_staking_route_ok=1
+clawmart_staking_route_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_CLAWMART_STAKING_ROUTE"; then
+  clawmart_staking_route_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-clawmart-staking-route.py" ]; then
+    if "$HOME/bin/kyoshin-clawmart-staking-route.py" >"$TMP_DIR/clawmart-staking-route.json" 2>"$TMP_DIR/clawmart-staking-route.err"; then
+      clawmart_staking_route_summary="$(as_json_line "$TMP_DIR/clawmart-staking-route.json")"
+      clawmart_staking_route_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/clawmart-staking-route.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_CLAWMART_STAKING_ROUTE"; then
+        if [ "$clawmart_staking_route_inner_ok" != "true" ]; then
+          clawmart_staking_route_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/clawmart-staking-route.json" ]; then
+        clawmart_staking_route_summary="$(as_json_line "$TMP_DIR/clawmart-staking-route.json")"
+      else
+        clawmart_staking_route_err="$(tr -d '\n' <"$TMP_DIR/clawmart-staking-route.err" | sed 's/"/\\"/g')"
+        clawmart_staking_route_summary="{\"ok\":false,\"error\":\"$clawmart_staking_route_err\"}"
+      fi
+      if is_true "$REQUIRE_CLAWMART_STAKING_ROUTE"; then
+        clawmart_staking_route_ok=0
+      fi
+    fi
+  else
+    clawmart_staking_route_summary='{"ok":false,"error":"missing_clawmart_staking_route"}'
+    if is_true "$REQUIRE_CLAWMART_STAKING_ROUTE"; then
+      clawmart_staking_route_ok=0
+    fi
+  fi
+fi
+
 clawmart_monitor_ok=1
 clawmart_monitor_summary='{"ok":true,"status":"disabled"}'
 if is_true "$ENABLE_CLAWMART_MONITOR"; then
@@ -482,6 +595,38 @@ if is_true "$ENABLE_CLAWMART_MONITOR"; then
     clawmart_monitor_summary='{"ok":false,"error":"missing_clawmart_monitor"}'
     if is_true "$REQUIRE_CLAWMART_MONITOR"; then
       clawmart_monitor_ok=0
+    fi
+  fi
+fi
+
+distribution_engine_ok=1
+distribution_engine_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_DISTRIBUTION_ENGINE"; then
+  distribution_engine_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-distribution-engine.py" ]; then
+    if "$HOME/bin/kyoshin-distribution-engine.py" >"$TMP_DIR/distribution-engine.json" 2>"$TMP_DIR/distribution-engine.err"; then
+      distribution_engine_summary="$(as_json_line "$TMP_DIR/distribution-engine.json")"
+      distribution_engine_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/distribution-engine.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_DISTRIBUTION_ENGINE"; then
+        if [ "$distribution_engine_inner_ok" != "true" ]; then
+          distribution_engine_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/distribution-engine.json" ]; then
+        distribution_engine_summary="$(as_json_line "$TMP_DIR/distribution-engine.json")"
+      else
+        distribution_engine_err="$(tr -d '\n' <"$TMP_DIR/distribution-engine.err" | sed 's/"/\\"/g')"
+        distribution_engine_summary="{\"ok\":false,\"error\":\"$distribution_engine_err\"}"
+      fi
+      if is_true "$REQUIRE_DISTRIBUTION_ENGINE"; then
+        distribution_engine_ok=0
+      fi
+    fi
+  else
+    distribution_engine_summary='{"ok":false,"error":"missing_distribution_engine"}'
+    if is_true "$REQUIRE_DISTRIBUTION_ENGINE"; then
+      distribution_engine_ok=0
     fi
   fi
 fi
@@ -623,7 +768,11 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$tool_health_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
+  && [ "$revenue_guard_ok" -eq 1 ] \
+  && [ "$x402_agentcash_ok" -eq 1 ] \
+  && [ "$clawmart_staking_route_ok" -eq 1 ] \
   && [ "$clawmart_monitor_ok" -eq 1 ] \
+  && [ "$distribution_engine_ok" -eq 1 ] \
   && [ "$artifact_contracts_ok" -eq 1 ]; then
   cat >"$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
@@ -676,8 +825,20 @@ else
   if [ "$mission_control_ok" -ne 1 ]; then
     combined_error+="mission_control_failed;"
   fi
+  if [ "$revenue_guard_ok" -ne 1 ]; then
+    combined_error+="revenue_guard_failed;"
+  fi
+  if [ "$x402_agentcash_ok" -ne 1 ]; then
+    combined_error+="x402_agentcash_failed;"
+  fi
+  if [ "$clawmart_staking_route_ok" -ne 1 ]; then
+    combined_error+="clawmart_staking_route_failed;"
+  fi
   if [ "$clawmart_monitor_ok" -ne 1 ]; then
     combined_error+="clawmart_monitor_failed;"
+  fi
+  if [ "$distribution_engine_ok" -ne 1 ]; then
+    combined_error+="distribution_engine_failed;"
   fi
   if [ "$artifact_contracts_ok" -ne 1 ]; then
     combined_error+="artifact_contracts_failed;"
@@ -750,14 +911,54 @@ if [ "$status" = "ok" ] && [ "$memory_extract_ok" -ne 1 ]; then
 EOF
 fi
 
+operator_log_ok=1
+operator_log_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_OPERATOR_LOG"; then
+  operator_log_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-operator-log.py" ]; then
+    if "$HOME/bin/kyoshin-operator-log.py" --status "$status" --cycle "$next_cycles" --error "$combined_error" --at "$NOW_ISO" >"$TMP_DIR/operator-log.json" 2>"$TMP_DIR/operator-log.err"; then
+      operator_log_summary="$(as_json_line "$TMP_DIR/operator-log.json")"
+      operator_log_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/operator-log.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_OPERATOR_LOG"; then
+        if [ "$operator_log_inner_ok" != "true" ]; then
+          operator_log_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/operator-log.json" ]; then
+        operator_log_summary="$(as_json_line "$TMP_DIR/operator-log.json")"
+      else
+        operator_log_err="$(tr -d '\n' <"$TMP_DIR/operator-log.err" | sed 's/"/\\"/g')"
+        operator_log_summary="{\"ok\":false,\"error\":\"$operator_log_err\"}"
+      fi
+      if is_true "$REQUIRE_OPERATOR_LOG"; then
+        operator_log_ok=0
+      fi
+    fi
+  else
+    operator_log_summary='{"ok":false,"error":"missing_operator_log"}'
+    if is_true "$REQUIRE_OPERATOR_LOG"; then
+      operator_log_ok=0
+    fi
+  fi
+fi
+
+if [ "$status" = "ok" ] && [ "$operator_log_ok" -ne 1 ]; then
+  status="degraded"
+  combined_error+="operator_log_failed;"
+  cat >"$STATE_FILE" <<EOF
+{"cycles":$next_cycles,"lastSuccessAt":$prev_success_json,"lastErrorAt":"$NOW_ISO","lastError":"$combined_error","lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
+EOF
+fi
+
 if [ "$status" = "ok" ]; then
   cat >"$STATE_FILE" <<EOF
 {"cycles":$next_cycles,"lastSuccessAt":"$NOW_ISO","lastErrorAt":null,"lastError":null,"lastNightlyMissionDate":"$last_nightly_run_date","lastMemoryExtractDate":"$last_memory_extract_date"}
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"clawMartMonitor":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$clawmart_monitor_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"revenueGuard":%s,"x402AgentCash":%s,"clawMartStakingRoute":%s,"clawMartMonitor":%s,"distributionEngine":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"operatorLog":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$revenue_guard_summary" "$x402_agentcash_summary" "$clawmart_staking_route_summary" "$clawmart_monitor_summary" "$distribution_engine_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$operator_log_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"

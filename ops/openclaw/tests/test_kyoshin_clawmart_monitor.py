@@ -27,18 +27,24 @@ class KyoshinClawMartMonitorTests(unittest.TestCase):
         self.runtime = self.workspace / 'runtime'
         self.state_dir = self.runtime / 'state'
         self.mission_control_dir = self.runtime / 'mission-control'
+        self.receipts_dir = self.runtime / 'receipts'
 
         self.mod.WORKSPACE = self.workspace
         self.mod.RUNTIME_DIR = self.runtime
         self.mod.STATE_DIR = self.state_dir
         self.mod.MISSION_CONTROL_DIR = self.mission_control_dir
+        self.mod.RECEIPTS_DIR = self.receipts_dir
         self.mod.BACKLOG_PATH = self.mission_control_dir / 'backlog.json'
         self.mod.BOARD_PATH = self.mission_control_dir / 'board.json'
         self.mod.STATE_PATH = self.state_dir / 'clawmart-monitor-state.json'
         self.mod.OUTPUT_PATH = self.state_dir / 'clawmart-monitor.json'
+        self.mod.REVENUE_LEDGER_PATH = self.receipts_dir / 'revenue-ledger.jsonl'
         self.mod.API_KEY = ''
         self.mod.DASHBOARD_URL = 'https://example.com/dashboard'
+        self.mod.KAMIYO_STAKING_POOL_URL = 'https://example.com/staking/pool'
         self.mod.MAX_TASKS = 8
+        self.mod.REQUIRE_STAKING_ROUTE = False
+        self.mod.STAKING_ROUTE_RECEIPTS_PATH = self.runtime / 'receipts' / 'clawmart-staking-route.jsonl'
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -97,6 +103,7 @@ class KyoshinClawMartMonitorTests(unittest.TestCase):
         self.assertEqual(summary.get('tasksAdded'), 2)
         self.assertEqual(summary.get('salesDelta'), 3)
         self.assertEqual(summary.get('totalSales'), 5)
+        self.assertEqual(summary.get('ledgerRowsAppended'), 3)
 
         backlog = json.loads(self.mod.BACKLOG_PATH.read_text(encoding='utf-8'))
         task_types = {item.get('type') for item in backlog.get('items', [])}
@@ -109,6 +116,13 @@ class KyoshinClawMartMonitorTests(unittest.TestCase):
         self.assertEqual(board.get('clawMartSalesDelta'), 3)
         self.assertEqual(board.get('clawMartListingsActive'), 1)
         self.assertEqual(board.get('clawMartListingsTotal'), 1)
+        self.assertEqual(board.get('clawMartLedgerRowsAppended'), 3)
+
+        rows = [line.strip() for line in self.mod.REVENUE_LEDGER_PATH.read_text(encoding='utf-8').splitlines() if line.strip()]
+        self.assertEqual(len(rows), 3)
+        first = json.loads(rows[0])
+        self.assertEqual(first.get('source'), 'clawmart')
+        self.assertEqual(first.get('kind'), 'paid_order')
 
     def test_dedupes_existing_task_ids_and_respects_max_tasks(self):
         self.mod.API_KEY = 'test-key'
@@ -252,6 +266,137 @@ class KyoshinClawMartMonitorTests(unittest.TestCase):
         self.assertEqual(len(promo_ids2), 1)
         self.assertEqual(len(outreach_ids2), 1)
         self.assertEqual(len(channel_setup_ids2), 1)
+
+    def test_blocks_when_sales_are_unrouted_and_staking_route_required(self):
+        self.mod.API_KEY = 'test-key'
+        self.mod.REQUIRE_STAKING_ROUTE = True
+        self._write_json(
+            self.mod.STATE_PATH,
+            {
+                'totalSales': 1,
+                'listings': {
+                    'listing-1': {
+                        'name': 'Kyoshin Operator Persona',
+                        'status': 'active',
+                        'slug': 'kyoshin-operator',
+                        'price': 99,
+                        'versions': 1,
+                        'updatedAt': '2026-02-27T00:00:00Z',
+                    }
+                },
+            },
+        )
+
+        def fake_fetch(path: str) -> dict:
+            if path == '/me':
+                return {'data': {'totalSales': 3, 'profile': {'id': 'profile-1'}}}
+            if path == '/listings':
+                return {
+                    'data': {
+                        'listings': [
+                            {
+                                'id': 'listing-1',
+                                'name': 'Kyoshin Operator Persona',
+                                'status': 'active',
+                                'slug': 'kyoshin-operator',
+                                'publicUrl': 'https://www.shopclawmart.com/listings/listing-1',
+                                'price': 99,
+                                'versions': 1,
+                                'updatedAt': '2026-02-27T00:00:00Z',
+                            }
+                        ]
+                    }
+                }
+            raise AssertionError(f'unexpected path: {path}')
+
+        with patch.object(self.mod, 'fetch_json', side_effect=fake_fetch):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertEqual(summary.get('status'), 'policy_blocked')
+        self.assertEqual(summary.get('reason'), 'staking_route_non_compliant')
+        self.assertEqual(summary.get('unroutedSalesCount'), 3)
+        self.assertEqual(summary.get('lastRoutedTotalSales'), 0)
+
+        backlog = json.loads(self.mod.BACKLOG_PATH.read_text(encoding='utf-8'))
+        task_types = {item.get('type') for item in backlog.get('items', [])}
+        self.assertIn('clawmart_fulfillment', task_types)
+        self.assertIn('clawmart_staking_route', task_types)
+
+        board = json.loads(self.mod.BOARD_PATH.read_text(encoding='utf-8'))
+        self.assertEqual(board.get('clawMartStakingRouteRequired'), True)
+        self.assertEqual(board.get('clawMartStakingRouteCompliant'), False)
+        self.assertEqual(board.get('clawMartUnroutedSalesCount'), 3)
+
+    def test_staking_receipt_checkpoint_unblocks_required_policy(self):
+        self.mod.API_KEY = 'test-key'
+        self.mod.REQUIRE_STAKING_ROUTE = True
+        self._write_json(
+            self.mod.STATE_PATH,
+            {
+                'totalSales': 3,
+                'listings': {
+                    'listing-1': {
+                        'name': 'Kyoshin Operator Persona',
+                        'status': 'active',
+                        'slug': 'kyoshin-operator',
+                        'price': 99,
+                        'versions': 1,
+                        'updatedAt': '2026-02-27T00:00:00Z',
+                    }
+                },
+            },
+        )
+        self.mod.STAKING_ROUTE_RECEIPTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.STAKING_ROUTE_RECEIPTS_PATH.write_text(
+            '\n'.join(
+                [
+                    '{"source":"clawmart","stakingPoolUrl":"https://wrong.example/pool","clawMartTotalSalesRouted":9}',
+                    '{"source":"clawmart","stakingPoolUrl":"https://example.com/staking/pool","clawMartTotalSalesRouted":3,"txSignature":"abc123","at":"2026-02-27T08:00:00Z"}',
+                ]
+            )
+            + '\n',
+            encoding='utf-8',
+        )
+
+        def fake_fetch(path: str) -> dict:
+            if path == '/me':
+                return {'data': {'totalSales': 3, 'profile': {'id': 'profile-1'}}}
+            if path == '/listings':
+                return {
+                    'data': {
+                        'listings': [
+                            {
+                                'id': 'listing-1',
+                                'name': 'Kyoshin Operator Persona',
+                                'status': 'active',
+                                'slug': 'kyoshin-operator',
+                                'publicUrl': 'https://www.shopclawmart.com/listings/listing-1',
+                                'price': 99,
+                                'versions': 1,
+                                'updatedAt': '2026-02-27T00:00:00Z',
+                            }
+                        ]
+                    }
+                }
+            raise AssertionError(f'unexpected path: {path}')
+
+        with patch.object(self.mod, 'fetch_json', side_effect=fake_fetch):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), True)
+        self.assertEqual(summary.get('status'), 'ok')
+        self.assertEqual(summary.get('stakingRouteCompliant'), True)
+        self.assertEqual(summary.get('lastRoutedTotalSales'), 3)
+        self.assertEqual(summary.get('unroutedSalesCount'), 0)
+
+        state = json.loads(self.mod.STATE_PATH.read_text(encoding='utf-8'))
+        self.assertEqual(state.get('stakingRouteCompliant'), True)
+        self.assertEqual(state.get('lastRoutedTotalSales'), 3)
+        self.assertEqual(state.get('unroutedSalesCount'), 0)
+        self.assertEqual(state.get('lastStakingReceiptAt'), '2026-02-27T08:00:00Z')
 
 
 if __name__ == '__main__':

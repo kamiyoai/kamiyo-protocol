@@ -12,6 +12,7 @@ WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
 MISSION_CONTROL_DIR = RUNTIME_DIR / 'mission-control'
+RECEIPTS_DIR = RUNTIME_DIR / 'receipts'
 
 BACKLOG_PATH = MISSION_CONTROL_DIR / 'backlog.json'
 BOARD_PATH = MISSION_CONTROL_DIR / 'board.json'
@@ -21,6 +22,10 @@ OUTPUT_PATH = STATE_DIR / 'clawmart-monitor.json'
 API_BASE_URL = os.getenv('CLAWMART_API_BASE_URL', 'https://www.shopclawmart.com/api/v1').strip().rstrip('/')
 API_KEY = os.getenv('CLAWMART_API_KEY', '').strip()
 DASHBOARD_URL = os.getenv('KYO_CLAWMART_DASHBOARD_URL', 'https://www.shopclawmart.com/dashboard').strip()
+DEFAULT_KAMIYO_STAKING_POOL_URL = 'https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d'
+KAMIYO_STAKING_POOL_URL = os.getenv('KYO_KAMIYO_STAKING_POOL_URL', DEFAULT_KAMIYO_STAKING_POOL_URL).strip()
+if not KAMIYO_STAKING_POOL_URL:
+    KAMIYO_STAKING_POOL_URL = DEFAULT_KAMIYO_STAKING_POOL_URL
 
 
 def env_int(name: str, default: int) -> int:
@@ -33,8 +38,46 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
+def env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    normalized = value.strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off'}:
+        return False
+    return default
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value.strip())
+    except Exception:
+        return default
+
+
 HTTP_TIMEOUT_SECONDS = max(3, min(60, env_int('KYO_CLAWMART_MONITOR_TIMEOUT_SECONDS', 12)))
 MAX_TASKS = max(1, min(30, env_int('KYO_CLAWMART_MONITOR_MAX_TASKS', 8)))
+REQUIRE_STAKING_ROUTE = env_bool('KYO_REQUIRE_CLAWMART_STAKING_ROUTE', True)
+CLAWMART_ORDER_GROSS_USD = max(0.0, env_float('KYO_CLAWMART_ORDER_GROSS_USD', 0.0))
+CLAWMART_ORDER_COST_USD = max(0.0, env_float('KYO_CLAWMART_ORDER_COST_USD', 0.0))
+CLAWMART_ORDER_NET_USD_RAW = os.getenv('KYO_CLAWMART_ORDER_NET_USD')
+CLAWMART_ORDER_NET_USD = None
+if CLAWMART_ORDER_NET_USD_RAW is not None and CLAWMART_ORDER_NET_USD_RAW.strip():
+    try:
+        CLAWMART_ORDER_NET_USD = float(CLAWMART_ORDER_NET_USD_RAW.strip())
+    except Exception:
+        CLAWMART_ORDER_NET_USD = None
+STAKING_ROUTE_RECEIPTS_PATH = Path(
+    os.getenv('KYO_CLAWMART_STAKING_RECEIPTS_PATH', str(RUNTIME_DIR / 'receipts' / 'clawmart-staking-route.jsonl')).strip()
+).expanduser()
+REVENUE_LEDGER_PATH = Path(
+    os.getenv('KYO_REVENUE_LEDGER_PATH', str(RECEIPTS_DIR / 'revenue-ledger.jsonl')).strip()
+).expanduser()
 
 
 def now_iso() -> str:
@@ -42,7 +85,7 @@ def now_iso() -> str:
 
 
 def ensure_dirs() -> None:
-    for path in (WORKSPACE, RUNTIME_DIR, STATE_DIR, MISSION_CONTROL_DIR):
+    for path in (WORKSPACE, RUNTIME_DIR, STATE_DIR, MISSION_CONTROL_DIR, RECEIPTS_DIR):
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o700)
 
@@ -58,6 +101,13 @@ def read_json(path: Path, fallback: Any) -> Any:
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=True) + '\n', encoding='utf-8')
+    path.chmod(0o600)
+
+
+def append_json_line(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a', encoding='utf-8') as handle:
+        handle.write(json.dumps(payload, ensure_ascii=True) + '\n')
     path.chmod(0o600)
 
 
@@ -88,6 +138,17 @@ def to_non_negative_int(value: Any, fallback: int = 0) -> int:
         return parsed
     except Exception:
         return fallback
+
+
+def to_float(value: Any, fallback: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except Exception:
+            return fallback
+    return fallback
 
 
 def extract_total_sales(payload: dict[str, Any]) -> int:
@@ -199,6 +260,121 @@ def distribution_channels_ready() -> bool:
     return any(bool(os.getenv(key, '').strip()) for key in keys)
 
 
+def extract_routed_total_sales(receipt: dict[str, Any]) -> int:
+    for key in ('clawMartTotalSalesRouted', 'totalSalesRouted', 'clawMartTotalSales', 'totalSales'):
+        if key in receipt:
+            return to_non_negative_int(receipt.get(key))
+    return 0
+
+
+def existing_clawmart_order_checkpoints(path: Path) -> set[int]:
+    if not path.exists():
+        return set()
+    checkpoints: set[int] = set()
+    for raw in path.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get('source') or '').strip().lower()
+        kind = str(row.get('kind') or '').strip().lower()
+        if source != 'clawmart' or kind != 'paid_order':
+            continue
+        checkpoint = to_non_negative_int(row.get('orderCheckpoint'), 0)
+        if checkpoint > 0:
+            checkpoints.add(checkpoint)
+    return checkpoints
+
+
+def append_sales_ledger_rows(previous_total_sales: int, total_sales: int, ts: str) -> int:
+    if total_sales <= previous_total_sales:
+        return 0
+    existing = existing_clawmart_order_checkpoints(REVENUE_LEDGER_PATH)
+    unit_gross = max(0.0, to_float(CLAWMART_ORDER_GROSS_USD, 0.0))
+    unit_cost = max(0.0, to_float(CLAWMART_ORDER_COST_USD, 0.0))
+    if CLAWMART_ORDER_NET_USD is None:
+        unit_net = unit_gross - unit_cost
+    else:
+        unit_net = to_float(CLAWMART_ORDER_NET_USD, unit_gross - unit_cost)
+    added = 0
+    for checkpoint in range(previous_total_sales + 1, total_sales + 1):
+        if checkpoint in existing:
+            continue
+        row = {
+            'id': f'clawmart-order-{checkpoint}',
+            'source': 'clawmart',
+            'kind': 'paid_order',
+            'status': 'success',
+            'at': ts,
+            'orderCheckpoint': checkpoint,
+            'totalSalesSnapshot': total_sales,
+            'grossUsd': round(unit_gross, 8),
+            'costUsd': round(unit_cost, 8),
+            'netUsd': round(unit_net, 8),
+            'valueEstimated': True,
+        }
+        append_json_line(REVENUE_LEDGER_PATH, row)
+        added += 1
+    return added
+
+
+def staking_route_checkpoint(receipts_path: Path, required_pool_url: str) -> dict[str, Any]:
+    if not receipts_path.exists():
+        return {'lastRoutedTotalSales': 0, 'receiptCount': 0, 'lastReceiptAt': ''}
+
+    last_routed_total_sales = 0
+    receipt_count = 0
+    last_receipt_at = ''
+    try:
+        rows = receipts_path.read_text(encoding='utf-8').splitlines()
+    except Exception:
+        return {'lastRoutedTotalSales': 0, 'receiptCount': 0, 'lastReceiptAt': ''}
+
+    for raw in rows:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            receipt = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(receipt, dict):
+            continue
+
+        pool_url = str(receipt.get('stakingPoolUrl') or receipt.get('poolUrl') or '').strip()
+        if required_pool_url and pool_url != required_pool_url:
+            continue
+
+        source = str(receipt.get('source') or receipt.get('channel') or '').strip().lower()
+        if source and source not in {'clawmart', 'claw_mart', 'kyoshin_clawmart'}:
+            continue
+
+        routed_total_sales = extract_routed_total_sales(receipt)
+        if routed_total_sales <= 0:
+            continue
+
+        receipt_count += 1
+        receipt_at = str(receipt.get('at') or receipt.get('timestamp') or receipt.get('routedAt') or '').strip()
+        if routed_total_sales > last_routed_total_sales:
+            last_routed_total_sales = routed_total_sales
+            last_receipt_at = receipt_at
+            continue
+        if routed_total_sales == last_routed_total_sales and receipt_at:
+            if not last_receipt_at or receipt_at > last_receipt_at:
+                last_receipt_at = receipt_at
+
+    return {
+        'lastRoutedTotalSales': last_routed_total_sales,
+        'receiptCount': receipt_count,
+        'lastReceiptAt': last_receipt_at,
+    }
+
+
 def select_listing_url(listings: list[dict[str, Any]], keywords: list[str]) -> str:
     normalized = [keyword.strip().lower() for keyword in keywords if keyword.strip()]
     for row in listings:
@@ -298,7 +474,7 @@ def run() -> int:
 
     backlog_payload = read_json(BACKLOG_PATH, {'ok': True, 'at': now_iso(), 'items': []})
     board_payload = read_json(BOARD_PATH, {'ok': True, 'at': now_iso(), 'focus': []})
-    state_payload = read_json(STATE_PATH, {'totalSales': 0, 'listings': {}})
+    state_payload = read_json(STATE_PATH, {'totalSales': 0, 'listings': {}, 'lastRoutedTotalSales': 0})
 
     backlog_items = backlog_payload.get('items') if isinstance(backlog_payload, dict) else []
     if not isinstance(backlog_items, list):
@@ -308,6 +484,9 @@ def run() -> int:
     previous_listings = state_payload.get('listings') if isinstance(state_payload, dict) else {}
     previous_growth_task_date = str(state_payload.get('lastGrowthTaskDate') or '').strip() if isinstance(state_payload, dict) else ''
     first_tracked_at = str(state_payload.get('firstTrackedAt') or '').strip() if isinstance(state_payload, dict) else ''
+    previous_last_routed_total_sales = (
+        to_non_negative_int(state_payload.get('lastRoutedTotalSales')) if isinstance(state_payload, dict) else 0
+    )
     if not isinstance(previous_listings, dict):
         previous_listings = {}
 
@@ -348,11 +527,18 @@ def run() -> int:
 
     active_count = sum(1 for row in listings if row.get('status') == 'active')
     sales_delta = max(0, total_sales - previous_total_sales)
+    ledger_rows_appended = append_sales_ledger_rows(previous_total_sales, total_sales, now_iso()) if sales_delta > 0 else 0
+    checkpoint = staking_route_checkpoint(STAKING_ROUTE_RECEIPTS_PATH, KAMIYO_STAKING_POOL_URL)
+    last_routed_total_sales = max(previous_last_routed_total_sales, to_non_negative_int(checkpoint.get('lastRoutedTotalSales')))
+    unrouted_sales_count = max(0, total_sales - last_routed_total_sales)
+    staking_route_compliant = unrouted_sales_count == 0
+
     existing_ids = {str(row.get('id') or '') for row in backlog_items if isinstance(row, dict)}
     existing_growth_task_present = any(task_id.startswith('clawmart-growth-') for task_id in existing_ids)
     existing_promo_task_present = any(task_id.startswith('clawmart-promo-') for task_id in existing_ids)
     existing_outreach_task_present = any(task_id.startswith('clawmart-outreach-') for task_id in existing_ids)
     existing_channel_setup_task_present = any(task_id.startswith('clawmart-channel-setup-') for task_id in existing_ids)
+    existing_staking_route_task_present = any(task_id.startswith('clawmart-staking-route-') for task_id in existing_ids)
     new_tasks: list[dict[str, Any]] = []
 
     def add_task(task: dict[str, Any]) -> None:
@@ -379,6 +565,27 @@ def run() -> int:
                     'channel': 'clawmart',
                     'salesDelta': sales_delta,
                     'dashboardUrl': DASHBOARD_URL,
+                },
+            )
+        )
+    if REQUIRE_STAKING_ROUTE and unrouted_sales_count > 0 and (sales_delta > 0 or not existing_staking_route_task_present):
+        add_task(
+            build_task(
+                task_id=f'clawmart-staking-route-{total_sales}',
+                task_type='clawmart_staking_route',
+                priority='high',
+                title=f'[ClawMart] Route {unrouted_sales_count} unrouted sale(s) to KAMIYO staking',
+                objective=(
+                    f'Route all ClawMart earnings to the KAMIYO staking pool ({KAMIYO_STAKING_POOL_URL}) '
+                    f'and append a route receipt row at {STAKING_ROUTE_RECEIPTS_PATH}. '
+                    f'Required routed totalSales checkpoint: {total_sales}.'
+                ),
+                extra={
+                    'channel': 'clawmart',
+                    'requiredPoolUrl': KAMIYO_STAKING_POOL_URL,
+                    'requiredRoutedTotalSales': total_sales,
+                    'stakingReceiptPath': str(STAKING_ROUTE_RECEIPTS_PATH),
+                    'unroutedSalesCount': unrouted_sales_count,
                 },
             )
         )
@@ -521,6 +728,15 @@ def run() -> int:
             'clawMartListingsTotal': len(listings),
             'clawMartNoSalesDays': no_sales_days,
             'clawMartDistributionChannelsReady': distribution_channels_ready(),
+            'clawMartStakingPoolUrl': KAMIYO_STAKING_POOL_URL,
+            'clawMartStakingRouteRequired': REQUIRE_STAKING_ROUTE,
+            'clawMartStakingRouteCompliant': staking_route_compliant,
+            'clawMartLastRoutedTotalSales': last_routed_total_sales,
+            'clawMartUnroutedSalesCount': unrouted_sales_count,
+            'clawMartStakingReceiptCount': to_non_negative_int(checkpoint.get('receiptCount')),
+            'clawMartLastStakingReceiptAt': str(checkpoint.get('lastReceiptAt') or '').strip(),
+            'clawMartRevenueLedgerPath': str(REVENUE_LEDGER_PATH),
+            'clawMartLedgerRowsAppended': ledger_rows_appended,
         }
     )
     write_json(BOARD_PATH, board)
@@ -536,13 +752,29 @@ def run() -> int:
         'lastGrowthTaskDate': next_growth_task_date,
         'noSalesDays': no_sales_days,
         'distributionChannelsReady': distribution_channels_ready(),
+        'stakingPoolUrl': KAMIYO_STAKING_POOL_URL,
+        'stakingRouteReceiptsPath': str(STAKING_ROUTE_RECEIPTS_PATH),
+        'stakingRouteRequired': REQUIRE_STAKING_ROUTE,
+        'stakingRouteCompliant': staking_route_compliant,
+        'lastRoutedTotalSales': last_routed_total_sales,
+        'unroutedSalesCount': unrouted_sales_count,
+        'stakingReceiptCount': to_non_negative_int(checkpoint.get('receiptCount')),
+        'lastStakingReceiptAt': str(checkpoint.get('lastReceiptAt') or '').strip(),
+        'revenueLedgerPath': str(REVENUE_LEDGER_PATH),
+        'ledgerRowsAppended': ledger_rows_appended,
         'lastAddedTaskIds': [str(row.get('id') or '') for row in new_tasks],
     }
     write_json(STATE_PATH, next_state)
 
+    policy_ok = True
+    policy_reason = ''
+    if REQUIRE_STAKING_ROUTE and not staking_route_compliant:
+        policy_ok = False
+        policy_reason = 'staking_route_non_compliant'
+
     output = {
-        'ok': True,
-        'status': 'ok',
+        'ok': policy_ok,
+        'status': 'ok' if policy_ok else 'policy_blocked',
         'at': backlog_out['at'],
         'tasksAdded': len(new_tasks),
         'salesDelta': sales_delta,
@@ -551,9 +783,20 @@ def run() -> int:
         'listingsTotal': len(listings),
         'noSalesDays': no_sales_days,
         'distributionChannelsReady': distribution_channels_ready(),
+        'stakingPoolUrl': KAMIYO_STAKING_POOL_URL,
+        'stakingRouteRequired': REQUIRE_STAKING_ROUTE,
+        'stakingRouteCompliant': staking_route_compliant,
+        'lastRoutedTotalSales': last_routed_total_sales,
+        'unroutedSalesCount': unrouted_sales_count,
+        'stakingReceiptCount': to_non_negative_int(checkpoint.get('receiptCount')),
+        'stakingReceiptPath': str(STAKING_ROUTE_RECEIPTS_PATH),
+        'revenueLedgerPath': str(REVENUE_LEDGER_PATH),
+        'ledgerRowsAppended': ledger_rows_appended,
         'statePath': str(STATE_PATH),
         'backlogPath': str(BACKLOG_PATH),
     }
+    if not policy_ok:
+        output['reason'] = policy_reason
     write_json(OUTPUT_PATH, output)
     print(json.dumps(output, ensure_ascii=True))
     return 0

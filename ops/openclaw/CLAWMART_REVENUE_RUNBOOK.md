@@ -73,11 +73,37 @@ Set a daily execution rhythm:
 - ingest buyer requests at least 2x/day
 - map requests to mission-control backlog items
 - track per-delivery receipts and cycle times
+- route net ClawMart earnings into the KAMIYO staking pool and append staking receipts
 
 No revenue claim without:
 - completed delivery artifact
 - accepted outcome signal
 - auditable receipt row
+
+Staking receipt row (jsonl):
+```json
+{"source":"clawmart","stakingPoolUrl":"https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d","clawMartTotalSalesRouted":12,"txSignature":"<solana_sig>","at":"2026-02-27T20:00:00Z"}
+```
+
+Runtime enforcement:
+- `KYO_ENABLE_CLAWMART_STAKING_ROUTE=true`
+- `KYO_CLAWMART_STAKING_SOL_PER_SALE=<net-sol-per-sale>`
+- `KYO_CLAWMART_STAKING_KEYPAIR_PATH=/absolute/path/to/keypair.json` (or `KYO_CLAWMART_STAKING_ROUTE_CMD=...`)
+- `KYO_REQUIRE_CLAWMART_STAKING_ROUTE=true`
+- `KYO_KAMIYO_STAKING_POOL_URL=<pool-url>`
+- `KYO_CLAWMART_STAKING_RECEIPTS_PATH=<jsonl-file>`
+- `KYO_REQUIRE_CLAWMART_MONITOR=true`
+- `KYO_REVENUE_LEDGER_PATH=<jsonl-file>` (canonical paid-event ledger)
+- `KYO_ENABLE_REVENUE_GUARD=true`
+- `KYO_REQUIRE_REVENUE_GUARD=true`
+- `KYO_WEEKLY_SPEND_CAP_USD=150`
+
+x402 paid execution lane:
+- `KYO_ENABLE_X402_AGENTCASH=true`
+- `KYO_X402_ALLOWLIST_PATH=<json allowlist>`
+- `KYO_MIN_JOB_MARGIN_USD=<threshold>`
+- `KYO_MIN_JOB_SUCCESS_PROB=<threshold>`
+- `KYO_MAX_JOB_COST_USD=<per-job cap>`
 
 ## 8) Conversion flywheel (weekly)
 

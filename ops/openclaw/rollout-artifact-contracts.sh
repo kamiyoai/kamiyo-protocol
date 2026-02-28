@@ -101,10 +101,15 @@ run() {
     "kyoshin-swarm-governor.py"
     "kyoshin-swarm-planner.py"
     "kyoshin-mission-control.py"
+    "kyoshin-revenue-guard.py"
+    "kyoshin-x402-agentcash.py"
+    "kyoshin-clawmart-staking-route.py"
     "kyoshin-clawmart-monitor.py"
+    "kyoshin-distribution-engine.py"
     "kyoshin-artifact-contracts.py"
     "kyoshin-learnings.py"
     "kyoshin-memory-extract.py"
+    "kyoshin-operator-log.py"
     "kyoshin-autonomy-loop.sh"
   )
   local script
@@ -125,6 +130,17 @@ run() {
   append_env_if_missing "KYO_REQUIRE_MEMORY_EXTRACTION" "false"
   append_env_if_missing "KYO_MEMORY_EXTRACTION_HOUR_UTC" "23"
   append_env_if_missing "KYO_ENABLE_CLAWMART_MONITOR" "true"
+  append_env_if_missing "KYO_ENABLE_CLAWMART_STAKING_ROUTE" "true"
+  append_env_if_missing "KYO_REQUIRE_CLAWMART_STAKING_ROUTE" "true"
+  append_env_if_missing "KYO_ENABLE_REVENUE_GUARD" "true"
+  append_env_if_missing "KYO_REQUIRE_REVENUE_GUARD" "true"
+  append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
+  append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
+  append_env_if_missing "KYO_ENABLE_DISTRIBUTION_ENGINE" "true"
+  append_env_if_missing "KYO_ENABLE_OPERATOR_LOG" "true"
+  append_env_if_missing "KYO_WEEKLY_SPEND_CAP_USD" "150"
+  append_env_if_missing "KYO_MIN_JOB_MARGIN_USD" "0"
+  append_env_if_missing "KYO_X402_ALLOWLIST_PATH" "$OPENCLAW_HOME/.openclaw/workspace/runtime/feeds/x402-allowlist.json"
   append_env_if_missing "KYO_REQUIRE_CLAWMART_MONITOR" "false"
   append_env_if_missing "KYO_CLAWMART_MONITOR_MAX_TASKS" "8"
   append_env_if_missing "KYO_X402_GENERATED_FEED_ENABLED" "true"
@@ -185,6 +201,22 @@ run() {
   echo "[5/6] runtime verification snapshots"
   run_as_openclaw "
     set -euo pipefail
+    echo '--- revenue-guard.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/revenue-guard.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/revenue-guard.json\"
+    else
+      echo 'missing revenue-guard.json'
+    fi
+
+    echo
+    echo '--- x402-agentcash.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/x402-agentcash.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/x402-agentcash.json\"
+    else
+      echo 'missing x402-agentcash.json'
+    fi
+
+    echo
     echo '--- x402-feed-state.json ---'
     if [ -f \"$RUNTIME_STATE_DIR/x402-feed-state.json\" ]; then
       jq . \"$RUNTIME_STATE_DIR/x402-feed-state.json\"
@@ -225,11 +257,43 @@ run() {
     fi
 
     echo
+    echo '--- clawmart-staking-route-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/clawmart-staking-route-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/clawmart-staking-route-state.json\"
+    else
+      echo 'missing clawmart-staking-route-state.json'
+    fi
+
+    echo
     echo '--- clawmart-monitor-state.json ---'
     if [ -f \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\" ]; then
       jq . \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\"
     else
       echo 'missing clawmart-monitor-state.json'
+    fi
+
+    echo
+    echo '--- distribution-engine.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/distribution-engine.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/distribution-engine.json\"
+    else
+      echo 'missing distribution-engine.json'
+    fi
+
+    echo
+    echo '--- operator-log.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/operator-log.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/operator-log.json\"
+    else
+      echo 'missing operator-log.json'
+    fi
+
+    echo
+    echo '--- revenue-ledger.jsonl tail ---'
+    if [ -f \"$OPENCLAW_HOME/.openclaw/workspace/runtime/receipts/revenue-ledger.jsonl\" ]; then
+      tail -n 5 \"$OPENCLAW_HOME/.openclaw/workspace/runtime/receipts/revenue-ledger.jsonl\" | jq -R 'fromjson?'
+    else
+      echo 'missing revenue-ledger.jsonl'
     fi
 
     echo
@@ -255,6 +319,9 @@ run() {
   echo "Set one of:"
   echo "  - KYO_X402_FACILITATOR_BASE_URL=https://<your-api-origin>"
   echo "  - KYO_X402_PRICING_URL(S)=..."
+  echo "Set ClawMart staking routing:"
+  echo "  - KYO_CLAWMART_STAKING_SOL_PER_SALE=<net-sol-per-sale>"
+  echo "  - KYO_CLAWMART_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_CLAWMART_STAKING_ROUTE_CMD=...)"
   if [ "$has_systemctl" -eq 1 ]; then
     echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
   else

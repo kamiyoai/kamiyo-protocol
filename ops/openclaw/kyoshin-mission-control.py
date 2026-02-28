@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
 INCIDENTS_DIR = RUNTIME_DIR / 'incidents'
+RECEIPTS_DIR = RUNTIME_DIR / 'receipts'
 QUEUE_PATH = RUNTIME_DIR / 'queue' / 'assignments.json'
 TOOL_HEALTH_PATH = RUNTIME_DIR / 'tools' / 'tool-health.json'
 GOVERNOR_PATH = STATE_DIR / 'swarm-governor.json'
 KYOSHIN_RUNTIME_PATH = STATE_DIR / 'kyoshin-runtime.json'
 SENTRY_TRIAGE_PATH = INCIDENTS_DIR / 'sentry-triage.json'
+REVENUE_LEDGER_PATH = Path(
+    os.getenv('KYO_REVENUE_LEDGER_PATH', str(RECEIPTS_DIR / 'revenue-ledger.jsonl')).strip()
+).expanduser()
+CLAWMART_MONITOR_PATH = STATE_DIR / 'clawmart-monitor.json'
+CLAWMART_STAKING_ROUTE_PATH = STATE_DIR / 'clawmart-staking-route.json'
+DISPATCH_SUMMARY_PATH = STATE_DIR / 'distribution-engine.json'
+REVENUE_GUARD_PATH = STATE_DIR / 'revenue-guard.json'
 MISSION_PATH = WORKSPACE / 'MISSION_STATEMENT.md'
 GOALS_PATH = WORKSPACE / 'GOALS.md'
 OUTPUT_DIR = RUNTIME_DIR / 'mission-control'
@@ -30,7 +38,7 @@ def now_iso() -> str:
 
 
 def ensure_dirs() -> None:
-    for path in (WORKSPACE, RUNTIME_DIR, STATE_DIR, OUTPUT_DIR):
+    for path in (WORKSPACE, RUNTIME_DIR, STATE_DIR, RECEIPTS_DIR, OUTPUT_DIR):
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o700)
 
@@ -74,6 +82,91 @@ def read_goal_lines() -> list[str]:
     return lines
 
 
+def parse_ts(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith('Z'):
+        text = text[:-1] + '+00:00'
+    try:
+        ts = datetime.fromisoformat(text)
+    except Exception:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts
+
+
+def parse_float(value: Any, fallback: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
+        except Exception:
+            return fallback
+    return fallback
+
+
+def parse_int(value: Any, fallback: int = 0) -> int:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except Exception:
+            return fallback
+    return fallback
+
+
+def summarize_revenue_7d(path: Path) -> dict[str, float | int]:
+    if not path.exists():
+        return {
+            'revenueGrossUsd7d': 0.0,
+            'revenueNetUsd7d': 0.0,
+            'paidOrders7d': 0,
+            'x402PaidCalls7d': 0,
+        }
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    gross = 0.0
+    net = 0.0
+    paid_orders = 0
+    x402_paid_calls = 0
+    for raw in path.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(row, dict):
+            continue
+        ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt'))
+        if ts is None or ts < cutoff:
+            continue
+        gross += max(0.0, parse_float(row.get('grossUsd'), 0.0))
+        net += parse_float(row.get('netUsd'), 0.0)
+        source = str(row.get('source') or '').strip().lower()
+        kind = str(row.get('kind') or '').strip().lower()
+        status = str(row.get('status') or '').strip().lower()
+        if source == 'clawmart' and kind == 'paid_order' and status == 'success':
+            paid_orders += 1
+        if source == 'x402' and kind == 'paid_call' and status == 'success':
+            x402_paid_calls += 1
+    return {
+        'revenueGrossUsd7d': round(gross, 8),
+        'revenueNetUsd7d': round(net, 8),
+        'paidOrders7d': paid_orders,
+        'x402PaidCalls7d': x402_paid_calls,
+    }
+
+
 def run() -> int:
     ensure_dirs()
 
@@ -108,6 +201,31 @@ def run() -> int:
     if not isinstance(decisions, list):
         decisions = []
     paused_agents = [row for row in decisions if isinstance(row, dict) and str(row.get('status', '')).lower() == 'paused']
+
+    revenue_metrics = summarize_revenue_7d(REVENUE_LEDGER_PATH)
+    clawmart_monitor = read_json(CLAWMART_MONITOR_PATH, {})
+    if not isinstance(clawmart_monitor, dict):
+        clawmart_monitor = {}
+    clawmart_staking_route = read_json(CLAWMART_STAKING_ROUTE_PATH, {})
+    if not isinstance(clawmart_staking_route, dict):
+        clawmart_staking_route = {}
+    distribution_summary = read_json(DISPATCH_SUMMARY_PATH, {})
+    if not isinstance(distribution_summary, dict):
+        distribution_summary = {}
+    revenue_guard_summary = read_json(REVENUE_GUARD_PATH, {})
+    if not isinstance(revenue_guard_summary, dict):
+        revenue_guard_summary = {}
+
+    staking_checkpoint = max(
+        parse_int(clawmart_monitor.get('lastRoutedTotalSales'), 0),
+        parse_int(clawmart_staking_route.get('lastRoutedTotalSales'), 0),
+        parse_int(clawmart_staking_route.get('totalSales'), 0),
+    )
+    unrouted_sales_count = max(0, parse_int(clawmart_monitor.get('unroutedSalesCount'), 0))
+    distribution_dispatch_success_rate = round(
+        parse_float(distribution_summary.get('dispatchSuccessRate'), 0.0),
+        6,
+    )
 
     backlog: list[dict[str, Any]] = []
     runtime_ok = bool(kyoshin_runtime.get('ok'))
@@ -220,6 +338,15 @@ def run() -> int:
         'sentryAutoFixCandidates': int(sentry_totals.get('autoFixCandidates') or 0),
         'sentryEscalations': int(sentry_totals.get('escalations') or 0),
         'pausedAgents': len(paused_agents),
+        'revenueGrossUsd7d': revenue_metrics['revenueGrossUsd7d'],
+        'revenueNetUsd7d': revenue_metrics['revenueNetUsd7d'],
+        'paidOrders7d': revenue_metrics['paidOrders7d'],
+        'x402PaidCalls7d': revenue_metrics['x402PaidCalls7d'],
+        'stakingRoutedSalesCheckpoint': staking_checkpoint,
+        'unroutedSalesCount': unrouted_sales_count,
+        'distributionDispatchSuccessRate': distribution_dispatch_success_rate,
+        'revenueGuardOk': bool(revenue_guard_summary.get('ok', True)),
+        'revenueGuardReasons': revenue_guard_summary.get('reasons') if isinstance(revenue_guard_summary.get('reasons'), list) else [],
         'backlogCount': len(backlog),
         'focus': [
             'Protect mission continuity.',
@@ -242,6 +369,13 @@ def run() -> int:
                 'pausedAgents': len(paused_agents),
                 'runtimeOk': runtime_ok,
                 'treasuryNearCap': treasury_near_cap,
+                'revenueGrossUsd7d': revenue_metrics['revenueGrossUsd7d'],
+                'revenueNetUsd7d': revenue_metrics['revenueNetUsd7d'],
+                'paidOrders7d': revenue_metrics['paidOrders7d'],
+                'x402PaidCalls7d': revenue_metrics['x402PaidCalls7d'],
+                'stakingRoutedSalesCheckpoint': staking_checkpoint,
+                'unroutedSalesCount': unrouted_sales_count,
+                'distributionDispatchSuccessRate': distribution_dispatch_success_rate,
             },
             ensure_ascii=True,
         )
