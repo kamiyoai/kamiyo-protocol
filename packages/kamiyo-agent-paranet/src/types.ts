@@ -190,6 +190,15 @@ export interface PoCHProofSubmission {
   identityNullifier: string;
 }
 
+export type PoCHStatusReason =
+  | 'proof_missing'
+  | 'oracle_quorum_pending'
+  | 'oracle_timeout'
+  | 'blocking_dispute'
+  | 'policy_failed'
+  | 'oracle_rejected'
+  | 'verified';
+
 export interface PoCHSubmissionReceipt {
   accepted: boolean;
   challengeId: string;
@@ -198,12 +207,17 @@ export interface PoCHSubmissionReceipt {
   chain: PoCHChain;
   verifiedAt: string;
   proofStatementId: string;
+  pending?: boolean;
+  finalizeReason?: string;
+  oracleRoundId?: string;
+  statusReason?: PoCHStatusReason;
 }
 
 export interface PoCHStatus {
   identityDid: string;
   chain: PoCHChain;
   status: 'pending' | 'verified' | 'rejected' | 'disputed';
+  statusReason?: PoCHStatusReason;
   scoreBundleCommitment?: string;
   oracleRoundId?: string;
   proofStatementId?: string;

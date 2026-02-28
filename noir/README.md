@@ -197,7 +197,8 @@ Aggregate proofs provide **12x gas reduction** for batch operations.
 
 ```bash
 # Install deps
-noirup --version 1.0.0-beta.13
+noirup -v 1.0.0-beta.19
+nargo --version
 go install github.com/Sunspot-xyz/sunspot@latest
 
 # Compile

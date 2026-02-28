@@ -443,4 +443,408 @@ describe('PoCH routes', () => {
       await close();
     }
   });
+
+  it('finalizes timed-out challenges with oracle_timeout reason', async () => {
+    process.env.POCH_ORACLE_COMMIT_WINDOW_SEC = '120';
+    process.env.POCH_ORACLE_REVEAL_WINDOW_SEC = '120';
+
+    const identityDid = `did:pkh:eip155:8453:0xtimeout${Date.now()}`;
+    const assetDid = `urn:kamiyo:poch:timeout:${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      await fetch(`${baseUrl}/api/poch/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          contentHash: '0xtimeout',
+          contributionType: 'knowledge_artifact',
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      const challengeRes = await fetch(`${baseUrl}/api/poch/challenges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          policyId: 'v1',
+          contentHash: '0xtimeout',
+        }),
+      });
+      expect(challengeRes.status).toBe(201);
+      const challengeBody = await challengeRes.json() as { challengeId: string };
+
+      const challenge = getPoCHChallenge(challengeBody.challengeId);
+      if (!challenge) {
+        throw new Error('Expected challenge to exist in store');
+      }
+
+      upsertPoCHChallenge({
+        ...challenge,
+        phase: 'reveal',
+        commitDeadline: Math.floor(Date.now() / 1000) - 120,
+        revealDeadline: Math.floor(Date.now() / 1000) - 60,
+      });
+
+      const roundRes = await fetch(
+        `${baseUrl}/api/poch/oracle/round/${encodeURIComponent(challengeBody.challengeId)}`
+      );
+      expect(roundRes.status).toBe(200);
+      const roundBody = await roundRes.json() as { finalized: boolean; statusReason?: string };
+      expect(roundBody.finalized).toBe(true);
+      expect(roundBody.statusReason).toBe('oracle_timeout');
+
+      const statusRes = await fetch(
+        `${baseUrl}/api/poch/status/${encodeURIComponent(identityDid)}?chain=solana`
+      );
+      expect(statusRes.status).toBe(200);
+      const statusBody = await statusRes.json() as { status: string; statusReason?: string };
+      expect(statusBody.status).toBe('rejected');
+      expect(statusBody.statusReason).toBe('oracle_timeout');
+    } finally {
+      await close();
+    }
+  });
+
+  it('enforces proof idempotency and challenge-level non-overwrite', async () => {
+    const identityDid = `did:pkh:eip155:8453:0xproofidem${Date.now()}`;
+    const assetDid = `urn:kamiyo:poch:proofidem:${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      await fetch(`${baseUrl}/api/poch/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          contentHash: '0xproofidem',
+          contributionType: 'knowledge_artifact',
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      const challengeRes = await fetch(`${baseUrl}/api/poch/challenges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          policyId: 'v1',
+          contentHash: '0xproofidem',
+        }),
+      });
+      expect(challengeRes.status).toBe(201);
+      const challengeBody = await challengeRes.json() as { challengeId: string };
+
+      const baseProofPayload = {
+        challengeId: challengeBody.challengeId,
+        assetDid,
+        identityDid,
+        chain: 'solana',
+        zkProof: 'proof_payload_abcdefghijklmnopqrstuvwxyz0123456789',
+        identityNullifier: `nullifier_payload_${Date.now()}`,
+      };
+
+      const firstProofRes = await fetch(`${baseUrl}/api/poch/proofs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(baseProofPayload),
+      });
+      expect(firstProofRes.status).toBe(202);
+      const firstProofBody = await firstProofRes.json() as { pending: boolean; statusReason?: string };
+      expect(firstProofBody.pending).toBe(true);
+      expect(firstProofBody.statusReason).toBe('oracle_quorum_pending');
+
+      const secondProofRes = await fetch(`${baseUrl}/api/poch/proofs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(baseProofPayload),
+      });
+      expect(secondProofRes.status).toBe(200);
+      const secondProofBody = await secondProofRes.json() as { pending: boolean; statusReason?: string };
+      expect(secondProofBody.pending).toBe(true);
+      expect(secondProofBody.statusReason).toBe('oracle_quorum_pending');
+
+      const conflictingProofRes = await fetch(`${baseUrl}/api/poch/proofs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...baseProofPayload,
+          zkProof: 'proof_payload_conflict_abcdefghijklmnopqrstuvwxyz0123456789',
+          identityNullifier: `nullifier_payload_conflict_${Date.now()}`,
+        }),
+      });
+      expect(conflictingProofRes.status).toBe(409);
+      const conflictingProofBody = await conflictingProofRes.json() as { error?: { code?: string } };
+      expect(conflictingProofBody.error?.code).toBe('PROOF_ALREADY_SUBMITTED');
+    } finally {
+      await close();
+    }
+  });
+
+  it('blocks finalization for blocking disputes and finalizes after dispute resolution', async () => {
+    const identityDid = `did:pkh:eip155:8453:0xdispute${Date.now()}`;
+    const assetDid = `urn:kamiyo:poch:dispute:${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      await fetch(`${baseUrl}/api/poch/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          contentHash: '0xdispute',
+          contributionType: 'knowledge_artifact',
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      const challengeRes = await fetch(`${baseUrl}/api/poch/challenges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          policyId: 'v1',
+          contentHash: '0xdispute',
+        }),
+      });
+      expect(challengeRes.status).toBe(201);
+      const challengeBody = await challengeRes.json() as { challengeId: string };
+
+      const oracleId = 'oracle-dispute-1';
+      const salt = `salt_dispute_${Date.now()}`;
+      const confidence = 0.88;
+      const commitmentHash = createHash('sha256')
+        .update(
+          [
+            challengeBody.challengeId,
+            oracleId,
+            '1',
+            '1',
+            confidence.toFixed(6),
+            salt,
+          ].join('|')
+        )
+        .digest('hex');
+
+      const commitRes = await fetch(`${baseUrl}/api/poch/oracle/commit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          oracleId,
+          commitmentHash,
+        }),
+      });
+      expect(commitRes.status).toBe(202);
+
+      const revealRes = await fetch(`${baseUrl}/api/poch/oracle/reveal`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          oracleId,
+          authenticityVerdict: true,
+          uniquenessVerdict: true,
+          confidence,
+          salt,
+        }),
+      });
+      expect(revealRes.status).toBe(200);
+
+      const openDisputeRes = await fetch(`${baseUrl}/api/poch/disputes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          reason: 'manual audit hold',
+          blocking: true,
+        }),
+      });
+      expect(openDisputeRes.status).toBe(201);
+      const openDisputeBody = await openDisputeRes.json() as { disputeId: number };
+
+      const proofRes = await fetch(`${baseUrl}/api/poch/proofs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          zkProof: 'proof_payload_abcdefghijklmnopqrstuvwxyz0123456789',
+          identityNullifier: `nullifier_dispute_${Date.now()}`,
+        }),
+      });
+      expect(proofRes.status).toBe(202);
+      const proofBody = await proofRes.json() as { pending: boolean; finalizeReason?: string; statusReason?: string };
+      expect(proofBody.pending).toBe(true);
+      expect(proofBody.finalizeReason).toBe('blocking_dispute');
+      expect(proofBody.statusReason).toBe('blocking_dispute');
+
+      const resolveRes = await fetch(`${baseUrl}/api/poch/disputes/${openDisputeBody.disputeId}/resolve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+        }),
+      });
+      expect(resolveRes.status).toBe(200);
+      const resolveBody = await resolveRes.json() as { finalized: boolean; accepted?: boolean; statusReason?: string };
+      expect(resolveBody.finalized).toBe(true);
+      expect(resolveBody.accepted).toBe(true);
+      expect(resolveBody.statusReason).toBe('verified');
+
+      const statusRes = await fetch(
+        `${baseUrl}/api/poch/status/${encodeURIComponent(identityDid)}?chain=solana`
+      );
+      expect(statusRes.status).toBe(200);
+      const statusBody = await statusRes.json() as { status: string; statusReason?: string };
+      expect(statusBody.status).toBe('verified');
+      expect(statusBody.statusReason).toBe('verified');
+    } finally {
+      await close();
+    }
+  });
+
+  it('denies high-impact action before verification and allows after finalization', async () => {
+    const identityDid = `did:pkh:eip155:8453:0xgate${Date.now()}`;
+    const assetDid = `urn:kamiyo:poch:gate:${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const deniedGateRes = await fetch(`${baseUrl}/api/poch/verify-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid,
+          chain: 'solana',
+          action: 'high_trust_agent_action',
+        }),
+      });
+      expect(deniedGateRes.status).toBe(200);
+      const deniedGateBody = await deniedGateRes.json() as { allowed: boolean; reason?: string };
+      expect(deniedGateBody.allowed).toBe(false);
+      expect(deniedGateBody.reason).toBe('PoCH verification required for this action');
+
+      await fetch(`${baseUrl}/api/poch/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          contentHash: '0xgate',
+          contributionType: 'knowledge_artifact',
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      const challengeRes = await fetch(`${baseUrl}/api/poch/challenges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          policyId: 'v1',
+          contentHash: '0xgate',
+        }),
+      });
+      expect(challengeRes.status).toBe(201);
+      const challengeBody = await challengeRes.json() as { challengeId: string };
+
+      const oracleId = 'oracle-gate-1';
+      const salt = `salt_gate_${Date.now()}`;
+      const confidence = 0.9;
+      const commitmentHash = createHash('sha256')
+        .update(
+          [
+            challengeBody.challengeId,
+            oracleId,
+            '1',
+            '1',
+            confidence.toFixed(6),
+            salt,
+          ].join('|')
+        )
+        .digest('hex');
+
+      const commitRes = await fetch(`${baseUrl}/api/poch/oracle/commit`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          oracleId,
+          commitmentHash,
+        }),
+      });
+      expect(commitRes.status).toBe(202);
+
+      const revealRes = await fetch(`${baseUrl}/api/poch/oracle/reveal`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          oracleId,
+          authenticityVerdict: true,
+          uniquenessVerdict: true,
+          confidence,
+          salt,
+        }),
+      });
+      expect(revealRes.status).toBe(200);
+
+      const proofRes = await fetch(`${baseUrl}/api/poch/proofs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          zkProof: 'proof_payload_abcdefghijklmnopqrstuvwxyz0123456789',
+          identityNullifier: `nullifier_gate_${Date.now()}`,
+        }),
+      });
+      expect(proofRes.status).toBe(202);
+
+      const allowedGateRes = await fetch(`${baseUrl}/api/poch/verify-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid,
+          chain: 'solana',
+          action: 'high_trust_agent_action',
+        }),
+      });
+      expect(allowedGateRes.status).toBe(200);
+      const allowedGateBody = await allowedGateRes.json() as { allowed: boolean; reason?: string };
+      expect(allowedGateBody.allowed).toBe(true);
+      expect(allowedGateBody.reason).toBeUndefined();
+    } finally {
+      await close();
+    }
+  });
 });

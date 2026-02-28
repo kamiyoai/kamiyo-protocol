@@ -132,6 +132,15 @@ export interface PoCHOracleRevealInput {
   salt: string;
 }
 
+export type PoCHStatusReason =
+  | "proof_missing"
+  | "oracle_quorum_pending"
+  | "oracle_timeout"
+  | "blocking_dispute"
+  | "policy_failed"
+  | "oracle_rejected"
+  | "verified";
+
 export interface PoCHSubmissionReceipt {
   accepted: boolean;
   challengeId: string;
@@ -143,16 +152,75 @@ export interface PoCHSubmissionReceipt {
   pending?: boolean;
   finalizeReason?: string;
   oracleRoundId?: string;
+  statusReason?: PoCHStatusReason;
 }
 
 export interface PoCHStatus {
   identityDid: string;
   chain: PoCHChain;
   status: "pending" | "verified" | "rejected" | "disputed";
+  statusReason?: PoCHStatusReason;
   scoreBundleCommitment?: string;
   oracleRoundId?: string;
   proofStatementId?: string;
   updatedAt: string;
+}
+
+export interface PoCHOracleDecision {
+  ready: boolean;
+  accepted: boolean;
+  voteCount: number;
+  totalWeight: number;
+  weightedConfidence: number;
+  authenticityYesWeight: number;
+  uniquenessYesWeight: number;
+}
+
+export interface PoCHDispute {
+  id: number;
+  challengeId: string;
+  identityDid: string;
+  chain: PoCHChain;
+  reason: string;
+  blocking: boolean;
+  status: "open" | "resolved";
+  openedAt: number;
+  resolvedAt?: number;
+}
+
+export interface PoCHOracleRound {
+  challengeId: string;
+  phase: "commit" | "reveal" | "finalized";
+  commitDeadline: number;
+  revealDeadline: number;
+  oracle: PoCHOracleDecision;
+  proofSubmitted: boolean;
+  disputes: PoCHDispute[];
+}
+
+export interface PoCHOpenDisputeInput {
+  challengeId: string;
+  reason?: string;
+  blocking?: boolean;
+}
+
+export interface PoCHOpenDisputeResponse {
+  disputeId: number;
+  challengeId: string;
+  status: "open";
+}
+
+export interface PoCHResolveDisputeInput {
+  challengeId: string;
+}
+
+export interface PoCHResolveDisputeResponse {
+  disputeId: number;
+  resolved: boolean;
+  finalized: boolean;
+  accepted?: boolean;
+  finalizeReason?: string;
+  statusReason?: PoCHStatusReason;
 }
 
 export interface PoCHActionCheck {

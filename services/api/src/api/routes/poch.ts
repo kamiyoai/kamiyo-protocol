@@ -34,6 +34,7 @@ import {
   revealPoCHOracleVote,
   setPoCHProofAccepted,
   StoredChallenge,
+  getLatestOpenPoCHChallenge,
   upsertPoCHChallenge,
   upsertPoCHContribution,
   upsertPoCHOracleCommit,
@@ -45,7 +46,7 @@ const router = Router();
 
 const writeLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many PoCH requests' } },
@@ -53,13 +54,22 @@ const writeLimiter = rateLimit({
 
 const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: process.env.NODE_ENV === 'test' ? 2000 : 120,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: { code: 'RATE_LIMITED', message: 'Too many PoCH reads' } },
 });
 
 type Chain = 'solana' | 'base';
+type PoCHStatusReason =
+  | 'proof_missing'
+  | 'oracle_quorum_pending'
+  | 'oracle_timeout'
+  | 'blocking_dispute'
+  | 'policy_failed'
+  | 'oracle_rejected'
+  | 'verified';
+type StoredPoCHStatus = PoCHStatus & { statusReason?: PoCHStatusReason };
 
 interface ProofRequestBody {
   challengeId?: string;
@@ -85,6 +95,15 @@ interface OracleDecision {
   weightedConfidence: number;
   authenticityYesWeight: number;
   uniquenessYesWeight: number;
+}
+
+interface FinalizeResult {
+  finalized: boolean;
+  accepted?: boolean;
+  reason?: string;
+  statusReason?: PoCHStatusReason;
+  oracleRoundId?: string;
+  proofStatementId?: string;
 }
 
 const POCH_TOPICS = {
@@ -372,11 +391,17 @@ function sendError(res: Response, status: number, code: string, message: string)
   res.status(status).json({ error: { code, message } });
 }
 
-function statusForChallenge(challenge: StoredChallenge, status: PoCHStatus['status'], proofStatementId?: string): PoCHStatus {
+function statusForChallenge(
+  challenge: StoredChallenge,
+  status: PoCHStatus['status'],
+  statusReason?: PoCHStatusReason,
+  proofStatementId?: string
+): StoredPoCHStatus {
   return {
     identityDid: challenge.identityDid,
     chain: challenge.chain,
     status,
+    statusReason,
     scoreBundleCommitment: challenge.scoreBundleCommitment,
     oracleRoundId: challenge.oracleRoundId,
     proofStatementId: proofStatementId || challenge.proofStatementId,
@@ -389,55 +414,131 @@ function applyPenaltyIfNeeded(identityDid: string, chain: Chain): number {
   return incrementPoCHPenalty(identityDid, chain);
 }
 
-function maybeFinalizeChallenge(challengeId: string): {
-  finalized: boolean;
-  accepted?: boolean;
-  reason?: string;
-  oracleRoundId?: string;
-  proofStatementId?: string;
-} {
+function finalizedResultFromChallenge(challenge: StoredChallenge): FinalizeResult {
+  const accepted = challenge.accepted === true;
+  const statusReason = challenge.finalizationReason || (accepted ? 'verified' : 'oracle_rejected');
+  return {
+    finalized: true,
+    accepted,
+    reason: statusReason,
+    statusReason,
+    oracleRoundId: challenge.oracleRoundId,
+    proofStatementId: challenge.proofStatementId,
+  };
+}
+
+function maybeFinalizeChallenge(challengeId: string): FinalizeResult {
   const challenge = getPoCHChallenge(challengeId);
   if (!challenge) {
     return { finalized: false, reason: 'challenge_missing' };
   }
   if (challenge.phase === 'finalized') {
+    return finalizedResultFromChallenge(challenge);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const timeoutEnabled = getCommitWindowSeconds() > 0 && getRevealWindowSeconds() > 0;
+  if (timeoutEnabled && now > challenge.revealDeadline) {
+    const proof = getPoCHProofSubmission(challengeId);
+    const oracleRoundId = challenge.oracleRoundId || `poch_oracle_${challengeId.slice(5, 13)}`;
+    const proofStatementId = proof?.proofStatementId || challenge.proofStatementId || `poch_stmt_timeout_${challengeId.slice(-12)}`;
+    const statusReason: PoCHStatusReason = 'oracle_timeout';
+    const finalized = finalizePoCHChallenge(challengeId, {
+      accepted: false,
+      oracleRoundId,
+      proofStatementId,
+      statusReason,
+      finalizedAt: now,
+    });
+    if (!finalized) {
+      const finalizedChallenge = getPoCHChallenge(challengeId);
+      if (finalizedChallenge) {
+        return finalizedResultFromChallenge(finalizedChallenge);
+      }
+      return { finalized: false, reason: 'challenge_missing' };
+    }
+
+    setPoCHProofAccepted(challengeId, false);
+    const finalizedChallenge = getPoCHChallenge(challengeId);
+    if (finalizedChallenge) {
+      upsertPoCHStatus(statusForChallenge(finalizedChallenge, 'rejected', statusReason, proof?.proofStatementId));
+    }
+
+    const strikes = applyPenaltyIfNeeded(challenge.identityDid, challenge.chain);
+    if (strikes > 0) {
+      emitPoCHEvent(POCH_TOPICS.disputes, {
+        challengeId,
+        identityDid: challenge.identityDid,
+        chain: challenge.chain,
+        strike: strikes,
+        slashingMode: getSlashingMode(),
+      });
+    }
+
+    emitPoCHEvent(POCH_TOPICS.status, {
+      challengeId,
+      identityDid: challenge.identityDid,
+      chain: challenge.chain,
+      status: 'rejected',
+      statusReason,
+      oracleRoundId,
+      proofStatementId,
+    });
+
     return {
       finalized: true,
-      accepted: challenge.accepted,
-      oracleRoundId: challenge.oracleRoundId,
-      proofStatementId: challenge.proofStatementId,
+      accepted: false,
+      reason: statusReason,
+      statusReason,
+      oracleRoundId,
+      proofStatementId,
     };
   }
 
   const proof = getPoCHProofSubmission(challengeId);
-  if (!proof) return { finalized: false, reason: 'proof_missing' };
+  if (!proof) {
+    upsertPoCHStatus(statusForChallenge(challenge, 'pending', 'proof_missing'));
+    return { finalized: false, reason: 'proof_missing', statusReason: 'proof_missing' };
+  }
   if (hasBlockingPoCHDispute(challengeId)) {
-    upsertPoCHStatus(statusForChallenge(challenge, 'disputed', proof.proofStatementId));
-    return { finalized: false, reason: 'blocking_dispute' };
+    upsertPoCHStatus(statusForChallenge(challenge, 'disputed', 'blocking_dispute', proof.proofStatementId));
+    return { finalized: false, reason: 'blocking_dispute', statusReason: 'blocking_dispute' };
   }
 
   const oracle = evaluateOracleDecision(challengeId);
   if (!oracle.ready) {
-    return { finalized: false, reason: 'oracle_quorum_pending' };
+    upsertPoCHStatus(statusForChallenge(challenge, 'pending', 'oracle_quorum_pending', proof.proofStatementId));
+    return { finalized: false, reason: 'oracle_quorum_pending', statusReason: 'oracle_quorum_pending' };
   }
 
   const policyPass = meetsPolicy(challenge.scoreBundle, challenge.policyId);
   const accepted = policyPass && oracle.accepted;
+  const statusReason: PoCHStatusReason = accepted ? 'verified' : (!policyPass ? 'policy_failed' : 'oracle_rejected');
   const finalizedAt = Math.floor(Date.now() / 1000);
   const oracleRoundId = challenge.oracleRoundId || `poch_oracle_${challengeId.slice(5, 13)}`;
   const proofStatementId = proof.proofStatementId;
 
-  finalizePoCHChallenge(challengeId, {
+  const finalized = finalizePoCHChallenge(challengeId, {
     accepted,
     oracleRoundId,
     proofStatementId,
+    statusReason,
     finalizedAt,
   });
+  if (!finalized) {
+    const finalizedChallenge = getPoCHChallenge(challengeId);
+    if (finalizedChallenge) {
+      return finalizedResultFromChallenge(finalizedChallenge);
+    }
+    return { finalized: false, reason: 'challenge_missing' };
+  }
   setPoCHProofAccepted(challengeId, accepted);
 
   const finalizedChallenge = getPoCHChallenge(challengeId);
   if (finalizedChallenge) {
-    upsertPoCHStatus(statusForChallenge(finalizedChallenge, accepted ? 'verified' : 'rejected', proofStatementId));
+    upsertPoCHStatus(
+      statusForChallenge(finalizedChallenge, accepted ? 'verified' : 'rejected', statusReason, proofStatementId)
+    );
   }
 
   if (!accepted) {
@@ -458,6 +559,7 @@ function maybeFinalizeChallenge(challengeId: string): {
     identityDid: challenge.identityDid,
     chain: challenge.chain,
     status: accepted ? 'verified' : 'rejected',
+    statusReason,
     oracleRoundId,
     proofStatementId,
     oracleVoteCount: oracle.voteCount,
@@ -468,6 +570,8 @@ function maybeFinalizeChallenge(challengeId: string): {
   return {
     finalized: true,
     accepted,
+    reason: statusReason,
+    statusReason,
     oracleRoundId,
     proofStatementId,
   };
@@ -596,10 +700,11 @@ router.post('/challenges', writeLimiter, async (req: Request, res: Response) => 
 
     upsertPoCHChallenge(challenge);
 
-    const status: PoCHStatus = {
+    const status: StoredPoCHStatus = {
       identityDid: body.identityDid,
       chain: body.chain,
       status: 'pending',
+      statusReason: 'proof_missing',
       scoreBundleCommitment,
       updatedAt: new Date().toISOString(),
     };
@@ -657,9 +762,11 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
 
   if (challenge.phase === 'finalized') {
     const accepted = challenge.accepted === true;
+    const statusReason = challenge.finalizationReason || (accepted ? 'verified' : 'oracle_rejected');
     return res.status(200).json({
       accepted,
       pending: false,
+      statusReason,
       challengeId: body.challengeId,
       assetDid: body.assetDid,
       identityDid: body.identityDid,
@@ -677,6 +784,7 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
       identityDid: body.identityDid,
       chain: body.chain,
       status: 'rejected',
+      statusReason: 'policy_failed',
       scoreBundleCommitment: challenge.scoreBundleCommitment,
       updatedAt: new Date().toISOString(),
     });
@@ -685,18 +793,58 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
 
   const proofHash = hashHex(body.zkProof);
   const identityNullifierHash = hashHex(`${body.chain}|${body.identityNullifier}`);
-  const uniqueNullifier = registerPoCHNullifier(body.chain, identityNullifierHash, body.challengeId);
-  if (!uniqueNullifier) {
-    return sendError(res, 409, 'REPLAYED_NULLIFIER', 'Identity nullifier already used on this chain');
-  }
-
   const proofStatementId = createProofStatementId(
     body.challengeId,
     proofHash,
     identityNullifierHash
   );
 
-  upsertPoCHProofSubmission({
+  const existingProof = getPoCHProofSubmission(body.challengeId);
+  if (existingProof) {
+    const sameProof = (
+      existingProof.assetDid === body.assetDid &&
+      existingProof.identityDid === body.identityDid &&
+      existingProof.chain === body.chain &&
+      existingProof.proofStatementId === proofStatementId &&
+      existingProof.zkProofHash === proofHash &&
+      existingProof.identityNullifierHash === identityNullifierHash
+    );
+    if (!sameProof) {
+      return sendError(res, 409, 'PROOF_ALREADY_SUBMITTED', 'Proof already submitted for this challenge');
+    }
+
+    const finalizeResult = maybeFinalizeChallenge(body.challengeId);
+    return res.status(200).json({
+      accepted: finalizeResult.accepted === true,
+      pending: !finalizeResult.finalized,
+      finalizeReason: finalizeResult.reason,
+      statusReason: finalizeResult.statusReason,
+      challengeId: body.challengeId,
+      assetDid: body.assetDid,
+      identityDid: body.identityDid,
+      chain: body.chain,
+      verifiedAt: new Date().toISOString(),
+      proofStatementId: existingProof.proofStatementId,
+      oracleRoundId: finalizeResult.oracleRoundId,
+    });
+  }
+
+  const uniqueNullifier = registerPoCHNullifier(body.chain, identityNullifierHash, body.challengeId);
+  if (!uniqueNullifier) {
+    const racedProof = getPoCHProofSubmission(body.challengeId);
+    const sameRacedProof = racedProof
+      && racedProof.assetDid === body.assetDid
+      && racedProof.identityDid === body.identityDid
+      && racedProof.chain === body.chain
+      && racedProof.proofStatementId === proofStatementId
+      && racedProof.zkProofHash === proofHash
+      && racedProof.identityNullifierHash === identityNullifierHash;
+    if (!sameRacedProof) {
+      return sendError(res, 409, 'REPLAYED_NULLIFIER', 'Identity nullifier already used on this chain');
+    }
+  }
+
+  const proofWrite = upsertPoCHProofSubmission({
     challengeId: body.challengeId,
     assetDid: body.assetDid,
     identityDid: body.identityDid,
@@ -706,11 +854,32 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
     identityNullifierHash,
     submittedAt: new Date().toISOString(),
   });
+  if (proofWrite === 'conflict') {
+    return sendError(res, 409, 'PROOF_ALREADY_SUBMITTED', 'Proof already submitted for this challenge');
+  }
+  if (proofWrite === 'duplicate') {
+    const finalizeResult = maybeFinalizeChallenge(body.challengeId);
+    return res.status(200).json({
+      accepted: finalizeResult.accepted === true,
+      pending: !finalizeResult.finalized,
+      finalizeReason: finalizeResult.reason,
+      statusReason: finalizeResult.statusReason,
+      challengeId: body.challengeId,
+      assetDid: body.assetDid,
+      identityDid: body.identityDid,
+      chain: body.chain,
+      verifiedAt: new Date().toISOString(),
+      proofStatementId,
+      oracleRoundId: finalizeResult.oracleRoundId,
+    });
+  }
 
+  const hasBlockingDispute = hasBlockingPoCHDispute(body.challengeId);
   upsertPoCHStatus({
     identityDid: body.identityDid,
     chain: body.chain,
-    status: hasBlockingPoCHDispute(body.challengeId) ? 'disputed' : 'pending',
+    status: hasBlockingDispute ? 'disputed' : 'pending',
+    statusReason: hasBlockingDispute ? 'blocking_dispute' : 'oracle_quorum_pending',
     scoreBundleCommitment: challenge.scoreBundleCommitment,
     proofStatementId,
     updatedAt: new Date().toISOString(),
@@ -732,6 +901,7 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
     accepted: finalizeResult.accepted === true,
     pending: !finalizeResult.finalized,
     finalizeReason: finalizeResult.reason,
+    statusReason: finalizeResult.statusReason,
     challengeId: body.challengeId,
     assetDid: body.assetDid,
     identityDid: body.identityDid,
@@ -777,6 +947,9 @@ router.post('/oracle/commit', writeLimiter, (req: Request, res: Response) => {
   if (!instantOracleMode && now > challenge.commitDeadline) {
     const nextPhase = challenge.phase === 'commit' ? { ...challenge, phase: 'reveal' as const } : challenge;
     if (nextPhase.phase !== challenge.phase) upsertPoCHChallenge(nextPhase);
+    if (now > challenge.revealDeadline) {
+      maybeFinalizeChallenge(body.challengeId);
+    }
     return sendError(res, 400, 'COMMIT_PHASE_ENDED', 'Commit phase has ended');
   }
 
@@ -836,6 +1009,7 @@ router.post('/oracle/reveal', writeLimiter, (req: Request, res: Response) => {
     return sendError(res, 400, 'NOT_REVEAL_PHASE', 'Reveal phase has not started');
   }
   if (!instantOracleMode && now > challenge.revealDeadline) {
+    maybeFinalizeChallenge(body.challengeId);
     return sendError(res, 400, 'REVEAL_PHASE_ENDED', 'Reveal phase has ended');
   }
 
@@ -896,12 +1070,14 @@ router.post('/oracle/reveal', writeLimiter, (req: Request, res: Response) => {
     finalized: finalizeResult.finalized,
     acceptedDecision: finalizeResult.accepted,
     finalizeReason: finalizeResult.reason,
+    statusReason: finalizeResult.statusReason,
     oracleRoundId: finalizeResult.oracleRoundId,
   });
 });
 
 router.get('/oracle/round/:challengeId', readLimiter, (req: Request, res: Response) => {
   const challengeId = decodeURIComponent(req.params.challengeId);
+  const finalizeResult = maybeFinalizeChallenge(challengeId);
   const challenge = getPoCHChallenge(challengeId);
   if (!challenge) {
     return sendError(res, 404, 'NOT_FOUND', 'PoCH challenge not found');
@@ -919,6 +1095,9 @@ router.get('/oracle/round/:challengeId', readLimiter, (req: Request, res: Respon
     oracle,
     proofSubmitted: !!proof,
     disputes,
+    finalized: finalizeResult.finalized,
+    finalizeReason: finalizeResult.reason,
+    statusReason: finalizeResult.statusReason,
   });
 });
 
@@ -946,7 +1125,7 @@ router.post('/disputes', writeLimiter, (req: Request, res: Response) => {
     blocking: body.blocking !== false,
   });
 
-  upsertPoCHStatus(statusForChallenge(challenge, 'disputed'));
+  upsertPoCHStatus(statusForChallenge(challenge, 'disputed', 'blocking_dispute'));
 
   emitPoCHEvent(POCH_TOPICS.disputes, {
     disputeId,
@@ -978,7 +1157,10 @@ router.post('/disputes/:id/resolve', writeLimiter, (req: Request, res: Response)
 
   const challenge = getPoCHChallenge(body.challengeId);
   if (challenge && !hasBlockingPoCHDispute(body.challengeId)) {
-    upsertPoCHStatus(statusForChallenge(challenge, 'pending'));
+    const statusReason: PoCHStatusReason = getPoCHProofSubmission(body.challengeId)
+      ? 'oracle_quorum_pending'
+      : 'proof_missing';
+    upsertPoCHStatus(statusForChallenge(challenge, 'pending', statusReason));
   }
 
   const finalizeResult = maybeFinalizeChallenge(body.challengeId);
@@ -988,6 +1170,7 @@ router.post('/disputes/:id/resolve', writeLimiter, (req: Request, res: Response)
     finalized: finalizeResult.finalized,
     accepted: finalizeResult.accepted,
     finalizeReason: finalizeResult.reason,
+    statusReason: finalizeResult.statusReason,
   });
 });
 
@@ -995,6 +1178,11 @@ router.get('/status/:identity', readLimiter, (req: Request, res: Response) => {
   const identityDid = decodeURIComponent(req.params.identity);
   const chainRaw = (req.query.chain as string | undefined) || 'solana';
   const chain: Chain = chainRaw === 'base' ? 'base' : 'solana';
+
+  const openChallenge = getLatestOpenPoCHChallenge(identityDid, chain);
+  if (openChallenge) {
+    maybeFinalizeChallenge(openChallenge.challengeId);
+  }
 
   const status = getPoCHStatus(identityDid, chain);
   if (!status) {
@@ -1016,6 +1204,11 @@ router.post('/verify-action', writeLimiter, (req: Request, res: Response) => {
   }
   if (body.chain !== 'solana' && body.chain !== 'base') {
     return sendError(res, 400, 'INVALID_INPUT', 'chain must be solana or base');
+  }
+
+  const openChallenge = getLatestOpenPoCHChallenge(body.identityDid, body.chain);
+  if (openChallenge) {
+    maybeFinalizeChallenge(openChallenge.challengeId);
   }
 
   const mode = getEnforcementMode();

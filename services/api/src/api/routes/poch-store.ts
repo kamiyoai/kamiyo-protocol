@@ -3,6 +3,17 @@ import type { PoCHChallenge, PoCHContribution, PoCHStatus } from '@kamiyo/agent-
 
 type Chain = 'solana' | 'base';
 type ChallengePhase = 'commit' | 'reveal' | 'finalized';
+const POCH_SCHEMA_NAME = 'poch';
+const POCH_SCHEMA_VERSION = 2;
+type PoCHStatusReason =
+  | 'proof_missing'
+  | 'oracle_quorum_pending'
+  | 'oracle_timeout'
+  | 'blocking_dispute'
+  | 'policy_failed'
+  | 'oracle_rejected'
+  | 'verified';
+type StoredPoCHStatus = PoCHStatus & { statusReason?: PoCHStatusReason };
 
 export interface StoredChallenge extends PoCHChallenge {
   contentHash: string;
@@ -11,6 +22,7 @@ export interface StoredChallenge extends PoCHChallenge {
   revealDeadline: number;
   accepted?: boolean;
   finalizedAt?: number;
+  finalizationReason?: PoCHStatusReason;
   oracleRoundId?: string;
   proofStatementId?: string;
 }
@@ -63,6 +75,12 @@ export interface StoredDispute {
 }
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS poch_schema_migrations (
+    schema_name TEXT PRIMARY KEY,
+    version INTEGER NOT NULL,
+    applied_at INTEGER NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS poch_contributions (
     asset_did TEXT PRIMARY KEY,
     identity_did TEXT NOT NULL,
@@ -95,6 +113,7 @@ db.exec(`
     reveal_deadline INTEGER NOT NULL,
     accepted INTEGER,
     finalized_at INTEGER,
+    finalization_reason TEXT,
     oracle_round_id TEXT,
     proof_statement_id TEXT
   );
@@ -103,6 +122,7 @@ db.exec(`
     identity_did TEXT NOT NULL,
     chain TEXT NOT NULL,
     status TEXT NOT NULL,
+    status_reason TEXT,
     score_bundle_commitment TEXT,
     oracle_round_id TEXT,
     proof_statement_id TEXT,
@@ -169,6 +189,50 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_poch_votes_challenge ON poch_oracle_votes(challenge_id);
   CREATE INDEX IF NOT EXISTS idx_poch_disputes_challenge ON poch_disputes(challenge_id, status);
 `);
+
+function hasColumn(tableName: string, columnName: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === columnName);
+}
+
+function getPoCHSchemaVersion(): number {
+  const row = db.prepare(`
+    SELECT version
+    FROM poch_schema_migrations
+    WHERE schema_name = ?
+  `).get(POCH_SCHEMA_NAME) as { version: number } | undefined;
+  return row?.version ?? 0;
+}
+
+function setPoCHSchemaVersion(version: number): void {
+  db.prepare(`
+    INSERT INTO poch_schema_migrations (schema_name, version, applied_at)
+    VALUES (?, ?, unixepoch())
+    ON CONFLICT(schema_name) DO UPDATE SET
+      version = excluded.version,
+      applied_at = excluded.applied_at
+  `).run(POCH_SCHEMA_NAME, version);
+}
+
+function runPoCHMigrations(): void {
+  const currentVersion = getPoCHSchemaVersion();
+  if (currentVersion < 1) {
+    setPoCHSchemaVersion(1);
+  }
+
+  if (!hasColumn('poch_challenges', 'finalization_reason')) {
+    db.exec(`ALTER TABLE poch_challenges ADD COLUMN finalization_reason TEXT`);
+  }
+  if (!hasColumn('poch_status', 'status_reason')) {
+    db.exec(`ALTER TABLE poch_status ADD COLUMN status_reason TEXT`);
+  }
+
+  if (currentVersion < POCH_SCHEMA_VERSION) {
+    setPoCHSchemaVersion(POCH_SCHEMA_VERSION);
+  }
+}
+
+runPoCHMigrations();
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -238,8 +302,8 @@ export function upsertPoCHChallenge(challenge: StoredChallenge): void {
     INSERT INTO poch_challenges (
       challenge_id, asset_did, identity_did, chain, policy_id, content_hash,
       score_bundle, score_bundle_commitment, created_at, phase,
-      commit_deadline, reveal_deadline, accepted, finalized_at, oracle_round_id, proof_statement_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      commit_deadline, reveal_deadline, accepted, finalized_at, finalization_reason, oracle_round_id, proof_statement_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(challenge_id) DO UPDATE SET
       asset_did = excluded.asset_did,
       identity_did = excluded.identity_did,
@@ -253,6 +317,7 @@ export function upsertPoCHChallenge(challenge: StoredChallenge): void {
       reveal_deadline = excluded.reveal_deadline,
       accepted = excluded.accepted,
       finalized_at = excluded.finalized_at,
+      finalization_reason = excluded.finalization_reason,
       oracle_round_id = excluded.oracle_round_id,
       proof_statement_id = excluded.proof_statement_id
   `).run(
@@ -270,6 +335,7 @@ export function upsertPoCHChallenge(challenge: StoredChallenge): void {
     challenge.revealDeadline,
     challenge.accepted === undefined ? null : (challenge.accepted ? 1 : 0),
     challenge.finalizedAt ?? null,
+    challenge.finalizationReason || null,
     challenge.oracleRoundId || null,
     challenge.proofStatementId || null
   );
@@ -293,6 +359,7 @@ export function getPoCHChallenge(challengeId: string): StoredChallenge | null {
     reveal_deadline: number;
     accepted: number | null;
     finalized_at: number | null;
+    finalization_reason: PoCHStatusReason | null;
     oracle_round_id: string | null;
     proof_statement_id: string | null;
   } | undefined;
@@ -320,9 +387,22 @@ export function getPoCHChallenge(challengeId: string): StoredChallenge | null {
     revealDeadline: row.reveal_deadline,
     accepted: asBool(row.accepted),
     finalizedAt: row.finalized_at ?? undefined,
+    finalizationReason: row.finalization_reason ?? undefined,
     oracleRoundId: row.oracle_round_id ?? undefined,
     proofStatementId: row.proof_statement_id ?? undefined,
   };
+}
+
+export function getLatestOpenPoCHChallenge(identityDid: string, chain: Chain): StoredChallenge | null {
+  const row = db.prepare(`
+    SELECT challenge_id
+    FROM poch_challenges
+    WHERE identity_did = ? AND chain = ? AND phase != 'finalized'
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).get(identityDid, chain) as { challenge_id: string } | undefined;
+  if (!row) return null;
+  return getPoCHChallenge(row.challenge_id);
 }
 
 export function finalizePoCHChallenge(
@@ -331,35 +411,40 @@ export function finalizePoCHChallenge(
     accepted: boolean;
     oracleRoundId: string;
     proofStatementId: string;
+    statusReason: PoCHStatusReason;
     finalizedAt: number;
   }
-): void {
-  db.prepare(`
+): boolean {
+  const result = db.prepare(`
     UPDATE poch_challenges
     SET
       accepted = ?,
       finalized_at = ?,
       phase = 'finalized',
+      finalization_reason = ?,
       oracle_round_id = ?,
       proof_statement_id = ?
-    WHERE challenge_id = ?
+    WHERE challenge_id = ? AND phase != 'finalized'
   `).run(
     params.accepted ? 1 : 0,
     params.finalizedAt,
+    params.statusReason,
     params.oracleRoundId,
     params.proofStatementId,
     challengeId
   );
+  return result.changes > 0;
 }
 
-export function upsertPoCHStatus(status: PoCHStatus): void {
+export function upsertPoCHStatus(status: StoredPoCHStatus): void {
   db.prepare(`
     INSERT INTO poch_status (
-      identity_did, chain, status, score_bundle_commitment,
+      identity_did, chain, status, status_reason, score_bundle_commitment,
       oracle_round_id, proof_statement_id, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(identity_did, chain) DO UPDATE SET
       status = excluded.status,
+      status_reason = excluded.status_reason,
       score_bundle_commitment = excluded.score_bundle_commitment,
       oracle_round_id = excluded.oracle_round_id,
       proof_statement_id = excluded.proof_statement_id,
@@ -368,6 +453,7 @@ export function upsertPoCHStatus(status: PoCHStatus): void {
     status.identityDid,
     status.chain,
     status.status,
+    status.statusReason || null,
     status.scoreBundleCommitment || null,
     status.oracleRoundId || null,
     status.proofStatementId || null,
@@ -375,13 +461,14 @@ export function upsertPoCHStatus(status: PoCHStatus): void {
   );
 }
 
-export function getPoCHStatus(identityDid: string, chain: Chain): PoCHStatus | null {
+export function getPoCHStatus(identityDid: string, chain: Chain): StoredPoCHStatus | null {
   const row = db.prepare(`
     SELECT * FROM poch_status WHERE identity_did = ? AND chain = ?
   `).get(identityDid, chain) as {
     identity_did: string;
     chain: Chain;
     status: PoCHStatus['status'];
+    status_reason: PoCHStatusReason | null;
     score_bundle_commitment: string | null;
     oracle_round_id: string | null;
     proof_statement_id: string | null;
@@ -392,6 +479,7 @@ export function getPoCHStatus(identityDid: string, chain: Chain): PoCHStatus | n
     identityDid: row.identity_did,
     chain: row.chain,
     status: row.status,
+    statusReason: row.status_reason ?? undefined,
     scoreBundleCommitment: row.score_bundle_commitment ?? undefined,
     oracleRoundId: row.oracle_round_id ?? undefined,
     proofStatementId: row.proof_statement_id ?? undefined,
@@ -399,33 +487,47 @@ export function getPoCHStatus(identityDid: string, chain: Chain): PoCHStatus | n
   };
 }
 
-export function upsertPoCHProofSubmission(submission: StoredProofSubmission): void {
-  db.prepare(`
-    INSERT INTO poch_proofs (
-      challenge_id, asset_did, identity_did, chain,
-      proof_statement_id, zk_proof_hash, identity_nullifier_hash,
-      submitted_at, accepted
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(challenge_id) DO UPDATE SET
-      asset_did = excluded.asset_did,
-      identity_did = excluded.identity_did,
-      chain = excluded.chain,
-      proof_statement_id = excluded.proof_statement_id,
-      zk_proof_hash = excluded.zk_proof_hash,
-      identity_nullifier_hash = excluded.identity_nullifier_hash,
-      submitted_at = excluded.submitted_at,
-      accepted = excluded.accepted
-  `).run(
-    submission.challengeId,
-    submission.assetDid,
-    submission.identityDid,
-    submission.chain,
-    submission.proofStatementId,
-    submission.zkProofHash,
-    submission.identityNullifierHash,
-    submission.submittedAt,
-    submission.accepted === undefined ? null : (submission.accepted ? 1 : 0)
+export type PoCHProofWriteResult = 'inserted' | 'duplicate' | 'conflict';
+
+function isSameProofSubmission(a: StoredProofSubmission, b: StoredProofSubmission): boolean {
+  return (
+    a.challengeId === b.challengeId &&
+    a.assetDid === b.assetDid &&
+    a.identityDid === b.identityDid &&
+    a.chain === b.chain &&
+    a.proofStatementId === b.proofStatementId &&
+    a.zkProofHash === b.zkProofHash &&
+    a.identityNullifierHash === b.identityNullifierHash
   );
+}
+
+export function upsertPoCHProofSubmission(submission: StoredProofSubmission): PoCHProofWriteResult {
+  try {
+    db.prepare(`
+      INSERT INTO poch_proofs (
+        challenge_id, asset_did, identity_did, chain,
+        proof_statement_id, zk_proof_hash, identity_nullifier_hash,
+        submitted_at, accepted
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      submission.challengeId,
+      submission.assetDid,
+      submission.identityDid,
+      submission.chain,
+      submission.proofStatementId,
+      submission.zkProofHash,
+      submission.identityNullifierHash,
+      submission.submittedAt,
+      submission.accepted === undefined ? null : (submission.accepted ? 1 : 0)
+    );
+    return 'inserted';
+  } catch {
+    const existing = getPoCHProofSubmission(submission.challengeId);
+    if (!existing) {
+      return 'conflict';
+    }
+    return isSameProofSubmission(existing, submission) ? 'duplicate' : 'conflict';
+  }
 }
 
 export function setPoCHProofAccepted(challengeId: string, accepted: boolean): void {
@@ -502,6 +604,7 @@ export function upsertPoCHOracleCommit(
       commitment_hash = excluded.commitment_hash,
       committed_at = excluded.committed_at,
       weight = excluded.weight
+    WHERE poch_oracle_votes.revealed_at IS NULL
   `).run(challengeId, oracleId, commitmentHash, committedAt, Math.max(1, weight));
 }
 
@@ -522,7 +625,7 @@ export function revealPoCHOracleVote(params: {
       uniqueness_verdict = ?,
       confidence = ?,
       revealed_at = ?
-    WHERE challenge_id = ? AND oracle_id = ?
+    WHERE challenge_id = ? AND oracle_id = ? AND revealed_at IS NULL
   `).run(
     params.revealSaltHash,
     params.authenticityVerdict ? 1 : 0,

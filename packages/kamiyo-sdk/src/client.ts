@@ -27,10 +27,15 @@ import {
   PoCHChallenge,
   PoCHChallengeRequest,
   PoCHGateDecision,
+  PoCHOracleRound,
   PoCHOracleCommitInput,
   PoCHOracleRevealInput,
+  PoCHOpenDisputeInput,
+  PoCHOpenDisputeResponse,
   PoCHPublished,
   PoCHProofSubmission,
+  PoCHResolveDisputeInput,
+  PoCHResolveDisputeResponse,
   PoCHStatus,
   PoCHSubmissionReceipt,
   PoCHContributionInput,
@@ -328,6 +333,21 @@ export class KamiyoClient {
       finalizeReason?: string;
       oracleRoundId?: string;
     }>("/api/poch/oracle/reveal", input);
+  }
+
+  async getPoCHOracleRound(challengeId: string): Promise<PoCHOracleRound> {
+    return this.getJson<PoCHOracleRound>(`/api/poch/oracle/round/${encodeURIComponent(challengeId)}`);
+  }
+
+  async openPoCHDispute(input: PoCHOpenDisputeInput): Promise<PoCHOpenDisputeResponse> {
+    return this.postJson<PoCHOpenDisputeResponse>("/api/poch/disputes", input);
+  }
+
+  async resolvePoCHDispute(
+    disputeId: number,
+    input: PoCHResolveDisputeInput
+  ): Promise<PoCHResolveDisputeResponse> {
+    return this.postJson<PoCHResolveDisputeResponse>(`/api/poch/disputes/${disputeId}/resolve`, input);
   }
 
   async getPoCHStatus(input: {

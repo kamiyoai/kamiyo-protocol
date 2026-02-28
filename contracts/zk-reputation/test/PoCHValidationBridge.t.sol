@@ -176,6 +176,79 @@ contract PoCHValidationBridgeTest is Test {
         assertEq(tag, bridge.POCH_VERIFIED_TAG());
     }
 
+    function testFinalizePoCHResponseThresholdBoundary() public {
+        vm.prank(alice);
+        uint256 agentId = identity.register();
+
+        bytes32 policyIdHash = keccak256("v1");
+        bytes32 oracleRoundIdHash = keccak256("oracle-round-threshold");
+        uint256[2] memory pA;
+        uint256[2][2] memory pB;
+        uint256[2] memory pC;
+
+        vm.mockCall(
+            address(verifier),
+            abi.encodeWithSelector(Groth16Verifier.verifyProof.selector),
+            abi.encode(true)
+        );
+
+        bytes32 requestHashReject = keccak256("poch-request-threshold-59");
+        vm.prank(alice);
+        bridge.requestPoCHValidation(agentId, "ipfs://poch/request/threshold-59", requestHashReject);
+        bytes32 commitmentReject = keccak256("score-bundle-threshold-59");
+        bytes32 nullifierReject = keccak256("nullifier-threshold-59");
+        uint256 compressedSignalReject = uint256(
+            keccak256(abi.encodePacked(policyIdHash, requestHashReject, nullifierReject))
+        ) % BN254_SCALAR_FIELD;
+        uint256[2] memory pubSignalsReject = [uint256(commitmentReject), compressedSignalReject];
+
+        vm.prank(owner);
+        bridge.finalizePoCH(
+            requestHashReject,
+            59,
+            pA,
+            pB,
+            pC,
+            pubSignalsReject,
+            commitmentReject,
+            policyIdHash,
+            requestHashReject,
+            nullifierReject,
+            oracleRoundIdHash
+        );
+
+        (, , , , , , , PoCHValidationBridge.PoCHStatus rejectStatus) = bridge.pochByRequest(requestHashReject);
+        assertEq(uint256(rejectStatus), uint256(PoCHValidationBridge.PoCHStatus.Rejected));
+
+        bytes32 requestHashVerify = keccak256("poch-request-threshold-60");
+        vm.prank(alice);
+        bridge.requestPoCHValidation(agentId, "ipfs://poch/request/threshold-60", requestHashVerify);
+        bytes32 commitmentVerify = keccak256("score-bundle-threshold-60");
+        bytes32 nullifierVerify = keccak256("nullifier-threshold-60");
+        uint256 compressedSignalVerify = uint256(
+            keccak256(abi.encodePacked(policyIdHash, requestHashVerify, nullifierVerify))
+        ) % BN254_SCALAR_FIELD;
+        uint256[2] memory pubSignalsVerify = [uint256(commitmentVerify), compressedSignalVerify];
+
+        vm.prank(owner);
+        bridge.finalizePoCH(
+            requestHashVerify,
+            60,
+            pA,
+            pB,
+            pC,
+            pubSignalsVerify,
+            commitmentVerify,
+            policyIdHash,
+            requestHashVerify,
+            nullifierVerify,
+            oracleRoundIdHash
+        );
+
+        (, , , , , , , PoCHValidationBridge.PoCHStatus verifyStatus) = bridge.pochByRequest(requestHashVerify);
+        assertEq(uint256(verifyStatus), uint256(PoCHValidationBridge.PoCHStatus.Verified));
+    }
+
     function testFinalizePoCHRejectsChallengeHashMismatch() public {
         vm.prank(alice);
         uint256 agentId = identity.register();
