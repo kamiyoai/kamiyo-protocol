@@ -25,6 +25,7 @@ const GITHUB_REQUIRED_SECRETS = [
   'KAMIYO_CANARY_PARANET_OPERATOR_GLOBAL_ID',
   'KAMIYO_CANARY_PARANET_ATTESTOR_GLOBAL_ID',
   'KAMIYO_CANARY_ALERT_WEBHOOK',
+  'KAMIYO_CANARY_GH_ADMIN_TOKEN',
   'KAMIYO_RENDER_API_KEY',
 ];
 
@@ -147,6 +148,10 @@ const PARITY_CHECKS = [
   {
     githubSecret: 'KAMIYO_CANARY_PARANET_ATTESTOR_GLOBAL_ID',
     renderTargets: [{ serviceId: 'srv-d5knjad6ubrc738s5d6g', key: 'PARANET_ATTESTOR_GLOBAL_ID' }],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_GH_ADMIN_TOKEN',
+    renderTargets: [],
   },
 ];
 

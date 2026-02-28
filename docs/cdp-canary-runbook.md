@@ -50,8 +50,8 @@ Workflow: `.github/workflows/weekly-cdp-create-path.yml`
 
 Behavior:
 
-1. Runs MCP live preflight.
-2. Runs MCP CDP smoke with create mode (`KAMIYO_CDP_SMOKE_CREATE_POLICY=true`).
+1. Runs MCP CDP smoke with create mode (`KAMIYO_CDP_SMOKE_CREATE_POLICY=true`).
+2. CDP readiness is validated inside the smoke via `cdp_env_status`.
 3. Creates a fresh USDC policy and attaches it to both stable canary accounts.
 4. Emits `reports/cdp-weekly-create-path-smoke.json` from MCP package cwd and uploads `packages/kamiyo-mcp/reports/cdp-weekly-create-path-smoke.json`.
 
