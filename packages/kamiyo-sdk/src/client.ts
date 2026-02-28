@@ -34,6 +34,10 @@ import {
   PoCHOpenDisputeResponse,
   PoCHPublished,
   PoCHProofSubmission,
+  PoCHRollbackInput,
+  PoCHRollbackReceipt,
+  PoCHRolloutStageInput,
+  PoCHRolloutStatus,
   PoCHResolveDisputeInput,
   PoCHResolveDisputeResponse,
   PoCHStatus,
@@ -63,6 +67,7 @@ export interface KamiyoClientConfig {
   wallet: Wallet;
   programId?: PublicKey;
   apiBaseUrl?: string;
+  apiAdminSecret?: string;
 }
 
 /**
@@ -73,12 +78,14 @@ export class KamiyoClient {
   public readonly wallet: Wallet;
   public readonly programId: PublicKey;
   private readonly apiBaseUrl?: string;
+  private readonly apiAdminSecret?: string;
 
   constructor(config: KamiyoClientConfig) {
     this.connection = config.connection;
     this.wallet = config.wallet;
     this.programId = config.programId ?? KAMIYO_PROGRAM_ID;
     this.apiBaseUrl = config.apiBaseUrl;
+    this.apiAdminSecret = config.apiAdminSecret;
   }
 
   private getApiBaseUrl(): string {
@@ -86,7 +93,7 @@ export class KamiyoClient {
     return raw.endsWith("/") ? raw.slice(0, -1) : raw;
   }
 
-  private async postJson<T>(path: string, body: unknown): Promise<T> {
+  private async postJson<T>(path: string, body: unknown, headers?: Record<string, string>): Promise<T> {
     const fetchImpl = (globalThis as typeof globalThis & { fetch?: typeof fetch }).fetch;
     if (!fetchImpl) {
       throw new Error("Global fetch is unavailable in this runtime");
@@ -94,7 +101,7 @@ export class KamiyoClient {
 
     const response = await fetchImpl(`${this.getApiBaseUrl()}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(headers || {}) },
       body: JSON.stringify(body),
     });
 
@@ -104,6 +111,17 @@ export class KamiyoClient {
     }
 
     return response.json() as Promise<T>;
+  }
+
+  private getAdminHeaders(overrideSecret?: string): Record<string, string> {
+    const secret = overrideSecret
+      || this.apiAdminSecret
+      || process.env.POCH_ADMIN_SECRET
+      || process.env.KAMIYO_API_ADMIN_SECRET;
+    if (!secret) {
+      throw new Error("PoCH admin secret is required for rollout admin endpoints");
+    }
+    return { authorization: `Bearer ${secret}` };
   }
 
   private async getJson<T>(path: string): Promise<T> {
@@ -363,6 +381,32 @@ export class KamiyoClient {
     input: PoCHActionCheck
   ): Promise<PoCHGateDecision> {
     return this.postJson<PoCHGateDecision>("/api/poch/verify-action", input);
+  }
+
+  async getPoCHRolloutStatus(): Promise<PoCHRolloutStatus> {
+    return this.getJson<PoCHRolloutStatus>("/api/poch/rollout/status");
+  }
+
+  async setPoCHRolloutStage(
+    input: PoCHRolloutStageInput,
+    adminSecret?: string
+  ): Promise<PoCHRolloutStatus> {
+    return this.postJson<PoCHRolloutStatus>(
+      "/api/poch/rollout/stage",
+      input,
+      this.getAdminHeaders(adminSecret)
+    );
+  }
+
+  async triggerPoCHRollback(
+    input: PoCHRollbackInput,
+    adminSecret?: string
+  ): Promise<PoCHRollbackReceipt> {
+    return this.postJson<PoCHRollbackReceipt>(
+      "/api/poch/rollout/rollback",
+      input,
+      this.getAdminHeaders(adminSecret)
+    );
   }
 
   // ========================================================================

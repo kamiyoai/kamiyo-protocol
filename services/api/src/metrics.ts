@@ -225,6 +225,60 @@ export const paranetRateLimited = new Counter({
   registers: [registry],
 });
 
+// PoCH metrics
+export const pochSubmissionTotal = new Counter({
+  name: 'poch_submission_total',
+  help: 'Total PoCH contribution submissions',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+export const pochProofTotal = new Counter({
+  name: 'poch_proof_total',
+  help: 'Total PoCH proof submissions by result',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+export const pochOracleCommitTotal = new Counter({
+  name: 'poch_oracle_commit_total',
+  help: 'Total PoCH oracle commit submissions',
+  registers: [registry],
+});
+
+export const pochOracleRevealTotal = new Counter({
+  name: 'poch_oracle_reveal_total',
+  help: 'Total PoCH oracle reveal submissions',
+  registers: [registry],
+});
+
+export const pochDisputeTotal = new Counter({
+  name: 'poch_dispute_total',
+  help: 'Total PoCH disputes by status and blocking flag',
+  labelNames: ['status', 'blocking'] as const,
+  registers: [registry],
+});
+
+export const pochGateDecisionTotal = new Counter({
+  name: 'poch_gate_decision_total',
+  help: 'Total PoCH gate decisions',
+  labelNames: ['action', 'allowed', 'status_reason'] as const,
+  registers: [registry],
+});
+
+export const pochRolloutStage = new Gauge({
+  name: 'poch_rollout_stage',
+  help: 'Current PoCH rollout stage (0=observe, 1=soft, 2=gate_high_impact)',
+  registers: [registry],
+});
+
+export const pochRollbackTotal = new Counter({
+  name: 'poch_rollback_total',
+  help: 'Total PoCH rollbacks by trigger',
+  labelNames: ['trigger'] as const,
+  registers: [registry],
+});
+
 // Swarm metrics
 export const swarmRunsTotal = new Counter({
   name: 'swarm_runs_total',

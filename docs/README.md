@@ -11,6 +11,7 @@ Public documentation for KAMIYO Protocol.
 - `KYOSHIN_AUTONOMY_MARKET_EXECUTION_PLAN.md` — live marketplace constraints, Fundry config choice, and autonomy-first execution sequence
 - `KYOSHIN_LIVING_AI_24_7_ACCELERATION_PLAN.md` — live failure analysis and immediate runtime hardening plan to move Kyoshin toward true 24/7 autonomy
 - `KYOSHIN_AI_PROOF_24H_RUNBOOK.md` — accelerated 24h autonomy qualification workflow and proof bundle publication rules
+- `KAMIYO_POCH_CONSERVATIVE_ROLLOUT_RUNBOOK_2026-03.md` — PoCH production rollout controls, promotion/rollback policy, and March 2026 operator checklist
 - `KYOSHIN_OPENCLAW_DROPLET_EXECUTION_2026-02-20.md` — executed OpenClaw droplet provisioning, hardening status, and cutover blockers/commands
 - `KYOSHIN_OPENCLAW_LIVING_AI_UPGRADE_2026-02-21.md` — implemented living-AI runtime upgrades (context guard, mission control, proactive nightly run, and work-or-die governor)
 - `OPERATOR_LOGBOOK_FORMAT_SPEC.md` — canonical `Kyōshin 共振 // operator log NNNN` format specification

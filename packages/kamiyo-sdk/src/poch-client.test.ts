@@ -93,4 +93,100 @@ describe("KamiyoClient PoCH API", () => {
     expect(resolved.statusReason).toBe("verified");
     expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3001/api/poch/disputes/7/resolve");
   });
+
+  test("handles rollout status and admin rollout controls", async () => {
+    client = new KamiyoClient({
+      connection: conn,
+      wallet,
+      apiBaseUrl: "http://localhost:3001",
+      apiAdminSecret: "admin-secret",
+    });
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stage: "observe",
+          effectiveMode: "observe",
+          stageStartedAt: "2026-03-01T00:00:00.000Z",
+          updatedAt: "2026-03-01T00:00:00.000Z",
+          updatedBy: "system",
+          baselineProofFailRate: 0.05,
+          gateMetrics: {
+            oracleRevealCompletion24h: 0.95,
+            proofPassRate24h: 0.97,
+            unresolvedBlockingDisputesOver24h: 0,
+            falsePositiveDenyRate24h: 0,
+          },
+          rollbackMetrics: {
+            oracleRevealCompletion2h: 0.98,
+            proofFailureRate1h: 0.03,
+            openBlockingDisputes: 0,
+          },
+          gates: {
+            oracleRevealCompletion: true,
+            proofPassRate: true,
+            unresolvedBlockingDisputes: true,
+            falsePositiveDenyRate: true,
+          },
+          rollbackState: { inCooldown: false },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          stage: "soft",
+          effectiveMode: "soft",
+          stageStartedAt: "2026-03-10T00:00:00.000Z",
+          updatedAt: "2026-03-10T00:00:00.000Z",
+          updatedBy: "admin",
+          baselineProofFailRate: 0.05,
+          gateMetrics: {
+            oracleRevealCompletion24h: 0.95,
+            proofPassRate24h: 0.97,
+            unresolvedBlockingDisputesOver24h: 0,
+            falsePositiveDenyRate24h: 0,
+          },
+          rollbackMetrics: {
+            oracleRevealCompletion2h: 0.98,
+            proofFailureRate1h: 0.03,
+            openBlockingDisputes: 0,
+          },
+          gates: {
+            oracleRevealCompletion: true,
+            proofPassRate: true,
+            unresolvedBlockingDisputes: true,
+            falsePositiveDenyRate: true,
+          },
+          rollbackState: { inCooldown: false },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          rolledBack: true,
+          fromStage: "soft",
+          toStage: "observe",
+          trigger: "manual",
+          reason: "manual safety rollback",
+        }),
+      });
+
+    const rolloutStatus = await client.getPoCHRolloutStatus();
+    expect(rolloutStatus.stage).toBe("observe");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:3001/api/poch/rollout/status");
+
+    const staged = await client.setPoCHRolloutStage({ stage: "soft", reason: "advance canary" });
+    expect(staged.effectiveMode).toBe("soft");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3001/api/poch/rollout/stage");
+    expect(fetchMock.mock.calls[1][1]?.headers?.authorization).toBe("Bearer admin-secret");
+
+    const rollback = await client.triggerPoCHRollback({
+      reason: "manual safety rollback",
+      trigger: "manual",
+    });
+    expect(rollback.rolledBack).toBe(true);
+    expect(fetchMock.mock.calls[2][0]).toBe("http://localhost:3001/api/poch/rollout/rollback");
+    expect(fetchMock.mock.calls[2][1]?.headers?.authorization).toBe("Bearer admin-secret");
+  });
 });

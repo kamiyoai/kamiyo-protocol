@@ -236,6 +236,65 @@ export interface PoCHGateDecision {
   status?: PoCHStatus;
 }
 
+export type PoCHRolloutStage = PoCHEnforcementMode;
+export type PoCHRollbackTrigger =
+  | "manual"
+  | "oracle_reveal_drop"
+  | "proof_failure_anomaly"
+  | "dispute_backlog";
+
+export interface PoCHRolloutStatus {
+  stage: PoCHRolloutStage;
+  modeOverride?: PoCHRolloutStage;
+  effectiveMode: PoCHEnforcementMode;
+  stageStartedAt: string;
+  updatedAt: string;
+  updatedBy: string;
+  rollbackCooldownUntil?: string;
+  baselineProofFailRate: number;
+  gateMetrics: {
+    oracleRevealCompletion24h: number;
+    proofPassRate24h: number;
+    unresolvedBlockingDisputesOver24h: number;
+    falsePositiveDenyRate24h: number;
+  };
+  rollbackMetrics: {
+    oracleRevealCompletion2h: number;
+    proofFailureRate1h: number;
+    openBlockingDisputes: number;
+  };
+  gates: {
+    oracleRevealCompletion: boolean;
+    proofPassRate: boolean;
+    unresolvedBlockingDisputes: boolean;
+    falsePositiveDenyRate: boolean;
+  };
+  rollbackState: {
+    inCooldown: boolean;
+    trigger?: PoCHRollbackTrigger;
+    reason?: string;
+    snapshotAt?: string;
+  };
+}
+
+export interface PoCHRolloutStageInput {
+  stage: PoCHRolloutStage;
+  reason: string;
+}
+
+export interface PoCHRollbackInput {
+  reason: string;
+  trigger?: PoCHRollbackTrigger;
+}
+
+export interface PoCHRollbackReceipt {
+  rolledBack: boolean;
+  fromStage: PoCHRolloutStage;
+  toStage: PoCHRolloutStage;
+  trigger: PoCHRollbackTrigger;
+  reason: string;
+}
+
 // Agent Identity Account
 export interface AgentIdentity {
   owner: PublicKey;

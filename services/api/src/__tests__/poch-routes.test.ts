@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import http from 'http';
 import { createHash } from 'node:crypto';
-import { getPoCHChallenge, upsertPoCHChallenge } from '../api/routes/poch-store';
+import { getPoCHChallenge, upsertPoCHChallenge, upsertPoCHRolloutState } from '../api/routes/poch-store';
 
 const { publishPoCHContributionMock, createClientMock, loadPoCHObservationsMock, nextChallengeId } = vi.hoisted(() => {
   const publishPoCHContributionMock = vi.fn(async () => ({ success: true, ual: 'urn:dkg:1' }));
@@ -73,10 +73,15 @@ describe('PoCH routes', () => {
   const prevPochEnabled = process.env.POCH_ENABLED;
   const prevDkgEndpoint = process.env.DKG_ENDPOINT;
   const prevMode = process.env.POCH_ENFORCEMENT_MODE;
+  const prevAdminSecret = process.env.POCH_ADMIN_SECRET;
   const prevMinQuorum = process.env.POCH_ORACLE_MIN_QUORUM;
   const prevMinWeightQuorum = process.env.POCH_ORACLE_MIN_WEIGHT_QUORUM;
   const prevCommitWindow = process.env.POCH_ORACLE_COMMIT_WINDOW_SEC;
   const prevRevealWindow = process.env.POCH_ORACLE_REVEAL_WINDOW_SEC;
+  const prevRollbackDisputeThreshold = process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD;
+  const prevRollbackOracleRevealMin = process.env.POCH_ROLLBACK_ORACLE_REVEAL_MIN_COMPLETION;
+  const prevRollbackProofAnomaly = process.env.POCH_ROLLBACK_PROOF_FAILURE_ANOMALY_MULTIPLIER;
+  const prevRolloutInterval = process.env.POCH_ROLLOUT_EVALUATOR_INTERVAL_MS;
 
   beforeEach(() => {
     createClientMock.mockClear();
@@ -85,10 +90,22 @@ describe('PoCH routes', () => {
     process.env.DKG_ENDPOINT = 'http://127.0.0.1:8900';
     process.env.POCH_ENABLED = 'true';
     process.env.POCH_ENFORCEMENT_MODE = 'gate_high_impact';
+    process.env.POCH_ADMIN_SECRET = 'test-admin-secret';
     process.env.POCH_ORACLE_MIN_QUORUM = '1';
     process.env.POCH_ORACLE_MIN_WEIGHT_QUORUM = '1';
     process.env.POCH_ORACLE_COMMIT_WINDOW_SEC = '0';
     process.env.POCH_ORACLE_REVEAL_WINDOW_SEC = '0';
+    process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD = '50';
+    process.env.POCH_ROLLBACK_ORACLE_REVEAL_MIN_COMPLETION = '0';
+    process.env.POCH_ROLLBACK_PROOF_FAILURE_ANOMALY_MULTIPLIER = '999999';
+    process.env.POCH_ROLLOUT_EVALUATOR_INTERVAL_MS = '300000';
+    upsertPoCHRolloutState({
+      stage: 'gate_high_impact',
+      modeOverride: 'gate_high_impact',
+      rollbackCooldownUntil: null,
+      baselineProofFailRate: 0.05,
+      updatedBy: 'test',
+    });
   });
 
   afterEach(() => {
@@ -101,6 +118,9 @@ describe('PoCH routes', () => {
     if (prevMode === undefined) delete process.env.POCH_ENFORCEMENT_MODE;
     else process.env.POCH_ENFORCEMENT_MODE = prevMode;
 
+    if (prevAdminSecret === undefined) delete process.env.POCH_ADMIN_SECRET;
+    else process.env.POCH_ADMIN_SECRET = prevAdminSecret;
+
     if (prevMinQuorum === undefined) delete process.env.POCH_ORACLE_MIN_QUORUM;
     else process.env.POCH_ORACLE_MIN_QUORUM = prevMinQuorum;
 
@@ -112,6 +132,18 @@ describe('PoCH routes', () => {
 
     if (prevRevealWindow === undefined) delete process.env.POCH_ORACLE_REVEAL_WINDOW_SEC;
     else process.env.POCH_ORACLE_REVEAL_WINDOW_SEC = prevRevealWindow;
+
+    if (prevRollbackDisputeThreshold === undefined) delete process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD;
+    else process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD = prevRollbackDisputeThreshold;
+
+    if (prevRollbackOracleRevealMin === undefined) delete process.env.POCH_ROLLBACK_ORACLE_REVEAL_MIN_COMPLETION;
+    else process.env.POCH_ROLLBACK_ORACLE_REVEAL_MIN_COMPLETION = prevRollbackOracleRevealMin;
+
+    if (prevRollbackProofAnomaly === undefined) delete process.env.POCH_ROLLBACK_PROOF_FAILURE_ANOMALY_MULTIPLIER;
+    else process.env.POCH_ROLLBACK_PROOF_FAILURE_ANOMALY_MULTIPLIER = prevRollbackProofAnomaly;
+
+    if (prevRolloutInterval === undefined) delete process.env.POCH_ROLLOUT_EVALUATOR_INTERVAL_MS;
+    else process.env.POCH_ROLLOUT_EVALUATOR_INTERVAL_MS = prevRolloutInterval;
   });
 
   it('returns disabled error when POCH_ENABLED=false', async () => {
@@ -843,6 +875,236 @@ describe('PoCH routes', () => {
       const allowedGateBody = await allowedGateRes.json() as { allowed: boolean; reason?: string };
       expect(allowedGateBody.allowed).toBe(true);
       expect(allowedGateBody.reason).toBeUndefined();
+    } finally {
+      await close();
+    }
+  });
+
+  it('enforces admin auth on rollout controls and applies mode override over env fallback', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const unauthorized = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ stage: 'observe', reason: 'test override' }),
+      });
+      expect(unauthorized.status).toBe(401);
+
+      const statusRes = await fetch(`${baseUrl}/api/poch/rollout/status`);
+      expect(statusRes.status).toBe(200);
+      const statusBody = await statusRes.json() as { effectiveMode: string };
+      expect(['observe', 'soft', 'gate_high_impact']).toContain(statusBody.effectiveMode);
+
+      const staged = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ stage: 'observe', reason: 'force observe for canary' }),
+      });
+      expect(staged.status).toBe(200);
+      const stagedBody = await staged.json() as { effectiveMode: string };
+      expect(stagedBody.effectiveMode).toBe('observe');
+
+      const gateRes = await fetch(`${baseUrl}/api/poch/verify-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid: `did:pkh:eip155:8453:0xoverride${Date.now()}`,
+          chain: 'solana',
+          action: 'high_trust_agent_action',
+        }),
+      });
+      expect(gateRes.status).toBe(200);
+      const gateBody = await gateRes.json() as { allowed: boolean; mode: string; reason?: string };
+      expect(gateBody.allowed).toBe(true);
+      expect(gateBody.mode).toBe('observe');
+      expect(gateBody.reason).toBe('PoCH observe mode');
+    } finally {
+      await close();
+    }
+  });
+
+  it('returns soft warning when mode is soft and identity is unverified', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const staged = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ stage: 'soft', reason: 'soft stage canary check' }),
+      });
+      expect(staged.status).toBe(200);
+
+      const gateRes = await fetch(`${baseUrl}/api/poch/verify-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid: `did:pkh:eip155:8453:0xsoft${Date.now()}`,
+          chain: 'solana',
+          action: 'stake_amplification',
+        }),
+      });
+      expect(gateRes.status).toBe(200);
+      const gateBody = await gateRes.json() as { allowed: boolean; mode: string; reason?: string };
+      expect(gateBody.allowed).toBe(true);
+      expect(gateBody.mode).toBe('soft');
+      expect(gateBody.reason).toBe('PoCH missing, soft mode applied');
+    } finally {
+      await close();
+    }
+  });
+
+  it('supports manual rollback from gate_high_impact to soft and from soft to observe', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const setGate = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ stage: 'gate_high_impact', reason: 'manual rollback drill seed' }),
+      });
+      expect(setGate.status).toBe(200);
+
+      const rollbackToSoft = await fetch(`${baseUrl}/api/poch/rollout/rollback`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ reason: 'drill rollback gate->soft', trigger: 'manual' }),
+      });
+      expect(rollbackToSoft.status).toBe(200);
+      const rollbackToSoftBody = await rollbackToSoft.json() as {
+        fromStage: string;
+        toStage: string;
+        trigger: string;
+      };
+      expect(rollbackToSoftBody.fromStage).toBe('gate_high_impact');
+      expect(rollbackToSoftBody.toStage).toBe('soft');
+      expect(rollbackToSoftBody.trigger).toBe('manual');
+
+      const rollbackToObserve = await fetch(`${baseUrl}/api/poch/rollout/rollback`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ reason: 'drill rollback soft->observe', trigger: 'manual' }),
+      });
+      expect(rollbackToObserve.status).toBe(200);
+      const rollbackToObserveBody = await rollbackToObserve.json() as {
+        fromStage: string;
+        toStage: string;
+        trigger: string;
+      };
+      expect(rollbackToObserveBody.fromStage).toBe('soft');
+      expect(rollbackToObserveBody.toStage).toBe('observe');
+      expect(rollbackToObserveBody.trigger).toBe('manual');
+    } finally {
+      await close();
+    }
+  });
+
+  it('rolls back from gate_high_impact to soft when dispute backlog trigger fires', async () => {
+    process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD = '9999';
+
+    const identityDid = `did:pkh:eip155:8453:0xrollout${Date.now()}`;
+    const assetDid = `urn:kamiyo:poch:rollout:${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const setGate = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${process.env.POCH_ADMIN_SECRET}`,
+        },
+        body: JSON.stringify({ stage: 'gate_high_impact', reason: 'test gate stage' }),
+      });
+      expect(setGate.status).toBe(200);
+
+      await fetch(`${baseUrl}/api/poch/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          contentHash: '0xrollout',
+          contributionType: 'knowledge_artifact',
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      const challengeRes = await fetch(`${baseUrl}/api/poch/challenges`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          assetDid,
+          identityDid,
+          chain: 'solana',
+          policyId: 'v1',
+          contentHash: '0xrollout',
+        }),
+      });
+      expect(challengeRes.status).toBe(201);
+      const challengeBody = await challengeRes.json() as { challengeId: string };
+
+      const disputeRes = await fetch(`${baseUrl}/api/poch/disputes`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: challengeBody.challengeId,
+          reason: 'rollback trigger',
+          blocking: true,
+        }),
+      });
+      expect(disputeRes.status).toBe(201);
+
+      process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD = '0';
+
+      const rolloutStatus = await fetch(`${baseUrl}/api/poch/rollout/status`);
+      expect(rolloutStatus.status).toBe(200);
+      const rolloutBody = await rolloutStatus.json() as {
+        effectiveMode: string;
+        rollbackState?: { trigger?: string };
+      };
+      expect(rolloutBody.effectiveMode).toBe('soft');
+      expect(rolloutBody.rollbackState?.trigger).toBe('dispute_backlog');
+
+      const gateRes = await fetch(`${baseUrl}/api/poch/verify-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid: `did:pkh:eip155:8453:0xrollbackgate${Date.now()}`,
+          chain: 'solana',
+          action: 'premium_attestation',
+        }),
+      });
+      expect(gateRes.status).toBe(200);
+      const gateBody = await gateRes.json() as { allowed: boolean; mode: string };
+      expect(gateBody.allowed).toBe(true);
+      expect(gateBody.mode).toBe('soft');
     } finally {
       await close();
     }

@@ -18,29 +18,48 @@ import {
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 import {
+  computePoCHRolloutMetrics,
   finalizePoCHChallenge,
   getPoCHChallenge,
+  getLatestPoCHRolloutSnapshot,
   getPoCHOracleCommitment,
   getPoCHOracleVote,
   getPoCHProofSubmission,
   getPoCHRevealedVotes,
+  getPoCHRolloutState,
   getPoCHStatus,
   hasBlockingPoCHDispute,
   incrementPoCHPenalty,
   listPoCHDisputes,
   openPoCHDispute,
+  PoCHRollbackTrigger,
+  PoCHRolloutSnapshot,
+  PoCHRolloutStage,
   registerPoCHNullifier,
+  recordPoCHGateDecision,
   resolvePoCHDispute,
   revealPoCHOracleVote,
   setPoCHProofAccepted,
   StoredChallenge,
   getLatestOpenPoCHChallenge,
+  upsertPoCHRolloutSnapshot,
+  upsertPoCHRolloutState,
   upsertPoCHChallenge,
   upsertPoCHContribution,
   upsertPoCHOracleCommit,
   upsertPoCHProofSubmission,
   upsertPoCHStatus,
 } from './poch-store';
+import {
+  pochDisputeTotal,
+  pochGateDecisionTotal,
+  pochOracleCommitTotal,
+  pochOracleRevealTotal,
+  pochProofTotal,
+  pochRollbackTotal,
+  pochRolloutStage,
+  pochSubmissionTotal,
+} from '../../metrics';
 
 const router = Router();
 
@@ -106,6 +125,42 @@ interface FinalizeResult {
   proofStatementId?: string;
 }
 
+interface PoCHPromotionGates {
+  oracleRevealCompletion: boolean;
+  proofPassRate: boolean;
+  unresolvedBlockingDisputes: boolean;
+  falsePositiveDenyRate: boolean;
+}
+
+interface PoCHRolloutStatusResponse {
+  stage: PoCHRolloutStage;
+  modeOverride?: PoCHRolloutStage;
+  effectiveMode: PoCHEnforcementMode;
+  stageStartedAt: string;
+  updatedAt: string;
+  updatedBy: string;
+  rollbackCooldownUntil?: string;
+  baselineProofFailRate: number;
+  gateMetrics: {
+    oracleRevealCompletion24h: number;
+    proofPassRate24h: number;
+    unresolvedBlockingDisputesOver24h: number;
+    falsePositiveDenyRate24h: number;
+  };
+  rollbackMetrics: {
+    oracleRevealCompletion2h: number;
+    proofFailureRate1h: number;
+    openBlockingDisputes: number;
+  };
+  gates: PoCHPromotionGates;
+  rollbackState: {
+    inCooldown: boolean;
+    trigger?: PoCHRollbackTrigger;
+    reason?: string;
+    snapshotAt?: string;
+  };
+}
+
 const POCH_TOPICS = {
   submissions: process.env.POCH_TOPIC_SUBMISSIONS || 'poch-submissions',
   scoring: process.env.POCH_TOPIC_SCORING || 'poch-scoring',
@@ -113,6 +168,17 @@ const POCH_TOPICS = {
   disputes: process.env.POCH_TOPIC_DISPUTES || 'poch-disputes',
   status: process.env.POCH_TOPIC_STATUS || 'poch-status',
 };
+
+const POCH_DEFAULT_BASELINE_PROOF_FAIL_RATE = Number(process.env.POCH_BASELINE_PROOF_FAIL_RATE || '0.05');
+const POCH_ROLLOUT_EVALUATOR_INTERVAL_MS = (() => {
+  const parsed = Number(process.env.POCH_ROLLOUT_EVALUATOR_INTERVAL_MS || '300000');
+  if (!Number.isFinite(parsed) || parsed < 60_000) return 300_000;
+  return parsed;
+})();
+
+const POCH_OBSERVE_START_AT = process.env.POCH_ROLLOUT_OBSERVE_START_AT || '2026-03-03T00:00:00Z';
+const POCH_SOFT_START_AT = process.env.POCH_ROLLOUT_SOFT_START_AT || '2026-03-10T00:00:00Z';
+const POCH_GATE_START_AT = process.env.POCH_ROLLOUT_GATE_START_AT || '2026-03-17T00:00:00Z';
 
 function firstNonEmpty(keys: readonly string[]): string | undefined {
   for (const key of keys) {
@@ -164,12 +230,160 @@ function isPoCHEnabled(): boolean {
   return process.env.POCH_ENABLED !== 'false';
 }
 
-function getEnforcementMode(): PoCHEnforcementMode {
-  const mode = process.env.POCH_ENFORCEMENT_MODE;
-  if (mode === 'observe' || mode === 'soft' || mode === 'gate_high_impact') {
-    return mode;
+function parseRolloutStage(value: string | undefined): PoCHRolloutStage | undefined {
+  if (value === 'observe' || value === 'soft' || value === 'gate_high_impact') {
+    return value;
   }
-  return 'soft';
+  return undefined;
+}
+
+function stageToGauge(stage: PoCHRolloutStage): number {
+  if (stage === 'observe') return 0;
+  if (stage === 'soft') return 1;
+  return 2;
+}
+
+function parseIsoOrNull(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) return null;
+  return parsed;
+}
+
+function getEnvEnforcementMode(): PoCHEnforcementMode {
+  const mode = parseRolloutStage(process.env.POCH_ENFORCEMENT_MODE);
+  if (mode) return mode;
+  return 'observe';
+}
+
+function getEffectiveEnforcementMode(): PoCHEnforcementMode {
+  const fallback = getEnvEnforcementMode();
+  const state = getPoCHRolloutState(fallback);
+  const effective = state.modeOverride || state.stage;
+  pochRolloutStage.set(stageToGauge(effective));
+  return effective;
+}
+
+function getRolloutBoundary(stage: PoCHRolloutStage): number {
+  const raw = stage === 'observe'
+    ? POCH_OBSERVE_START_AT
+    : stage === 'soft'
+      ? POCH_SOFT_START_AT
+      : POCH_GATE_START_AT;
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+}
+
+function getRolloutThresholds() {
+  const oracleRevealPromotionMin = Number(process.env.POCH_ROLLOUT_ORACLE_REVEAL_MIN_COMPLETION || '0.9');
+  const proofPassPromotionMin = Number(process.env.POCH_ROLLOUT_PROOF_PASS_MIN_RATE || '0.95');
+  const falsePositiveMax = Number(process.env.POCH_ROLLOUT_GATING_FALSE_POSITIVE_MAX_RATE || '0.01');
+  const rollbackOracleRevealMin = Number(process.env.POCH_ROLLBACK_ORACLE_REVEAL_MIN_COMPLETION || '0.8');
+  const rollbackProofFailureMultiplier = Number(
+    process.env.POCH_ROLLBACK_PROOF_FAILURE_ANOMALY_MULTIPLIER || '2'
+  );
+  const rollbackBlockingDisputesThreshold = Number(
+    process.env.POCH_ROLLBACK_BLOCKING_DISPUTE_OPEN_THRESHOLD || '50'
+  );
+
+  return {
+    oracleRevealPromotionMin: Number.isFinite(oracleRevealPromotionMin) ? oracleRevealPromotionMin : 0.9,
+    proofPassPromotionMin: Number.isFinite(proofPassPromotionMin) ? proofPassPromotionMin : 0.95,
+    falsePositiveMax: Number.isFinite(falsePositiveMax) ? falsePositiveMax : 0.01,
+    rollbackOracleRevealMin: Number.isFinite(rollbackOracleRevealMin) ? rollbackOracleRevealMin : 0.8,
+    rollbackProofFailureMultiplier: Number.isFinite(rollbackProofFailureMultiplier)
+      ? rollbackProofFailureMultiplier
+      : 2,
+    rollbackBlockingDisputesThreshold: Number.isFinite(rollbackBlockingDisputesThreshold)
+      ? rollbackBlockingDisputesThreshold
+      : 50,
+  };
+}
+
+function getPromotionGates(snapshot: PoCHRolloutSnapshot): PoCHPromotionGates {
+  const thresholds = getRolloutThresholds();
+  return {
+    oracleRevealCompletion: snapshot.oracleRevealCompletion24h >= thresholds.oracleRevealPromotionMin,
+    proofPassRate: snapshot.proofPassRate24h >= thresholds.proofPassPromotionMin,
+    unresolvedBlockingDisputes: snapshot.unresolvedBlockingDisputesOver24h === 0,
+    falsePositiveDenyRate: snapshot.falsePositiveDenyRate24h < thresholds.falsePositiveMax,
+  };
+}
+
+function allPromotionGatesPass(gates: PoCHPromotionGates): boolean {
+  return gates.oracleRevealCompletion
+    && gates.proofPassRate
+    && gates.unresolvedBlockingDisputes
+    && gates.falsePositiveDenyRate;
+}
+
+function resolveAuth(req: Request): string | null {
+  const auth = req.headers.authorization?.trim();
+  if (!auth || !auth.startsWith('Bearer ')) return null;
+  return auth.slice('Bearer '.length).trim();
+}
+
+function getRolloutAdminSecret(): string {
+  return process.env.POCH_ADMIN_SECRET || '';
+}
+
+function requireRolloutAdmin(req: Request, res: Response): boolean {
+  const adminSecret = getRolloutAdminSecret();
+  if (!adminSecret) {
+    sendError(res, 503, 'ADMIN_NOT_CONFIGURED', 'PoCH admin routes are not configured');
+    return false;
+  }
+  const token = resolveAuth(req);
+  if (!token || token !== adminSecret) {
+    sendError(res, 401, 'UNAUTHORIZED', 'Unauthorized');
+    return false;
+  }
+  return true;
+}
+
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function buildRolloutStatusResponse(
+  snapshot: PoCHRolloutSnapshot,
+  rollbackTrigger?: PoCHRollbackTrigger,
+  rollbackReason?: string
+): PoCHRolloutStatusResponse {
+  const state = getPoCHRolloutState(getEnvEnforcementMode());
+  const effectiveMode = state.modeOverride || state.stage;
+  const gates = getPromotionGates(snapshot);
+  const cooldownUntilMs = parseIsoOrNull(state.rollbackCooldownUntil);
+  const inCooldown = cooldownUntilMs !== null && Date.now() < cooldownUntilMs;
+
+  return {
+    stage: state.stage,
+    modeOverride: state.modeOverride,
+    effectiveMode,
+    stageStartedAt: state.startedAt,
+    updatedAt: state.updatedAt,
+    updatedBy: state.updatedBy,
+    rollbackCooldownUntil: state.rollbackCooldownUntil,
+    baselineProofFailRate: state.baselineProofFailRate ?? POCH_DEFAULT_BASELINE_PROOF_FAIL_RATE,
+    gateMetrics: {
+      oracleRevealCompletion24h: snapshot.oracleRevealCompletion24h,
+      proofPassRate24h: snapshot.proofPassRate24h,
+      unresolvedBlockingDisputesOver24h: snapshot.unresolvedBlockingDisputesOver24h,
+      falsePositiveDenyRate24h: snapshot.falsePositiveDenyRate24h,
+    },
+    rollbackMetrics: {
+      oracleRevealCompletion2h: snapshot.oracleRevealCompletion2h,
+      proofFailureRate1h: snapshot.proofFailureRate1h,
+      openBlockingDisputes: snapshot.openBlockingDisputes,
+    },
+    gates,
+    rollbackState: {
+      inCooldown,
+      trigger: rollbackTrigger,
+      reason: rollbackReason,
+      snapshotAt: snapshot.capturedAt,
+    },
+  };
 }
 
 function getSlashingMode(): PoCHSlashingMode {
@@ -577,6 +791,206 @@ function maybeFinalizeChallenge(challengeId: string): FinalizeResult {
   };
 }
 
+interface RolloutEvaluationResult {
+  snapshot: PoCHRolloutSnapshot;
+  rollbackTrigger?: PoCHRollbackTrigger;
+  rollbackReason?: string;
+}
+
+let rolloutEvaluatorRunning = false;
+let rolloutLastRunSec = 0;
+let rolloutEvaluatorTimer: NodeJS.Timeout | null = null;
+
+function normalizeStatusReasonLabel(statusReason?: string): string {
+  if (!statusReason || !statusReason.trim()) return 'none';
+  return statusReason;
+}
+
+function applyPoCHRollback(
+  stage: PoCHRolloutStage,
+  trigger: PoCHRollbackTrigger,
+  reason: string,
+  updatedBy: string,
+  nowUnixSec: number
+): PoCHRolloutStage {
+  const nextStage = stage === 'gate_high_impact' ? 'soft' : 'observe';
+  const cooldownUntil = new Date((nowUnixSec + (24 * 60 * 60)) * 1000).toISOString();
+  upsertPoCHRolloutState({
+    stage: nextStage,
+    modeOverride: nextStage,
+    rollbackCooldownUntil: cooldownUntil,
+    updatedBy,
+  });
+  pochRollbackTotal.labels(trigger).inc();
+  logger.error('PoCH rollback activated', {
+    trigger,
+    reason,
+    fromStage: stage,
+    toStage: nextStage,
+    cooldownUntil,
+  });
+  return nextStage;
+}
+
+function applyPoCHPromotion(
+  stage: PoCHRolloutStage,
+  nowUnixSec: number,
+  updatedBy: string
+): PoCHRolloutStage {
+  if (stage === 'gate_high_impact') return stage;
+  if (stage === 'observe' && nowUnixSec >= getRolloutBoundary('soft')) {
+    upsertPoCHRolloutState({
+      stage: 'soft',
+      modeOverride: 'soft',
+      updatedBy,
+      rollbackCooldownUntil: null,
+    });
+    return 'soft';
+  }
+  if (stage === 'soft' && nowUnixSec >= getRolloutBoundary('gate_high_impact')) {
+    upsertPoCHRolloutState({
+      stage: 'gate_high_impact',
+      modeOverride: 'gate_high_impact',
+      updatedBy,
+      rollbackCooldownUntil: null,
+    });
+    return 'gate_high_impact';
+  }
+  return stage;
+}
+
+function evaluatePoCHRollout(force = false): RolloutEvaluationResult {
+  const nowUnixSec = nowSec();
+  const intervalSec = Math.floor(POCH_ROLLOUT_EVALUATOR_INTERVAL_MS / 1000);
+  if (!force && nowUnixSec - rolloutLastRunSec < intervalSec) {
+    const latest = getLatestPoCHRolloutSnapshot();
+    if (latest) {
+      return { snapshot: latest };
+    }
+  }
+
+  const fallbackMode = getEnvEnforcementMode();
+  const state = getPoCHRolloutState(fallbackMode);
+  const metrics = computePoCHRolloutMetrics(nowUnixSec);
+  const thresholds = getRolloutThresholds();
+  const baselineProofFailRate = state.baselineProofFailRate ?? POCH_DEFAULT_BASELINE_PROOF_FAIL_RATE;
+  const cooldownUntilMs = parseIsoOrNull(state.rollbackCooldownUntil);
+  const inCooldown = cooldownUntilMs !== null && Date.now() < cooldownUntilMs;
+
+  let nextStage = state.stage;
+  let rollbackTrigger: PoCHRollbackTrigger | undefined;
+  let rollbackReason: string | undefined;
+
+  if (metrics.commits2h > 0 && metrics.oracleRevealCompletion2h < thresholds.rollbackOracleRevealMin) {
+    rollbackTrigger = 'oracle_reveal_drop';
+    rollbackReason = `Oracle reveal completion dropped to ${metrics.oracleRevealCompletion2h.toFixed(4)} over 2h`;
+  } else if (
+    metrics.totalProofs1h > 0
+    && baselineProofFailRate > 0
+    && metrics.proofFailureRate1h > (baselineProofFailRate * thresholds.rollbackProofFailureMultiplier)
+  ) {
+    rollbackTrigger = 'proof_failure_anomaly';
+    rollbackReason = `Proof failure rate ${metrics.proofFailureRate1h.toFixed(4)} exceeded baseline multiplier`;
+  } else if (metrics.openBlockingDisputes > thresholds.rollbackBlockingDisputesThreshold) {
+    rollbackTrigger = 'dispute_backlog';
+    rollbackReason = `Open blocking disputes ${metrics.openBlockingDisputes} exceeded threshold`;
+  }
+
+  if (rollbackTrigger && rollbackReason) {
+    nextStage = applyPoCHRollback(state.stage, rollbackTrigger, rollbackReason, 'poch-evaluator', nowUnixSec);
+  } else {
+    const gates = getPromotionGates({
+      bucketStart: 0,
+      capturedAt: new Date(nowUnixSec * 1000).toISOString(),
+      stage: state.stage,
+      effectiveMode: state.modeOverride || state.stage,
+      oracleRevealCompletion24h: metrics.oracleRevealCompletion24h,
+      proofPassRate24h: metrics.proofPassRate24h,
+      unresolvedBlockingDisputesOver24h: metrics.unresolvedBlockingDisputesOver24h,
+      falsePositiveDenyRate24h: metrics.falsePositiveDenyRate24h,
+      oracleRevealCompletion2h: metrics.oracleRevealCompletion2h,
+      proofFailureRate1h: metrics.proofFailureRate1h,
+      openBlockingDisputes: metrics.openBlockingDisputes,
+      promotionEligible: false,
+    });
+    if (!inCooldown && allPromotionGatesPass(gates)) {
+      nextStage = applyPoCHPromotion(state.stage, nowUnixSec, 'poch-evaluator');
+    }
+  }
+
+  const latestState = getPoCHRolloutState(fallbackMode);
+  const effectiveMode = latestState.modeOverride || latestState.stage;
+  pochRolloutStage.set(stageToGauge(effectiveMode));
+
+  if (latestState.baselineProofFailRate === undefined && metrics.totalProofs24h > 0) {
+    upsertPoCHRolloutState({
+      baselineProofFailRate: 1 - metrics.proofPassRate24h,
+      updatedBy: 'poch-evaluator',
+    });
+  }
+
+  const bucketSpanSec = 5 * 60;
+  const bucketStart = Math.floor(nowUnixSec / bucketSpanSec) * bucketSpanSec;
+  const snapshot: PoCHRolloutSnapshot = {
+    bucketStart,
+    capturedAt: new Date(nowUnixSec * 1000).toISOString(),
+    stage: nextStage,
+    effectiveMode,
+    oracleRevealCompletion24h: metrics.oracleRevealCompletion24h,
+    proofPassRate24h: metrics.proofPassRate24h,
+    unresolvedBlockingDisputesOver24h: metrics.unresolvedBlockingDisputesOver24h,
+    falsePositiveDenyRate24h: metrics.falsePositiveDenyRate24h,
+    oracleRevealCompletion2h: metrics.oracleRevealCompletion2h,
+    proofFailureRate1h: metrics.proofFailureRate1h,
+    openBlockingDisputes: metrics.openBlockingDisputes,
+    promotionEligible: !inCooldown && allPromotionGatesPass(getPromotionGates({
+      bucketStart,
+      capturedAt: '',
+      stage: nextStage,
+      effectiveMode,
+      oracleRevealCompletion24h: metrics.oracleRevealCompletion24h,
+      proofPassRate24h: metrics.proofPassRate24h,
+      unresolvedBlockingDisputesOver24h: metrics.unresolvedBlockingDisputesOver24h,
+      falsePositiveDenyRate24h: metrics.falsePositiveDenyRate24h,
+      oracleRevealCompletion2h: metrics.oracleRevealCompletion2h,
+      proofFailureRate1h: metrics.proofFailureRate1h,
+      openBlockingDisputes: metrics.openBlockingDisputes,
+      promotionEligible: false,
+    })),
+    rollbackTrigger,
+    rollbackReason,
+  };
+  upsertPoCHRolloutSnapshot(snapshot);
+  rolloutLastRunSec = nowUnixSec;
+
+  return { snapshot, rollbackTrigger, rollbackReason };
+}
+
+function evaluatePoCHRolloutSafe(force = false): RolloutEvaluationResult | null {
+  if (rolloutEvaluatorRunning) return null;
+  rolloutEvaluatorRunning = true;
+  try {
+    return evaluatePoCHRollout(force);
+  } catch (error) {
+    logger.error('PoCH rollout evaluator failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  } finally {
+    rolloutEvaluatorRunning = false;
+  }
+}
+
+function startPoCHRolloutEvaluator(): void {
+  if (process.env.NODE_ENV === 'test') return;
+  if (rolloutEvaluatorTimer) return;
+  evaluatePoCHRolloutSafe(true);
+  rolloutEvaluatorTimer = setInterval(() => {
+    evaluatePoCHRolloutSafe(true);
+  }, POCH_ROLLOUT_EVALUATOR_INTERVAL_MS);
+  rolloutEvaluatorTimer.unref?.();
+}
+
 router.post('/contributions', writeLimiter, async (req: Request, res: Response) => {
   if (!isPoCHEnabled()) {
     return sendError(res, 503, 'POCH_DISABLED', 'PoCH is disabled');
@@ -612,6 +1026,7 @@ router.post('/contributions', writeLimiter, async (req: Request, res: Response) 
     const client = await getClient();
     const published = await client.publishPoCHContribution(contribution);
     if (!published.success || !published.ual) {
+      pochSubmissionTotal.labels('rejected').inc();
       return sendError(res, 400, 'PUBLISH_FAILED', published.error || 'Failed to publish contribution');
     }
 
@@ -631,12 +1046,14 @@ router.post('/contributions', writeLimiter, async (req: Request, res: Response) 
       ual: published.ual,
       createdAt: contribution.createdAt,
     });
+    pochSubmissionTotal.labels('accepted').inc();
 
     res.status(201).json({ success: true, assetDid, ual: published.ual });
   } catch (error) {
     logger.error('Failed to publish PoCH contribution', {
       error: error instanceof Error ? error.message : String(error),
     });
+    pochSubmissionTotal.labels('invalid').inc();
     sendError(res, 500, 'INTERNAL_ERROR', 'Failed to publish PoCH contribution');
   }
 });
@@ -763,6 +1180,7 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
   if (challenge.phase === 'finalized') {
     const accepted = challenge.accepted === true;
     const statusReason = challenge.finalizationReason || (accepted ? 'verified' : 'oracle_rejected');
+    pochProofTotal.labels(accepted ? 'accepted' : 'rejected').inc();
     return res.status(200).json({
       accepted,
       pending: false,
@@ -780,6 +1198,7 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
   const validProofShape = body.zkProof.length >= 32 && body.identityNullifier.length >= 16;
   if (!validProofShape) {
     applyPenaltyIfNeeded(body.identityDid, body.chain);
+    pochProofTotal.labels('invalid').inc();
     upsertPoCHStatus({
       identityDid: body.identityDid,
       chain: body.chain,
@@ -810,10 +1229,13 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
       existingProof.identityNullifierHash === identityNullifierHash
     );
     if (!sameProof) {
+      pochProofTotal.labels('replayed').inc();
       return sendError(res, 409, 'PROOF_ALREADY_SUBMITTED', 'Proof already submitted for this challenge');
     }
 
     const finalizeResult = maybeFinalizeChallenge(body.challengeId);
+    if (!finalizeResult.finalized) pochProofTotal.labels('pending').inc();
+    else pochProofTotal.labels(finalizeResult.accepted ? 'accepted' : 'rejected').inc();
     return res.status(200).json({
       accepted: finalizeResult.accepted === true,
       pending: !finalizeResult.finalized,
@@ -840,6 +1262,7 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
       && racedProof.zkProofHash === proofHash
       && racedProof.identityNullifierHash === identityNullifierHash;
     if (!sameRacedProof) {
+      pochProofTotal.labels('replayed').inc();
       return sendError(res, 409, 'REPLAYED_NULLIFIER', 'Identity nullifier already used on this chain');
     }
   }
@@ -855,10 +1278,13 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
     submittedAt: new Date().toISOString(),
   });
   if (proofWrite === 'conflict') {
+    pochProofTotal.labels('replayed').inc();
     return sendError(res, 409, 'PROOF_ALREADY_SUBMITTED', 'Proof already submitted for this challenge');
   }
   if (proofWrite === 'duplicate') {
     const finalizeResult = maybeFinalizeChallenge(body.challengeId);
+    if (!finalizeResult.finalized) pochProofTotal.labels('pending').inc();
+    else pochProofTotal.labels(finalizeResult.accepted ? 'accepted' : 'rejected').inc();
     return res.status(200).json({
       accepted: finalizeResult.accepted === true,
       pending: !finalizeResult.finalized,
@@ -886,6 +1312,8 @@ router.post('/proofs', writeLimiter, async (req: Request, res: Response) => {
   });
 
   const finalizeResult = maybeFinalizeChallenge(body.challengeId);
+  if (!finalizeResult.finalized) pochProofTotal.labels('pending').inc();
+  else pochProofTotal.labels(finalizeResult.accepted ? 'accepted' : 'rejected').inc();
 
   emitPoCHEvent(POCH_TOPICS.votes, {
     challengeId: body.challengeId,
@@ -961,6 +1389,7 @@ router.post('/oracle/commit', writeLimiter, (req: Request, res: Response) => {
 
   const weight = resolveOracleWeight(body.oracleId, registry);
   upsertPoCHOracleCommit(body.challengeId, body.oracleId, body.commitmentHash, weight);
+  pochOracleCommitTotal.inc();
 
   emitPoCHEvent(POCH_TOPICS.votes, {
     challengeId: body.challengeId,
@@ -1050,6 +1479,7 @@ router.post('/oracle/reveal', writeLimiter, (req: Request, res: Response) => {
   if (!revealed) {
     return sendError(res, 400, 'REVEAL_FAILED', 'Failed to persist oracle reveal');
   }
+  pochOracleRevealTotal.inc();
 
   if (challenge.phase === 'commit') {
     upsertPoCHChallenge({ ...challenge, phase: 'reveal' });
@@ -1126,6 +1556,7 @@ router.post('/disputes', writeLimiter, (req: Request, res: Response) => {
   });
 
   upsertPoCHStatus(statusForChallenge(challenge, 'disputed', 'blocking_dispute'));
+  pochDisputeTotal.labels('open', body.blocking === false ? 'false' : 'true').inc();
 
   emitPoCHEvent(POCH_TOPICS.disputes, {
     disputeId,
@@ -1150,10 +1581,13 @@ router.post('/disputes/:id/resolve', writeLimiter, (req: Request, res: Response)
     return sendError(res, 400, 'INVALID_INPUT', 'challengeId is required');
   }
 
+  const priorDisputes = listPoCHDisputes(body.challengeId);
+  const priorDispute = priorDisputes.find((entry) => entry.id === disputeId);
   const resolved = resolvePoCHDispute(disputeId);
   if (!resolved) {
     return sendError(res, 404, 'NOT_FOUND', 'Open dispute not found');
   }
+  pochDisputeTotal.labels('resolved', priorDispute?.blocking ? 'true' : 'false').inc();
 
   const challenge = getPoCHChallenge(body.challengeId);
   if (challenge && !hasBlockingPoCHDispute(body.challengeId)) {
@@ -1171,6 +1605,102 @@ router.post('/disputes/:id/resolve', writeLimiter, (req: Request, res: Response)
     accepted: finalizeResult.accepted,
     finalizeReason: finalizeResult.reason,
     statusReason: finalizeResult.statusReason,
+  });
+});
+
+router.get('/rollout/status', readLimiter, (_req: Request, res: Response) => {
+  const evaluation = evaluatePoCHRolloutSafe(true);
+  const snapshot = evaluation?.snapshot || getLatestPoCHRolloutSnapshot();
+  if (!snapshot) {
+    return sendError(res, 503, 'ROLL_OUT_UNAVAILABLE', 'PoCH rollout status is unavailable');
+  }
+
+  res.json(buildRolloutStatusResponse(snapshot, evaluation?.rollbackTrigger, evaluation?.rollbackReason));
+});
+
+router.post('/rollout/stage', writeLimiter, (req: Request, res: Response) => {
+  if (!requireRolloutAdmin(req, res)) return;
+
+  const body = req.body as { stage?: PoCHRolloutStage; reason?: string };
+  if (!body.stage || !parseRolloutStage(body.stage)) {
+    return sendError(res, 400, 'INVALID_INPUT', 'stage must be observe, soft, or gate_high_impact');
+  }
+  if (!body.reason || typeof body.reason !== 'string' || !body.reason.trim()) {
+    return sendError(res, 400, 'INVALID_INPUT', 'reason is required');
+  }
+
+  const updatedBy = req.headers['x-admin-user'];
+  const state = upsertPoCHRolloutState({
+    stage: body.stage,
+    modeOverride: body.stage,
+    rollbackCooldownUntil: null,
+    updatedBy: typeof updatedBy === 'string' && updatedBy.trim() ? updatedBy.trim() : 'admin',
+  });
+  pochRolloutStage.set(stageToGauge(state.modeOverride || state.stage));
+  const evaluation = evaluatePoCHRolloutSafe(true);
+  const snapshot = evaluation?.snapshot || getLatestPoCHRolloutSnapshot();
+  if (!snapshot) {
+    return sendError(res, 503, 'ROLL_OUT_UNAVAILABLE', 'PoCH rollout status is unavailable');
+  }
+  res.status(200).json(buildRolloutStatusResponse(snapshot, evaluation?.rollbackTrigger, evaluation?.rollbackReason));
+});
+
+router.post('/rollout/rollback', writeLimiter, (req: Request, res: Response) => {
+  if (!requireRolloutAdmin(req, res)) return;
+
+  const body = req.body as { reason?: string; trigger?: PoCHRollbackTrigger };
+  if (!body.reason || typeof body.reason !== 'string' || !body.reason.trim()) {
+    return sendError(res, 400, 'INVALID_INPUT', 'reason is required');
+  }
+  const trigger: PoCHRollbackTrigger = body.trigger || 'manual';
+  if (
+    trigger !== 'manual'
+    && trigger !== 'oracle_reveal_drop'
+    && trigger !== 'proof_failure_anomaly'
+    && trigger !== 'dispute_backlog'
+  ) {
+    return sendError(
+      res,
+      400,
+      'INVALID_INPUT',
+      'trigger must be manual, oracle_reveal_drop, proof_failure_anomaly, or dispute_backlog'
+    );
+  }
+
+  const fallbackMode = getEnvEnforcementMode();
+  const state = getPoCHRolloutState(fallbackMode);
+  const updatedBy = req.headers['x-admin-user'];
+  const updater = typeof updatedBy === 'string' && updatedBy.trim() ? updatedBy.trim() : 'admin';
+  const nowUnixSec = nowSec();
+  let targetStage = state.stage;
+
+  if (state.stage === 'observe') {
+    const cooldownUntil = new Date((nowUnixSec + (24 * 60 * 60)) * 1000).toISOString();
+    upsertPoCHRolloutState({
+      stage: 'observe',
+      modeOverride: 'observe',
+      rollbackCooldownUntil: cooldownUntil,
+      updatedBy: updater,
+    });
+    pochRollbackTotal.labels(trigger).inc();
+    logger.error('PoCH rollback trigger while already in observe stage', {
+      trigger,
+      reason: body.reason,
+    });
+  } else {
+    targetStage = applyPoCHRollback(state.stage, trigger, body.reason, updater, nowUnixSec);
+  }
+
+  const evaluation = evaluatePoCHRolloutSafe(true);
+  const snapshot = evaluation?.snapshot || getLatestPoCHRolloutSnapshot();
+
+  res.status(200).json({
+    rolledBack: true,
+    fromStage: state.stage,
+    toStage: targetStage,
+    trigger,
+    reason: body.reason,
+    snapshot: snapshot || null,
   });
 });
 
@@ -1211,7 +1741,9 @@ router.post('/verify-action', writeLimiter, (req: Request, res: Response) => {
     maybeFinalizeChallenge(openChallenge.challengeId);
   }
 
-  const mode = getEnforcementMode();
+  evaluatePoCHRolloutSafe(false);
+
+  const mode = getEffectiveEnforcementMode();
   const status = getPoCHStatus(body.identityDid, body.chain);
   const verified = status?.status === 'verified';
   const decision: PoCHGateDecision =
@@ -1236,7 +1768,23 @@ router.post('/verify-action', writeLimiter, (req: Request, res: Response) => {
             status: status || undefined,
           };
 
+  const statusReason = status?.statusReason || (decision.allowed ? 'none' : 'proof_missing');
+  recordPoCHGateDecision({
+    identityDid: body.identityDid,
+    chain: body.chain,
+    action: body.action,
+    allowed: decision.allowed,
+    statusReason,
+  });
+  pochGateDecisionTotal.labels(
+    body.action,
+    decision.allowed ? 'true' : 'false',
+    normalizeStatusReasonLabel(statusReason)
+  ).inc();
+
   res.json(decision);
 });
+
+startPoCHRolloutEvaluator();
 
 export default router;
