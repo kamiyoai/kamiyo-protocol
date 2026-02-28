@@ -111,6 +111,8 @@ describe("KamiyoClient PoCH API", () => {
           stageStartedAt: "2026-03-01T00:00:00.000Z",
           updatedAt: "2026-03-01T00:00:00.000Z",
           updatedBy: "system",
+          evaluatorLastRunAt: "2026-03-01T00:05:00.000Z",
+          snapshotAgeSeconds: 0,
           baselineProofFailRate: 0.05,
           gateMetrics: {
             oracleRevealCompletion24h: 0.95,
@@ -140,6 +142,8 @@ describe("KamiyoClient PoCH API", () => {
           stageStartedAt: "2026-03-10T00:00:00.000Z",
           updatedAt: "2026-03-10T00:00:00.000Z",
           updatedBy: "admin",
+          evaluatorLastRunAt: "2026-03-10T00:05:00.000Z",
+          snapshotAgeSeconds: 0,
           baselineProofFailRate: 0.05,
           gateMetrics: {
             oracleRevealCompletion24h: 0.95,
@@ -174,6 +178,8 @@ describe("KamiyoClient PoCH API", () => {
 
     const rolloutStatus = await client.getPoCHRolloutStatus();
     expect(rolloutStatus.stage).toBe("observe");
+    expect(rolloutStatus.evaluatorLastRunAt).toBe("2026-03-01T00:05:00.000Z");
+    expect(rolloutStatus.snapshotAgeSeconds).toBe(0);
     expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:3001/api/poch/rollout/status");
 
     const staged = await client.setPoCHRolloutStage({ stage: "soft", reason: "advance canary" });

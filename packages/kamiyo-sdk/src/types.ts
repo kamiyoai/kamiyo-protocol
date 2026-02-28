@@ -250,6 +250,8 @@ export interface PoCHRolloutStatus {
   stageStartedAt: string;
   updatedAt: string;
   updatedBy: string;
+  evaluatorLastRunAt?: string;
+  snapshotAgeSeconds?: number;
   rollbackCooldownUntil?: string;
   baselineProofFailRate: number;
   gateMetrics: {

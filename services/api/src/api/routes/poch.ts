@@ -57,7 +57,15 @@ import {
   pochOracleRevealTotal,
   pochProofTotal,
   pochRollbackTotal,
+  pochRolloutEvaluatorLastRunTimestamp,
+  pochRolloutFalsePositiveDenyRate24h,
+  pochRolloutOpenBlockingDisputes,
+  pochRolloutOracleRevealCompletion24h,
+  pochRolloutOracleRevealCompletion2h,
+  pochRolloutProofFailureRate1h,
+  pochRolloutProofPassRate24h,
   pochRolloutStage,
+  pochRolloutUnresolvedBlockingDisputesOver24h,
   pochSubmissionTotal,
 } from '../../metrics';
 
@@ -139,6 +147,8 @@ interface PoCHRolloutStatusResponse {
   stageStartedAt: string;
   updatedAt: string;
   updatedBy: string;
+  evaluatorLastRunAt?: string;
+  snapshotAgeSeconds?: number;
   rollbackCooldownUntil?: string;
   baselineProofFailRate: number;
   gateMetrics: {
@@ -355,6 +365,10 @@ function buildRolloutStatusResponse(
   const gates = getPromotionGates(snapshot);
   const cooldownUntilMs = parseIsoOrNull(state.rollbackCooldownUntil);
   const inCooldown = cooldownUntilMs !== null && Date.now() < cooldownUntilMs;
+  const snapshotCapturedAtMs = parseIsoOrNull(snapshot.capturedAt);
+  const snapshotAgeSeconds = snapshotCapturedAtMs === null
+    ? undefined
+    : Math.max(0, Math.floor((Date.now() - snapshotCapturedAtMs) / 1000));
 
   return {
     stage: state.stage,
@@ -363,6 +377,8 @@ function buildRolloutStatusResponse(
     stageStartedAt: state.startedAt,
     updatedAt: state.updatedAt,
     updatedBy: state.updatedBy,
+    evaluatorLastRunAt: snapshot.capturedAt,
+    snapshotAgeSeconds,
     rollbackCooldownUntil: state.rollbackCooldownUntil,
     baselineProofFailRate: state.baselineProofFailRate ?? POCH_DEFAULT_BASELINE_PROOF_FAIL_RATE,
     gateMetrics: {
@@ -921,6 +937,13 @@ function evaluatePoCHRollout(force = false): RolloutEvaluationResult {
   const latestState = getPoCHRolloutState(fallbackMode);
   const effectiveMode = latestState.modeOverride || latestState.stage;
   pochRolloutStage.set(stageToGauge(effectiveMode));
+  pochRolloutOracleRevealCompletion24h.set(metrics.oracleRevealCompletion24h);
+  pochRolloutOracleRevealCompletion2h.set(metrics.oracleRevealCompletion2h);
+  pochRolloutProofPassRate24h.set(metrics.proofPassRate24h);
+  pochRolloutProofFailureRate1h.set(metrics.proofFailureRate1h);
+  pochRolloutOpenBlockingDisputes.set(metrics.openBlockingDisputes);
+  pochRolloutUnresolvedBlockingDisputesOver24h.set(metrics.unresolvedBlockingDisputesOver24h);
+  pochRolloutFalsePositiveDenyRate24h.set(metrics.falsePositiveDenyRate24h);
 
   if (latestState.baselineProofFailRate === undefined && metrics.totalProofs24h > 0) {
     upsertPoCHRolloutState({
@@ -961,6 +984,7 @@ function evaluatePoCHRollout(force = false): RolloutEvaluationResult {
     rollbackReason,
   };
   upsertPoCHRolloutSnapshot(snapshot);
+  pochRolloutEvaluatorLastRunTimestamp.set(nowUnixSec);
   rolloutLastRunSec = nowUnixSec;
 
   return { snapshot, rollbackTrigger, rollbackReason };

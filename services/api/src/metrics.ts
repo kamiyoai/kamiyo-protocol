@@ -279,6 +279,54 @@ export const pochRollbackTotal = new Counter({
   registers: [registry],
 });
 
+export const pochRolloutEvaluatorLastRunTimestamp = new Gauge({
+  name: 'poch_rollout_evaluator_last_run_timestamp',
+  help: 'Unix timestamp of last successful PoCH rollout evaluator cycle',
+  registers: [registry],
+});
+
+export const pochRolloutOracleRevealCompletion24h = new Gauge({
+  name: 'poch_rollout_oracle_reveal_completion_24h',
+  help: 'PoCH oracle reveal completion ratio over trailing 24h',
+  registers: [registry],
+});
+
+export const pochRolloutOracleRevealCompletion2h = new Gauge({
+  name: 'poch_rollout_oracle_reveal_completion_2h',
+  help: 'PoCH oracle reveal completion ratio over trailing 2h',
+  registers: [registry],
+});
+
+export const pochRolloutProofPassRate24h = new Gauge({
+  name: 'poch_rollout_proof_pass_rate_24h',
+  help: 'PoCH proof pass ratio over trailing 24h',
+  registers: [registry],
+});
+
+export const pochRolloutProofFailureRate1h = new Gauge({
+  name: 'poch_rollout_proof_failure_rate_1h',
+  help: 'PoCH proof failure ratio over trailing 1h',
+  registers: [registry],
+});
+
+export const pochRolloutOpenBlockingDisputes = new Gauge({
+  name: 'poch_rollout_open_blocking_disputes',
+  help: 'PoCH open blocking disputes count',
+  registers: [registry],
+});
+
+export const pochRolloutUnresolvedBlockingDisputesOver24h = new Gauge({
+  name: 'poch_rollout_unresolved_blocking_disputes_over_24h',
+  help: 'PoCH unresolved blocking disputes older than 24h',
+  registers: [registry],
+});
+
+export const pochRolloutFalsePositiveDenyRate24h = new Gauge({
+  name: 'poch_rollout_false_positive_deny_rate_24h',
+  help: 'PoCH false-positive gating denial ratio over trailing 24h',
+  registers: [registry],
+});
+
 // Swarm metrics
 export const swarmRunsTotal = new Counter({
   name: 'swarm_runs_total',

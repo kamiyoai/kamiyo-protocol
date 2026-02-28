@@ -896,8 +896,15 @@ describe('PoCH routes', () => {
 
       const statusRes = await fetch(`${baseUrl}/api/poch/rollout/status`);
       expect(statusRes.status).toBe(200);
-      const statusBody = await statusRes.json() as { effectiveMode: string };
+      const statusBody = await statusRes.json() as {
+        effectiveMode: string;
+        evaluatorLastRunAt?: string;
+        snapshotAgeSeconds?: number;
+      };
       expect(['observe', 'soft', 'gate_high_impact']).toContain(statusBody.effectiveMode);
+      expect(statusBody.evaluatorLastRunAt).toBeTruthy();
+      expect(typeof statusBody.snapshotAgeSeconds).toBe('number');
+      expect(statusBody.snapshotAgeSeconds).toBeGreaterThanOrEqual(0);
 
       const staged = await fetch(`${baseUrl}/api/poch/rollout/stage`, {
         method: 'POST',

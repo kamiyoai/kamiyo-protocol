@@ -1,0 +1,33 @@
+groups:
+  - name: kamiyo-api-poch-rollout
+    interval: 30s
+    rules:
+      - alert: PoCHRolloutEvaluatorHeartbeatStale
+        expr: time() - poch_rollout_evaluator_last_run_timestamp > 600
+        for: 5m
+        labels:
+          severity: page
+          service: kamiyo-api
+        annotations:
+          summary: PoCH rollout evaluator heartbeat is stale
+          description: No successful PoCH rollout evaluator cycle has been recorded for more than 10 minutes.
+
+      - alert: PoCHRollbackTriggerActivated
+        expr: sum(increase(poch_rollback_total[5m])) > 0
+        for: 0m
+        labels:
+          severity: page
+          service: kamiyo-api
+        annotations:
+          summary: PoCH automatic rollback trigger activated
+          description: One or more PoCH rollback events were recorded in the last 5 minutes.
+
+      - alert: PoCHBlockingDisputeBacklogHigh
+        expr: poch_rollout_open_blocking_disputes > 50
+        for: 5m
+        labels:
+          severity: page
+          service: kamiyo-api
+        annotations:
+          summary: PoCH blocking dispute backlog is above threshold
+          description: Open blocking disputes have remained above the default threshold (50) for at least 5 minutes.
