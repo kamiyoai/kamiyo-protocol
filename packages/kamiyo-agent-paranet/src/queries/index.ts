@@ -489,7 +489,8 @@ export function queryPoCHSimilarityNeighborhood(
 
   return `
     PREFIX schema: <http://schema.org/>
-    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    # daysBack filtering is applied client-side for DKG compatibility.
+    # requestedDaysBack=${daysBack}
     SELECT
       ?asset
       ?identityDid
@@ -504,7 +505,6 @@ export function queryPoCHSimilarityNeighborhood(
       ?identityProp schema:name "identityDid" ; schema:value ?identityDid .
       ?hashProp schema:name "contentHash" ; schema:value ?contentHash .
       ?typeProp schema:name "contributionType" ; schema:value ?contributionType .
-      FILTER(?createdAt >= NOW() - "P${daysBack}D"^^xsd:duration)
       FILTER(?identityDid != "${safeIdentity}" || ?contentHash != "${safeHash}")
     }
     ORDER BY DESC(?createdAt)

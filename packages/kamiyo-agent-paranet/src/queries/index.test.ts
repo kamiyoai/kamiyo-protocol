@@ -137,6 +137,7 @@ describe('SPARQL query builders', () => {
       expect(query).toContain('identityDid');
       expect(query).toContain('contentHash');
       expect(query).toContain('LIMIT 5');
+      expect(query).not.toContain('NOW() -');
     });
 
     it('builds cluster overlap query', () => {

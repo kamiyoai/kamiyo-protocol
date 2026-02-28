@@ -33,6 +33,11 @@ export interface PoCHScoreBundleResult {
   minHashDistance: number;
 }
 
+interface QueryRowsResult {
+  rows: SparqlRow[];
+  failed: boolean;
+}
+
 function clampScore(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, value));
@@ -124,29 +129,76 @@ function coerceRows(value: unknown): SparqlRow[] {
   return rows.filter((row): row is SparqlRow => typeof row === 'object' && row !== null);
 }
 
+function clampDaysBack(daysBack?: number): number {
+  const raw = Number(daysBack ?? 90);
+  if (!Number.isFinite(raw)) return 90;
+  return Math.max(1, Math.min(3650, Math.floor(raw)));
+}
+
+function withinDaysBack(isoDate: string, nowMs: number, daysBack: number): boolean {
+  const timestamp = Date.parse(isoDate);
+  if (!Number.isFinite(timestamp)) return true;
+  return timestamp >= (nowMs - (daysBack * 24 * 60 * 60 * 1000));
+}
+
+async function safeSelectQuery(dkg: DKGClient, query: string): Promise<QueryRowsResult> {
+  try {
+    const response = await dkg.graph.query(query, 'SELECT');
+    return {
+      rows: coerceRows(response),
+      failed: false,
+    };
+  } catch {
+    return {
+      rows: [],
+      failed: true,
+    };
+  }
+}
+
 export async function loadPoCHObservations(
   dkg: DKGClient,
   params: { identityDid: string; contentHash: string; policyId: string; daysBack?: number }
 ): Promise<PoCHScoreBundleResult> {
-  const [neighborhoodResponse, clusterResponse] = await Promise.all([
-    dkg.graph.query(
+  const daysBack = clampDaysBack(params.daysBack);
+  const nowMs = Date.now();
+
+  const [neighborhoodResult, clusterResult] = await Promise.all([
+    safeSelectQuery(
+      dkg,
       queryPoCHSimilarityNeighborhood(params.identityDid, params.contentHash, {
-        daysBack: params.daysBack,
+        daysBack,
         limit: 100,
-      }),
-      'SELECT'
+      })
     ),
-    dkg.graph.query(queryPoCHClusterOverlap(params.identityDid, { limit: 20 }), 'SELECT'),
+    safeSelectQuery(dkg, queryPoCHClusterOverlap(params.identityDid, { limit: 20 })),
   ]);
 
-  const neighborhood = coerceRows(neighborhoodResponse).map(row => ({
-    identityDid: String(row.identityDid?.value || ''),
-    contentHash: String(row.contentHash?.value || ''),
-    contributionType: String(row.contributionType?.value || ''),
-    createdAt: String(row.createdAt?.value || ''),
-  }));
+  if (neighborhoodResult.failed && clusterResult.failed) {
+    return {
+      scoreBundle: {
+        policyId: params.policyId,
+        uniquenessScore: 0,
+        graphDivergence: 0,
+        clusterOverlapRisk: 100,
+        nonMembershipSignal: false,
+        evaluatedAt: new Date().toISOString(),
+      },
+      duplicateCount: 0,
+      minHashDistance: 0,
+    };
+  }
 
-  const clusters = coerceRows(clusterResponse).map(row => ({
+  const neighborhood = neighborhoodResult.rows
+    .map(row => ({
+      identityDid: String(row.identityDid?.value || ''),
+      contentHash: String(row.contentHash?.value || ''),
+      contributionType: String(row.contributionType?.value || ''),
+      createdAt: String(row.createdAt?.value || ''),
+    }))
+    .filter(row => withinDaysBack(row.createdAt, nowMs, daysBack));
+
+  const clusters = clusterResult.rows.map(row => ({
     relatedIdentity: String(row.relatedIdentity?.value || ''),
     sharedCount: Number(row.sharedCount?.value || 0),
   }));
