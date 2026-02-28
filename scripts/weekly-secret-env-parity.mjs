@@ -14,6 +14,11 @@ const GITHUB_REQUIRED_SECRETS = [
   'KAMIYO_CANARY_CDP_API_KEY_ID',
   'KAMIYO_CANARY_CDP_API_KEY_SECRET',
   'KAMIYO_CANARY_CDP_WALLET_SECRET',
+  'KAMIYO_CANARY_CDP_POLICY_ID',
+  'KAMIYO_CANARY_CDP_POLICY_NETWORK',
+  'KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD',
+  'KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME',
+  'KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME',
   'KAMIYO_CANARY_PARANET_DKG_ENDPOINT',
   'KAMIYO_CANARY_PARANET_PRIVATE_KEY',
   'KAMIYO_CANARY_PARANET_UAL',
@@ -102,6 +107,26 @@ const PARITY_CHECKS = [
   {
     githubSecret: 'KAMIYO_CANARY_CDP_WALLET_SECRET',
     renderTargets: [{ serviceId: 'srv-d5knjad6ubrc738s5d6g', key: 'CDP_WALLET_SECRET' }],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_CDP_POLICY_ID',
+    renderTargets: [],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_CDP_POLICY_NETWORK',
+    renderTargets: [],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD',
+    renderTargets: [],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME',
+    renderTargets: [],
+  },
+  {
+    githubSecret: 'KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME',
+    renderTargets: [],
   },
   {
     githubSecret: 'KAMIYO_CANARY_PARANET_DKG_ENDPOINT',

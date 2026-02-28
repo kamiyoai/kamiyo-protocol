@@ -143,3 +143,18 @@ Success criteria:
     - `packages/kamiyo-mcp/scripts/tool-test-coverage.json`
 12. Added nightly live canary workflow:
     - `.github/workflows/nightly-enterprise-canary.yml`
+
+## Update 2026-02-28 (CDP Infra Hardening)
+
+1. Added MCP transaction-level CDP smoke runner:
+   - `packages/kamiyo-mcp/tests/test-live-cdp-transaction.ts`
+   - package script: `pnpm --filter @kamiyo/mcp-server run test:live-cdp-transaction`
+2. Wired transaction-level CDP smoke into enterprise live mode (`smoke:enterprise`) after MCP live preflight.
+3. Updated nightly canary workflow with stable account + policy config contract and nightly CDP artifact upload:
+   - `.github/workflows/nightly-enterprise-canary.yml`
+4. Added weekly CDP create-path workflow (fresh policy create + attach + artifact + failure alert):
+   - `.github/workflows/weekly-cdp-create-path.yml`
+5. Extended weekly secret/env parity audit to enforce new CDP canary config keys.
+6. Added parity workflow failure notification through the canary webhook path.
+7. Added CDP runbook with nightly vs weekly mode behavior, expected failure modes, and temporary webhook replacement procedure:
+   - `docs/cdp-canary-runbook.md`

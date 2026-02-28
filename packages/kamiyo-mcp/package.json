@@ -50,6 +50,7 @@
     "smoke:stdio": "node scripts/smoke-stdio.mjs",
     "test:mcp": "tsx tests/test-mcp-tools.ts",
     "test:live-config": "tsx tests/test-live-config.ts",
+    "test:live-cdp-transaction": "tsx tests/test-live-cdp-transaction.ts",
     "test:kamino": "tsx tests/test-kamino.ts",
     "test:all": "npm run test:tool-parity && npm run test:mcp && npm run test:integration && npm run test:truth-court && npm run test:truth-court:gauntlet && npm run test:truth-court:attestation",
     "lint": "eslint src --ext .ts",

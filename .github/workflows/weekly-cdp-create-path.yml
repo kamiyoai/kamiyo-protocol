@@ -1,0 +1,67 @@
+name: Weekly CDP Create-Path Smoke
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: CDP Policy Create and Attach
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CDP_API_KEY_ID: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_ID }}
+      CDP_API_KEY_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_SECRET }}
+      CDP_WALLET_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_WALLET_SECRET }}
+      KAMIYO_CANARY_CDP_POLICY_NETWORK: ${{ secrets.KAMIYO_CANARY_CDP_POLICY_NETWORK || 'base-sepolia' }}
+      KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD: ${{ secrets.KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD || '250000' }}
+      KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME: ${{ secrets.KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME || 'kmy-canary-evm' }}
+      KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME: ${{ secrets.KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME || 'kmy-canary-sol' }}
+      KAMIYO_CDP_SMOKE_CREATE_POLICY: 'true'
+      KAMIYO_CDP_SMOKE_ARTIFACT_PATH: reports/cdp-weekly-create-path-smoke.json
+      KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: CDP live preflight
+        run: pnpm --filter @kamiyo/mcp-server run test:live-config
+
+      - name: CDP weekly create-path smoke
+        run: pnpm --filter @kamiyo/mcp-server run test:live-cdp-transaction
+
+      - name: Upload weekly CDP smoke report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdp-weekly-create-path-smoke
+          path: packages/kamiyo-mcp/reports/cdp-weekly-create-path-smoke.json
+          if-no-files-found: warn
+
+      - name: Notify weekly smoke failure
+        if: ${{ failure() && env.KAMIYO_CANARY_ALERT_WEBHOOK != '' }}
+        run: |
+          payload="$(jq -nc \
+            --arg workflow "$GITHUB_WORKFLOW" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_number "$GITHUB_RUN_NUMBER" \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg sha "$GITHUB_SHA" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg url "https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{text: ("Weekly CDP create-path smoke failed (" + $workflow + " #" + $run_number + ") on " + $repo + " at " + $sha + ". Triggered by " + $actor + ". " + $url)}')"
+          curl -fsSL -X POST \
+            -H 'Content-Type: application/json' \
+            -d "$payload" \
+            "$KAMIYO_CANARY_ALERT_WEBHOOK"

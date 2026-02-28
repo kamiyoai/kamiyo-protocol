@@ -238,7 +238,26 @@ function runLiveChecks() {
   }
 
   ok = runCommand('MCP stdio handshake smoke', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'smoke:stdio']) && ok;
-  ok = runCommand('MCP live credentials preflight', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:live-config']) && ok;
+  const mcpLiveReady = runCommand('MCP live credentials preflight', PNPM, ['--filter', '@kamiyo/mcp-server', 'run', 'test:live-config']);
+  ok = mcpLiveReady && ok;
+  if (mcpLiveReady) {
+    ok =
+      runCommand(
+        'MCP live CDP transaction smoke',
+        PNPM,
+        ['--filter', '@kamiyo/mcp-server', 'run', 'test:live-cdp-transaction'],
+        {
+          env: {
+            ...process.env,
+            KAMIYO_CDP_SMOKE_CREATE_POLICY: process.env.KAMIYO_CDP_SMOKE_CREATE_POLICY?.trim() || 'false',
+            KAMIYO_CDP_SMOKE_ARTIFACT_PATH:
+              process.env.KAMIYO_CDP_SMOKE_ARTIFACT_PATH?.trim() || 'reports/cdp-nightly-transaction-smoke.json',
+          },
+        }
+      ) && ok;
+  } else {
+    record('MCP live CDP transaction smoke', 'skip', 'skipped because MCP live credentials preflight failed');
+  }
 
   const sdkReady = hasAgentKeyConfigured();
   if (!sdkReady.ready) {

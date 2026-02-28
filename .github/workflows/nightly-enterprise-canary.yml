@@ -22,6 +22,13 @@ jobs:
       CDP_API_KEY_ID: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_ID }}
       CDP_API_KEY_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_API_KEY_SECRET }}
       CDP_WALLET_SECRET: ${{ secrets.KAMIYO_CANARY_CDP_WALLET_SECRET }}
+      KAMIYO_CANARY_CDP_POLICY_ID: ${{ secrets.KAMIYO_CANARY_CDP_POLICY_ID }}
+      KAMIYO_CANARY_CDP_POLICY_NETWORK: ${{ secrets.KAMIYO_CANARY_CDP_POLICY_NETWORK || 'base-sepolia' }}
+      KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD: ${{ secrets.KAMIYO_CANARY_CDP_POLICY_MAX_SPEND_MICRO_USD || '250000' }}
+      KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME: ${{ secrets.KAMIYO_CANARY_CDP_ACCOUNT_EVM_NAME || 'kmy-canary-evm' }}
+      KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME: ${{ secrets.KAMIYO_CANARY_CDP_ACCOUNT_SOL_NAME || 'kmy-canary-sol' }}
+      KAMIYO_CDP_SMOKE_CREATE_POLICY: 'false'
+      KAMIYO_CDP_SMOKE_ARTIFACT_PATH: reports/cdp-nightly-transaction-smoke.json
       PARANET_DKG_ENDPOINT: ${{ secrets.KAMIYO_CANARY_PARANET_DKG_ENDPOINT }}
       PARANET_BLOCKCHAIN: 'base:8453'
       PARANET_DKG_PORT: '8900'
@@ -58,6 +65,14 @@ jobs:
 
       - name: Enterprise live smoke
         run: pnpm run smoke:enterprise
+
+      - name: Upload CDP nightly smoke report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdp-nightly-transaction-smoke
+          path: packages/kamiyo-mcp/reports/cdp-nightly-transaction-smoke.json
+          if-no-files-found: warn
 
       - name: Notify canary failure
         if: ${{ failure() && env.KAMIYO_CANARY_ALERT_WEBHOOK != '' }}
