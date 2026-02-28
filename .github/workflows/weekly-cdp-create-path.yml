@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build CDP package
+        run: pnpm --filter @kamiyo/cdp run build
+
       - name: CDP weekly create-path smoke
         run: pnpm --filter @kamiyo/mcp-server run test:live-cdp-transaction
 
