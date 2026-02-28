@@ -27,6 +27,8 @@ import {
   PoCHChallenge,
   PoCHChallengeRequest,
   PoCHGateDecision,
+  PoCHXContributionInput,
+  PoCHXContributionPublished,
   PoCHOracleRound,
   PoCHOracleCommitInput,
   PoCHOracleRevealInput,
@@ -34,6 +36,10 @@ import {
   PoCHOpenDisputeResponse,
   PoCHPublished,
   PoCHProofSubmission,
+  PoCHXReferralClaimInput,
+  PoCHXReferralClaimResponse,
+  PoCHXReferralCreateInput,
+  PoCHXReferralCreateResponse,
   PoCHRollbackInput,
   PoCHRollbackReceipt,
   PoCHRolloutStageInput,
@@ -312,6 +318,24 @@ export class KamiyoClient {
     input: PoCHContributionInput
   ): Promise<PoCHPublished> {
     return this.postJson<PoCHPublished>("/api/poch/contributions", input);
+  }
+
+  async submitPoCHXContribution(
+    input: PoCHXContributionInput
+  ): Promise<PoCHXContributionPublished> {
+    return this.postJson<PoCHXContributionPublished>("/api/poch/x/contributions", input);
+  }
+
+  async createPoCHXReferralInvite(
+    input: PoCHXReferralCreateInput
+  ): Promise<PoCHXReferralCreateResponse> {
+    return this.postJson<PoCHXReferralCreateResponse>("/api/poch/x/referrals/create", input);
+  }
+
+  async claimPoCHXReferralInvite(
+    input: PoCHXReferralClaimInput
+  ): Promise<PoCHXReferralClaimResponse> {
+    return this.postJson<PoCHXReferralClaimResponse>("/api/poch/x/referrals/claim", input);
   }
 
   async requestPoCHChallenge(
