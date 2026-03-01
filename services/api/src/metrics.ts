@@ -377,3 +377,38 @@ export const swarmActiveNodes = new Gauge({
   help: 'Current number of active swarm nodes',
   registers: [registry],
 });
+
+// Staking referral growth metrics
+export const stakingReferralSyncTotal = new Counter({
+  name: 'staking_referral_sync_total',
+  help: 'Total staking referral sync cycles by result',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
+
+export const stakingReferralRiskFlagTotal = new Counter({
+  name: 'staking_referral_risk_flag_total',
+  help: 'Total staking referral risk flags raised',
+  labelNames: ['code', 'severity'] as const,
+  registers: [registry],
+});
+
+export const stakingReferralPayoutRunTotal = new Counter({
+  name: 'staking_referral_payout_run_total',
+  help: 'Total staking referral payout runs',
+  labelNames: ['status', 'mode'] as const,
+  registers: [registry],
+});
+
+export const stakingReferralPayoutLamportsTotal = new Counter({
+  name: 'staking_referral_payout_lamports_total',
+  help: 'Total lamports distributed through staking referral payouts',
+  registers: [registry],
+});
+
+export const stakingReferralTransferTotal = new Counter({
+  name: 'staking_referral_transfer_total',
+  help: 'Total staking referral payout transfer attempts by status',
+  labelNames: ['status'] as const,
+  registers: [registry],
+});
