@@ -3815,10 +3815,7 @@ pub mod kamiyo {
             submission.owner == ctx.accounts.owner.key(),
             KamiyoError::Unauthorized
         );
-        require!(
-            !submission.finalized,
-            KamiyoError::PoCHAlreadyFinalized
-        );
+        require!(!submission.finalized, KamiyoError::PoCHAlreadyFinalized);
 
         submission.challenge_id = challenge_id.clone();
         submission.score_bundle_commitment = score_bundle_commitment;
@@ -3889,10 +3886,7 @@ pub mod kamiyo {
             commitment.submission == submission.key(),
             KamiyoError::PoCHCommitmentMismatch
         );
-        require!(
-            commitment.chain == chain,
-            KamiyoError::InvalidPoCHChain
-        );
+        require!(commitment.chain == chain, KamiyoError::InvalidPoCHChain);
         require!(submission.chain == chain, KamiyoError::InvalidPoCHChain);
         require!(
             submission.policy_id == policy_id,
@@ -3914,10 +3908,7 @@ pub mod kamiyo {
             commitment.score_bundle_commitment == submission.score_bundle_commitment,
             KamiyoError::PoCHCommitmentMismatch
         );
-        require!(
-            !submission.finalized,
-            KamiyoError::PoCHAlreadyFinalized
-        );
+        require!(!submission.finalized, KamiyoError::PoCHAlreadyFinalized);
         require!(
             identity_nullifier.iter().any(|&b| b != 0),
             KamiyoError::PoCHNullifierInvalid
@@ -3972,10 +3963,7 @@ pub mod kamiyo {
 
         let submission = &mut ctx.accounts.poch_submission;
         let commitment = &ctx.accounts.poch_commitment;
-        require!(
-            !submission.finalized,
-            KamiyoError::PoCHAlreadyFinalized
-        );
+        require!(!submission.finalized, KamiyoError::PoCHAlreadyFinalized);
         require!(submission.proof_verified, KamiyoError::PoCHProofNotVerified);
         require!(
             commitment.submission == submission.key()
@@ -3983,10 +3971,7 @@ pub mod kamiyo {
                 && commitment.score_bundle_commitment == submission.score_bundle_commitment,
             KamiyoError::PoCHCommitmentMismatch
         );
-        require!(
-            !has_blocking_dispute,
-            KamiyoError::PoCHBlockingDispute
-        );
+        require!(!has_blocking_dispute, KamiyoError::PoCHBlockingDispute);
 
         let now = Clock::get()?.unix_timestamp;
         submission.has_blocking_dispute = has_blocking_dispute;
@@ -4016,10 +4001,7 @@ pub mod kamiyo {
         Ok(())
     }
 
-    pub fn apply_poch_penalty(
-        ctx: Context<ApplyPoCHPenalty>,
-        adverse_outcome: bool,
-    ) -> Result<()> {
+    pub fn apply_poch_penalty(ctx: Context<ApplyPoCHPenalty>, adverse_outcome: bool) -> Result<()> {
         if !adverse_outcome {
             return Ok(());
         }
