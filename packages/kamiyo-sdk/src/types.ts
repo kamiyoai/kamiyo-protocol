@@ -136,6 +136,92 @@ export interface PoCHXReferralClaimResponse {
   pendingReason?: "inviter_not_verified" | "invitee_not_verified";
 }
 
+export type StakingReferralWindow = "7d" | "30d" | "all";
+
+export interface StakingReferralInviteResponse {
+  inviteCode: string;
+  inviterWallet: string;
+  referralUrl: string;
+}
+
+export interface StakingReferralAttributionInput {
+  inviteCode: string;
+}
+
+export interface StakingReferralAttributionResponse {
+  status: "bound" | "already_bound" | "rejected";
+  inviterWallet?: string;
+  reason?: string;
+}
+
+export interface StakingReferralRulesResponse {
+  enabled: boolean;
+  poolAddress: string;
+  weeklyBudgetSol: number;
+  minStakeSol: number;
+  bonusMaxMultiplier: number;
+  bonusMaxDays: number;
+  payoutWeekday: string;
+  payoutHourUtc: number;
+  payoutDustLamports: number;
+  autoPayout: boolean;
+  nextPayoutAt: string;
+}
+
+export interface StakingReferralDashboardResponse {
+  inviterWallet: string;
+  inviteCode: string;
+  referralUrl: string;
+  referredCount: number;
+  activeQualifiedCount: number;
+  pendingLamports: number;
+  pendingSol: string;
+  paidLamports: number;
+  paidSol: string;
+  paidTransfers: number;
+  nextPayoutAt: string;
+  multiplierBuckets: Array<{
+    bucket: string;
+    count: number;
+  }>;
+  recentPayouts: Array<{
+    weekStartUtc: string;
+    amountLamports: number;
+    amountSol: string;
+    status: string;
+    signature?: string;
+    createdAt: number;
+  }>;
+}
+
+export interface StakingReferralLeaderboardResponse {
+  window: StakingReferralWindow;
+  limit: number;
+  rows: Array<{
+    inviterWallet: string;
+    totalPaidLamports: number;
+    totalPaidSol: string;
+    paidTransfers: number;
+    qualifiedReferees: number;
+  }>;
+}
+
+export interface StakingReferralPayoutRunInput {
+  weekStartUtc?: string;
+  force?: boolean;
+}
+
+export interface StakingReferralPayoutRunResponse {
+  weekStartUtc: string;
+  runId: string;
+  status: "running" | "completed" | "failed";
+  budgetLamports: number;
+  distributedLamports: number;
+  transferCount: number;
+  blockedCount: number;
+  failedCount: number;
+}
+
 export interface PoCHChallengeRequest {
   assetDid: string;
   identityDid: string;

@@ -176,6 +176,111 @@ describe("KamiyoClient PoCH API", () => {
     expect(fetchMock.mock.calls[2][0]).toBe("http://localhost:3001/api/poch/x/referrals/claim");
   });
 
+  test("handles staking referral endpoints", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          inviteCode: "KSRTEST001",
+          inviterWallet: "wallet_a",
+          referralUrl: "https://app.kamiyo.ai/en/stake?ref=KSRTEST001",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "bound",
+          inviterWallet: "wallet_a",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          inviterWallet: "wallet_a",
+          inviteCode: "KSRTEST001",
+          referralUrl: "https://app.kamiyo.ai/en/stake?ref=KSRTEST001",
+          referredCount: 2,
+          activeQualifiedCount: 1,
+          pendingLamports: 1000,
+          pendingSol: "0.000001000",
+          paidLamports: 2000,
+          paidSol: "0.000002000",
+          paidTransfers: 1,
+          nextPayoutAt: "2026-03-02T01:00:00.000Z",
+          multiplierBuckets: [{ bucket: "0_29d", count: 2 }],
+          recentPayouts: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          window: "7d",
+          limit: 50,
+          rows: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          enabled: true,
+          poolAddress: "9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d",
+          weeklyBudgetSol: 20,
+          minStakeSol: 1,
+          bonusMaxMultiplier: 2,
+          bonusMaxDays: 180,
+          payoutWeekday: "MON",
+          payoutHourUtc: 1,
+          payoutDustLamports: 10000,
+          autoPayout: true,
+          nextPayoutAt: "2026-03-02T01:00:00.000Z",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          weekStartUtc: "2026-02-23T00:00:00.000Z",
+          runId: "run_1",
+          status: "completed",
+          budgetLamports: 20000000000,
+          distributedLamports: 1000000,
+          transferCount: 1,
+          blockedCount: 0,
+          failedCount: 0,
+        }),
+      });
+
+    const invite = await client.createStakingReferralInvite("wallet-token");
+    expect(invite.inviteCode).toBe("KSRTEST001");
+    expect(fetchMock.mock.calls[0][0]).toBe("http://localhost:3001/api/staking/referrals/invites");
+    expect(fetchMock.mock.calls[0][1]?.headers?.authorization).toBe("Bearer wallet-token");
+
+    const bound = await client.bindStakingReferralAttribution("wallet-token", { inviteCode: "KSRTEST001" });
+    expect(bound.status).toBe("bound");
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:3001/api/staking/referrals/attributions");
+
+    const dashboard = await client.getStakingReferralDashboard("wallet-token");
+    expect(dashboard.inviterWallet).toBe("wallet_a");
+    expect(fetchMock.mock.calls[2][0]).toBe("http://localhost:3001/api/staking/referrals/me");
+
+    const leaderboard = await client.getStakingReferralLeaderboard({ window: "7d", limit: 50 });
+    expect(leaderboard.window).toBe("7d");
+    expect(fetchMock.mock.calls[3][0]).toBe(
+      "http://localhost:3001/api/staking/referrals/leaderboard?window=7d&limit=50"
+    );
+
+    const rules = await client.getStakingReferralRules();
+    expect(rules.weeklyBudgetSol).toBe(20);
+    expect(fetchMock.mock.calls[4][0]).toBe("http://localhost:3001/api/staking/referrals/rules");
+
+    const payout = await client.runStakingReferralPayout("admin-token", {
+      weekStartUtc: "2026-02-23T00:00:00.000Z",
+      force: true,
+    });
+    expect(payout.status).toBe("completed");
+    expect(fetchMock.mock.calls[5][0]).toBe("http://localhost:3001/api/staking/referrals/admin/payouts/run");
+    expect(fetchMock.mock.calls[5][1]?.headers?.authorization).toBe("Bearer admin-token");
+  });
+
   test("handles rollout status and admin rollout controls", async () => {
     client = new KamiyoClient({
       connection: conn,

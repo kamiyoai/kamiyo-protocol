@@ -28,6 +28,7 @@ import meishiDkgRoutes from './routes/meishi-dkg';
 import dkgRoutes from './routes/dkg';
 import paranetRoutes from './routes/paranet';
 import pochRoutes from './routes/poch';
+import stakingReferralRoutes from './routes/staking-referrals';
 import babyagiRoutes from './routes/babyagi';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
@@ -285,6 +286,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // PoCH contribution humanity routes (public read/write with service-level controls)
   app.use('/api/poch', pochRoutes);
+
+  // Staking referral growth routes (public + wallet-auth + admin controls)
+  app.use('/api/staking/referrals', stakingReferralRoutes);
 
   // BabyAGI bridge routes (public by default; set BABYAGI_BRIDGE_API_KEY to require auth)
   app.use('/babyagi/v1', babyagiRoutes);
