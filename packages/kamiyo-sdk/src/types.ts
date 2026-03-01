@@ -158,7 +158,7 @@ export interface StakingReferralRulesResponse {
   enabled: boolean;
   poolAddress: string;
   weeklyBudgetSol: number;
-  minStakeSol: number;
+  minStakeKamiyo: number;
   bonusMaxMultiplier: number;
   bonusMaxDays: number;
   payoutWeekday: string;

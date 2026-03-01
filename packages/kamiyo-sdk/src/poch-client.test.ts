@@ -225,7 +225,7 @@ describe("KamiyoClient PoCH API", () => {
           enabled: true,
           poolAddress: "9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d",
           weeklyBudgetSol: 20,
-          minStakeSol: 1,
+          minStakeKamiyo: 1000000,
           bonusMaxMultiplier: 2,
           bonusMaxDays: 180,
           payoutWeekday: "MON",
