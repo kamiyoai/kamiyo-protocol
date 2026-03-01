@@ -1,6 +1,6 @@
 {
   "name": "@kamiyo/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "TypeScript SDK for KAMIYO - Agent Identity and Conflict Resolution Protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

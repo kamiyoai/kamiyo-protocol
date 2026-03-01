@@ -381,6 +381,106 @@
       ],
       "title": "Gate Denial Rates",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(poch_x_contribution_total{result=\"accepted\"}[$__rate_interval])) / clamp_min(sum(rate(poch_x_contribution_total[$__rate_interval])), 1)",
+          "legendFormat": "x contribution acceptance rate",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "PoCH X Contribution Acceptance",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(rate(poch_x_referral_total{operation=\"award\",result=~\"accepted|idempotent\"}[$__rate_interval])) / clamp_min(sum(rate(poch_x_referral_total{operation=\"claim\",result=~\"accepted|idempotent\"}[$__rate_interval])), 1)",
+          "legendFormat": "referral claim/award ratio",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(increase(poch_x_contribution_total{result=~\"replayed|rate_limited\"}[$__rate_interval]))",
+          "legendFormat": "x contribution replay spikes",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(increase(poch_x_referral_total{operation=\"claim\",result=~\"replayed|rate_limited\"}[$__rate_interval]))",
+          "legendFormat": "x referral claim replay spikes",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "PoCH X Referral Quality and Anomalies",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
@@ -401,6 +501,6 @@
   "timepicker": {},
   "timezone": "",
   "title": "Kamiyo API PoCH Rollout",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

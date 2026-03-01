@@ -18,8 +18,13 @@ import {
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 import {
+  consumePoCHXRateLimit,
   computePoCHRolloutMetrics,
+  createPoCHXReferralInvite,
+  claimPoCHXReferralInvite,
   finalizePoCHChallenge,
+  getLatestPoCHXReferralByInviter,
+  getPoCHXReferralByCode,
   getPoCHChallenge,
   getLatestPoCHRolloutSnapshot,
   getPoCHOracleCommitment,
@@ -37,6 +42,9 @@ import {
   PoCHRolloutStage,
   registerPoCHNullifier,
   recordPoCHGateDecision,
+  releasePoCHXPostReplay,
+  markPoCHXReferralAwarded,
+  reservePoCHXPostReplay,
   resolvePoCHDispute,
   revealPoCHOracleVote,
   setPoCHProofAccepted,
@@ -67,6 +75,8 @@ import {
   pochRolloutStage,
   pochRolloutUnresolvedBlockingDisputesOver24h,
   pochSubmissionTotal,
+  pochXContributionTotal,
+  pochXReferralTotal,
 } from '../../metrics';
 
 const router = Router();
@@ -189,6 +199,28 @@ const POCH_ROLLOUT_EVALUATOR_INTERVAL_MS = (() => {
 const POCH_OBSERVE_START_AT = process.env.POCH_ROLLOUT_OBSERVE_START_AT || '2026-03-03T00:00:00Z';
 const POCH_SOFT_START_AT = process.env.POCH_ROLLOUT_SOFT_START_AT || '2026-03-10T00:00:00Z';
 const POCH_GATE_START_AT = process.env.POCH_ROLLOUT_GATE_START_AT || '2026-03-17T00:00:00Z';
+const POCH_X_REFERRAL_BASE_REWARD_UNITS = Number(process.env.POCH_X_REFERRAL_BASE_REWARD_UNITS || '100');
+const POCH_X_REFERRAL_BASE_CHAIN_MULTIPLIER = Number(process.env.POCH_X_REFERRAL_BASE_CHAIN_MULTIPLIER || '1.25');
+
+function parsePositiveIntEnv(key: string, fallback: number): number {
+  const parsed = Number(process.env[key] || String(fallback));
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.floor(parsed));
+}
+
+const POCH_X_RATE_LIMIT_WINDOW_SEC = parsePositiveIntEnv('POCH_X_RATE_LIMIT_WINDOW_SEC', 3600);
+const POCH_X_CONTRIBUTION_LIMIT_PER_WINDOW = parsePositiveIntEnv(
+  'POCH_X_RATE_LIMIT_CONTRIBUTION_PER_WINDOW',
+  process.env.NODE_ENV === 'test' ? 1000 : 20
+);
+const POCH_X_REFERRAL_CREATE_LIMIT_PER_WINDOW = parsePositiveIntEnv(
+  'POCH_X_RATE_LIMIT_REFERRAL_CREATE_PER_WINDOW',
+  process.env.NODE_ENV === 'test' ? 1000 : 25
+);
+const POCH_X_REFERRAL_CLAIM_LIMIT_PER_WINDOW = parsePositiveIntEnv(
+  'POCH_X_RATE_LIMIT_REFERRAL_CLAIM_PER_WINDOW',
+  process.env.NODE_ENV === 'test' ? 1000 : 25
+);
 
 function firstNonEmpty(keys: readonly string[]): string | undefined {
   for (const key of keys) {
@@ -412,6 +444,28 @@ function getPolicyProfile(): string {
   return process.env.POCH_THRESHOLD_PROFILE || 'v1';
 }
 
+function isPolicyLockedForCanary(): boolean {
+  return process.env.POCH_LOCK_POLICY_DURING_STAGE !== 'false';
+}
+
+function resolvePolicyProfile(requestedPolicyId?: string): { policyId: string; locked: boolean } {
+  const baseline = getPolicyProfile();
+  const requested = requestedPolicyId && requestedPolicyId.trim() ? requestedPolicyId.trim() : baseline;
+  if (requested === baseline) {
+    return { policyId: baseline, locked: false };
+  }
+  if (!isPolicyLockedForCanary()) {
+    return { policyId: requested, locked: false };
+  }
+
+  const latest = getLatestPoCHRolloutSnapshot();
+  if (latest?.rollbackTrigger) {
+    return { policyId: requested, locked: false };
+  }
+
+  return { policyId: baseline, locked: true };
+}
+
 function getCommitWindowSeconds(): number {
   const parsed = Number(process.env.POCH_ORACLE_COMMIT_WINDOW_SEC || '120');
   if (parsed === 0) return 0;
@@ -496,6 +550,25 @@ function resolveOracleWeight(oracleId: string, registry: Map<string, number>): n
 
 function hashHex(value: string): string {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function normalizeXHandle(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const normalized = value.trim().replace(/^@+/, '');
+  if (!normalized) return undefined;
+  return normalized;
+}
+
+function normalizeXThreadText(value: string): string {
+  return value
+    .trim()
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+function buildPoCHXInviteCode(identityDid: string, chain: Chain): string {
+  const entropy = `${identityDid}|${chain}|${Date.now()}|${Math.random()}`;
+  return `kx${hashHex(entropy).slice(0, 12)}`;
 }
 
 function createProofStatementId(challengeId: string, proofHash: string, identityNullifierHash: string): string {
@@ -1082,6 +1155,564 @@ router.post('/contributions', writeLimiter, async (req: Request, res: Response) 
   }
 });
 
+router.post('/x/contributions', writeLimiter, async (req: Request, res: Response) => {
+  if (!isPoCHEnabled()) {
+    return sendError(res, 503, 'POCH_DISABLED', 'PoCH is disabled');
+  }
+
+  const body = req.body as {
+    identityDid?: string;
+    chain?: Chain;
+    xPostId?: string;
+    xHandle?: string;
+    threadText?: string;
+    policyId?: string;
+    contributionType?: PoCHContribution['contributionType'];
+    autoRequestChallenge?: boolean;
+    provenanceRefs?: string[];
+    contextMetadata?: Record<string, unknown>;
+    daysBack?: number;
+  };
+
+  if (!body.identityDid || !body.chain || !body.xPostId || !body.threadText) {
+    pochXContributionTotal.labels('invalid').inc();
+    return sendError(
+      res,
+      400,
+      'INVALID_INPUT',
+      'identityDid, chain, xPostId, and threadText are required'
+    );
+  }
+  if (body.chain !== 'solana' && body.chain !== 'base') {
+    pochXContributionTotal.labels('invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'chain must be solana or base');
+  }
+
+  const xPostId = body.xPostId.trim();
+  if (!xPostId) {
+    pochXContributionTotal.labels('invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'xPostId must be a non-empty string');
+  }
+
+  const contributionRate = consumePoCHXRateLimit({
+    scope: 'contribution',
+    identityDid: body.identityDid,
+    chain: body.chain,
+    limit: POCH_X_CONTRIBUTION_LIMIT_PER_WINDOW,
+    windowSec: POCH_X_RATE_LIMIT_WINDOW_SEC,
+  });
+  if (!contributionRate.allowed) {
+    pochXContributionTotal.labels('rate_limited').inc();
+    res.set('retry-after', String(contributionRate.retryAfterSec));
+    return sendError(
+      res,
+      429,
+      'RATE_LIMITED',
+      'PoCH X contribution rate limit exceeded for this identity'
+    );
+  }
+
+  const postReplay = reservePoCHXPostReplay({
+    scope: 'contribution',
+    identityDid: body.identityDid,
+    chain: body.chain,
+    xPostId,
+  });
+  if (postReplay === 'duplicate') {
+    pochXContributionTotal.labels('replayed').inc();
+    return sendError(res, 409, 'DUPLICATE_X_POST', 'xPostId already used for PoCH X contribution');
+  }
+
+  const normalizedThreadText = normalizeXThreadText(body.threadText);
+  if (normalizedThreadText.length < 24) {
+    releasePoCHXPostReplay({
+      scope: 'contribution',
+      identityDid: body.identityDid,
+      chain: body.chain,
+      xPostId,
+    });
+    pochXContributionTotal.labels('invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'threadText must be at least 24 characters');
+  }
+
+  const contentHash = `0x${hashHex(`${xPostId}|${normalizedThreadText}`)}`;
+  const createdAt = new Date().toISOString();
+  const assetDid = buildPoCHURN(body.identityDid, contentHash, createdAt);
+  const xHandle = normalizeXHandle(body.xHandle);
+  const contribution: PoCHContribution = {
+    assetDid,
+    identityDid: body.identityDid,
+    contentHash,
+    createdAt,
+    contributionType: body.contributionType || 'knowledge_artifact',
+    provenanceRefs: body.provenanceRefs || [],
+    contextMetadata: {
+      source: 'x',
+      xPostId,
+      ...(xHandle ? { xHandle } : {}),
+      threadLength: normalizedThreadText.length,
+      ...(body.contextMetadata || {}),
+    },
+  };
+
+  try {
+    const client = await getClient();
+    const published = await client.publishPoCHContribution(contribution);
+    if (!published.success || !published.ual) {
+      pochSubmissionTotal.labels('rejected').inc();
+      return sendError(res, 400, 'PUBLISH_FAILED', published.error || 'Failed to publish contribution');
+    }
+
+    upsertPoCHContribution(contribution, published.ual);
+    emitPoCHEvent(POCH_TOPICS.submissions, {
+      source: 'x',
+      identityDid: contribution.identityDid,
+      assetDid,
+      xPostId,
+      chain: body.chain,
+      ual: published.ual,
+    });
+    pochSubmissionTotal.labels('accepted').inc();
+    pochXContributionTotal.labels('accepted').inc();
+
+    const shouldChallenge = body.autoRequestChallenge !== false;
+    if (!shouldChallenge) {
+      return res.status(201).json({
+        success: true,
+        source: 'x',
+        assetDid,
+        chain: body.chain,
+        contentHash,
+        ual: published.ual,
+      });
+    }
+
+    const policyProfile = resolvePolicyProfile(body.policyId);
+    if (policyProfile.locked) {
+      releasePoCHXPostReplay({
+        scope: 'contribution',
+        identityDid: body.identityDid,
+        chain: body.chain,
+        xPostId,
+      });
+      pochXContributionTotal.labels('rejected').inc();
+      return sendError(
+        res,
+        409,
+        'POLICY_LOCKED',
+        'PoCH threshold profile changes are locked during the current rollout stage'
+      );
+    }
+    const policyId = policyProfile.policyId;
+    const score = await loadPoCHObservations(client.rawDKG, {
+      identityDid: body.identityDid,
+      contentHash,
+      policyId,
+      daysBack: body.daysBack,
+    });
+    const scoreBundleCommitment = hashPoCHScoreBundle(score.scoreBundle);
+    const challengeId = buildPoCHChallengeId(assetDid, scoreBundleCommitment, body.chain);
+    const now = Math.floor(Date.now() / 1000);
+    const commitDeadline = now + getCommitWindowSeconds();
+    const revealDeadline = commitDeadline + getRevealWindowSeconds();
+    const challenge: StoredChallenge = {
+      challengeId,
+      assetDid,
+      identityDid: body.identityDid,
+      chain: body.chain,
+      policyId,
+      scoreBundle: score.scoreBundle,
+      scoreBundleCommitment,
+      contentHash,
+      createdAt: new Date().toISOString(),
+      phase: 'commit',
+      commitDeadline,
+      revealDeadline,
+    };
+
+    upsertPoCHChallenge(challenge);
+    upsertPoCHStatus({
+      identityDid: body.identityDid,
+      chain: body.chain,
+      status: 'pending',
+      statusReason: 'proof_missing',
+      scoreBundleCommitment,
+      updatedAt: new Date().toISOString(),
+    });
+    emitPoCHEvent(POCH_TOPICS.scoring, {
+      source: 'x',
+      challengeId,
+      identityDid: body.identityDid,
+      chain: body.chain,
+      xPostId,
+      policyId,
+      scoreBundleCommitment,
+      commitDeadline,
+      revealDeadline,
+    });
+
+    res.status(201).json({
+      success: true,
+      source: 'x',
+      assetDid,
+      chain: body.chain,
+      contentHash,
+      ual: published.ual,
+      challenge,
+    });
+  } catch (error) {
+    releasePoCHXPostReplay({
+      scope: 'contribution',
+      identityDid: body.identityDid,
+      chain: body.chain,
+      xPostId,
+    });
+    logger.error('Failed to process PoCH X contribution', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    pochXContributionTotal.labels('invalid').inc();
+    pochSubmissionTotal.labels('invalid').inc();
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to process PoCH X contribution');
+  }
+});
+
+router.post('/x/referrals/create', writeLimiter, (req: Request, res: Response) => {
+  if (!isPoCHEnabled()) {
+    return sendError(res, 503, 'POCH_DISABLED', 'PoCH is disabled');
+  }
+
+  const body = req.body as {
+    inviterIdentityDid?: string;
+    chain?: Chain;
+    xPostId?: string;
+  };
+
+  if (!body.inviterIdentityDid || !body.chain) {
+    pochXReferralTotal.labels('create', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'inviterIdentityDid and chain are required');
+  }
+  if (body.chain !== 'solana' && body.chain !== 'base') {
+    pochXReferralTotal.labels('create', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'chain must be solana or base');
+  }
+
+  const createRate = consumePoCHXRateLimit({
+    scope: 'referral_create',
+    identityDid: body.inviterIdentityDid,
+    chain: body.chain,
+    limit: POCH_X_REFERRAL_CREATE_LIMIT_PER_WINDOW,
+    windowSec: POCH_X_RATE_LIMIT_WINDOW_SEC,
+  });
+  if (!createRate.allowed) {
+    pochXReferralTotal.labels('create', 'rate_limited').inc();
+    res.set('retry-after', String(createRate.retryAfterSec));
+    return sendError(
+      res,
+      429,
+      'RATE_LIMITED',
+      'PoCH X referral-create rate limit exceeded for this identity'
+    );
+  }
+
+  const inviterStatus = getPoCHStatus(body.inviterIdentityDid, body.chain);
+  if (!inviterStatus || inviterStatus.status !== 'verified') {
+    pochXReferralTotal.labels('create', 'rejected').inc();
+    return sendError(res, 409, 'INVITER_NOT_VERIFIED', 'Inviter must have verified PoCH status');
+  }
+
+  const previousReferral = getLatestPoCHXReferralByInviter(body.inviterIdentityDid, body.chain);
+  const inviteCode = previousReferral?.inviteCode || buildPoCHXInviteCode(body.inviterIdentityDid, body.chain);
+  const xPostId = typeof body.xPostId === 'string' ? body.xPostId.trim() : undefined;
+  if (xPostId !== undefined && xPostId.length === 0) {
+    pochXReferralTotal.labels('create', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'xPostId must be non-empty when provided');
+  }
+
+  if (previousReferral) {
+    pochXReferralTotal.labels('create', 'idempotent').inc();
+    const shareText = [
+      'Proof of Humanity without biometrics.',
+      'Verify by contribution on Kamiyo PoCH.',
+      `Use invite code: ${previousReferral.inviteCode}`,
+    ].join(' ');
+    return res.status(200).json({
+      inviteCode: previousReferral.inviteCode,
+      status: previousReferral.status,
+      inviterIdentityDid: previousReferral.inviterIdentityDid,
+      chain: previousReferral.inviterChain,
+      shareUrl: `https://x.com/intent/post?text=${encodeURIComponent(shareText)}`,
+    });
+  }
+
+  let replayReserved = false;
+  if (xPostId) {
+    const replay = reservePoCHXPostReplay({
+      scope: 'referral_create',
+      identityDid: body.inviterIdentityDid,
+      chain: body.chain,
+      xPostId,
+    });
+    if (replay === 'duplicate') {
+      pochXReferralTotal.labels('create', 'replayed').inc();
+      return sendError(
+        res,
+        409,
+        'DUPLICATE_X_POST',
+        'xPostId already used for PoCH X referral invite creation'
+      );
+    }
+    replayReserved = true;
+  }
+
+  let referral: ReturnType<typeof createPoCHXReferralInvite>;
+  try {
+    referral = createPoCHXReferralInvite({
+      inviteCode,
+      inviterIdentityDid: body.inviterIdentityDid,
+      inviterChain: body.chain,
+      xPostId: undefined,
+    });
+  } catch (error) {
+    if (replayReserved && xPostId) {
+      releasePoCHXPostReplay({
+        scope: 'referral_create',
+        identityDid: body.inviterIdentityDid,
+        chain: body.chain,
+        xPostId,
+      });
+    }
+    logger.error('Failed to create PoCH X referral invite', {
+      error: error instanceof Error ? error.message : String(error),
+      inviterIdentityDid: body.inviterIdentityDid,
+      chain: body.chain,
+    });
+    pochXReferralTotal.labels('create', 'invalid').inc();
+    return sendError(res, 500, 'INTERNAL_ERROR', 'Failed to create PoCH X referral invite');
+  }
+
+  pochXReferralTotal.labels('create', 'accepted').inc();
+
+  const shareText = [
+    'Proof of Humanity without biometrics.',
+    'Verify by contribution on Kamiyo PoCH.',
+    `Use invite code: ${inviteCode}`,
+  ].join(' ');
+
+  emitPoCHEvent(POCH_TOPICS.submissions, {
+    source: 'x_referral',
+    action: 'created',
+    inviteCode,
+    inviterIdentityDid: body.inviterIdentityDid,
+    chain: body.chain,
+    xPostId,
+  });
+
+  res.status(201).json({
+    inviteCode,
+    status: referral.status,
+    inviterIdentityDid: referral.inviterIdentityDid,
+    chain: referral.inviterChain,
+    shareUrl: `https://x.com/intent/post?text=${encodeURIComponent(shareText)}`,
+  });
+});
+
+router.post('/x/referrals/claim', writeLimiter, (req: Request, res: Response) => {
+  if (!isPoCHEnabled()) {
+    return sendError(res, 503, 'POCH_DISABLED', 'PoCH is disabled');
+  }
+
+  const body = req.body as {
+    inviteCode?: string;
+    inviteeIdentityDid?: string;
+    chain?: Chain;
+    xPostId?: string;
+  };
+
+  if (!body.inviteCode || !body.inviteeIdentityDid || !body.chain) {
+    pochXReferralTotal.labels('claim', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'inviteCode, inviteeIdentityDid, and chain are required');
+  }
+  if (body.chain !== 'solana' && body.chain !== 'base') {
+    pochXReferralTotal.labels('claim', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'chain must be solana or base');
+  }
+
+  const claimRate = consumePoCHXRateLimit({
+    scope: 'referral_claim',
+    identityDid: body.inviteeIdentityDid,
+    chain: body.chain,
+    limit: POCH_X_REFERRAL_CLAIM_LIMIT_PER_WINDOW,
+    windowSec: POCH_X_RATE_LIMIT_WINDOW_SEC,
+  });
+  if (!claimRate.allowed) {
+    pochXReferralTotal.labels('claim', 'rate_limited').inc();
+    res.set('retry-after', String(claimRate.retryAfterSec));
+    return sendError(
+      res,
+      429,
+      'RATE_LIMITED',
+      'PoCH X referral-claim rate limit exceeded for this identity'
+    );
+  }
+
+  const existing = getPoCHXReferralByCode(body.inviteCode);
+  if (!existing) {
+    pochXReferralTotal.labels('claim', 'rejected').inc();
+    return sendError(res, 404, 'NOT_FOUND', 'Referral invite not found');
+  }
+  if (existing.inviterIdentityDid === body.inviteeIdentityDid) {
+    pochXReferralTotal.labels('claim', 'rejected').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'Self-referrals are not allowed');
+  }
+
+  const xPostId = typeof body.xPostId === 'string' ? body.xPostId.trim() : undefined;
+  if (xPostId !== undefined && xPostId.length === 0) {
+    pochXReferralTotal.labels('claim', 'invalid').inc();
+    return sendError(res, 400, 'INVALID_INPUT', 'xPostId must be non-empty when provided');
+  }
+  if (
+    existing.inviteeIdentityDid === body.inviteeIdentityDid
+    && existing.inviteeChain === body.chain
+    && existing.xPostId
+    && xPostId
+    && existing.xPostId !== xPostId
+  ) {
+    pochXReferralTotal.labels('claim', 'rejected').inc();
+    return sendError(res, 409, 'CLAIM_X_POST_MISMATCH', 'Invite already claimed with a different xPostId');
+  }
+
+  const isIdempotentReplay = !!(
+    xPostId
+    && existing.inviteeIdentityDid === body.inviteeIdentityDid
+    && existing.inviteeChain === body.chain
+    && existing.xPostId === xPostId
+  );
+  let replayReserved = false;
+  if (xPostId && !isIdempotentReplay) {
+    const replay = reservePoCHXPostReplay({
+      scope: 'referral_claim',
+      identityDid: body.inviteeIdentityDid,
+      chain: body.chain,
+      xPostId,
+    });
+    if (replay === 'duplicate') {
+      pochXReferralTotal.labels('claim', 'replayed').inc();
+      return sendError(res, 409, 'DUPLICATE_X_POST', 'xPostId already used for PoCH X referral claim');
+    }
+    replayReserved = true;
+  }
+
+  const claimed = claimPoCHXReferralInvite({
+    inviteCode: body.inviteCode,
+    inviteeIdentityDid: body.inviteeIdentityDid,
+    inviteeChain: body.chain,
+    xPostId,
+  });
+
+  if (claimed.result === 'not_found') {
+    if (replayReserved && xPostId) {
+      releasePoCHXPostReplay({
+        scope: 'referral_claim',
+        identityDid: body.inviteeIdentityDid,
+        chain: body.chain,
+        xPostId,
+      });
+    }
+    pochXReferralTotal.labels('claim', 'rejected').inc();
+    return sendError(res, 404, 'NOT_FOUND', 'Referral invite not found');
+  }
+  if (claimed.result === 'claimed_by_other') {
+    if (replayReserved && xPostId) {
+      releasePoCHXPostReplay({
+        scope: 'referral_claim',
+        identityDid: body.inviteeIdentityDid,
+        chain: body.chain,
+        xPostId,
+      });
+    }
+    pochXReferralTotal.labels('claim', 'rejected').inc();
+    return sendError(res, 409, 'ALREADY_CLAIMED', 'Referral invite already claimed by a different identity');
+  }
+
+  const claimIdempotent = !!(
+    existing.inviteeIdentityDid === body.inviteeIdentityDid
+    && existing.inviteeChain === body.chain
+  );
+  pochXReferralTotal.labels('claim', claimIdempotent ? 'idempotent' : 'accepted').inc();
+
+  const referral = claimed.referral;
+  const inviterStatus = getPoCHStatus(referral.inviterIdentityDid, referral.inviterChain);
+  const inviteeStatus = getPoCHStatus(body.inviteeIdentityDid, body.chain);
+  const bothVerified = inviterStatus?.status === 'verified' && inviteeStatus?.status === 'verified';
+
+  const alreadyAwarded = referral.status === 'awarded';
+  if (referral.status === 'awarded' || bothVerified) {
+    const chainMultiplier = body.chain === 'base' ? POCH_X_REFERRAL_BASE_CHAIN_MULTIPLIER : 1;
+    const rewardMultiplier = Number.isFinite(chainMultiplier) && chainMultiplier > 0 ? chainMultiplier : 1;
+    const rewardUnits = Math.round(
+      Math.max(0, Number.isFinite(POCH_X_REFERRAL_BASE_REWARD_UNITS) ? POCH_X_REFERRAL_BASE_REWARD_UNITS : 100)
+      * rewardMultiplier
+    );
+    const awarded = markPoCHXReferralAwarded({
+      inviteCode: body.inviteCode,
+      rewardUnits,
+      rewardMultiplier,
+    });
+    pochXReferralTotal.labels('award', alreadyAwarded ? 'idempotent' : 'accepted').inc();
+    const settled = awarded || referral;
+
+    emitPoCHEvent(POCH_TOPICS.status, {
+      source: 'x_referral',
+      action: 'awarded',
+      inviteCode: body.inviteCode,
+      inviterIdentityDid: settled.inviterIdentityDid,
+      inviteeIdentityDid: settled.inviteeIdentityDid,
+      inviterChain: settled.inviterChain,
+      inviteeChain: settled.inviteeChain,
+      rewardUnits: settled.rewardUnits,
+      rewardMultiplier: settled.rewardMultiplier,
+    });
+
+    return res.status(200).json({
+      inviteCode: settled.inviteCode,
+      status: settled.status,
+      inviterIdentityDid: settled.inviterIdentityDid,
+      inviteeIdentityDid: settled.inviteeIdentityDid,
+      inviterChain: settled.inviterChain,
+      inviteeChain: settled.inviteeChain,
+      rewardUnits: settled.rewardUnits,
+      rewardMultiplier: settled.rewardMultiplier,
+    });
+  }
+
+  const pendingReason = inviterStatus?.status !== 'verified'
+    ? 'inviter_not_verified'
+    : 'invitee_not_verified';
+
+  emitPoCHEvent(POCH_TOPICS.submissions, {
+    source: 'x_referral',
+    action: 'claimed_pending',
+    inviteCode: referral.inviteCode,
+    inviterIdentityDid: referral.inviterIdentityDid,
+    inviteeIdentityDid: referral.inviteeIdentityDid,
+    inviterChain: referral.inviterChain,
+    inviteeChain: referral.inviteeChain,
+    pendingReason,
+  });
+
+  res.status(200).json({
+    inviteCode: referral.inviteCode,
+    status: referral.status,
+    inviterIdentityDid: referral.inviterIdentityDid,
+    inviteeIdentityDid: referral.inviteeIdentityDid,
+    inviterChain: referral.inviterChain,
+    inviteeChain: referral.inviteeChain,
+    rewardUnits: 0,
+    rewardMultiplier: 1,
+    pendingReason,
+  });
+});
+
 router.post('/challenges', writeLimiter, async (req: Request, res: Response) => {
   if (!isPoCHEnabled()) {
     return sendError(res, 503, 'POCH_DISABLED', 'PoCH is disabled');
@@ -1107,13 +1738,23 @@ router.post('/challenges', writeLimiter, async (req: Request, res: Response) => 
   if (body.chain !== 'solana' && body.chain !== 'base') {
     return sendError(res, 400, 'INVALID_INPUT', 'chain must be solana or base');
   }
+  const policyProfile = resolvePolicyProfile(body.policyId);
+  if (policyProfile.locked) {
+    return sendError(
+      res,
+      409,
+      'POLICY_LOCKED',
+      'PoCH threshold profile changes are locked during the current rollout stage'
+    );
+  }
+  const policyId = policyProfile.policyId;
 
   try {
     const client = await getClient();
     const score = await loadPoCHObservations(client.rawDKG, {
       identityDid: body.identityDid,
       contentHash: body.contentHash,
-      policyId: body.policyId,
+      policyId,
       daysBack: body.daysBack,
     });
 
@@ -1129,7 +1770,7 @@ router.post('/challenges', writeLimiter, async (req: Request, res: Response) => 
       assetDid: body.assetDid,
       identityDid: body.identityDid,
       chain: body.chain,
-      policyId: body.policyId,
+      policyId,
       scoreBundle: score.scoreBundle,
       scoreBundleCommitment,
       contentHash: body.contentHash,
@@ -1155,7 +1796,7 @@ router.post('/challenges', writeLimiter, async (req: Request, res: Response) => 
       challengeId,
       identityDid: body.identityDid,
       chain: body.chain,
-      policyId: body.policyId,
+      policyId,
       scoreBundleCommitment,
       scoreBundle: score.scoreBundle,
       commitDeadline,

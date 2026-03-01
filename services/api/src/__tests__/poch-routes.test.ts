@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import http from 'http';
 import { createHash } from 'node:crypto';
-import { getPoCHChallenge, upsertPoCHChallenge, upsertPoCHRolloutState } from '../api/routes/poch-store';
+import {
+  getPoCHChallenge,
+  upsertPoCHChallenge,
+  upsertPoCHRolloutState,
+  upsertPoCHStatus,
+} from '../api/routes/poch-store';
 
 const { publishPoCHContributionMock, createClientMock, loadPoCHObservationsMock, nextChallengeId } = vi.hoisted(() => {
   const publishPoCHContributionMock = vi.fn(async () => ({ success: true, ual: 'urn:dkg:1' }));
@@ -278,6 +283,244 @@ describe('PoCH routes', () => {
       expect(gateRes.status).toBe(200);
       const gateBody = await gateRes.json() as { allowed: boolean };
       expect(gateBody.allowed).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  it('handles PoCH X contribution success, invalid payloads, and duplicate xPost replay', async () => {
+    const identityDid = `did:pkh:eip155:8453:0xxcontrib${Date.now()}`;
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const firstRes = await fetch(`${baseUrl}/api/poch/x/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid,
+          chain: 'base',
+          xPostId: '1899981122334455667',
+          threadText: 'Kamiyo PoCH X contribution test thread with enough content to pass checks.',
+          autoRequestChallenge: true,
+        }),
+      });
+      expect(firstRes.status).toBe(201);
+      const firstBody = await firstRes.json() as { assetDid: string; challenge?: { challengeId: string } };
+      expect(firstBody.assetDid).toContain('urn:kamiyo:poch');
+      expect(firstBody.challenge?.challengeId).toBeDefined();
+
+      const duplicateRes = await fetch(`${baseUrl}/api/poch/x/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid,
+          chain: 'base',
+          xPostId: '1899981122334455667',
+          threadText: 'A different thread body should still be rejected by replay guard.',
+          autoRequestChallenge: true,
+        }),
+      });
+      expect(duplicateRes.status).toBe(409);
+      const duplicateBody = await duplicateRes.json() as { error?: { code?: string } };
+      expect(duplicateBody.error?.code).toBe('DUPLICATE_X_POST');
+
+      const invalidRes = await fetch(`${baseUrl}/api/poch/x/contributions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          identityDid,
+          chain: 'base',
+          xPostId: '1899981122334455999',
+          threadText: 'too short',
+          autoRequestChallenge: true,
+        }),
+      });
+      expect(invalidRes.status).toBe(400);
+      const invalidBody = await invalidRes.json() as { error?: { code?: string } };
+      expect(invalidBody.error?.code).toBe('INVALID_INPUT');
+    } finally {
+      await close();
+    }
+  });
+
+  it('handles PoCH X referral create success, inviter-failure, and idempotency', async () => {
+    const verifiedInviter = `did:pkh:eip155:8453:0xinviter${Date.now()}`;
+    const unverifiedInviter = `did:pkh:eip155:8453:0xnotverified${Date.now()}`;
+    upsertPoCHStatus({
+      identityDid: verifiedInviter,
+      chain: 'base',
+      status: 'verified',
+      statusReason: 'verified',
+      updatedAt: new Date().toISOString(),
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const createdRes = await fetch(`${baseUrl}/api/poch/x/referrals/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviterIdentityDid: verifiedInviter,
+          chain: 'base',
+          xPostId: '1899981200000000001',
+        }),
+      });
+      expect(createdRes.status).toBe(201);
+      const createdBody = await createdRes.json() as { inviteCode: string; status: string };
+      expect(createdBody.inviteCode.length).toBeGreaterThan(6);
+      expect(createdBody.status).toBe('created');
+
+      const idempotentRes = await fetch(`${baseUrl}/api/poch/x/referrals/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviterIdentityDid: verifiedInviter,
+          chain: 'base',
+          xPostId: '1899981200000000001',
+        }),
+      });
+      expect(idempotentRes.status).toBe(200);
+      const idempotentBody = await idempotentRes.json() as { inviteCode: string };
+      expect(idempotentBody.inviteCode).toBe(createdBody.inviteCode);
+
+      const rejectedRes = await fetch(`${baseUrl}/api/poch/x/referrals/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviterIdentityDid: unverifiedInviter,
+          chain: 'base',
+          xPostId: '1899981200000000009',
+        }),
+      });
+      expect(rejectedRes.status).toBe(409);
+      const rejectedBody = await rejectedRes.json() as { error?: { code?: string } };
+      expect(rejectedBody.error?.code).toBe('INVITER_NOT_VERIFIED');
+    } finally {
+      await close();
+    }
+  });
+
+  it('enforces PoCH X referral one-claim semantics, replay checks, and idempotent claims', async () => {
+    const inviterA = `did:pkh:eip155:8453:0xinvitera${Date.now()}`;
+    const inviterB = `did:pkh:eip155:8453:0xinviterb${Date.now()}`;
+    const invitee = `did:pkh:eip155:8453:0xinvitee${Date.now()}`;
+    const otherInvitee = `did:pkh:eip155:8453:0xotherinvitee${Date.now()}`;
+
+    upsertPoCHStatus({
+      identityDid: inviterA,
+      chain: 'base',
+      status: 'verified',
+      statusReason: 'verified',
+      updatedAt: new Date().toISOString(),
+    });
+    upsertPoCHStatus({
+      identityDid: inviterB,
+      chain: 'base',
+      status: 'verified',
+      statusReason: 'verified',
+      updatedAt: new Date().toISOString(),
+    });
+    upsertPoCHStatus({
+      identityDid: invitee,
+      chain: 'base',
+      status: 'verified',
+      statusReason: 'verified',
+      updatedAt: new Date().toISOString(),
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use('/api/poch', pochRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const inviteARes = await fetch(`${baseUrl}/api/poch/x/referrals/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviterIdentityDid: inviterA,
+          chain: 'base',
+          xPostId: '1899981300000000001',
+        }),
+      });
+      expect(inviteARes.status).toBe(201);
+      const inviteABody = await inviteARes.json() as { inviteCode: string };
+
+      const firstClaimRes = await fetch(`${baseUrl}/api/poch/x/referrals/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: inviteABody.inviteCode,
+          inviteeIdentityDid: invitee,
+          chain: 'base',
+          xPostId: '1899981300000000999',
+        }),
+      });
+      expect(firstClaimRes.status).toBe(200);
+      const firstClaimBody = await firstClaimRes.json() as { status: string; rewardUnits: number };
+      expect(firstClaimBody.status).toBe('awarded');
+      expect(firstClaimBody.rewardUnits).toBeGreaterThan(0);
+
+      const secondClaimRes = await fetch(`${baseUrl}/api/poch/x/referrals/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: inviteABody.inviteCode,
+          inviteeIdentityDid: invitee,
+          chain: 'base',
+          xPostId: '1899981300000000999',
+        }),
+      });
+      expect(secondClaimRes.status).toBe(200);
+      const secondClaimBody = await secondClaimRes.json() as { status: string };
+      expect(secondClaimBody.status).toBe('awarded');
+
+      const claimedByOtherRes = await fetch(`${baseUrl}/api/poch/x/referrals/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: inviteABody.inviteCode,
+          inviteeIdentityDid: otherInvitee,
+          chain: 'base',
+          xPostId: '1899981300000001999',
+        }),
+      });
+      expect(claimedByOtherRes.status).toBe(409);
+      const claimedByOtherBody = await claimedByOtherRes.json() as { error?: { code?: string } };
+      expect(claimedByOtherBody.error?.code).toBe('ALREADY_CLAIMED');
+
+      const inviteBRes = await fetch(`${baseUrl}/api/poch/x/referrals/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviterIdentityDid: inviterB,
+          chain: 'base',
+          xPostId: '1899981300000000002',
+        }),
+      });
+      expect(inviteBRes.status).toBe(201);
+      const inviteBBody = await inviteBRes.json() as { inviteCode: string };
+
+      const replayRes = await fetch(`${baseUrl}/api/poch/x/referrals/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: inviteBBody.inviteCode,
+          inviteeIdentityDid: invitee,
+          chain: 'base',
+          xPostId: '1899981300000000999',
+        }),
+      });
+      expect(replayRes.status).toBe(409);
+      const replayBody = await replayRes.json() as { error?: { code?: string } };
+      expect(replayBody.error?.code).toBe('DUPLICATE_X_POST');
     } finally {
       await close();
     }

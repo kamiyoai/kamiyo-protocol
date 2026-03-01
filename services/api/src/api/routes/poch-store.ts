@@ -4,7 +4,7 @@ import type { PoCHChallenge, PoCHContribution, PoCHStatus } from '@kamiyo/agent-
 type Chain = 'solana' | 'base';
 type ChallengePhase = 'commit' | 'reveal' | 'finalized';
 const POCH_SCHEMA_NAME = 'poch';
-const POCH_SCHEMA_VERSION = 3;
+const POCH_SCHEMA_VERSION = 5;
 export type PoCHRolloutStage = 'observe' | 'soft' | 'gate_high_impact';
 export type PoCHRollbackTrigger =
   | 'manual'
@@ -134,6 +134,34 @@ export interface StoredDispute {
   status: 'open' | 'resolved';
   openedAt: number;
   resolvedAt?: number;
+}
+
+export type PoCHXReferralStatus = 'created' | 'claimed' | 'awarded' | 'rejected';
+
+export interface StoredPoCHXReferral {
+  id: number;
+  inviteCode: string;
+  inviterIdentityDid: string;
+  inviterChain: Chain;
+  inviteeIdentityDid?: string;
+  inviteeChain?: Chain;
+  xPostId?: string;
+  status: PoCHXReferralStatus;
+  rewardMultiplier: number;
+  rewardUnits: number;
+  createdAt: number;
+  claimedAt?: number;
+  awardedAt?: number;
+}
+
+export type PoCHXRateLimitScope = 'contribution' | 'referral_create' | 'referral_claim';
+
+export interface PoCHXRateLimitResult {
+  allowed: boolean;
+  hitCount: number;
+  limit: number;
+  windowStart: number;
+  retryAfterSec: number;
 }
 
 db.exec(`
@@ -285,6 +313,41 @@ db.exec(`
     decided_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS poch_x_referrals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    invite_code TEXT NOT NULL UNIQUE,
+    inviter_identity_did TEXT NOT NULL,
+    inviter_chain TEXT NOT NULL,
+    invitee_identity_did TEXT,
+    invitee_chain TEXT,
+    x_post_id TEXT,
+    status TEXT NOT NULL DEFAULT 'created',
+    reward_multiplier REAL NOT NULL DEFAULT 1,
+    reward_units INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    claimed_at INTEGER,
+    awarded_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS poch_x_identity_rate_limits (
+    scope TEXT NOT NULL,
+    identity_did TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    window_start INTEGER NOT NULL,
+    hit_count INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (scope, identity_did, chain, window_start)
+  );
+
+  CREATE TABLE IF NOT EXISTS poch_x_post_replays (
+    scope TEXT NOT NULL,
+    identity_did TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    x_post_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (scope, identity_did, chain, x_post_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_poch_status_chain ON poch_status(chain);
   CREATE INDEX IF NOT EXISTS idx_poch_challenges_identity ON poch_challenges(identity_did, chain);
   CREATE INDEX IF NOT EXISTS idx_poch_challenges_identity_chain_finalized
@@ -296,6 +359,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_poch_gate_decisions_window ON poch_gate_decisions(decided_at);
   CREATE INDEX IF NOT EXISTS idx_poch_gate_decisions_identity_chain
     ON poch_gate_decisions(identity_did, chain, decided_at);
+  CREATE INDEX IF NOT EXISTS idx_poch_x_referrals_inviter
+    ON poch_x_referrals(inviter_identity_did, inviter_chain);
+  CREATE INDEX IF NOT EXISTS idx_poch_x_referrals_invitee
+    ON poch_x_referrals(invitee_identity_did, invitee_chain);
+  CREATE INDEX IF NOT EXISTS idx_poch_x_identity_rate_limits_updated_at
+    ON poch_x_identity_rate_limits(updated_at);
+  CREATE INDEX IF NOT EXISTS idx_poch_x_post_replays_created_at
+    ON poch_x_post_replays(created_at);
 `);
 
 function hasColumn(tableName: string, columnName: string): boolean {
@@ -350,6 +421,14 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function isSqliteConstraintError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (/SQLITE_CONSTRAINT/i.test(error.message)) return true;
+  if (/UNIQUE constraint failed/i.test(error.message)) return true;
+  const withCode = error as Error & { code?: string };
+  return typeof withCode.code === 'string' && withCode.code.startsWith('SQLITE_CONSTRAINT');
 }
 
 function asBool(value: number | null | undefined): boolean | undefined {
@@ -897,6 +976,271 @@ export function listPoCHDisputes(challengeId: string): StoredDispute[] {
     openedAt: row.opened_at,
     resolvedAt: row.resolved_at ?? undefined,
   }));
+}
+
+function parsePoCHXReferralStatus(value: string | null | undefined): PoCHXReferralStatus {
+  if (value === 'created' || value === 'claimed' || value === 'awarded' || value === 'rejected') {
+    return value;
+  }
+  return 'created';
+}
+
+export function createPoCHXReferralInvite(params: {
+  inviteCode: string;
+  inviterIdentityDid: string;
+  inviterChain: Chain;
+  xPostId?: string;
+}): StoredPoCHXReferral {
+  db.prepare(`
+    INSERT INTO poch_x_referrals (
+      invite_code, inviter_identity_did, inviter_chain, x_post_id, status
+    ) VALUES (?, ?, ?, ?, 'created')
+    ON CONFLICT(invite_code) DO UPDATE SET
+      inviter_identity_did = excluded.inviter_identity_did,
+      inviter_chain = excluded.inviter_chain,
+      x_post_id = COALESCE(poch_x_referrals.x_post_id, excluded.x_post_id),
+      status = CASE
+        WHEN poch_x_referrals.status = 'awarded' THEN 'awarded'
+        WHEN poch_x_referrals.status = 'claimed' THEN 'claimed'
+        ELSE 'created'
+      END
+  `).run(
+    params.inviteCode,
+    params.inviterIdentityDid,
+    params.inviterChain,
+    params.xPostId || null
+  );
+
+  const stored = getPoCHXReferralByCode(params.inviteCode);
+  if (!stored) {
+    throw new Error('failed_to_create_poch_x_referral');
+  }
+  return stored;
+}
+
+export function getPoCHXReferralByCode(inviteCode: string): StoredPoCHXReferral | null {
+  const row = db.prepare(`
+    SELECT
+      id,
+      invite_code,
+      inviter_identity_did,
+      inviter_chain,
+      invitee_identity_did,
+      invitee_chain,
+      x_post_id,
+      status,
+      reward_multiplier,
+      reward_units,
+      created_at,
+      claimed_at,
+      awarded_at
+    FROM poch_x_referrals
+    WHERE invite_code = ?
+    LIMIT 1
+  `).get(inviteCode) as {
+    id: number;
+    invite_code: string;
+    inviter_identity_did: string;
+    inviter_chain: Chain;
+    invitee_identity_did: string | null;
+    invitee_chain: Chain | null;
+    x_post_id: string | null;
+    status: string;
+    reward_multiplier: number;
+    reward_units: number;
+    created_at: number;
+    claimed_at: number | null;
+    awarded_at: number | null;
+  } | undefined;
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    inviteCode: row.invite_code,
+    inviterIdentityDid: row.inviter_identity_did,
+    inviterChain: row.inviter_chain,
+    inviteeIdentityDid: row.invitee_identity_did ?? undefined,
+    inviteeChain: row.invitee_chain ?? undefined,
+    xPostId: row.x_post_id ?? undefined,
+    status: parsePoCHXReferralStatus(row.status),
+    rewardMultiplier: row.reward_multiplier,
+    rewardUnits: row.reward_units,
+    createdAt: row.created_at,
+    claimedAt: row.claimed_at ?? undefined,
+    awardedAt: row.awarded_at ?? undefined,
+  };
+}
+
+export function getLatestPoCHXReferralByInviter(
+  inviterIdentityDid: string,
+  inviterChain: Chain
+): StoredPoCHXReferral | null {
+  const row = db.prepare(`
+    SELECT invite_code
+    FROM poch_x_referrals
+    WHERE inviter_identity_did = ? AND inviter_chain = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `).get(inviterIdentityDid, inviterChain) as { invite_code: string } | undefined;
+  if (!row) return null;
+  return getPoCHXReferralByCode(row.invite_code);
+}
+
+export type PoCHClaimReferralResult =
+  | { result: 'claimed'; referral: StoredPoCHXReferral }
+  | { result: 'not_found' }
+  | { result: 'claimed_by_other'; referral: StoredPoCHXReferral };
+
+export function claimPoCHXReferralInvite(params: {
+  inviteCode: string;
+  inviteeIdentityDid: string;
+  inviteeChain: Chain;
+  xPostId?: string;
+}): PoCHClaimReferralResult {
+  const result = db.prepare(`
+    UPDATE poch_x_referrals
+    SET
+      invitee_identity_did = COALESCE(invitee_identity_did, ?),
+      invitee_chain = COALESCE(invitee_chain, ?),
+      x_post_id = COALESCE(x_post_id, ?),
+      status = CASE WHEN status = 'awarded' THEN 'awarded' ELSE 'claimed' END,
+      claimed_at = COALESCE(claimed_at, unixepoch())
+    WHERE
+      invite_code = ?
+      AND (
+        invitee_identity_did IS NULL
+        OR (invitee_identity_did = ? AND invitee_chain = ?)
+      )
+  `).run(
+    params.inviteeIdentityDid,
+    params.inviteeChain,
+    params.xPostId || null,
+    params.inviteCode,
+    params.inviteeIdentityDid,
+    params.inviteeChain
+  );
+
+  if (result.changes === 0) {
+    const current = getPoCHXReferralByCode(params.inviteCode);
+    if (!current) return { result: 'not_found' };
+    return { result: 'claimed_by_other', referral: current };
+  }
+
+  const updated = getPoCHXReferralByCode(params.inviteCode);
+  if (!updated) return { result: 'not_found' };
+  return { result: 'claimed', referral: updated };
+}
+
+export function markPoCHXReferralAwarded(params: {
+  inviteCode: string;
+  rewardUnits: number;
+  rewardMultiplier: number;
+}): StoredPoCHXReferral | null {
+  db.prepare(`
+    UPDATE poch_x_referrals
+    SET
+      status = 'awarded',
+      reward_units = ?,
+      reward_multiplier = ?,
+      awarded_at = COALESCE(awarded_at, unixepoch())
+    WHERE invite_code = ?
+  `).run(
+    Math.max(0, Math.floor(params.rewardUnits)),
+    Number.isFinite(params.rewardMultiplier) ? params.rewardMultiplier : 1,
+    params.inviteCode
+  );
+
+  return getPoCHXReferralByCode(params.inviteCode);
+}
+
+export function consumePoCHXRateLimit(params: {
+  scope: PoCHXRateLimitScope;
+  identityDid: string;
+  chain: Chain;
+  limit: number;
+  windowSec: number;
+  nowSec?: number;
+}): PoCHXRateLimitResult {
+  const safeLimit = Number.isFinite(params.limit) ? Math.max(1, Math.floor(params.limit)) : 1;
+  const safeWindowSec = Number.isFinite(params.windowSec) ? Math.max(1, Math.floor(params.windowSec)) : 60;
+  const nowSec = params.nowSec ?? Math.floor(Date.now() / 1000);
+  const windowStart = nowSec - (nowSec % safeWindowSec);
+
+  db.prepare(`
+    INSERT INTO poch_x_identity_rate_limits (
+      scope, identity_did, chain, window_start, hit_count, updated_at
+    ) VALUES (?, ?, ?, ?, 1, unixepoch())
+    ON CONFLICT(scope, identity_did, chain, window_start) DO UPDATE SET
+      hit_count = hit_count + 1,
+      updated_at = unixepoch()
+  `).run(
+    params.scope,
+    params.identityDid,
+    params.chain,
+    windowStart
+  );
+
+  const row = db.prepare(`
+    SELECT hit_count
+    FROM poch_x_identity_rate_limits
+    WHERE scope = ? AND identity_did = ? AND chain = ? AND window_start = ?
+  `).get(
+    params.scope,
+    params.identityDid,
+    params.chain,
+    windowStart
+  ) as { hit_count: number } | undefined;
+  const hitCount = row?.hit_count ?? 1;
+
+  return {
+    allowed: hitCount <= safeLimit,
+    hitCount,
+    limit: safeLimit,
+    windowStart,
+    retryAfterSec: Math.max(0, (windowStart + safeWindowSec) - nowSec),
+  };
+}
+
+export function reservePoCHXPostReplay(params: {
+  scope: PoCHXRateLimitScope;
+  identityDid: string;
+  chain: Chain;
+  xPostId: string;
+}): 'inserted' | 'duplicate' {
+  try {
+    db.prepare(`
+      INSERT INTO poch_x_post_replays (scope, identity_did, chain, x_post_id, created_at)
+      VALUES (?, ?, ?, ?, unixepoch())
+    `).run(
+      params.scope,
+      params.identityDid,
+      params.chain,
+      params.xPostId
+    );
+    return 'inserted';
+  } catch (error) {
+    if (isSqliteConstraintError(error)) {
+      return 'duplicate';
+    }
+    throw error;
+  }
+}
+
+export function releasePoCHXPostReplay(params: {
+  scope: PoCHXRateLimitScope;
+  identityDid: string;
+  chain: Chain;
+  xPostId: string;
+}): void {
+  db.prepare(`
+    DELETE FROM poch_x_post_replays
+    WHERE scope = ? AND identity_did = ? AND chain = ? AND x_post_id = ?
+  `).run(
+    params.scope,
+    params.identityDid,
+    params.chain,
+    params.xPostId
+  );
 }
 
 function readPoCHRolloutState(): PoCHRolloutState | null {

@@ -31,3 +31,53 @@ groups:
         annotations:
           summary: PoCH blocking dispute backlog is above threshold
           description: Open blocking disputes have remained above the default threshold (50) for at least 5 minutes.
+
+  - name: kamiyo-api-poch-x
+    interval: 30s
+    rules:
+      - alert: PoCHXContributionAcceptanceRateLow
+        expr: |
+          (
+            sum(rate(poch_x_contribution_total{result="accepted"}[15m]))
+            /
+            clamp_min(sum(rate(poch_x_contribution_total[15m])), 1)
+          ) < 0.60
+          and
+          sum(increase(poch_x_contribution_total[15m])) >= 20
+        for: 10m
+        labels:
+          severity: warning
+          service: kamiyo-api
+        annotations:
+          summary: PoCH X contribution acceptance rate dropped
+          description: PoCH X contribution acceptance rate is below 60% for 10 minutes with meaningful volume.
+
+      - alert: PoCHXReferralClaimAwardRatioLow
+        expr: |
+          (
+            sum(rate(poch_x_referral_total{operation="award", result=~"accepted|idempotent"}[30m]))
+            /
+            clamp_min(sum(rate(poch_x_referral_total{operation="claim", result=~"accepted|idempotent"}[30m])), 1)
+          ) < 0.25
+          and
+          sum(increase(poch_x_referral_total{operation="claim", result=~"accepted|idempotent"}[30m])) >= 15
+        for: 15m
+        labels:
+          severity: warning
+          service: kamiyo-api
+        annotations:
+          summary: PoCH X referral claim-to-award ratio degraded
+          description: Referral awards are not keeping up with successful claims over the last 30 minutes.
+
+      - alert: PoCHXReplaySpike
+        expr: |
+          sum(increase(poch_x_contribution_total{result=~"replayed|rate_limited"}[10m])) > 30
+          or
+          sum(increase(poch_x_referral_total{operation="claim", result=~"replayed|rate_limited"}[10m])) > 30
+        for: 5m
+        labels:
+          severity: page
+          service: kamiyo-api
+        annotations:
+          summary: PoCH X replay/rate-limit spike detected
+          description: Replay or rate-limit denials on PoCH X traffic are above expected thresholds.

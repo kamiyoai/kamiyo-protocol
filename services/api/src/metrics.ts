@@ -233,6 +233,20 @@ export const pochSubmissionTotal = new Counter({
   registers: [registry],
 });
 
+export const pochXContributionTotal = new Counter({
+  name: 'poch_x_contribution_total',
+  help: 'Total PoCH X contribution submissions by result',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+export const pochXReferralTotal = new Counter({
+  name: 'poch_x_referral_total',
+  help: 'Total PoCH X referral events by operation and result',
+  labelNames: ['operation', 'result'] as const,
+  registers: [registry],
+});
+
 export const pochProofTotal = new Counter({
   name: 'poch_proof_total',
   help: 'Total PoCH proof submissions by result',
