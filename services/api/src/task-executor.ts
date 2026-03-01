@@ -1,8 +1,23 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Tool, MessageParam, ContentBlock, Message } from '@anthropic-ai/sdk/resources/messages';
-import type { TaskInput, TaskResult } from '@kamiyo/swarm-agents';
 import { createKamiyoExtension } from '@kamiyo/daydreams';
 import OpenAI from 'openai';
+
+type TaskInput = {
+  taskId: string;
+  description: string;
+  budget: number;
+  teamId: string;
+  metadata?: Record<string, unknown>;
+};
+
+type TaskResult = {
+  taskId: string;
+  status: 'completed' | 'failed' | 'rejected';
+  output?: unknown;
+  amountDrawn?: number;
+  error?: string;
+};
 
 export interface TaskExecutorConfig {
   anthropicApiKey?: string;
