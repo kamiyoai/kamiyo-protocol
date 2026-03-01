@@ -1,4 +1,4 @@
-export type MeishiModule = typeof import('@kamiyo/meishi');
+export type MeishiModule = Record<string, unknown>;
 
 const dynamicImport = new Function(
   'specifier',
