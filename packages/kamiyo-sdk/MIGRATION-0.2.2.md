@@ -1,4 +1,4 @@
-# @kamiyo/sdk 0.2.1 Migration Note (PoCH X)
+# @kamiyo/sdk 0.2.2 Migration Note (PoCH X)
 
 This release adds the PoCH X client surface and rollout admin/status helpers required for canary operations.
 
@@ -6,9 +6,9 @@ This release adds the PoCH X client surface and rollout admin/status helpers req
 
 Pin all PoCH-integrating services to the same SDK artifact:
 
-- npm package: `@kamiyo/sdk@0.2.1`
+- npm package: `@kamiyo/sdk@0.2.2`
 - GitHub tarball fallback:
-  `https://github.com/kamiyo-ai/kamiyo-protocol/releases/download/sdk-v0.2.1/kamiyo-sdk-0.2.1.tgz`
+  `https://github.com/kamiyo-ai/kamiyo-protocol/releases/download/sdk-v0.2.2/kamiyo-sdk-0.2.2.tgz`
 
 Do not mix 0.1.x and 0.2.x across app/backend PoCH clients.
 
@@ -31,6 +31,6 @@ Do not mix 0.1.x and 0.2.x across app/backend PoCH clients.
 
 ## Consumer Actions
 
-1. Upgrade dependency to `@kamiyo/sdk@0.2.1`.
+1. Upgrade dependency to `@kamiyo/sdk@0.2.2`.
 2. Replace raw PoCH fetch calls with SDK methods.
 3. Handle `statusReason` values in client UX for deterministic state messages.

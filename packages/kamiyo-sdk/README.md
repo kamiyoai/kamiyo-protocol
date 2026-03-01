@@ -8,12 +8,12 @@ TypeScript SDK for KAMIYO - Agent Identity and Conflict Resolution Protocol on S
 npm install @kamiyo/sdk
 ```
 
-## PoCH X Release (0.2.1)
+## PoCH X Release (0.2.2)
 
-PoCH X endpoints and rollout-control helpers are included in `0.2.1`.
+PoCH X endpoints and rollout-control helpers are included in `0.2.2`.
 
-- Migration note: `./MIGRATION-0.2.1.md`
-- Pin recommendation for PoCH consumers: `@kamiyo/sdk@0.2.1`
+- Migration note: `./MIGRATION-0.2.2.md`
+- Pin recommendation for PoCH consumers: `@kamiyo/sdk@0.2.2`
 
 ## Devnet Smoke Test
 
