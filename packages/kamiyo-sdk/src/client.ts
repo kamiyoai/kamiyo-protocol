@@ -40,6 +40,15 @@ import {
   PoCHXReferralClaimResponse,
   PoCHXReferralCreateInput,
   PoCHXReferralCreateResponse,
+  StakingReferralAttributionInput,
+  StakingReferralAttributionResponse,
+  StakingReferralDashboardResponse,
+  StakingReferralInviteResponse,
+  StakingReferralLeaderboardResponse,
+  StakingReferralPayoutRunInput,
+  StakingReferralPayoutRunResponse,
+  StakingReferralRulesResponse,
+  StakingReferralWindow,
   PoCHRollbackInput,
   PoCHRollbackReceipt,
   PoCHRolloutStageInput,
@@ -336,6 +345,76 @@ export class KamiyoClient {
     input: PoCHXReferralClaimInput
   ): Promise<PoCHXReferralClaimResponse> {
     return this.postJson<PoCHXReferralClaimResponse>("/api/poch/x/referrals/claim", input);
+  }
+
+  // ========================================================================
+  // Staking referral API
+  // ========================================================================
+
+  async createStakingReferralInvite(
+    walletToken: string
+  ): Promise<StakingReferralInviteResponse> {
+    return this.postJson<StakingReferralInviteResponse>(
+      "/api/staking/referrals/invites",
+      {},
+      { authorization: `Bearer ${walletToken}` }
+    );
+  }
+
+  async bindStakingReferralAttribution(
+    walletToken: string,
+    input: StakingReferralAttributionInput
+  ): Promise<StakingReferralAttributionResponse> {
+    return this.postJson<StakingReferralAttributionResponse>(
+      "/api/staking/referrals/attributions",
+      input,
+      { authorization: `Bearer ${walletToken}` }
+    );
+  }
+
+  async getStakingReferralDashboard(
+    walletToken: string
+  ): Promise<StakingReferralDashboardResponse> {
+    const fetchImpl = (globalThis as typeof globalThis & { fetch?: typeof fetch }).fetch;
+    if (!fetchImpl) {
+      throw new Error("Global fetch is unavailable in this runtime");
+    }
+    const response = await fetchImpl(`${this.getApiBaseUrl()}/api/staking/referrals/me`, {
+      headers: { authorization: `Bearer ${walletToken}` },
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`API request failed (${response.status}): ${text || response.statusText}`);
+    }
+    return response.json() as Promise<StakingReferralDashboardResponse>;
+  }
+
+  async getStakingReferralLeaderboard(params?: {
+    window?: StakingReferralWindow;
+    limit?: number;
+  }): Promise<StakingReferralLeaderboardResponse> {
+    const query = new URLSearchParams();
+    if (params?.window) query.set("window", params.window);
+    if (params?.limit) query.set("limit", String(params.limit));
+    const suffix = query.toString();
+    return this.getJson<StakingReferralLeaderboardResponse>(
+      `/api/staking/referrals/leaderboard${suffix ? `?${suffix}` : ""}`
+    );
+  }
+
+  async getStakingReferralRules(): Promise<StakingReferralRulesResponse> {
+    return this.getJson<StakingReferralRulesResponse>("/api/staking/referrals/rules");
+  }
+
+  async runStakingReferralPayout(
+    adminToken: string,
+    input?: StakingReferralPayoutRunInput
+  ): Promise<StakingReferralPayoutRunResponse> {
+    return this.postJson<StakingReferralPayoutRunResponse>(
+      "/api/staking/referrals/admin/payouts/run",
+      input || {},
+      { authorization: `Bearer ${adminToken}` }
+    );
   }
 
   async requestPoCHChallenge(

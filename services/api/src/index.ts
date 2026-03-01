@@ -158,6 +158,7 @@ import { BN } from '@coral-xyz/anchor';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
 import { startBuybackWorker, stopBuybackWorker } from './buyback-service';
 import { forwardToTelegram, startTelegramForwardLoop } from './telegram-forward';
+import { startStakingReferralWorker, stopStakingReferralWorker } from './staking-referrals';
 
 // console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO. A kind, honest, and straightforward AI agent on Twitter.
@@ -1557,6 +1558,7 @@ async function main(): Promise<void> {
     stopRateLimitCleanup();
     stopBurnWorker();
     stopBuybackWorker();
+    stopStakingReferralWorker();
 
     // Close MCP sessions gracefully
     await shutdownMcpSessions();
@@ -1591,6 +1593,9 @@ async function main(): Promise<void> {
 
   // Start buyback worker (requires BUYBACK_ENABLED=true and BUYBACK_AUTHORITY_SECRET)
   startBuybackWorker();
+
+  // Start staking referral worker (hourly sync + scheduled weekly payout)
+  startStakingReferralWorker();
 
   // Start API server (always - this is the main purpose)
   startApiServer({ anthropic });
