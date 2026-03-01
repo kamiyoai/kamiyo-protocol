@@ -1,6 +1,6 @@
 {
   "name": "@kamiyo/sdk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "TypeScript SDK for KAMIYO - Agent Identity and Conflict Resolution Protocol",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,8 +24,15 @@
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.1",
-    "tweetnacl": "^1.0.3",
-    "@kamiyo/meishi": "workspace:*"
+    "tweetnacl": "^1.0.3"
+  },
+  "peerDependencies": {
+    "@kamiyo/meishi": "*"
+  },
+  "peerDependenciesMeta": {
+    "@kamiyo/meishi": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",
