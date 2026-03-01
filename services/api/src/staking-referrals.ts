@@ -92,7 +92,10 @@ const REFERRAL_CONFIG = {
     '9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d',
   fundryApiBase: process.env.KAMIYO_FUNDRY_API_BASE_URL?.trim() || 'https://fundry.collaterize.com',
   weeklyBudgetSol: parsePositiveNumber(process.env.STAKING_REFERRAL_WEEKLY_BUDGET_SOL, 20),
-  minStakeSol: parsePositiveNumber(process.env.STAKING_REFERRAL_MIN_STAKE_SOL, 1),
+  minStakeKamiyo: parsePositiveNumber(
+    process.env.STAKING_REFERRAL_MIN_STAKE_KAMIYO || process.env.STAKING_REFERRAL_MIN_STAKE_SOL,
+    1_000_000
+  ),
   bonusMaxMultiplier: parsePositiveNumber(process.env.STAKING_REFERRAL_BONUS_MAX_MULTIPLIER, 2),
   bonusMaxDays: parsePositiveInt(process.env.STAKING_REFERRAL_BONUS_MAX_DAYS, 180),
   payoutWeekday: parseWeekday(process.env.STAKING_REFERRAL_PAYOUT_WEEKDAY),
@@ -335,7 +338,7 @@ export function getStakingReferralRules(): {
   enabled: boolean;
   poolAddress: string;
   weeklyBudgetSol: number;
-  minStakeSol: number;
+  minStakeKamiyo: number;
   bonusMaxMultiplier: number;
   bonusMaxDays: number;
   payoutWeekday: string;
@@ -348,7 +351,7 @@ export function getStakingReferralRules(): {
     enabled: REFERRAL_CONFIG.enabled,
     poolAddress: REFERRAL_CONFIG.poolAddress,
     weeklyBudgetSol: REFERRAL_CONFIG.weeklyBudgetSol,
-    minStakeSol: REFERRAL_CONFIG.minStakeSol,
+    minStakeKamiyo: REFERRAL_CONFIG.minStakeKamiyo,
     bonusMaxMultiplier: REFERRAL_CONFIG.bonusMaxMultiplier,
     bonusMaxDays: REFERRAL_CONFIG.bonusMaxDays,
     payoutWeekday: 'MON',
@@ -675,7 +678,7 @@ export async function syncStakingReferralStakeStates(): Promise<{
   const nowSec = toUnixSeconds(now);
 
   const meta = await fetchFundryPoolMeta();
-  const minStakeAtomic = BigInt(Math.floor(REFERRAL_CONFIG.minStakeSol * 10 ** meta.decimals));
+  const minStakeAtomic = BigInt(Math.floor(REFERRAL_CONFIG.minStakeKamiyo * 10 ** meta.decimals));
 
   let synced = 0;
   let verified = 0;
