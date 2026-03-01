@@ -90,6 +90,8 @@ ENABLE_CLAWMART_STAKING_ROUTE="${KYO_ENABLE_CLAWMART_STAKING_ROUTE:-true}"
 REQUIRE_CLAWMART_STAKING_ROUTE="${KYO_REQUIRE_CLAWMART_STAKING_ROUTE:-true}"
 ENABLE_REVENUE_GUARD="${KYO_ENABLE_REVENUE_GUARD:-true}"
 REQUIRE_REVENUE_GUARD="${KYO_REQUIRE_REVENUE_GUARD:-true}"
+ENABLE_TRADING_AGENT="${KYO_ENABLE_TRADING_AGENT:-false}"
+REQUIRE_TRADING_AGENT="${KYO_REQUIRE_TRADING_AGENT:-false}"
 ENABLE_X402_AGENTCASH="${KYO_ENABLE_X402_AGENTCASH:-true}"
 REQUIRE_X402_AGENTCASH="${KYO_REQUIRE_X402_AGENTCASH:-false}"
 ENABLE_DISTRIBUTION_ENGINE="${KYO_ENABLE_DISTRIBUTION_ENGINE:-true}"
@@ -501,6 +503,104 @@ if is_true "$ENABLE_REVENUE_GUARD"; then
   fi
 fi
 
+trading_feed_ok=1
+trading_feed_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_TRADING_AGENT"; then
+  trading_feed_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-trading-feed.py" ]; then
+    if "$HOME/bin/kyoshin-trading-feed.py" >"$TMP_DIR/trading-feed.json" 2>"$TMP_DIR/trading-feed.err"; then
+      trading_feed_summary="$(as_json_line "$TMP_DIR/trading-feed.json")"
+      trading_feed_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/trading-feed.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        if [ "$trading_feed_inner_ok" != "true" ]; then
+          trading_feed_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/trading-feed.json" ]; then
+        trading_feed_summary="$(as_json_line "$TMP_DIR/trading-feed.json")"
+      else
+        trading_feed_err="$(tr -d '\n' <"$TMP_DIR/trading-feed.err" | sed 's/"/\\"/g')"
+        trading_feed_summary="{\"ok\":false,\"error\":\"$trading_feed_err\"}"
+      fi
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        trading_feed_ok=0
+      fi
+    fi
+  else
+    trading_feed_summary='{"ok":false,"error":"missing_trading_feed"}'
+    if is_true "$REQUIRE_TRADING_AGENT"; then
+      trading_feed_ok=0
+    fi
+  fi
+fi
+
+trading_exec_ok=1
+trading_exec_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_TRADING_AGENT"; then
+  trading_exec_summary='{"ok":false,"error":"not_run"}'
+  if [ "$revenue_guard_blocks_paid" -eq 1 ]; then
+    trading_exec_summary='{"ok":false,"status":"blocked","reason":"revenue_guard_block_paid_execution"}'
+  elif [ -x "$HOME/bin/kyoshin-trading-exec.py" ]; then
+    if "$HOME/bin/kyoshin-trading-exec.py" >"$TMP_DIR/trading-exec.json" 2>"$TMP_DIR/trading-exec.err"; then
+      trading_exec_summary="$(as_json_line "$TMP_DIR/trading-exec.json")"
+      trading_exec_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/trading-exec.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        if [ "$trading_exec_inner_ok" != "true" ]; then
+          trading_exec_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/trading-exec.json" ]; then
+        trading_exec_summary="$(as_json_line "$TMP_DIR/trading-exec.json")"
+      else
+        trading_exec_err="$(tr -d '\n' <"$TMP_DIR/trading-exec.err" | sed 's/"/\\"/g')"
+        trading_exec_summary="{\"ok\":false,\"error\":\"$trading_exec_err\"}"
+      fi
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        trading_exec_ok=0
+      fi
+    fi
+  else
+    trading_exec_summary='{"ok":false,"error":"missing_trading_exec"}'
+    if is_true "$REQUIRE_TRADING_AGENT"; then
+      trading_exec_ok=0
+    fi
+  fi
+fi
+
+trading_route_ok=1
+trading_route_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_TRADING_AGENT"; then
+  trading_route_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-trading-staking-route.py" ]; then
+    if "$HOME/bin/kyoshin-trading-staking-route.py" >"$TMP_DIR/trading-route.json" 2>"$TMP_DIR/trading-route.err"; then
+      trading_route_summary="$(as_json_line "$TMP_DIR/trading-route.json")"
+      trading_route_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/trading-route.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        if [ "$trading_route_inner_ok" != "true" ]; then
+          trading_route_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/trading-route.json" ]; then
+        trading_route_summary="$(as_json_line "$TMP_DIR/trading-route.json")"
+      else
+        trading_route_err="$(tr -d '\n' <"$TMP_DIR/trading-route.err" | sed 's/"/\\"/g')"
+        trading_route_summary="{\"ok\":false,\"error\":\"$trading_route_err\"}"
+      fi
+      if is_true "$REQUIRE_TRADING_AGENT"; then
+        trading_route_ok=0
+      fi
+    fi
+  else
+    trading_route_summary='{"ok":false,"error":"missing_trading_route"}'
+    if is_true "$REQUIRE_TRADING_AGENT"; then
+      trading_route_ok=0
+    fi
+  fi
+fi
+
 x402_agentcash_ok=1
 x402_agentcash_summary='{"ok":true,"status":"disabled"}'
 if is_true "$ENABLE_X402_AGENTCASH"; then
@@ -769,6 +869,9 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$governor_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
   && [ "$revenue_guard_ok" -eq 1 ] \
+  && [ "$trading_feed_ok" -eq 1 ] \
+  && [ "$trading_exec_ok" -eq 1 ] \
+  && [ "$trading_route_ok" -eq 1 ] \
   && [ "$x402_agentcash_ok" -eq 1 ] \
   && [ "$clawmart_staking_route_ok" -eq 1 ] \
   && [ "$clawmart_monitor_ok" -eq 1 ] \
@@ -827,6 +930,15 @@ else
   fi
   if [ "$revenue_guard_ok" -ne 1 ]; then
     combined_error+="revenue_guard_failed;"
+  fi
+  if [ "$trading_feed_ok" -ne 1 ]; then
+    combined_error+="trading_feed_failed;"
+  fi
+  if [ "$trading_exec_ok" -ne 1 ]; then
+    combined_error+="trading_exec_failed;"
+  fi
+  if [ "$trading_route_ok" -ne 1 ]; then
+    combined_error+="trading_route_failed;"
   fi
   if [ "$x402_agentcash_ok" -ne 1 ]; then
     combined_error+="x402_agentcash_failed;"
@@ -957,8 +1069,8 @@ if [ "$status" = "ok" ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"revenueGuard":%s,"x402AgentCash":%s,"clawMartStakingRoute":%s,"clawMartMonitor":%s,"distributionEngine":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"operatorLog":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$revenue_guard_summary" "$x402_agentcash_summary" "$clawmart_staking_route_summary" "$clawmart_monitor_summary" "$distribution_engine_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$operator_log_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"missionControl":%s,"revenueGuard":%s,"tradingFeed":%s,"tradingExec":%s,"tradingRoute":%s,"x402AgentCash":%s,"clawMartStakingRoute":%s,"clawMartMonitor":%s,"distributionEngine":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"operatorLog":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$mission_control_summary" "$revenue_guard_summary" "$trading_feed_summary" "$trading_exec_summary" "$trading_route_summary" "$x402_agentcash_summary" "$clawmart_staking_route_summary" "$clawmart_monitor_summary" "$distribution_engine_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$operator_log_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"

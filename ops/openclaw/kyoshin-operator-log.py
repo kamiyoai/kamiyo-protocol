@@ -26,6 +26,8 @@ REVENUE_GUARD_PATH = STATE_DIR / 'revenue-guard.json'
 CLAWMART_MONITOR_PATH = STATE_DIR / 'clawmart-monitor.json'
 X402_AGENTCASH_PATH = STATE_DIR / 'x402-agentcash.json'
 DISPATCH_SUMMARY_PATH = STATE_DIR / 'distribution-engine.json'
+TRADING_EXEC_PATH = STATE_DIR / 'trading-exec.json'
+TRADING_ROUTE_PATH = STATE_DIR / 'trading-route.json'
 
 
 def now_iso() -> str:
@@ -125,6 +127,11 @@ def summarize_revenue(rows: list[dict[str, Any]], cutoff: datetime) -> dict[str,
     net = 0.0
     paid_orders = 0
     x402_paid_calls = 0
+    trading_gross = 0.0
+    trading_net = 0.0
+    trading_routed_sol = 0.0
+    dflow_trades = 0
+    kalshi_signals = 0
     for row in rows:
         ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt'))
         if ts is None or ts < cutoff:
@@ -139,12 +146,28 @@ def summarize_revenue(rows: list[dict[str, Any]], cutoff: datetime) -> dict[str,
             paid_orders += 1
         if source == 'x402' and kind == 'paid_call' and status == 'success':
             x402_paid_calls += 1
+        if source == 'trading' and status == 'success':
+            venue = str(row.get('venue') or '').strip().lower()
+            if kind == 'trade_close':
+                trading_gross += max(0.0, parse_float(row.get('grossUsd'), 0.0))
+                trading_net += parse_float(row.get('netUsd'), 0.0)
+                if venue == 'dflow':
+                    dflow_trades += 1
+            elif kind == 'route':
+                trading_routed_sol += max(0.0, parse_float(row.get('routedSol'), 0.0))
+            elif kind == 'signal' and venue == 'kalshi':
+                kalshi_signals += 1
     return {
         'grossUsd': round(gross, 8),
         'costUsd': round(cost, 8),
         'netUsd': round(net, 8),
         'paidOrders': paid_orders,
         'x402PaidCalls': x402_paid_calls,
+        'tradingGrossUsd': round(trading_gross, 8),
+        'tradingNetUsd': round(trading_net, 8),
+        'tradingRoutedSol': round(trading_routed_sol, 9),
+        'dflowTrades': dflow_trades,
+        'kalshiSignals': kalshi_signals,
     }
 
 
@@ -176,8 +199,13 @@ def build_summary_text(summary: dict[str, Any]) -> str:
         f"netUsd7d={summary.get('revenueNetUsd7d')} "
         f"paidOrders7d={summary.get('paidOrders7d')} "
         f"x402PaidCalls7d={summary.get('x402PaidCalls7d')} "
+        f"tradingNetUsd7d={summary.get('tradingNetUsd7d')} "
+        f"dflowTrades7d={summary.get('dflowTrades7d')} "
+        f"kalshiSignals7d={summary.get('kalshiSignals7d')} "
+        f"tradingRoutedSol7d={summary.get('tradingRoutedSol7d')} "
         f"routedSol7d={summary.get('stakingRoutedSol7d')} "
         f"unroutedSales={summary.get('unroutedSalesCount')} "
+        f"tradingUnroutedProfitUsd={summary.get('tradingRouteUnroutedProfitUsd')} "
         f"dispatchSuccessRate={summary.get('distributionDispatchSuccessRate')} "
         f"blockers={blocker_text}"
     )
@@ -217,6 +245,8 @@ def run() -> int:
     clawmart_summary = read_json(CLAWMART_MONITOR_PATH, {})
     x402_summary = read_json(X402_AGENTCASH_PATH, {})
     distribution_summary = read_json(DISPATCH_SUMMARY_PATH, {})
+    trading_exec_summary = read_json(TRADING_EXEC_PATH, {})
+    trading_route_summary = read_json(TRADING_ROUTE_PATH, {})
 
     blockers: list[str] = []
     if isinstance(guard_summary, dict):
@@ -230,6 +260,16 @@ def run() -> int:
         reason = str(x402_summary.get('reason') or 'x402_execution_blocked').strip()
         if reason and reason not in blockers:
             blockers.append(reason)
+    if isinstance(trading_exec_summary, dict) and str(trading_exec_summary.get('status') or '').strip().lower() in {'blocked', 'failed'}:
+        reasons = trading_exec_summary.get('reasons') if isinstance(trading_exec_summary.get('reasons'), list) else []
+        if reasons:
+            for reason in reasons:
+                if isinstance(reason, str) and reason and reason not in blockers:
+                    blockers.append(reason)
+        else:
+            reason = str(trading_exec_summary.get('reason') or 'trading_execution_blocked').strip()
+            if reason and reason not in blockers:
+                blockers.append(reason)
 
     summary: dict[str, Any] = {
         'ok': True,
@@ -250,6 +290,25 @@ def run() -> int:
         'paidOrders7d': revenue_7d['paidOrders'],
         'x402PaidCalls24h': revenue_24h['x402PaidCalls'],
         'x402PaidCalls7d': revenue_7d['x402PaidCalls'],
+        'tradingGrossUsd24h': revenue_24h['tradingGrossUsd'],
+        'tradingNetUsd24h': revenue_24h['tradingNetUsd'],
+        'tradingRoutedSol24h': revenue_24h['tradingRoutedSol'],
+        'dflowTrades24h': revenue_24h['dflowTrades'],
+        'kalshiSignals24h': revenue_24h['kalshiSignals'],
+        'tradingGrossUsd7d': revenue_7d['tradingGrossUsd'],
+        'tradingNetUsd7d': revenue_7d['tradingNetUsd'],
+        'tradingRoutedSol7d': revenue_7d['tradingRoutedSol'],
+        'dflowTrades7d': revenue_7d['dflowTrades'],
+        'kalshiSignals7d': revenue_7d['kalshiSignals'],
+        'tradingOpenPositions': parse_int(trading_exec_summary.get('openPositions') if isinstance(trading_exec_summary, dict) else 0, 0),
+        'tradingDrawdownPct': round(
+            parse_float(trading_exec_summary.get('drawdownPct') if isinstance(trading_exec_summary, dict) else 0.0, 0.0),
+            8,
+        ),
+        'tradingRouteUnroutedProfitUsd': round(
+            parse_float(trading_route_summary.get('unroutedProfitUsd') if isinstance(trading_route_summary, dict) else 0.0, 0.0),
+            8,
+        ),
         'stakingRoutedSol24h': staking_24h['routedSol'],
         'stakingRoutedSol7d': staking_7d['routedSol'],
         'stakingRoutedSalesCheckpoint': staking_7d['checkpoint'],
@@ -284,6 +343,14 @@ def run() -> int:
                     'revenueNetUsd7d': summary['revenueNetUsd7d'],
                     'paidOrders7d': summary['paidOrders7d'],
                     'x402PaidCalls7d': summary['x402PaidCalls7d'],
+                    'tradingGrossUsd7d': summary['tradingGrossUsd7d'],
+                    'tradingNetUsd7d': summary['tradingNetUsd7d'],
+                    'tradingRoutedSol7d': summary['tradingRoutedSol7d'],
+                    'dflowTrades7d': summary['dflowTrades7d'],
+                    'kalshiSignals7d': summary['kalshiSignals7d'],
+                    'tradingOpenPositions': summary['tradingOpenPositions'],
+                    'tradingDrawdownPct': summary['tradingDrawdownPct'],
+                    'tradingRouteUnroutedProfitUsd': summary['tradingRouteUnroutedProfitUsd'],
                     'stakingRoutedSol7d': summary['stakingRoutedSol7d'],
                     'unroutedSalesCount': summary['unroutedSalesCount'],
                     'distributionDispatchSuccessRate': summary['distributionDispatchSuccessRate'],

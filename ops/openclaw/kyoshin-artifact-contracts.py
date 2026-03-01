@@ -203,6 +203,77 @@ def validate_runtime_state(payload: Any, errors: list[dict[str, Any]]) -> None:
         add_error(errors, artifact, 'invalid_error', 'error must be non-empty string when provided')
 
 
+def validate_trading_feed(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_feed'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    opportunities = payload.get('opportunities')
+    if not isinstance(opportunities, list):
+        add_error(errors, artifact, 'missing_opportunities', 'opportunities must be an array')
+        return
+    for index, item in enumerate(opportunities[:SAMPLE_LIMIT]):
+        if not isinstance(item, dict):
+            add_error(errors, artifact, 'invalid_item', f'opportunities[{index}] must be an object')
+            continue
+        if not non_empty_string(item.get('id')):
+            add_error(errors, artifact, 'missing_id', f'opportunities[{index}].id must be non-empty string')
+        if str(item.get('source') or '').strip().lower() != 'trading':
+            add_error(errors, artifact, 'invalid_source', f'opportunities[{index}].source must be trading')
+        confidence = item.get('confidence')
+        if confidence is None or not number(confidence):
+            add_error(errors, artifact, 'invalid_confidence', f'opportunities[{index}].confidence must be numeric')
+
+
+def validate_trading_exec(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_exec'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    if not isinstance(payload.get('ok'), bool):
+        add_error(errors, artifact, 'invalid_ok', 'ok must be boolean')
+    if payload.get('openPositions') is not None and (
+        not isinstance(payload.get('openPositions'), int) or int(payload.get('openPositions')) < 0
+    ):
+        add_error(errors, artifact, 'invalid_open_positions', 'openPositions must be a non-negative integer')
+    if payload.get('drawdownPct') is not None and not number(payload.get('drawdownPct')):
+        add_error(errors, artifact, 'invalid_drawdown_pct', 'drawdownPct must be numeric')
+    if payload.get('weeklyRealizedNetUsd') is not None and not number(payload.get('weeklyRealizedNetUsd')):
+        add_error(errors, artifact, 'invalid_weekly_realized_net', 'weeklyRealizedNetUsd must be numeric')
+
+
+def validate_trading_route(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_route'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    if not isinstance(payload.get('ok'), bool):
+        add_error(errors, artifact, 'invalid_ok', 'ok must be boolean')
+    if payload.get('unroutedProfitUsd') is not None and not number(payload.get('unroutedProfitUsd')):
+        add_error(errors, artifact, 'invalid_unrouted_profit', 'unroutedProfitUsd must be numeric')
+
+
+def validate_trading_positions(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_positions'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    open_positions = payload.get('openPositions')
+    if not isinstance(open_positions, list):
+        add_error(errors, artifact, 'missing_open_positions', 'openPositions must be an array')
+        return
+    for index, item in enumerate(open_positions[:SAMPLE_LIMIT]):
+        if not isinstance(item, dict):
+            add_error(errors, artifact, 'invalid_item', f'openPositions[{index}] must be an object')
+            continue
+        if not non_empty_string(item.get('marketId')):
+            add_error(errors, artifact, 'missing_market_id', f'openPositions[{index}].marketId must be non-empty string')
+        if not non_empty_string(item.get('side')):
+            add_error(errors, artifact, 'missing_side', f'openPositions[{index}].side must be non-empty string')
+        if item.get('notionalUsd') is None or not number(item.get('notionalUsd')):
+            add_error(errors, artifact, 'invalid_notional', f'openPositions[{index}].notionalUsd must be numeric')
+
+
 def validate_artifact(
     name: str,
     path: Path,
@@ -232,6 +303,8 @@ def validate_artifact(
 def run() -> int:
     ensure_dirs()
     require_runtime = parse_bool(os.getenv('KYO_REQUIRE_KYOSHIN_RUNTIME'), True)
+    trading_enabled = parse_bool(os.getenv('KYO_ENABLE_TRADING_AGENT'), False)
+    require_trading = parse_bool(os.getenv('KYO_REQUIRE_TRADING_AGENT'), False)
 
     errors: list[dict[str, Any]] = []
     reports: list[dict[str, Any]] = []
@@ -243,6 +316,15 @@ def run() -> int:
         ('mission_control_backlog', MISSION_CONTROL_DIR / 'backlog.json', True, validate_backlog),
         ('kyoshin_runtime', STATE_DIR / 'kyoshin-runtime.json', require_runtime, validate_runtime_state),
     ]
+    if trading_enabled:
+        checks.extend(
+            [
+                ('trading_feed', STATE_DIR / 'trading-feed.json', require_trading, validate_trading_feed),
+                ('trading_exec', STATE_DIR / 'trading-exec.json', require_trading, validate_trading_exec),
+                ('trading_route', STATE_DIR / 'trading-route.json', require_trading, validate_trading_route),
+                ('trading_positions', STATE_DIR / 'trading-positions.json', require_trading, validate_trading_positions),
+            ]
+        )
 
     for name, path, required, validator in checks:
         validate_artifact(name, path, required, validator, errors, reports)

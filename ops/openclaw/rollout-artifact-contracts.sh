@@ -8,6 +8,10 @@ ENFORCE_REVENUE_GATES="${ENFORCE_REVENUE_GATES:-true}"
 KYOSHIN_DB_PATH="${KYOSHIN_DB_PATH:-}"
 SYSTEMCTL_REQUIRED="${SYSTEMCTL_REQUIRED:-false}"
 USE_SUDO="${USE_SUDO:-true}"
+FAIL_ON_TICK_ERROR="${FAIL_ON_TICK_ERROR:-true}"
+INSTALL_AWESOME_FINANCE_SKILLS="${INSTALL_AWESOME_FINANCE_SKILLS:-false}"
+AWESOME_FINANCE_SKILLS_SCOPE="${AWESOME_FINANCE_SKILLS_SCOPE:-workspace}"
+AWESOME_FINANCE_SKILLS_CSV="${AWESOME_FINANCE_SKILLS_CSV:-alphaear-news,alphaear-stock,alphaear-sentiment,alphaear-predictor,alphaear-signal-tracker,alphaear-search,alphaear-reporter,alphaear-logic-visualizer}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_BIN_DIR="$OPENCLAW_HOME/bin"
@@ -102,6 +106,9 @@ run() {
     "kyoshin-swarm-planner.py"
     "kyoshin-mission-control.py"
     "kyoshin-revenue-guard.py"
+    "kyoshin-trading-feed.py"
+    "kyoshin-trading-exec.py"
+    "kyoshin-trading-staking-route.py"
     "kyoshin-x402-agentcash.py"
     "kyoshin-clawmart-staking-route.py"
     "kyoshin-clawmart-monitor.py"
@@ -110,6 +117,7 @@ run() {
     "kyoshin-learnings.py"
     "kyoshin-memory-extract.py"
     "kyoshin-operator-log.py"
+    "install-awesome-finance-skills.sh"
     "kyoshin-autonomy-loop.sh"
   )
   local script
@@ -134,6 +142,25 @@ run() {
   append_env_if_missing "KYO_REQUIRE_CLAWMART_STAKING_ROUTE" "true"
   append_env_if_missing "KYO_ENABLE_REVENUE_GUARD" "true"
   append_env_if_missing "KYO_REQUIRE_REVENUE_GUARD" "true"
+  append_env_if_missing "KYO_ENABLE_TRADING_AGENT" "false"
+  append_env_if_missing "KYO_REQUIRE_TRADING_AGENT" "false"
+  append_env_if_missing "KYO_TRADING_EXECUTION_MODE" "paper"
+  append_env_if_missing "KYO_TRADING_VENUES" "dflow,kalshi"
+  append_env_if_missing "KYO_TRADING_KALSHI_SIGNAL_ONLY" "true"
+  append_env_if_missing "KYO_TRADING_DFLOW_API_BASE_URL" "https://dev-prediction-markets-api.dflow.net"
+  append_env_if_missing "KYO_TRADING_DFLOW_MARKETS_PATH" "/api/v1/markets"
+  append_env_if_missing "KYO_TRADING_DFLOW_MARKETS_STATUS" "active"
+  append_env_if_missing "KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY" "750"
+  append_env_if_missing "KYO_TRADING_MAX_OPEN_POSITIONS" "6"
+  append_env_if_missing "KYO_TRADING_MAX_MARKET_EXPOSURE_USD" "150"
+  append_env_if_missing "KYO_TRADING_MAX_DRAWDOWN_PCT" "8"
+  append_env_if_missing "KYO_TRADING_WEEKLY_LOSS_CAP_USD" "300"
+  append_env_if_missing "KYO_TRADING_TAKE_PROFIT_PCT" "12"
+  append_env_if_missing "KYO_TRADING_STOP_LOSS_PCT" "8"
+  append_env_if_missing "KYO_TRADING_MAX_HOLD_HOURS" "72"
+  append_env_if_missing "KYO_TRADING_ROUTE_NET_BPS" "5000"
+  append_env_if_missing "KYO_TRADING_ROUTE_MIN_SOL" "0.000001"
+  append_env_if_missing "KYO_TRADING_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
   append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
   append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
   append_env_if_missing "KYO_ENABLE_DISTRIBUTION_ENGINE" "true"
@@ -148,6 +175,9 @@ run() {
   append_env_if_missing "KYO_DX_TERMINAL_GENERATED_FEED_ENABLED" "true"
   append_env_if_missing "KYO_ENABLE_SENTRY_PIPELINE" "true"
   append_env_if_missing "KYO_REQUIRE_SENTRY_PIPELINE" "false"
+  append_env_if_missing "KYO_INSTALL_AWESOME_FINANCE_SKILLS" "false"
+  append_env_if_missing "KYO_AWESOME_FINANCE_SKILLS_SCOPE" "workspace"
+  append_env_if_missing "KYO_AWESOME_FINANCE_SKILLS_CSV" "alphaear-news,alphaear-stock,alphaear-sentiment,alphaear-predictor,alphaear-signal-tracker,alphaear-search,alphaear-reporter,alphaear-logic-visualizer"
   if [ -n "$KYOSHIN_DB_PATH" ]; then
     set_env_value "KYO_KYOSHIN_DB_PATH" "$KYOSHIN_DB_PATH"
   fi
@@ -161,6 +191,14 @@ run() {
     set_env_value "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   fi
 
+  if is_true "$INSTALL_AWESOME_FINANCE_SKILLS"; then
+    echo "[2.5/6] installing Awesome-finance-skills into OpenClaw"
+    run_as_openclaw "
+      set -euo pipefail
+      \"$TARGET_BIN_DIR/install-awesome-finance-skills.sh\" --scope \"$AWESOME_FINANCE_SKILLS_SCOPE\" --skills \"$AWESOME_FINANCE_SKILLS_CSV\"
+    "
+  fi
+
   local has_systemctl=0
   if command -v systemctl >/dev/null 2>&1; then
     has_systemctl=1
@@ -172,6 +210,7 @@ run() {
   fi
 
   echo "[3/6] running single control-loop tick"
+  local tick_rc=0
   if [ "$has_systemctl" -eq 1 ]; then
     if is_true "$USE_SUDO"; then
       sudo systemctl start "$SYSTEMD_UNIT"
@@ -181,10 +220,16 @@ run() {
     sleep 2
   else
     echo "systemctl not found; running loop script directly"
+    set +e
     run_as_openclaw "
       set -euo pipefail
       \"$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh\"
     "
+    tick_rc=$?
+    set -e
+    if [ "$tick_rc" -ne 0 ]; then
+      echo "warning: control-loop tick returned non-zero exit code: $tick_rc"
+    fi
   fi
 
   echo "[4/6] runtime control status"
@@ -206,6 +251,46 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/revenue-guard.json\"
     else
       echo 'missing revenue-guard.json'
+    fi
+
+    echo
+    echo '--- trading-feed.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-feed.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-feed.json\"
+    else
+      echo 'missing trading-feed.json'
+    fi
+
+    echo
+    echo '--- trading-exec.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-exec.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-exec.json\"
+    else
+      echo 'missing trading-exec.json'
+    fi
+
+    echo
+    echo '--- trading-route.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-route.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-route.json\"
+    else
+      echo 'missing trading-route.json'
+    fi
+
+    echo
+    echo '--- trading-positions.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-positions.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-positions.json\"
+    else
+      echo 'missing trading-positions.json'
+    fi
+
+    echo
+    echo '--- awesome-finance-skills.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/awesome-finance-skills.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/awesome-finance-skills.json\"
+    else
+      echo 'missing awesome-finance-skills.json'
     fi
 
     echo
@@ -322,10 +407,19 @@ run() {
   echo "Set ClawMart staking routing:"
   echo "  - KYO_CLAWMART_STAKING_SOL_PER_SALE=<net-sol-per-sale>"
   echo "  - KYO_CLAWMART_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_CLAWMART_STAKING_ROUTE_CMD=...)"
+  echo "Set trading lane live credentials:"
+  echo "  - KYO_ENABLE_TRADING_AGENT=true"
+  echo "  - KYO_TRADING_EXECUTION_MODE=live"
+  echo "  - KYO_TRADING_DFLOW_API_KEY=<key> (or KYO_TRADING_DFLOW_EXEC_CMD=...)"
+  echo "  - KYO_TRADING_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_TRADING_STAKING_ROUTE_CMD=...)"
   if [ "$has_systemctl" -eq 1 ]; then
     echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
   else
     echo "and rerun: sudo -u $OPENCLAW_USER -H bash -lc '$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh'"
+  fi
+
+  if [ "$tick_rc" -ne 0 ] && is_true "$FAIL_ON_TICK_ERROR"; then
+    exit "$tick_rc"
   fi
 }
 

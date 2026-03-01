@@ -93,3 +93,29 @@ test('rollback pruning removes expired source windows', () => {
   });
   assert.equal(Object.keys(pruned.sources).length, 0);
 });
+
+test('rollback state supports trading source', () => {
+  const state = parseRollbackState(
+    JSON.stringify({
+      updatedAt: '2026-02-20T00:00:00.000Z',
+      sources: {
+        trading: {
+          source: 'trading',
+          disabledUntil: '2026-02-21T00:00:00.000Z',
+          reason: 'weekly_negative_net_sol',
+          weeklyNetSol: -0.2,
+          sourceRevenueSol: -0.2,
+          sourceSampleCount: 10,
+          updatedAt: '2026-02-20T00:00:00.000Z',
+        },
+      },
+    })
+  );
+
+  const status = isRollbackSourceDisabled({
+    state,
+    source: 'trading',
+    nowIso: '2026-02-20T12:00:00.000Z',
+  });
+  assert.equal(status.disabled, true);
+});

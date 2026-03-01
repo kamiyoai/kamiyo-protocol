@@ -10,6 +10,7 @@ import type {
 
 export type SwarmOpportunitySource =
   | 'x402'
+  | 'trading'
   | 'relevance'
   | 'agent_ai'
   | 'kore'
@@ -219,6 +220,9 @@ function arrayOfStrings(value: unknown): string[] {
 function normalizeSource(value: string | undefined): SwarmOpportunitySource {
   const source = (value ?? 'direct').trim().toLowerCase();
   if (source === 'x402') return 'x402';
+  if (source === 'trading' || source === 'dflow' || source === 'kalshi' || source === 'prediction_market') {
+    return 'trading';
+  }
   if (source === 'relevance' || source === 'relevance_ai') return 'relevance';
   if (source === 'agent.ai' || source === 'agentai' || source === 'agent_ai') return 'agent_ai';
   if (source === 'kore' || source === 'kore_ai') return 'kore';
@@ -581,6 +585,7 @@ function filterRankedOpportunities(params: {
   const filtered = params.opportunities.filter(opportunity => {
     if (opportunity.payoutUsd == null) {
       if (
+        opportunity.source === 'trading' ||
         opportunity.source === 'agent_ai' ||
         opportunity.source === 'kore' ||
         opportunity.source === 'relevance'
@@ -647,6 +652,7 @@ function valueScore(opportunity: SwarmOpportunity): number {
 
 function jobSourceForOpportunity(source: SwarmOpportunity['source']): SwarmJobSource {
   if (source === 'x402') return 'x402';
+  if (source === 'trading') return 'trading';
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';
   if (source === 'kore') return 'kore';

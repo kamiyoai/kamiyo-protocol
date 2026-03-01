@@ -45,6 +45,8 @@ class KyoshinOperatorLogTests(unittest.TestCase):
         self.mod.CLAWMART_MONITOR_PATH = self.state_dir / 'clawmart-monitor.json'
         self.mod.X402_AGENTCASH_PATH = self.state_dir / 'x402-agentcash.json'
         self.mod.DISPATCH_SUMMARY_PATH = self.state_dir / 'distribution-engine.json'
+        self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -92,6 +94,41 @@ class KyoshinOperatorLogTests(unittest.TestCase):
                     'costUsd': 6,
                     'netUsd': 24,
                 },
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'venue': 'dflow',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'grossUsd': 20,
+                    'costUsd': 3,
+                    'netUsd': 17,
+                    'routedSol': 0,
+                },
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'venue': 'dflow',
+                    'kind': 'route',
+                    'status': 'success',
+                    'realized': True,
+                    'grossUsd': 0,
+                    'costUsd': 2,
+                    'netUsd': -2,
+                    'routedSol': 0.05,
+                },
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'venue': 'kalshi',
+                    'kind': 'signal',
+                    'status': 'success',
+                    'realized': False,
+                    'grossUsd': 0,
+                    'costUsd': 0,
+                    'netUsd': 0,
+                },
             ],
         )
         self._append_jsonl(
@@ -108,15 +145,22 @@ class KyoshinOperatorLogTests(unittest.TestCase):
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': True, 'reasons': []})
         self._write_json(self.mod.CLAWMART_MONITOR_PATH, {'ok': True, 'unroutedSalesCount': 0})
         self._write_json(self.mod.DISPATCH_SUMMARY_PATH, {'dispatchSuccessRate': 0.8})
+        self._write_json(self.mod.TRADING_EXEC_PATH, {'openPositions': 2, 'drawdownPct': 3.1})
+        self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedProfitUsd': 0.0})
 
         code, summary = self._run(['kyoshin-operator-log.py', '--status', 'ok', '--cycle', '42'])
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('published'), True)
-        self.assertAlmostEqual(float(summary.get('revenueGrossUsd7d')), 150.0, places=6)
-        self.assertAlmostEqual(float(summary.get('revenueCostUsd7d')), 16.0, places=6)
-        self.assertAlmostEqual(float(summary.get('revenueNetUsd7d')), 134.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueGrossUsd7d')), 170.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueCostUsd7d')), 21.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueNetUsd7d')), 149.0, places=6)
         self.assertEqual(summary.get('paidOrders7d'), 1)
         self.assertEqual(summary.get('x402PaidCalls7d'), 1)
+        self.assertAlmostEqual(float(summary.get('tradingGrossUsd7d')), 20.0, places=6)
+        self.assertAlmostEqual(float(summary.get('tradingNetUsd7d')), 17.0, places=6)
+        self.assertAlmostEqual(float(summary.get('tradingRoutedSol7d')), 0.05, places=6)
+        self.assertEqual(summary.get('dflowTrades7d'), 1)
+        self.assertEqual(summary.get('kalshiSignals7d'), 1)
         self.assertEqual(summary.get('stakingRoutedSalesCheckpoint'), 3)
         self.assertAlmostEqual(float(summary.get('distributionDispatchSuccessRate')), 0.8, places=6)
 
@@ -126,6 +170,8 @@ class KyoshinOperatorLogTests(unittest.TestCase):
     def test_does_not_publish_twice_same_day_unless_forced(self):
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': True, 'reasons': []})
         self._write_json(self.mod.CLAWMART_MONITOR_PATH, {'ok': True, 'unroutedSalesCount': 0})
+        self._write_json(self.mod.TRADING_EXEC_PATH, {'openPositions': 0, 'drawdownPct': 0})
+        self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedProfitUsd': 0.0})
 
         code1, summary1 = self._run(['kyoshin-operator-log.py', '--status', 'ok', '--cycle', '1'])
         self.assertEqual(code1, 0)
@@ -146,6 +192,8 @@ class KyoshinOperatorLogTests(unittest.TestCase):
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': False, 'reasons': ['weekly_spend_cap_exceeded']})
         self._write_json(self.mod.CLAWMART_MONITOR_PATH, {'ok': False, 'stakingRouteCompliant': False, 'unroutedSalesCount': 2})
         self._write_json(self.mod.X402_AGENTCASH_PATH, {'status': 'blocked', 'reason': 'no_executed_calls'})
+        self._write_json(self.mod.TRADING_EXEC_PATH, {'status': 'blocked', 'reasons': ['drawdown_breaker_exceeded']})
+        self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedProfitUsd': 3.0})
 
         code, summary = self._run(['kyoshin-operator-log.py', '--status', 'degraded', '--cycle', '8'])
         self.assertEqual(code, 0)
@@ -153,6 +201,7 @@ class KyoshinOperatorLogTests(unittest.TestCase):
         self.assertIn('weekly_spend_cap_exceeded', blockers)
         self.assertIn('staking_route_non_compliant', blockers)
         self.assertIn('no_executed_calls', blockers)
+        self.assertIn('drawdown_breaker_exceeded', blockers)
 
 
 if __name__ == '__main__':

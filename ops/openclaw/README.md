@@ -17,6 +17,10 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
 - `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
 - `kyoshin-revenue-guard.py`: enforces spend caps and red-line revenue policy before paid execution.
+- `kyoshin-trading-feed.py`: pulls DFlow/Kalshi market data and normalizes trading opportunities.
+- `kyoshin-trading-exec.py`: executes trading actions (DFlow or Singularity backend, or paper mode), enforces risk caps, and appends normalized trading ledger rows.
+- `kyoshin-trading-staking-route.py`: routes realized trading profit to staking pool with route receipts and ledger checkpoints.
+- `kyoshin-trading-cutover.sh`: one-command trading lane cutover (`status|paper|live`) with secret preflight and rollout.
 - `kyoshin-x402-agentcash.py`: executes paid x402 allowlist routes through `agentcash` and normalizes receipts into the revenue ledger.
 - `kyoshin-clawmart-staking-route.py`: idempotent ClawMart earnings router that executes staking transfer and appends route receipts.
 - `kyoshin-clawmart-monitor.py`: ClawMart sales/listing monitor that appends fulfillment tasks, enforces staking-route policy, and tracks receipt checkpoints.
@@ -25,6 +29,7 @@ This folder versions the deployed autonomy loop artifacts used on the OpenClaw d
 - `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
 - `kyoshin-memory-extract.py`: nightly extraction of durable `MEMORY.md` facts from daily workspace notes.
 - `kyoshin-operator-log.py`: daily operator summary publisher (revenue/cost/net/routing/blockers).
+- `install-awesome-finance-skills.sh`: installs RKiding finance skills into OpenClaw workspace/managed skill paths.
 - `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
 - `rollout-artifact-contracts.sh`: host rollout helper that installs artifact-contract validator + updated loop and runs one verification tick.
 - `install-context-pack.sh`: scaffolds mission/profile/goals/tool-registry baseline files.
@@ -47,6 +52,10 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-runtime-bridge.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-revenue-guard.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-trading-feed.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-trading-exec.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-trading-staking-route.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kyoshin-trading-cutover.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-x402-agentcash.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-clawmart-staking-route.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-clawmart-monitor.py ~/bin/
@@ -55,6 +64,7 @@ sudo install -m 700 -o openclaw -g openclaw kyoshin-artifact-contracts.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-memory-extract.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-operator-log.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw install-awesome-finance-skills.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
 sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
 sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
@@ -71,6 +81,20 @@ Rollout helper for this specific hardening:
 ./rollout-artifact-contracts.sh
 ```
 
+Trading cutover helper:
+
+```bash
+./kyoshin-trading-cutover.sh status
+./kyoshin-trading-cutover.sh paper
+./kyoshin-trading-cutover.sh live
+```
+
+Finance skills installer:
+
+```bash
+~/bin/install-awesome-finance-skills.sh --scope workspace
+```
+
 ## Runtime paths
 
 - Feed config: `~/.openclaw/workspace/runtime/marketplace-feeds.json`
@@ -84,6 +108,11 @@ Rollout helper for this specific hardening:
 - Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
 - Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
 - Revenue guard output: `~/.openclaw/workspace/runtime/state/revenue-guard.json`
+- Trading feed output: `~/.openclaw/workspace/runtime/state/trading-feed.json`
+- Trading execution output: `~/.openclaw/workspace/runtime/state/trading-exec.json`
+- Trading routing output: `~/.openclaw/workspace/runtime/state/trading-route.json`
+- Trading positions: `~/.openclaw/workspace/runtime/state/trading-positions.json`
+- Trading staking receipts: `~/.openclaw/workspace/runtime/receipts/trading-staking-route.jsonl`
 - x402 agentcash output: `~/.openclaw/workspace/runtime/state/x402-agentcash.json`
 - ClawMart staking route state: `~/.openclaw/workspace/runtime/state/clawmart-staking-route-state.json`
 - ClawMart monitor state: `~/.openclaw/workspace/runtime/state/clawmart-monitor-state.json`
@@ -230,7 +259,40 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_WEEKLY_SPEND_CAP_USD=150`
   - `KYO_X402_ACTIVITY_LOOKBACK_HOURS=72`
   - `KYO_X402_ACTIVITY_GRACE_HOURS=72`
+  - `KYO_TRADING_ROUTE_LAG_TOLERANCE_USD=1.0`
   - `KYO_REVENUE_LEDGER_PATH=~/.openclaw/workspace/runtime/receipts/revenue-ledger.jsonl`
+- trading lane controls:
+  - `KYO_ENABLE_TRADING_AGENT=true|false` (default `false`)
+  - `KYO_REQUIRE_TRADING_AGENT=true|false` (default `false`)
+  - `KYO_TRADING_EXECUTION_MODE=paper|live` (default `paper`)
+  - `KYO_TRADING_EXECUTION_BACKEND=dflow|singularity` (default `dflow`)
+  - `KYO_TRADING_VENUES=dflow,kalshi`
+  - `KYO_TRADING_KALSHI_SIGNAL_ONLY=true|false` (default `true`)
+  - `KYO_TRADING_DFLOW_API_BASE_URL=https://dev-prediction-markets-api.dflow.net`
+  - `KYO_TRADING_DFLOW_MARKETS_PATH=/api/v1/markets`
+  - `KYO_TRADING_DFLOW_MARKETS_STATUS=active`
+  - `KYO_TRADING_DFLOW_API_KEY=...` (required for live mode on `dflow` backend unless `KYO_TRADING_DFLOW_EXEC_CMD` is set)
+  - `KYO_TRADING_DFLOW_EXEC_CMD=<custom command returning json result>` (optional execution override)
+  - `KYO_TRADING_SOLANA_KEYPAIR_PATH=~/.config/solana/id.json` (required for live mode on `singularity` backend)
+  - `KYO_TRADING_SOLANA_SIGNER_NODE_BIN=node` (node runtime used to sign Solana auth headers)
+  - `KYO_TRADING_SINGULARITY_ORDER_TYPE=limit|market` (default `limit`)
+  - `KYO_TRADING_SINGULARITY_INCLUDE_PRICE=true|false` (default `false`; always included for `limit`)
+  - `KYO_TRADING_SINGULARITY_REQUIRE_TX_SIGNATURE=true|false` (default `true`)
+  - `KYO_TRADING_SINGULARITY_TX_SIGNATURE_PREFIX=kyo` (prefix for deterministic tx signatures)
+  - `KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY=750`
+  - `KYO_TRADING_MAX_OPEN_POSITIONS=6`
+  - `KYO_TRADING_MAX_MARKET_EXPOSURE_USD=150`
+  - `KYO_TRADING_MAX_DRAWDOWN_PCT=8`
+  - `KYO_TRADING_WEEKLY_LOSS_CAP_USD=300`
+  - `KYO_TRADING_TAKE_PROFIT_PCT=12`
+  - `KYO_TRADING_STOP_LOSS_PCT=8`
+  - `KYO_TRADING_MAX_HOLD_HOURS=72`
+  - `KYO_TRADING_ROUTE_NET_BPS=5000`
+  - `KYO_TRADING_ROUTE_MIN_SOL=0.000001`
+  - `KYO_TRADING_STAKING_POOL_URL=https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d`
+  - `KYO_TRADING_STAKING_KEYPAIR_PATH=/absolute/path/to/keypair.json` (used by fallback `solana transfer`)
+  - `KYO_TRADING_STAKING_ROUTE_CMD=<custom command returning json txSignature>` (optional override)
+  - `KYO_TRADING_STAKING_DRY_RUN=true|false` (default `false`)
 - distribution engine controls:
   - `KYO_ENABLE_DISTRIBUTION_ENGINE=true|false` (default `true`)
   - `KYO_REQUIRE_DISTRIBUTION_ENGINE=true|false` (default `false`)
@@ -245,6 +307,10 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_ENABLE_OPERATOR_LOG=true|false` (default `true`)
   - `KYO_REQUIRE_OPERATOR_LOG=true|false` (default `false`)
   - `KYO_OPERATOR_LOG_FORCE=true|false` (optional manual override)
+- finance skills install controls:
+  - `KYO_INSTALL_AWESOME_FINANCE_SKILLS=true|false` (default `false`, rollout-time toggle)
+  - `KYO_AWESOME_FINANCE_SKILLS_SCOPE=workspace|managed|both` (default `workspace`)
+  - `KYO_AWESOME_FINANCE_SKILLS_CSV=alphaear-news,alphaear-stock,...` (default curated list)
 - work-or-die policy controls:
   - `KYO_GOVERNOR_WINDOW_DAYS=7`
   - `KYO_GOVERNOR_MIN_ATTEMPTS=3`

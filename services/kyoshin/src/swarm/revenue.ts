@@ -9,6 +9,7 @@ export type RevenueLane =
 
 export function revenueLaneForOpportunitySource(source: SwarmOpportunitySource): RevenueLane {
   if (source === 'x402') return 'x402';
+  if (source === 'trading') return 'trading';
   if (source === 'relevance' || source === 'agent_ai' || source === 'kore' || source === 'near_market') {
     return 'marketplace_direct';
   }

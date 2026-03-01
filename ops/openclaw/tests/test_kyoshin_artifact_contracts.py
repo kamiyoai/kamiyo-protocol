@@ -29,12 +29,22 @@ class KyoshinArtifactContractsTests(unittest.TestCase):
         self.runtime = self.workspace / 'runtime'
         self._configure_paths()
         self.prev_require_runtime = os.environ.get('KYO_REQUIRE_KYOSHIN_RUNTIME')
+        self.prev_enable_trading = os.environ.get('KYO_ENABLE_TRADING_AGENT')
+        self.prev_require_trading = os.environ.get('KYO_REQUIRE_TRADING_AGENT')
 
     def tearDown(self):
         if self.prev_require_runtime is None:
             os.environ.pop('KYO_REQUIRE_KYOSHIN_RUNTIME', None)
         else:
             os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = self.prev_require_runtime
+        if self.prev_enable_trading is None:
+            os.environ.pop('KYO_ENABLE_TRADING_AGENT', None)
+        else:
+            os.environ['KYO_ENABLE_TRADING_AGENT'] = self.prev_enable_trading
+        if self.prev_require_trading is None:
+            os.environ.pop('KYO_REQUIRE_TRADING_AGENT', None)
+        else:
+            os.environ['KYO_REQUIRE_TRADING_AGENT'] = self.prev_require_trading
         self.tmp.cleanup()
 
     def _configure_paths(self):
@@ -164,6 +174,20 @@ class KyoshinArtifactContractsTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         out = self._read_output()
         self.assertTrue(out.get('ok'))
+
+    def test_trading_artifacts_are_required_when_enabled_and_required(self):
+        os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = 'true'
+        os.environ['KYO_ENABLE_TRADING_AGENT'] = 'true'
+        os.environ['KYO_REQUIRE_TRADING_AGENT'] = 'true'
+        self._write_valid_artifacts(include_runtime=True)
+        rc = self._run_silent()
+        self.assertEqual(rc, 1)
+        out = self._read_output()
+        artifacts = {err.get('artifact') for err in out.get('errors', [])}
+        self.assertIn('trading_feed', artifacts)
+        self.assertIn('trading_exec', artifacts)
+        self.assertIn('trading_route', artifacts)
+        self.assertIn('trading_positions', artifacts)
 
 
 if __name__ == '__main__':

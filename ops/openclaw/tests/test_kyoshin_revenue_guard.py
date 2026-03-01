@@ -41,14 +41,19 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.mod.LOG_PATH = self.log_dir / 'revenue-guard.jsonl'
         self.mod.CLAWMART_MONITOR_PATH = self.state_dir / 'clawmart-monitor.json'
         self.mod.LEDGER_PATH = self.receipts_dir / 'revenue-ledger.jsonl'
+        self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
 
         self.mod.ENABLE_REVENUE_GUARD = True
         self.mod.ENABLE_CLAWMART_MONITOR = True
         self.mod.ENABLE_X402_AGENTCASH = True
+        self.mod.ENABLE_TRADING_AGENT = False
+        self.mod.REQUIRE_TRADING_AGENT = False
         self.mod.REQUIRE_CLAWMART_STAKING_ROUTE = True
         self.mod.WEEKLY_SPEND_CAP_USD = 150.0
         self.mod.X402_ACTIVITY_LOOKBACK_HOURS = 72
         self.mod.X402_ACTIVITY_GRACE_HOURS = 72
+        self.mod.TRADING_ROUTE_LAG_TOLERANCE_USD = 1.0
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -142,6 +147,52 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.assertEqual(summary.get('ok'), True)
         self.assertEqual(summary.get('status'), 'ok')
         self.assertEqual(summary.get('reasons'), [])
+
+    def test_blocks_when_trading_live_key_missing(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.REQUIRE_TRADING_AGENT = True
+        self.mod.TRADING_EXEC_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.TRADING_EXEC_PATH.write_text(
+            json.dumps({'ok': True, 'status': 'ok', 'drawdownBreakerExceeded': False, 'weeklyLossCapExceeded': False}),
+            encoding='utf-8',
+        )
+        self.mod.TRADING_ROUTE_PATH.write_text(
+            json.dumps({'ok': True, 'status': 'up_to_date', 'unroutedProfitUsd': 0}),
+            encoding='utf-8',
+        )
+        code, summary = self._run(
+            {
+                'KYO_TRADING_EXECUTION_MODE': 'live',
+                'KYO_TRADING_DFLOW_API_KEY': '',
+                'KYO_TRADING_DFLOW_EXEC_CMD': '',
+            }
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('missing_dflow_api_key', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_blocks_when_trading_route_checkpoint_lags(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.REQUIRE_TRADING_AGENT = True
+        self.mod.TRADING_ROUTE_LAG_TOLERANCE_USD = 1.0
+        self.mod.TRADING_EXEC_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.TRADING_EXEC_PATH.write_text(
+            json.dumps({'ok': True, 'status': 'ok', 'drawdownBreakerExceeded': False, 'weeklyLossCapExceeded': False}),
+            encoding='utf-8',
+        )
+        self.mod.TRADING_ROUTE_PATH.write_text(
+            json.dumps({'ok': True, 'status': 'blocked', 'unroutedProfitUsd': 25}),
+            encoding='utf-8',
+        )
+        code, summary = self._run({'KYO_TRADING_EXECUTION_MODE': 'paper'})
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('trading_route_checkpoint_lag', summary.get('reasons', []))
 
 
 if __name__ == '__main__':

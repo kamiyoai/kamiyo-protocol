@@ -1,6 +1,7 @@
 export type SwarmAgentStatus = 'active' | 'paused' | 'retired';
 export type SwarmJobSource =
   | 'x402'
+  | 'trading'
   | 'direct_api'
   | 'relevance'
   | 'agent_ai'

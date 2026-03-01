@@ -20,7 +20,7 @@ function createRegistry(): SwarmRegistry {
         mint: 'mint-1',
         status: 'active',
         priority: 1,
-        jobSources: ['x402', 'direct_api', 'relevance', 'agent_ai', 'kore', 'near_market', 'internal'],
+        jobSources: ['x402', 'trading', 'direct_api', 'relevance', 'agent_ai', 'kore', 'near_market', 'internal'],
         marketplaceProfiles: [],
         missionHints: [],
       },
@@ -189,6 +189,50 @@ test('source quality weighting influences assignment selection', async () => {
 
   assert.equal(intake.assignments.length, 1);
   assert.equal(intake.assignments[0]?.opportunityId, 'opp-x402');
+});
+
+test('trading source opportunities are accepted and assignable', async () => {
+  const feedPath = writeFeed({
+    opportunities: [
+      {
+        id: 'opp-trading-1',
+        source: 'trading',
+        title: 'Prediction market candidate',
+        summary: 'Signal with deterministic entry rules',
+        confidence: 0.82,
+        roleHints: ['Execution'],
+        tags: ['trading'],
+        payoutUsd: 12,
+        url: 'https://example.com/trading-1',
+      },
+    ],
+  });
+
+  const intake = await collectSwarmOpportunities({
+    registry: createRegistry(),
+    feedPath,
+    feedUrls: [],
+    leadConversionPolicy: {
+      enabled: false,
+      maxConversions: 0,
+      defaultPayoutUsd: 0,
+      requireEndpoint: true,
+      simulateOnly: false,
+      estimatedFeeSol: 0,
+      minConfidence: 0.6,
+      validateSourceContracts: true,
+    },
+    minRewardUsd: 0,
+    maxOpen: 10,
+    assignmentLimit: 1,
+    solPriceUsd: 100,
+    fetchTimeoutMs: 1000,
+  });
+
+  assert.equal(intake.opportunities.length, 1);
+  assert.equal(intake.opportunities[0]?.source, 'trading');
+  assert.equal(intake.assignments.length, 1);
+  assert.equal(intake.assignments[0]?.opportunityId, 'opp-trading-1');
 });
 
 test('extra intake opportunities are merged into assignment pool', async () => {

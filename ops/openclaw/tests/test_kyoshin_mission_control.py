@@ -48,6 +48,8 @@ class KyoshinMissionControlTests(unittest.TestCase):
         self.mod.CLAWMART_STAKING_ROUTE_PATH = self.state_dir / 'clawmart-staking-route.json'
         self.mod.DISPATCH_SUMMARY_PATH = self.state_dir / 'distribution-engine.json'
         self.mod.REVENUE_GUARD_PATH = self.state_dir / 'revenue-guard.json'
+        self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
         self.mod.MISSION_PATH = self.workspace / 'MISSION_STATEMENT.md'
         self.mod.GOALS_PATH = self.workspace / 'GOALS.md'
         self.mod.OUTPUT_DIR = self.output_dir
@@ -164,6 +166,8 @@ class KyoshinMissionControlTests(unittest.TestCase):
         self._write_json(self.mod.CLAWMART_STAKING_ROUTE_PATH, {'totalSales': 4})
         self._write_json(self.mod.DISPATCH_SUMMARY_PATH, {'dispatchSuccessRate': 0.75})
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': True, 'reasons': []})
+        self._write_json(self.mod.TRADING_EXEC_PATH, {'openPositions': 2, 'drawdownPct': 3.5})
+        self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedProfitUsd': 0.0})
 
         code, summary = self._run()
         self.assertEqual(code, 0)
@@ -174,6 +178,11 @@ class KyoshinMissionControlTests(unittest.TestCase):
         self.assertEqual(summary.get('stakingRoutedSalesCheckpoint'), 4)
         self.assertEqual(summary.get('unroutedSalesCount'), 0)
         self.assertEqual(summary.get('distributionDispatchSuccessRate'), 0.75)
+        self.assertEqual(summary.get('tradingGrossUsd7d'), 0.0)
+        self.assertEqual(summary.get('tradingNetUsd7d'), 0.0)
+        self.assertEqual(summary.get('tradingRoutedSol7d'), 0.0)
+        self.assertEqual(summary.get('dflowTrades7d'), 0)
+        self.assertEqual(summary.get('kalshiSignals7d'), 0)
 
 
 if __name__ == '__main__':

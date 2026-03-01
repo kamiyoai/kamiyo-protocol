@@ -17,6 +17,8 @@ OUTPUT_PATH = STATE_DIR / 'revenue-guard.json'
 LOG_PATH = LOG_DIR / 'revenue-guard.jsonl'
 CLAWMART_MONITOR_PATH = STATE_DIR / 'clawmart-monitor.json'
 LEDGER_PATH = Path(os.getenv('KYO_REVENUE_LEDGER_PATH', str(RECEIPTS_DIR / 'revenue-ledger.jsonl')).strip()).expanduser()
+TRADING_EXEC_PATH = STATE_DIR / 'trading-exec.json'
+TRADING_ROUTE_PATH = STATE_DIR / 'trading-route.json'
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -54,10 +56,13 @@ def env_int(name: str, default: int) -> int:
 ENABLE_REVENUE_GUARD = env_bool('KYO_ENABLE_REVENUE_GUARD', True)
 ENABLE_CLAWMART_MONITOR = env_bool('KYO_ENABLE_CLAWMART_MONITOR', True)
 ENABLE_X402_AGENTCASH = env_bool('KYO_ENABLE_X402_AGENTCASH', True)
+ENABLE_TRADING_AGENT = env_bool('KYO_ENABLE_TRADING_AGENT', False)
+REQUIRE_TRADING_AGENT = env_bool('KYO_REQUIRE_TRADING_AGENT', False)
 REQUIRE_CLAWMART_STAKING_ROUTE = env_bool('KYO_REQUIRE_CLAWMART_STAKING_ROUTE', True)
 WEEKLY_SPEND_CAP_USD = max(0.0, env_float('KYO_WEEKLY_SPEND_CAP_USD', 150.0))
 X402_ACTIVITY_LOOKBACK_HOURS = max(1, min(168, env_int('KYO_X402_ACTIVITY_LOOKBACK_HOURS', 72)))
 X402_ACTIVITY_GRACE_HOURS = max(1, min(168, env_int('KYO_X402_ACTIVITY_GRACE_HOURS', 72)))
+TRADING_ROUTE_LAG_TOLERANCE_USD = max(0.0, env_float('KYO_TRADING_ROUTE_LAG_TOLERANCE_USD', 1.0))
 
 
 def now_iso() -> str:
@@ -207,6 +212,32 @@ def run() -> int:
     unrouted_sales_count = parse_int(clawmart_monitor.get('unroutedSalesCount'), 0)
     staking_route_non_compliant = REQUIRE_CLAWMART_STAKING_ROUTE and unrouted_sales_count > 0
 
+    trading_exec = read_json(TRADING_EXEC_PATH, {})
+    if not isinstance(trading_exec, dict):
+        trading_exec = {}
+    trading_route = read_json(TRADING_ROUTE_PATH, {})
+    if not isinstance(trading_route, dict):
+        trading_route = {}
+
+    trading_exec_present = TRADING_EXEC_PATH.exists()
+    trading_route_present = TRADING_ROUTE_PATH.exists()
+    trading_drawdown_breaker_exceeded = bool(trading_exec.get('drawdownBreakerExceeded'))
+    trading_weekly_loss_cap_exceeded = bool(trading_exec.get('weeklyLossCapExceeded'))
+    trading_drawdown_pct = parse_float(trading_exec.get('drawdownPct'), 0.0)
+    trading_weekly_realized_net_usd = parse_float(trading_exec.get('weeklyRealizedNetUsd'), 0.0)
+    trading_unrouted_profit_usd = max(0.0, parse_float(trading_route.get('unroutedProfitUsd'), 0.0))
+
+    trading_execution_mode = os.getenv('KYO_TRADING_EXECUTION_MODE', 'paper').strip().lower() or 'paper'
+    dflow_api_key_present = bool(os.getenv('KYO_TRADING_DFLOW_API_KEY', '').strip())
+    dflow_exec_cmd_present = bool(os.getenv('KYO_TRADING_DFLOW_EXEC_CMD', '').strip())
+    trading_missing_dflow_key = (
+        ENABLE_TRADING_AGENT
+        and trading_execution_mode == 'live'
+        and not dflow_api_key_present
+        and not dflow_exec_cmd_present
+    )
+    trading_route_checkpoint_lag = ENABLE_TRADING_AGENT and trading_unrouted_profit_usd > TRADING_ROUTE_LAG_TOLERANCE_USD
+
     x402_first_seen_at_raw = str(state.get('x402FirstSeenAt') or '').strip()
     x402_first_seen_at = parse_ts(x402_first_seen_at_raw)
     if ENABLE_X402_AGENTCASH and x402_first_seen_at is None:
@@ -224,11 +255,28 @@ def run() -> int:
         reasons.append('missing_clawmart_api_key')
     if staking_route_non_compliant:
         reasons.append('unrouted_clawmart_sales')
+    if trading_missing_dflow_key:
+        reasons.append('missing_dflow_api_key')
+    if REQUIRE_TRADING_AGENT and ENABLE_TRADING_AGENT and not trading_exec_present:
+        reasons.append('missing_trading_exec_state')
+    if REQUIRE_TRADING_AGENT and ENABLE_TRADING_AGENT and not trading_route_present:
+        reasons.append('missing_trading_route_state')
+    if trading_drawdown_breaker_exceeded:
+        reasons.append('trading_drawdown_breaker_exceeded')
+    if trading_weekly_loss_cap_exceeded:
+        reasons.append('trading_weekly_loss_cap_exceeded')
+    if trading_route_checkpoint_lag:
+        reasons.append('trading_route_checkpoint_lag')
     if x402_no_paid_calls_72h:
         reasons.append('x402_zero_paid_calls_lookback')
 
     ok = len(reasons) == 0
-    block_paid_execution = weekly_spend_cap_exceeded
+    block_paid_execution = (
+        weekly_spend_cap_exceeded
+        or trading_missing_dflow_key
+        or trading_drawdown_breaker_exceeded
+        or trading_weekly_loss_cap_exceeded
+    )
     summary = {
         'ok': ok,
         'status': 'ok' if ok else 'policy_blocked',
@@ -250,6 +298,21 @@ def run() -> int:
         'x402GraceHours': X402_ACTIVITY_GRACE_HOURS,
         'x402GraceElapsed': x402_grace_elapsed,
         'x402FirstSeenAt': x402_first_seen_at_raw,
+        'tradingLaneEnabled': ENABLE_TRADING_AGENT,
+        'tradingRequired': REQUIRE_TRADING_AGENT,
+        'tradingExecStatePresent': trading_exec_present,
+        'tradingRouteStatePresent': trading_route_present,
+        'tradingExecutionMode': trading_execution_mode,
+        'dflowApiKeyPresent': dflow_api_key_present,
+        'dflowExecCmdPresent': dflow_exec_cmd_present,
+        'tradingMissingDflowKey': trading_missing_dflow_key,
+        'tradingDrawdownPct': round(trading_drawdown_pct, 8),
+        'tradingDrawdownBreakerExceeded': trading_drawdown_breaker_exceeded,
+        'tradingWeeklyRealizedNetUsd': round(trading_weekly_realized_net_usd, 8),
+        'tradingWeeklyLossCapExceeded': trading_weekly_loss_cap_exceeded,
+        'tradingUnroutedProfitUsd': round(trading_unrouted_profit_usd, 8),
+        'tradingRouteLagToleranceUsd': round(TRADING_ROUTE_LAG_TOLERANCE_USD, 8),
+        'tradingRouteCheckpointLag': trading_route_checkpoint_lag,
     }
     write_json(
         STATE_PATH,

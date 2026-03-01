@@ -25,6 +25,7 @@ const optionalIsoTime = z
   });
 const swarmJobSourceSchema = z.enum([
   'x402',
+  'trading',
   'direct_api',
   'relevance',
   'agent_ai',
