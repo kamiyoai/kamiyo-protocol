@@ -93,7 +93,7 @@ const REFERRAL_CONFIG = {
   fundryApiBase: process.env.KAMIYO_FUNDRY_API_BASE_URL?.trim() || 'https://fundry.collaterize.com',
   weeklyBudgetSol: parsePositiveNumber(process.env.STAKING_REFERRAL_WEEKLY_BUDGET_SOL, 20),
   minStakeKamiyo: parsePositiveNumber(
-    process.env.STAKING_REFERRAL_MIN_STAKE_KAMIYO || process.env.STAKING_REFERRAL_MIN_STAKE_SOL,
+    process.env.STAKING_REFERRAL_MIN_STAKE_KAMIYO,
     1_000_000
   ),
   bonusMaxMultiplier: parsePositiveNumber(process.env.STAKING_REFERRAL_BONUS_MAX_MULTIPLIER, 2),
