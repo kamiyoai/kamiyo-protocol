@@ -22,12 +22,15 @@ EXPECTED_STAGE_ORDER = [
     'swarm_governor',
     'swarm_planner',
     'runtime_bridge',
-    'mission_control',
     'revenue_guard',
+    'trading_feed',
+    'trading_exec',
+    'trading_route',
     'x402_agentcash',
     'clawmart_staking_route',
     'clawmart_monitor',
     'distribution_engine',
+    'mission_control',
     'artifact_contracts',
     'learnings',
     'operator_log',
@@ -37,6 +40,11 @@ EXPECTED_STAGE_ORDER_WITHOUT_SENTRY_PIPELINE = [stage for stage in EXPECTED_STAG
 EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_MONITOR = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'clawmart_monitor']
 EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_STAKING_ROUTE = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'clawmart_staking_route']
 EXPECTED_STAGE_ORDER_WITHOUT_X402_AGENTCASH = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'x402_agentcash']
+EXPECTED_STAGE_ORDER_WITHOUT_TRADING = [
+    stage
+    for stage in EXPECTED_STAGE_ORDER
+    if stage not in {'trading_feed', 'trading_exec', 'trading_route'}
+]
 
 
 class KyoshinAutonomyLoopContractTests(unittest.TestCase):
@@ -161,6 +169,30 @@ echo '{{"ok":true,"status":"ok","blockPaidExecution":false}}'
 """,
         )
         self._write_exec(
+            self.bin_dir / 'kyoshin-trading-feed.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "trading_feed" >> "{self.order_file}"
+echo '{{"ok":true,"status":"ok","accepted":1}}'
+""",
+        )
+        self._write_exec(
+            self.bin_dir / 'kyoshin-trading-exec.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "trading_exec" >> "{self.order_file}"
+echo '{{"ok":true,"status":"ok","executedTrades":1}}'
+""",
+        )
+        self._write_exec(
+            self.bin_dir / 'kyoshin-trading-staking-route.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "trading_route" >> "{self.order_file}"
+echo '{{"ok":true,"status":"up_to_date"}}'
+""",
+        )
+        self._write_exec(
             self.bin_dir / 'kyoshin-x402-agentcash.py',
             f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -262,6 +294,8 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
                 'KYO_ENABLE_CLAWMART_MONITOR': 'true',
                 'KYO_ENABLE_REVENUE_GUARD': 'true',
                 'KYO_REQUIRE_REVENUE_GUARD': 'true',
+                'KYO_ENABLE_TRADING_AGENT': 'true',
+                'KYO_REQUIRE_TRADING_AGENT': 'false',
                 'KYO_ENABLE_X402_AGENTCASH': 'true',
                 'KYO_ENABLE_DISTRIBUTION_ENGINE': 'true',
                 'KYO_ENABLE_OPERATOR_LOG': 'true',
@@ -438,6 +472,12 @@ echo '{{"ok":false,"accepted":0}}'
         result = self._run_loop({'KYO_ENABLE_X402_AGENTCASH': 'false'})
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITHOUT_X402_AGENTCASH)
+
+    def test_trading_lane_can_be_disabled(self):
+        self._write_default_scripts()
+        result = self._run_loop({'KYO_ENABLE_TRADING_AGENT': 'false'})
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITHOUT_TRADING)
 
     def test_clawmart_monitor_can_be_disabled(self):
         self._write_default_scripts()

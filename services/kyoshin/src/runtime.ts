@@ -2904,10 +2904,10 @@ export class KyoshinRuntime {
     this.db.addAction(params.tickId, 'retention_prune', cutoffs, result);
   }
 
-  private deriveSourceQuality(): Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> {
+  private deriveSourceQuality(): Partial<Record<'trading' | 'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> {
     const since = new Date(Date.now() - this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_WINDOW_HOURS * 3_600_000).toISOString();
     const stats = this.db.swarmSourceStatsSince(since);
-    const quality: Partial<Record<'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> = {};
+    const quality: Partial<Record<'trading' | 'x402' | 'relevance' | 'agent_ai' | 'kore' | 'near_market' | 'direct' | 'internal', number>> = {};
 
     for (const row of stats) {
       if (row.total < this.runtimeEnv.KAMIYO_SWARM_SOURCE_FEEDBACK_MIN_SAMPLES) continue;
@@ -2916,6 +2916,7 @@ export class KyoshinRuntime {
       const q = Math.max(0.3, Math.min(1.3, successRate + marginBias));
 
       if (
+        row.source === 'trading' ||
         row.source === 'x402' ||
         row.source === 'relevance' ||
         row.source === 'agent_ai' ||

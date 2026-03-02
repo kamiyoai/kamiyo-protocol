@@ -24,6 +24,7 @@ const optionalIsoTime = z
     message: 'Invalid ISO time',
   });
 const swarmJobSourceSchema = z.enum([
+  'trading',
   'x402',
   'direct_api',
   'relevance',
