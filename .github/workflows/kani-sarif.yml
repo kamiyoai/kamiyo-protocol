@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -51,7 +51,7 @@ jobs:
 
       - name: Checkout Kani (SARIF fork)
         if: steps.sarif_support.outputs.needs_patch == '1'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: kamiyo-ai/kani
           ref: kamiyo/sarif-output

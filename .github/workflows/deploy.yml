@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.network }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -84,7 +84,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download Broadcast Artifact
         uses: actions/download-artifact@v4
