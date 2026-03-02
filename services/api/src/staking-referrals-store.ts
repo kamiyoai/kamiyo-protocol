@@ -494,6 +494,33 @@ export function countRecentAttributionsByInviterIp(params: {
   return row.cnt;
 }
 
+export function countAttributionsByInviter(inviterWallet: string): number {
+  const row = db
+    .prepare(
+      `
+        SELECT COUNT(*) as cnt
+        FROM staking_referral_attributions
+        WHERE inviter_wallet = ?
+      `
+    )
+    .get(inviterWallet) as { cnt: number };
+  return row.cnt;
+}
+
+export function countDistinctIpHashesByInviter(inviterWallet: string): number {
+  const row = db
+    .prepare(
+      `
+        SELECT COUNT(DISTINCT ip_hash) as cnt
+        FROM staking_referral_attributions
+        WHERE inviter_wallet = ?
+          AND ip_hash IS NOT NULL
+      `
+    )
+    .get(inviterWallet) as { cnt: number };
+  return row.cnt;
+}
+
 export function upsertStakeState(state: StakingReferralStakeState): void {
   db.prepare(
     `
