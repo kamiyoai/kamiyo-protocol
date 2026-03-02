@@ -39,7 +39,7 @@ jobs:
       KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
       KAMIYO_SDK_SMOKE_MIN_PAYER_SOL: '0.05'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:

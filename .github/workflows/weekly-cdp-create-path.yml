@@ -22,7 +22,7 @@ jobs:
       KAMIYO_CDP_SMOKE_ARTIFACT_PATH: reports/cdp-weekly-create-path-smoke.json
       KAMIYO_CANARY_ALERT_WEBHOOK: ${{ secrets.KAMIYO_CANARY_ALERT_WEBHOOK }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:

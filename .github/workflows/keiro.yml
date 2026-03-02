@@ -18,7 +18,7 @@ jobs:
       run:
         working-directory: apps/keiro
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:
@@ -41,7 +41,7 @@ jobs:
       run:
         working-directory: apps/keiro
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-node@v6
         with:
