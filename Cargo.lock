@@ -2500,21 +2500,6 @@ dependencies = [
 
 [[package]]
 name = "groth16-solana"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e88b742ab45083ea752bcece9bb0a1f8b9bdff52013a5f6b4dce77ac2b59f34c"
-dependencies = [
- "ark-bn254 0.5.0",
- "ark-ec 0.5.0",
- "ark-ff 0.5.0",
- "ark-serialize 0.5.0",
- "num-bigint 0.4.6",
- "solana-bn254",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "groth16-solana"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a6d1ffb18dbf5cfc60b11bd7da88474c672870247c1e5b498619bcb6ba3d8f5"
@@ -2663,7 +2648,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "constant_time_eq",
- "groth16-solana 0.1.0",
+ "groth16-solana",
  "kani-solana",
  "solana-poseidon 4.0.0",
 ]
@@ -3210,7 +3195,7 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "ed25519-dalek",
- "groth16-solana 0.2.0",
+ "groth16-solana",
  "kani-solana",
  "solana-program 4.0.0",
  "solana-program-test",
