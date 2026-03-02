@@ -18,6 +18,7 @@ The repository includes on-chain programs, Rust crates, TypeScript packages, bac
 - Trust-layer engine with deterministic receipts
 - Transactional outbox service for trust event ingest
 - Kani proof harnesses for selected invariants
+- OpenClaw plugin tools for staked identity, escrow, oracle consensus, Meishi, and x402 (`packages/kamiyo-openclaw`)
 
 ## Repository Layout
 

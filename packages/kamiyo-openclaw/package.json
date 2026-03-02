@@ -1,0 +1,65 @@
+{
+  "name": "@kamiyo/openclaw",
+  "version": "0.1.0",
+  "description": "OpenClaw plugin for KAMIYO primitives: staked identity, escrow, private oracle consensus, meishi, and x402.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-openclaw"
+  },
+  "keywords": [
+    "openclaw",
+    "kamiyo",
+    "solana",
+    "agent",
+    "identity",
+    "escrow",
+    "oracle",
+    "meishi",
+    "x402"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "tsx --test src/index.test.ts"
+  },
+  "dependencies": {
+    "@kamiyo/meishi": "workspace:*",
+    "@kamiyo/sdk": "workspace:*",
+    "@kamiyo/x402-client": "workspace:*",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=3.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.0"
+  },
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  }
+}

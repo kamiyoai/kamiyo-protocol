@@ -1,0 +1,43 @@
+{
+  "id": "kamiyo",
+  "name": "KAMIYO",
+  "description": "KAMIYO protocol tools for OpenClaw agents: staked identity, escrow, private oracle consensus, meishi, and x402.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "rpcUrl": {
+        "type": "string",
+        "description": "Solana RPC URL used by KAMIYO and Meishi clients."
+      },
+      "privateKey": {
+        "type": "string",
+        "description": "Signer secret key as base64 or JSON byte array string."
+      },
+      "programId": {
+        "type": "string",
+        "description": "Optional KAMIYO program ID override."
+      },
+      "apiBaseUrl": {
+        "type": "string",
+        "description": "Optional KAMIYO API base URL for API-backed methods."
+      },
+      "meishiProgramId": {
+        "type": "string",
+        "description": "Optional Meishi program ID override."
+      },
+      "x402BaseUrl": {
+        "type": "string",
+        "description": "x402 gateway base URL for price checks and settlement requests."
+      },
+      "x402TimeoutMs": {
+        "type": "number",
+        "description": "Default timeout for x402 HTTP requests."
+      },
+      "x402MaxPriceSol": {
+        "type": "number",
+        "description": "Maximum acceptable x402 price per request in SOL."
+      }
+    }
+  }
+}
