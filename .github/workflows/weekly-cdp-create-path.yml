@@ -43,7 +43,7 @@ jobs:
 
       - name: Upload weekly CDP smoke report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cdp-weekly-create-path-smoke
           path: packages/kamiyo-mcp/reports/cdp-weekly-create-path-smoke.json
