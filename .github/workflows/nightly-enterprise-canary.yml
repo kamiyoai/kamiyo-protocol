@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload CDP nightly smoke report
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cdp-nightly-transaction-smoke
           path: packages/kamiyo-mcp/reports/cdp-nightly-transaction-smoke.json
