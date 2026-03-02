@@ -13,7 +13,7 @@
     "migrate": "node dist/db/migrate.js"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.0",
+    "@hono/node-server": "^1.19.9",
     "@kamiyo/cdp": "workspace:*",
     "@kamiyo/meishi": "workspace:*",
     "@solana/web3.js": "1.95.8",
