@@ -47,6 +47,9 @@ cat >"$OPENCLAW_CONFIG_PATH" <<EOF
     }
   },
   "plugins": {
+    "slots": {
+      "memory": "none"
+    },
     "load": {
       "paths": [
         "$PLUGIN_LOAD_DIR"
