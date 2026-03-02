@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 
 export type SwarmOpportunitySource =
+  | 'trading'
   | 'x402'
   | 'relevance'
   | 'agent_ai'
@@ -218,6 +219,9 @@ function arrayOfStrings(value: unknown): string[] {
 
 function normalizeSource(value: string | undefined): SwarmOpportunitySource {
   const source = (value ?? 'direct').trim().toLowerCase();
+  if (source === 'trading' || source === 'trade' || source === 'market_making' || source === 'market-making') {
+    return 'trading';
+  }
   if (source === 'x402') return 'x402';
   if (source === 'relevance' || source === 'relevance_ai') return 'relevance';
   if (source === 'agent.ai' || source === 'agentai' || source === 'agent_ai') return 'agent_ai';
@@ -646,6 +650,7 @@ function valueScore(opportunity: SwarmOpportunity): number {
 }
 
 function jobSourceForOpportunity(source: SwarmOpportunity['source']): SwarmJobSource {
+  if (source === 'trading') return 'trading';
   if (source === 'x402') return 'x402';
   if (source === 'relevance') return 'relevance';
   if (source === 'agent_ai') return 'agent_ai';

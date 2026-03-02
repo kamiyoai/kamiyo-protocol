@@ -1,4 +1,4 @@
-export type RollbackSource = 'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal';
+export type RollbackSource = 'trading' | 'x402' | 'relevance' | 'agent_ai' | 'kore' | 'direct' | 'internal';
 
 export type RollbackSourceState = {
   source: RollbackSource;
@@ -47,6 +47,7 @@ function asIso(value: unknown): string | null {
 
 function asRollbackSource(value: unknown): RollbackSource | null {
   if (
+    value !== 'trading' &&
     value !== 'x402' &&
     value !== 'relevance' &&
     value !== 'agent_ai' &&

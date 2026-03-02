@@ -29,12 +29,24 @@ class KyoshinArtifactContractsTests(unittest.TestCase):
         self.runtime = self.workspace / 'runtime'
         self._configure_paths()
         self.prev_require_runtime = os.environ.get('KYO_REQUIRE_KYOSHIN_RUNTIME')
+        self.prev_enable_trading = os.environ.get('KYO_ENABLE_TRADING_AGENT')
+        self.prev_require_trading = os.environ.get('KYO_REQUIRE_TRADING_AGENT')
+        os.environ['KYO_ENABLE_TRADING_AGENT'] = 'false'
+        os.environ['KYO_REQUIRE_TRADING_AGENT'] = 'false'
 
     def tearDown(self):
         if self.prev_require_runtime is None:
             os.environ.pop('KYO_REQUIRE_KYOSHIN_RUNTIME', None)
         else:
             os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = self.prev_require_runtime
+        if self.prev_enable_trading is None:
+            os.environ.pop('KYO_ENABLE_TRADING_AGENT', None)
+        else:
+            os.environ['KYO_ENABLE_TRADING_AGENT'] = self.prev_enable_trading
+        if self.prev_require_trading is None:
+            os.environ.pop('KYO_REQUIRE_TRADING_AGENT', None)
+        else:
+            os.environ['KYO_REQUIRE_TRADING_AGENT'] = self.prev_require_trading
         self.tmp.cleanup()
 
     def _configure_paths(self):
@@ -116,6 +128,35 @@ class KyoshinArtifactContractsTests(unittest.TestCase):
                 {'ok': True, 'summary': {'mode': 'execute'}},
             )
 
+    def _write_valid_trading_artifacts(self):
+        self._write_json(
+            self.mod.FEEDS_DIR / 'trading-opportunities.json',
+            {
+                'ok': True,
+                'opportunities': [
+                    {
+                        'id': 'trade-1',
+                        'source': 'trading',
+                        'venue': 'polymarket',
+                        'kind': 'trade_candidate',
+                        'marketId': 'poly-1',
+                    }
+                ],
+            },
+        )
+        self._write_json(self.mod.STATE_DIR / 'trading-exec.json', {'status': 'ok', 'drawdownPct': 0.1})
+        self._write_json(self.mod.STATE_DIR / 'trading-route.json', {'status': 'ok', 'unroutedRealizedNetUsd': 0.0})
+        self._write_json(self.mod.STATE_DIR / 'trading-positions.json', {'positions': [], 'openPositions': 0})
+        self._write_json(self.mod.STATE_DIR / 'polymarket-geo.json', {'blocked': False, 'checkedAt': '2026-03-02T00:00:00+00:00'})
+        self._write_json(
+            self.mod.STATE_DIR / 'trading-capabilities.json',
+            {
+                'liveVenueReady': {'polymarket': True, 'limitless': True},
+                'signalVenueReady': {'kalshi': True},
+                'blockers': [],
+            },
+        )
+
     def _read_output(self) -> dict:
         return json.loads(self.mod.OUTPUT_PATH.read_text(encoding='utf-8'))
 
@@ -160,6 +201,29 @@ class KyoshinArtifactContractsTests(unittest.TestCase):
     def test_runtime_state_is_optional_when_runtime_requirement_disabled(self):
         os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = 'false'
         self._write_valid_artifacts(include_runtime=False)
+        rc = self._run_silent()
+        self.assertEqual(rc, 0)
+        out = self._read_output()
+        self.assertTrue(out.get('ok'))
+
+    def test_required_trading_artifacts_fail_when_missing(self):
+        os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = 'true'
+        os.environ['KYO_ENABLE_TRADING_AGENT'] = 'true'
+        os.environ['KYO_REQUIRE_TRADING_AGENT'] = 'true'
+        self._write_valid_artifacts(include_runtime=True)
+        rc = self._run_silent()
+        self.assertEqual(rc, 1)
+        out = self._read_output()
+        self.assertFalse(out.get('ok'))
+        errors = out.get('errors', [])
+        self.assertTrue(any(err.get('artifact') == 'trading_feed' for err in errors))
+
+    def test_required_trading_artifacts_pass_when_present(self):
+        os.environ['KYO_REQUIRE_KYOSHIN_RUNTIME'] = 'true'
+        os.environ['KYO_ENABLE_TRADING_AGENT'] = 'true'
+        os.environ['KYO_REQUIRE_TRADING_AGENT'] = 'true'
+        self._write_valid_artifacts(include_runtime=True)
+        self._write_valid_trading_artifacts()
         rc = self._run_silent()
         self.assertEqual(rc, 0)
         out = self._read_output()

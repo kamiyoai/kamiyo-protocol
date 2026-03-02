@@ -11,6 +11,7 @@ USE_SUDO="${USE_SUDO:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_BIN_DIR="$OPENCLAW_HOME/bin"
+TARGET_BRIDGES_DIR="$TARGET_BIN_DIR/bridges"
 ENV_FILE="$OPENCLAW_HOME/.openclaw/.env"
 RUNTIME_STATE_DIR="$OPENCLAW_HOME/.openclaw/workspace/runtime/state"
 RUNTIME_LOG_DIR="$OPENCLAW_HOME/.openclaw/workspace/runtime/logs"
@@ -102,6 +103,9 @@ run() {
     "kyoshin-swarm-planner.py"
     "kyoshin-mission-control.py"
     "kyoshin-revenue-guard.py"
+    "kyoshin-trading-feed.py"
+    "kyoshin-trading-exec.py"
+    "kyoshin-trading-staking-route.py"
     "kyoshin-x402-agentcash.py"
     "kyoshin-clawmart-staking-route.py"
     "kyoshin-clawmart-monitor.py"
@@ -123,6 +127,28 @@ run() {
     fi
   done
 
+  echo "[1.5/6] installing trading bridge workers"
+  if is_true "$USE_SUDO"; then
+    sudo install -d -m 700 -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" "$TARGET_BRIDGES_DIR"
+  else
+    install -d -m 700 "$TARGET_BRIDGES_DIR"
+  fi
+  local bridge
+  local bridges=(
+    "trading-bridge-shared.mjs"
+    "kyoshin-polymarket-bridge.mjs"
+    "kyoshin-limitless-bridge.mjs"
+  )
+  for bridge in "${bridges[@]}"; do
+    if is_true "$USE_SUDO"; then
+      sudo install -m 700 -o "$OPENCLAW_USER" -g "$OPENCLAW_USER" \
+        "$SCRIPT_DIR/bridges/$bridge" \
+        "$TARGET_BRIDGES_DIR/$bridge"
+    else
+      install -m 700 "$SCRIPT_DIR/bridges/$bridge" "$TARGET_BRIDGES_DIR/$bridge"
+    fi
+  done
+
   echo "[2/6] ensuring required runtime gate flags exist"
   append_env_if_missing "KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS" "true"
   append_env_if_missing "KYO_REQUIRE_KYOSHIN_RUNTIME" "true"
@@ -134,6 +160,38 @@ run() {
   append_env_if_missing "KYO_REQUIRE_CLAWMART_STAKING_ROUTE" "true"
   append_env_if_missing "KYO_ENABLE_REVENUE_GUARD" "true"
   append_env_if_missing "KYO_REQUIRE_REVENUE_GUARD" "true"
+  append_env_if_missing "KYO_ENABLE_TRADING_AGENT" "false"
+  append_env_if_missing "KYO_REQUIRE_TRADING_AGENT" "false"
+  append_env_if_missing "KYO_TRADING_EXECUTION_MODE" "paper"
+  append_env_if_missing "KYO_TRADING_VENUES" "polymarket,limitless,kalshi"
+  append_env_if_missing "KYO_TRADING_POLYMARKET_GAMMA_BASE_URL" "https://gamma-api.polymarket.com"
+  append_env_if_missing "KYO_TRADING_POLYMARKET_CLOB_BASE_URL" "https://clob.polymarket.com"
+  append_env_if_missing "KYO_TRADING_POLYMARKET_GEO_URL" "https://polymarket.com/api/geoblock"
+  append_env_if_missing "KYO_TRADING_POLYMARKET_REQUIRE_GEO_ALLOWED" "true"
+  append_env_if_missing "KYO_TRADING_POLYMARKET_EXEC_CMD" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_API_BASE_URL" "https://api.limitless.exchange"
+  append_env_if_missing "KYO_TRADING_LIMITLESS_API_KEY" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_EXEC_CMD" ""
+  append_env_if_missing "KYO_TRADING_MIN_FILL_PROB" "0.55"
+  append_env_if_missing "KYO_TRADING_MIN_MARKET_LIQUIDITY_USD" "10000"
+  append_env_if_missing "KYO_TRADING_MIN_TIME_TO_EXPIRY_MIN" "45"
+  append_env_if_missing "KYO_TRADING_VENUE_MIN_ALLOC_PCT" "20"
+  append_env_if_missing "KYO_TRADING_VENUE_MAX_ALLOC_PCT" "70"
+  append_env_if_missing "KYO_TRADING_KALSHI_SIGNAL_ONLY" "true"
+  append_env_if_missing "KYO_TRADING_MAX_DRAWDOWN_PCT" "8"
+  append_env_if_missing "KYO_TRADING_DAILY_LOSS_STOP_PCT" "1.5"
+  append_env_if_missing "KYO_TRADING_MAX_OPEN_POSITIONS" "2"
+  append_env_if_missing "KYO_TRADING_MAX_MARKET_EXPOSURE_PCT" "25"
+  append_env_if_missing "KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY" "400"
+  append_env_if_missing "KYO_TRADING_MAX_ORDER_SLIPPAGE_BPS" "120"
+  append_env_if_missing "KYO_TRADING_MIN_EDGE_USD" "0.05"
+  append_env_if_missing "KYO_TRADING_TAKE_PROFIT_PCT" "12"
+  append_env_if_missing "KYO_TRADING_STOP_LOSS_PCT" "8"
+  append_env_if_missing "KYO_TRADING_MAX_HOLD_HOURS" "72"
+  append_env_if_missing "KYO_TRADING_WEEKLY_LOSS_CAP_USD" "300"
+  append_env_if_missing "KYO_TRADING_ROUTE_NET_BPS" "5000"
+  append_env_if_missing "KYO_TRADING_ROUTE_MIN_SOL" "0.000001"
+  append_env_if_missing "KYO_TRADING_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
   append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
   append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
   append_env_if_missing "KYO_ENABLE_DISTRIBUTION_ENGINE" "true"
@@ -160,6 +218,21 @@ run() {
     set_env_value "KYO_REQUIRE_RECEIPT_SYNC" "false"
     set_env_value "KYO_REQUIRE_DX_TERMINAL_FEED" "false"
   fi
+
+  echo "[2.5/6] verifying trading bridge readiness"
+  run_as_openclaw "
+    set -euo pipefail
+    if [ -x \"$TARGET_BRIDGES_DIR/kyoshin-polymarket-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-limitless-bridge.mjs\" ]; then
+      echo 'bridges_installed=true'
+    else
+      echo 'bridges_installed=false'
+    fi
+    if command -v node >/dev/null 2>&1; then
+      echo \"node_runtime=$(node -v 2>/dev/null || true)\"
+    else
+      echo 'node_runtime=missing'
+    fi
+  "
 
   local has_systemctl=0
   if command -v systemctl >/dev/null 2>&1; then
@@ -206,6 +279,54 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/revenue-guard.json\"
     else
       echo 'missing revenue-guard.json'
+    fi
+
+    echo
+    echo '--- trading-feed.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-feed.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-feed.json\"
+    else
+      echo 'missing trading-feed.json'
+    fi
+
+    echo
+    echo '--- trading-exec.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-exec.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-exec.json\"
+    else
+      echo 'missing trading-exec.json'
+    fi
+
+    echo
+    echo '--- trading-route.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-route.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-route.json\"
+    else
+      echo 'missing trading-route.json'
+    fi
+
+    echo
+    echo '--- trading-capabilities.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-capabilities.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-capabilities.json\"
+    else
+      echo 'missing trading-capabilities.json'
+    fi
+
+    echo
+    echo '--- polymarket-geo.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/polymarket-geo.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/polymarket-geo.json\"
+    else
+      echo 'missing polymarket-geo.json'
+    fi
+
+    echo
+    echo '--- trading-positions.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/trading-positions.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/trading-positions.json\"
+    else
+      echo 'missing trading-positions.json'
     fi
 
     echo
@@ -322,6 +443,12 @@ run() {
   echo "Set ClawMart staking routing:"
   echo "  - KYO_CLAWMART_STAKING_SOL_PER_SALE=<net-sol-per-sale>"
   echo "  - KYO_CLAWMART_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_CLAWMART_STAKING_ROUTE_CMD=...)"
+  echo "Set trading routing credentials:"
+  echo "  - KYO_TRADING_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_TRADING_STAKING_ROUTE_CMD=...)"
+  echo "  - KYO_TRADING_POLYMARKET_API_KEY/SECRET/PASSPHRASE + candidate polymarketOrder payloads"
+  echo "    (or set KYO_TRADING_POLYMARKET_EXEC_CMD=<execution bridge>)"
+  echo "  - KYO_TRADING_LIMITLESS_API_KEY=<limitless key> or KYO_TRADING_LIMITLESS_EXEC_CMD=<signed-order bridge>"
+  echo "  - KYO_TRADING_POLYMARKET_REQUIRE_GEO_ALLOWED=true to hard-block geo-restricted live orders"
   if [ "$has_systemctl" -eq 1 ]; then
     echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
   else

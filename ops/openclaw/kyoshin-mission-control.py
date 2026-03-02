@@ -25,6 +25,12 @@ CLAWMART_MONITOR_PATH = STATE_DIR / 'clawmart-monitor.json'
 CLAWMART_STAKING_ROUTE_PATH = STATE_DIR / 'clawmart-staking-route.json'
 DISPATCH_SUMMARY_PATH = STATE_DIR / 'distribution-engine.json'
 REVENUE_GUARD_PATH = STATE_DIR / 'revenue-guard.json'
+TRADING_EXEC_PATH = STATE_DIR / 'trading-exec.json'
+TRADING_ROUTE_PATH = STATE_DIR / 'trading-route.json'
+TRADING_POSITIONS_PATH = STATE_DIR / 'trading-positions.json'
+TRADING_ROUTE_RECEIPTS_PATH = Path(
+    os.getenv('KYO_TRADING_STAKING_RECEIPTS_PATH', str(RECEIPTS_DIR / 'trading-staking-route.jsonl')).strip()
+).expanduser()
 MISSION_PATH = WORKSPACE / 'MISSION_STATEMENT.md'
 GOALS_PATH = WORKSPACE / 'GOALS.md'
 OUTPUT_DIR = RUNTIME_DIR / 'mission-control'
@@ -132,6 +138,12 @@ def summarize_revenue_7d(path: Path) -> dict[str, float | int]:
             'revenueNetUsd7d': 0.0,
             'paidOrders7d': 0,
             'x402PaidCalls7d': 0,
+            'tradingGrossUsd7d': 0.0,
+            'tradingNetUsd7d': 0.0,
+            'polymarketTrades7d': 0,
+            'limitlessTrades7d': 0,
+            'dflowTrades7d': 0,
+            'kalshiSignals7d': 0,
         }
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
@@ -139,6 +151,11 @@ def summarize_revenue_7d(path: Path) -> dict[str, float | int]:
     net = 0.0
     paid_orders = 0
     x402_paid_calls = 0
+    trading_gross = 0.0
+    trading_net = 0.0
+    polymarket_trades = 0
+    limitless_trades = 0
+    kalshi_signals = 0
     for raw in path.read_text(encoding='utf-8').splitlines():
         line = raw.strip()
         if not line:
@@ -161,12 +178,55 @@ def summarize_revenue_7d(path: Path) -> dict[str, float | int]:
             paid_orders += 1
         if source == 'x402' and kind == 'paid_call' and status == 'success':
             x402_paid_calls += 1
+        if source == 'trading' and kind == 'trade_close' and status == 'success':
+            trading_gross += max(0.0, parse_float(row.get('grossUsd'), 0.0))
+            trading_net += parse_float(row.get('netUsd'), 0.0)
+            venue = str(row.get('venue') or '').strip().lower()
+            if venue == 'polymarket':
+                polymarket_trades += 1
+            if venue == 'limitless':
+                limitless_trades += 1
+        if source == 'trading' and kind == 'signal' and status == 'success':
+            venue = str(row.get('venue') or '').strip().lower()
+            if venue == 'kalshi':
+                kalshi_signals += 1
     return {
         'revenueGrossUsd7d': round(gross, 8),
         'revenueNetUsd7d': round(net, 8),
         'paidOrders7d': paid_orders,
         'x402PaidCalls7d': x402_paid_calls,
+        'tradingGrossUsd7d': round(trading_gross, 8),
+        'tradingNetUsd7d': round(trading_net, 8),
+        'polymarketTrades7d': polymarket_trades,
+        'limitlessTrades7d': limitless_trades,
+        'dflowTrades7d': 0,
+        'kalshiSignals7d': kalshi_signals,
     }
+
+
+def summarize_trading_routed_sol_7d(path: Path) -> float:
+    if not path.exists():
+        return 0.0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    total = 0.0
+    for raw in path.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except Exception:
+            continue
+        if not isinstance(row, dict):
+            continue
+        ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('routedAt'))
+        if ts is None or ts < cutoff:
+            continue
+        source = str(row.get('source') or row.get('channel') or '').strip().lower()
+        if source and source != 'trading':
+            continue
+        total += max(0.0, parse_float(row.get('routedSol'), 0.0))
+    return round(total, 9)
 
 
 def run() -> int:
@@ -217,6 +277,16 @@ def run() -> int:
     revenue_guard_summary = read_json(REVENUE_GUARD_PATH, {})
     if not isinstance(revenue_guard_summary, dict):
         revenue_guard_summary = {}
+    trading_exec_summary = read_json(TRADING_EXEC_PATH, {})
+    if not isinstance(trading_exec_summary, dict):
+        trading_exec_summary = {}
+    trading_route_summary = read_json(TRADING_ROUTE_PATH, {})
+    if not isinstance(trading_route_summary, dict):
+        trading_route_summary = {}
+    trading_positions_summary = read_json(TRADING_POSITIONS_PATH, {})
+    if not isinstance(trading_positions_summary, dict):
+        trading_positions_summary = {}
+    trading_routed_sol_7d = summarize_trading_routed_sol_7d(TRADING_ROUTE_RECEIPTS_PATH)
 
     staking_checkpoint = max(
         parse_int(clawmart_monitor.get('lastRoutedTotalSales'), 0),
@@ -344,6 +414,21 @@ def run() -> int:
         'revenueNetUsd7d': revenue_metrics['revenueNetUsd7d'],
         'paidOrders7d': revenue_metrics['paidOrders7d'],
         'x402PaidCalls7d': revenue_metrics['x402PaidCalls7d'],
+        'tradingGrossUsd7d': revenue_metrics['tradingGrossUsd7d'],
+        'tradingNetUsd7d': revenue_metrics['tradingNetUsd7d'],
+        'tradingRoutedSol7d': trading_routed_sol_7d,
+        'polymarketTrades7d': revenue_metrics['polymarketTrades7d'],
+        'limitlessTrades7d': revenue_metrics['limitlessTrades7d'],
+        'dflowTrades7d': revenue_metrics['dflowTrades7d'],
+        'kalshiSignals7d': revenue_metrics['kalshiSignals7d'],
+        'tradingOpenPositions': parse_int(
+            trading_positions_summary.get('openPositions', len(trading_positions_summary.get('positions', [])))
+            if isinstance(trading_positions_summary.get('positions'), list)
+            else trading_positions_summary.get('openPositions'),
+            0,
+        ),
+        'tradingDrawdownPct': round(parse_float(trading_exec_summary.get('drawdownPct'), 0.0), 8),
+        'tradingUnroutedProfitUsd': round(parse_float(trading_route_summary.get('unroutedRealizedNetUsd'), 0.0), 8),
         'stakingRoutedSalesCheckpoint': staking_checkpoint,
         'unroutedSalesCount': unrouted_sales_count,
         'distributionDispatchSuccessRate': distribution_dispatch_success_rate,
@@ -375,6 +460,16 @@ def run() -> int:
                 'revenueNetUsd7d': revenue_metrics['revenueNetUsd7d'],
                 'paidOrders7d': revenue_metrics['paidOrders7d'],
                 'x402PaidCalls7d': revenue_metrics['x402PaidCalls7d'],
+                'tradingGrossUsd7d': revenue_metrics['tradingGrossUsd7d'],
+                'tradingNetUsd7d': revenue_metrics['tradingNetUsd7d'],
+                'tradingRoutedSol7d': trading_routed_sol_7d,
+                'polymarketTrades7d': revenue_metrics['polymarketTrades7d'],
+                'limitlessTrades7d': revenue_metrics['limitlessTrades7d'],
+                'dflowTrades7d': revenue_metrics['dflowTrades7d'],
+                'kalshiSignals7d': revenue_metrics['kalshiSignals7d'],
+                'tradingOpenPositions': board['tradingOpenPositions'],
+                'tradingDrawdownPct': board['tradingDrawdownPct'],
+                'tradingUnroutedProfitUsd': board['tradingUnroutedProfitUsd'],
                 'stakingRoutedSalesCheckpoint': staking_checkpoint,
                 'unroutedSalesCount': unrouted_sales_count,
                 'distributionDispatchSuccessRate': distribution_dispatch_success_rate,

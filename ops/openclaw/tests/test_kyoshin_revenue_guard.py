@@ -40,15 +40,29 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.mod.OUTPUT_PATH = self.state_dir / 'revenue-guard.json'
         self.mod.LOG_PATH = self.log_dir / 'revenue-guard.jsonl'
         self.mod.CLAWMART_MONITOR_PATH = self.state_dir / 'clawmart-monitor.json'
+        self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
+        self.mod.TRADING_CAPABILITIES_PATH = self.state_dir / 'trading-capabilities.json'
+        self.mod.POLYMARKET_GEO_PATH = self.state_dir / 'polymarket-geo.json'
         self.mod.LEDGER_PATH = self.receipts_dir / 'revenue-ledger.jsonl'
+        self.mod.POLYMARKET_BRIDGE_PATH = self.workspace / 'missing-polymarket-bridge.mjs'
+        self.mod.LIMITLESS_BRIDGE_PATH = self.workspace / 'missing-limitless-bridge.mjs'
 
         self.mod.ENABLE_REVENUE_GUARD = True
         self.mod.ENABLE_CLAWMART_MONITOR = True
         self.mod.ENABLE_X402_AGENTCASH = True
+        self.mod.ENABLE_TRADING_AGENT = False
+        self.mod.REQUIRE_TRADING_AGENT = False
         self.mod.REQUIRE_CLAWMART_STAKING_ROUTE = True
         self.mod.WEEKLY_SPEND_CAP_USD = 150.0
         self.mod.X402_ACTIVITY_LOOKBACK_HOURS = 72
         self.mod.X402_ACTIVITY_GRACE_HOURS = 72
+        self.mod.TRADING_EXECUTION_MODE = 'paper'
+        self.mod.TRADING_VENUES = ['polymarket', 'limitless', 'kalshi']
+        self.mod.TRADING_MAX_DRAWDOWN_PCT = 8.0
+        self.mod.TRADING_WEEKLY_LOSS_CAP_USD = 300.0
+        self.mod.TRADING_ROUTE_LAG_TOLERANCE_USD = 1.0
+        self.mod.POLYMARKET_REQUIRE_GEO_ALLOWED = True
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -142,6 +156,66 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.assertEqual(summary.get('ok'), True)
         self.assertEqual(summary.get('status'), 'ok')
         self.assertEqual(summary.get('reasons'), [])
+
+    def test_blocks_when_trading_drawdown_breaches_limit(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_EXEC_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.TRADING_EXEC_PATH.write_text(
+            json.dumps({'drawdownPct': 9.2, 'weeklyRealizedNetUsd': -10}),
+            encoding='utf-8',
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('trading_drawdown_breach', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_blocks_when_limitless_live_transport_missing(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_EXECUTION_MODE = 'live'
+        self.mod.TRADING_VENUES = ['limitless']
+        code, summary = self._run(
+            {
+                'KYO_TRADING_LIMITLESS_API_KEY': '',
+                'KYO_TRADING_LIMITLESS_EXEC_CMD': '',
+            }
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('missing_trading_limitless_transport', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_blocks_when_polymarket_live_transport_missing(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_EXECUTION_MODE = 'live'
+        self.mod.TRADING_VENUES = ['polymarket']
+        code, summary = self._run({'KYO_TRADING_POLYMARKET_EXEC_CMD': ''})
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('missing_trading_polymarket_transport', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_marks_geo_block_without_blocking_all_paid_execution(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_EXECUTION_MODE = 'live'
+        self.mod.TRADING_VENUES = ['polymarket']
+        self.mod.POLYMARKET_GEO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POLYMARKET_GEO_PATH.write_text(json.dumps({'blocked': True}), encoding='utf-8')
+        self.mod.POLYMARKET_BRIDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POLYMARKET_BRIDGE_PATH.write_text('bridge', encoding='utf-8')
+        self.mod.BRIDGE_NODE_BIN = 'echo'
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertIn('polymarket_geo_blocked', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), False)
 
 
 if __name__ == '__main__':

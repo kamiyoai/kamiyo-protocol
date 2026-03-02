@@ -44,6 +44,7 @@ function autonomyReadinessScore(agent: SwarmAgentProfile): number {
 function describeJobSources(jobSources: SwarmAgentProfile['jobSources']): string {
   if (jobSources.length === 0) return 'x402 or direct API contracts';
   const labels = jobSources.map(source => {
+    if (source === 'trading') return 'trading venues';
     if (source === 'x402') return 'x402';
     if (source === 'direct_api') return 'direct API contracts';
     if (source === 'agent_ai') return 'Agent.ai leads';
