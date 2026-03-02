@@ -41,10 +41,14 @@ class KyoshinOperatorLogTests(unittest.TestCase):
         self.mod.LOG_PATH = self.log_dir / 'operator-log.jsonl'
         self.mod.LEDGER_PATH = self.receipts_dir / 'revenue-ledger.jsonl'
         self.mod.STAKING_RECEIPTS_PATH = self.receipts_dir / 'clawmart-staking-route.jsonl'
+        self.mod.TRADING_STAKING_RECEIPTS_PATH = self.receipts_dir / 'trading-staking-route.jsonl'
         self.mod.REVENUE_GUARD_PATH = self.state_dir / 'revenue-guard.json'
         self.mod.CLAWMART_MONITOR_PATH = self.state_dir / 'clawmart-monitor.json'
         self.mod.X402_AGENTCASH_PATH = self.state_dir / 'x402-agentcash.json'
         self.mod.DISPATCH_SUMMARY_PATH = self.state_dir / 'distribution-engine.json'
+        self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
+        self.mod.TRADING_POSITIONS_PATH = self.state_dir / 'trading-positions.json'
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -92,6 +96,28 @@ class KyoshinOperatorLogTests(unittest.TestCase):
                     'costUsd': 6,
                     'netUsd': 24,
                 },
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'venue': 'polymarket',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'grossUsd': 12,
+                    'costUsd': 2,
+                    'netUsd': 10,
+                },
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'venue': 'kalshi',
+                    'kind': 'signal',
+                    'status': 'success',
+                    'realized': False,
+                    'grossUsd': 0,
+                    'costUsd': 0,
+                    'netUsd': 0,
+                },
             ],
         )
         self._append_jsonl(
@@ -105,18 +131,39 @@ class KyoshinOperatorLogTests(unittest.TestCase):
                 }
             ],
         )
+        self._append_jsonl(
+            self.mod.TRADING_STAKING_RECEIPTS_PATH,
+            [
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'routedSol': 0.25,
+                }
+            ],
+        )
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': True, 'reasons': []})
         self._write_json(self.mod.CLAWMART_MONITOR_PATH, {'ok': True, 'unroutedSalesCount': 0})
         self._write_json(self.mod.DISPATCH_SUMMARY_PATH, {'dispatchSuccessRate': 0.8})
+        self._write_json(self.mod.TRADING_EXEC_PATH, {'drawdownPct': 2.5})
+        self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedRealizedNetUsd': 0.1})
+        self._write_json(self.mod.TRADING_POSITIONS_PATH, {'openPositions': 1})
 
         code, summary = self._run(['kyoshin-operator-log.py', '--status', 'ok', '--cycle', '42'])
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('published'), True)
-        self.assertAlmostEqual(float(summary.get('revenueGrossUsd7d')), 150.0, places=6)
-        self.assertAlmostEqual(float(summary.get('revenueCostUsd7d')), 16.0, places=6)
-        self.assertAlmostEqual(float(summary.get('revenueNetUsd7d')), 134.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueGrossUsd7d')), 162.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueCostUsd7d')), 18.0, places=6)
+        self.assertAlmostEqual(float(summary.get('revenueNetUsd7d')), 144.0, places=6)
         self.assertEqual(summary.get('paidOrders7d'), 1)
         self.assertEqual(summary.get('x402PaidCalls7d'), 1)
+        self.assertEqual(summary.get('tradingNetUsd7d'), 10.0)
+        self.assertEqual(summary.get('polymarketTrades7d'), 1)
+        self.assertEqual(summary.get('dflowTrades7d'), 0)
+        self.assertEqual(summary.get('kalshiSignals7d'), 1)
+        self.assertEqual(summary.get('tradingRoutedSol7d'), 0.25)
+        self.assertEqual(summary.get('tradingOpenPositions'), 1)
+        self.assertEqual(summary.get('tradingDrawdownPct'), 2.5)
+        self.assertEqual(summary.get('tradingUnroutedProfitUsd'), 0.1)
         self.assertEqual(summary.get('stakingRoutedSalesCheckpoint'), 3)
         self.assertAlmostEqual(float(summary.get('distributionDispatchSuccessRate')), 0.8, places=6)
 

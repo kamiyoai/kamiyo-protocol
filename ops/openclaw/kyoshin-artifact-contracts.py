@@ -203,6 +203,98 @@ def validate_runtime_state(payload: Any, errors: list[dict[str, Any]]) -> None:
         add_error(errors, artifact, 'invalid_error', 'error must be non-empty string when provided')
 
 
+def validate_trading_feed(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_feed'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    opportunities = payload.get('opportunities')
+    if not isinstance(opportunities, list):
+        add_error(errors, artifact, 'missing_opportunities', 'opportunities must be an array')
+        return
+    for index, item in enumerate(opportunities[:SAMPLE_LIMIT]):
+        if not isinstance(item, dict):
+            add_error(errors, artifact, 'invalid_item', f'opportunities[{index}] must be an object')
+            continue
+        if not non_empty_string(item.get('id')):
+            add_error(errors, artifact, 'missing_id', f'opportunities[{index}].id must be non-empty string')
+        if not non_empty_string(item.get('venue')):
+            add_error(errors, artifact, 'missing_venue', f'opportunities[{index}].venue must be non-empty string')
+        if not non_empty_string(item.get('kind')):
+            add_error(errors, artifact, 'missing_kind', f'opportunities[{index}].kind must be non-empty string')
+        if not non_empty_string(item.get('marketId')):
+            add_error(errors, artifact, 'missing_market_id', f'opportunities[{index}].marketId must be non-empty string')
+
+
+def validate_trading_exec(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_exec'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    if payload.get('status') is not None and not non_empty_string(payload.get('status')):
+        add_error(errors, artifact, 'invalid_status', 'status must be non-empty string')
+    if payload.get('drawdownPct') is not None and not number(payload.get('drawdownPct')):
+        add_error(errors, artifact, 'invalid_drawdown', 'drawdownPct must be numeric')
+
+
+def validate_trading_route(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_route'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    if payload.get('status') is not None and not non_empty_string(payload.get('status')):
+        add_error(errors, artifact, 'invalid_status', 'status must be non-empty string')
+    if payload.get('unroutedRealizedNetUsd') is not None and not number(payload.get('unroutedRealizedNetUsd')):
+        add_error(errors, artifact, 'invalid_unrouted', 'unroutedRealizedNetUsd must be numeric')
+
+
+def validate_trading_positions(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_positions'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    positions = payload.get('positions')
+    if not isinstance(positions, list):
+        add_error(errors, artifact, 'missing_positions', 'positions must be an array')
+        return
+    if payload.get('openPositions') is not None and (not isinstance(payload.get('openPositions'), int) or payload.get('openPositions') < 0):
+        add_error(errors, artifact, 'invalid_open_positions', 'openPositions must be a non-negative integer')
+
+
+def validate_polymarket_geo(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'polymarket_geo'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    if payload.get('blocked') is not None and not isinstance(payload.get('blocked'), bool):
+        add_error(errors, artifact, 'invalid_blocked', 'blocked must be boolean')
+    if payload.get('checkedAt') is not None and not non_empty_string(payload.get('checkedAt')):
+        add_error(errors, artifact, 'invalid_checked_at', 'checkedAt must be non-empty string')
+
+
+def validate_trading_capabilities(payload: Any, errors: list[dict[str, Any]]) -> None:
+    artifact = 'trading_capabilities'
+    if not isinstance(payload, dict):
+        add_error(errors, artifact, 'invalid_root', 'must be a JSON object')
+        return
+    live = payload.get('liveVenueReady')
+    signal = payload.get('signalVenueReady')
+    blockers = payload.get('blockers')
+    if not isinstance(live, dict):
+        add_error(errors, artifact, 'missing_live_venue_ready', 'liveVenueReady must be an object')
+    else:
+        for venue in ('polymarket', 'limitless'):
+            if venue in live and not isinstance(live.get(venue), bool):
+                add_error(errors, artifact, 'invalid_live_ready', f'liveVenueReady.{venue} must be boolean')
+    if not isinstance(signal, dict):
+        add_error(errors, artifact, 'missing_signal_venue_ready', 'signalVenueReady must be an object')
+    else:
+        if 'kalshi' in signal and not isinstance(signal.get('kalshi'), bool):
+            add_error(errors, artifact, 'invalid_signal_ready', 'signalVenueReady.kalshi must be boolean')
+    if blockers is not None and not list_of_strings(blockers):
+        add_error(errors, artifact, 'invalid_blockers', 'blockers must be an array of strings')
+
+
 def validate_artifact(
     name: str,
     path: Path,
@@ -232,6 +324,9 @@ def validate_artifact(
 def run() -> int:
     ensure_dirs()
     require_runtime = parse_bool(os.getenv('KYO_REQUIRE_KYOSHIN_RUNTIME'), True)
+    enable_trading = parse_bool(os.getenv('KYO_ENABLE_TRADING_AGENT'), False)
+    require_trading = parse_bool(os.getenv('KYO_REQUIRE_TRADING_AGENT'), False)
+    trading_required = enable_trading and require_trading
 
     errors: list[dict[str, Any]] = []
     reports: list[dict[str, Any]] = []
@@ -242,6 +337,12 @@ def run() -> int:
         ('mission_control_board', MISSION_CONTROL_DIR / 'board.json', True, validate_board),
         ('mission_control_backlog', MISSION_CONTROL_DIR / 'backlog.json', True, validate_backlog),
         ('kyoshin_runtime', STATE_DIR / 'kyoshin-runtime.json', require_runtime, validate_runtime_state),
+        ('trading_feed', FEEDS_DIR / 'trading-opportunities.json', trading_required, validate_trading_feed),
+        ('trading_exec', STATE_DIR / 'trading-exec.json', trading_required, validate_trading_exec),
+        ('trading_route', STATE_DIR / 'trading-route.json', trading_required, validate_trading_route),
+        ('trading_positions', STATE_DIR / 'trading-positions.json', trading_required, validate_trading_positions),
+        ('polymarket_geo', STATE_DIR / 'polymarket-geo.json', trading_required, validate_polymarket_geo),
+        ('trading_capabilities', STATE_DIR / 'trading-capabilities.json', trading_required, validate_trading_capabilities),
     ]
 
     for name, path, required, validator in checks:
