@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@coinbase/cdp-core": "0.0.85",
+    "@coinbase/cdp-core": "0.0.93",
     "@coinbase/cdp-hooks": "0.0.85",
     "@coinbase/cdp-react": "0.0.85",
     "react": "19.1.0",
