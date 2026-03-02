@@ -13,7 +13,7 @@
   "dependencies": {
     "@coinbase/cdp-core": "0.0.85",
     "@coinbase/cdp-hooks": "0.0.85",
-    "@coinbase/cdp-react": "0.0.85",
+    "@coinbase/cdp-react": "0.0.93",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
