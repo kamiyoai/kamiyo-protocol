@@ -39,6 +39,8 @@ import {
   listPayoutTransfersByInviter,
   listReferralCandidates,
   resolveRiskFlagsForReferee,
+  countAttributionsByInviter,
+  countDistinctIpHashesByInviter,
   upsertPayoutRun,
   upsertPayoutTransfer,
   upsertRewardRow,
@@ -50,6 +52,13 @@ import {
 const LAMPORTS_PER_SOL = 1_000_000_000;
 const ONE_DAY_SECONDS = 86_400;
 const ONE_WEEK_SECONDS = 7 * ONE_DAY_SECONDS;
+const MAX_REFEREES_PER_INVITER = parsePositiveInt(
+  process.env.STAKING_REFERRAL_MAX_REFEREES_PER_INVITER,
+  50
+);
+const MAX_PAYOUT_LAMPORTS_PER_INVITER = Math.floor(
+  parsePositiveNumber(process.env.STAKING_REFERRAL_MAX_PAYOUT_SOL_PER_INVITER, 5) * 1_000_000_000
+);
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value) return fallback;
@@ -506,9 +515,27 @@ export async function bindStakingReferralAttribution(params: {
         },
       });
       stakingReferralRiskFlagTotal.labels('ip_burst_referrals', 'medium').inc();
-    } else {
-      resolveRiskFlagsForReferee(refereeWallet);
     }
+    // NOTE: We intentionally do NOT auto-resolve risk flags here.
+    // Previously, the else branch called resolveRiskFlagsForReferee() which
+    // allowed attackers to clear flags by rotating IPs (new IP → count=1 → resolve all).
+    // Risk flags should only be resolved through explicit admin review.
+  }
+
+  // Check if this inviter has too many referees (Sybil indicator)
+  const inviterRefereeCount = countAttributionsByInviter(invite.inviterWallet);
+  if (inviterRefereeCount > MAX_REFEREES_PER_INVITER) {
+    insertRiskFlag({
+      code: 'inviter_referee_cap_exceeded',
+      severity: 'high',
+      refereeWallet,
+      inviterWallet: invite.inviterWallet,
+      details: {
+        refereeCount: inviterRefereeCount,
+        cap: MAX_REFEREES_PER_INVITER,
+      },
+    });
+    stakingReferralRiskFlagTotal.labels('inviter_referee_cap_exceeded', 'high').inc();
   }
 
   return {
@@ -579,7 +606,12 @@ export function allocateLamportsByWeight(params: {
   return allocations;
 }
 
-function getCandidateRiskReason(candidate: ReferralCandidateRow, payoutWeekEndSec: number): string | null {
+function getCandidateRiskReason(
+  candidate: ReferralCandidateRow,
+  payoutWeekEndSec: number,
+  inviterRefereeCounts?: Map<string, number>,
+  inviterDistinctIps?: Map<string, number>,
+): string | null {
   if (candidate.inviterWallet === candidate.refereeWallet) return 'self_referral';
   if (hasCircularAttribution(candidate.inviterWallet, candidate.refereeWallet)) return 'circular_referral';
   if (!candidate.isVerified) return 'not_verified';
@@ -592,6 +624,22 @@ function getCandidateRiskReason(candidate: ReferralCandidateRow, payoutWeekEndSe
 
   const openRiskCount = countOpenRiskFlagsForReferee(candidate.refereeWallet);
   if (openRiskCount > 0) return 'risk_flagged';
+
+  // Sybil detection: cap referees per inviter
+  if (inviterRefereeCounts) {
+    const count = inviterRefereeCounts.get(candidate.inviterWallet) ?? 0;
+    if (count > MAX_REFEREES_PER_INVITER) return 'inviter_referee_cap_exceeded';
+  }
+
+  // Sybil detection: too few distinct IPs for the number of referees
+  if (inviterRefereeCounts && inviterDistinctIps) {
+    const refereeCount = inviterRefereeCounts.get(candidate.inviterWallet) ?? 0;
+    const distinctIps = inviterDistinctIps.get(candidate.inviterWallet) ?? 0;
+    // If >=5 referees but <=2 distinct IPs, it's suspicious
+    if (refereeCount >= 5 && distinctIps > 0 && distinctIps <= 2) {
+      return 'low_ip_diversity';
+    }
+  }
 
   return null;
 }
@@ -825,8 +873,18 @@ export async function runStakingReferralPayout(params?: {
   const candidates = listReferralCandidates();
   const payoutWeekEndSec = weekEndUtcSeconds(weekStartUtc);
 
+  // Build Sybil detection context: per-inviter referee counts and IP diversity
+  const inviterRefereeCounts = new Map<string, number>();
+  for (const c of candidates) {
+    inviterRefereeCounts.set(c.inviterWallet, (inviterRefereeCounts.get(c.inviterWallet) || 0) + 1);
+  }
+  const inviterDistinctIps = new Map<string, number>();
+  for (const entry of Array.from(inviterRefereeCounts.entries())) {
+    inviterDistinctIps.set(entry[0], countDistinctIpHashesByInviter(entry[0]));
+  }
+
   const rows = candidates.map((candidate) => {
-    const riskReason = getCandidateRiskReason(candidate, payoutWeekEndSec);
+    const riskReason = getCandidateRiskReason(candidate, payoutWeekEndSec, inviterRefereeCounts, inviterDistinctIps);
     const ageDays = candidate.firstQualifiedAt
       ? clamp(Math.floor((payoutWeekEndSec - candidate.firstQualifiedAt) / ONE_DAY_SECONDS), 0, REFERRAL_CONFIG.bonusMaxDays)
       : 0;
@@ -877,6 +935,19 @@ export async function runStakingReferralPayout(params?: {
     const alloc = allocations.get(row.candidate.refereeWallet) || 0;
     if (alloc <= 0) continue;
     inviterTotals.set(row.candidate.inviterWallet, (inviterTotals.get(row.candidate.inviterWallet) || 0) + alloc);
+  }
+
+  // Per-inviter payout cap to limit Sybil damage
+  for (const entry of Array.from(inviterTotals.entries())) {
+    const [wallet, amount] = entry;
+    if (amount > MAX_PAYOUT_LAMPORTS_PER_INVITER) {
+      logger.warn('staking referral per-inviter cap applied', {
+        inviterWallet: wallet,
+        requestedLamports: amount,
+        cappedLamports: MAX_PAYOUT_LAMPORTS_PER_INVITER,
+      });
+      inviterTotals.set(wallet, MAX_PAYOUT_LAMPORTS_PER_INVITER);
+    }
   }
 
   const executeTransfers = params?.executeTransfers ?? true;
