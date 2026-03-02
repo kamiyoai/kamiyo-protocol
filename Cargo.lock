@@ -2023,13 +2023,13 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-rollups-sdk"
-version = "0.6.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ebb432c4e5f748d843cd368d3e2389ce682601b07261be41cda4180eb8c665f"
+checksum = "4ad5420f7155a7ec229fce611fc7de99cfdc6b401098112590c34601bc37551c"
 dependencies = [
  "anchor-lang",
  "base64ct",
- "borsh 1.6.0",
+ "borsh 0.10.4",
  "ephemeral-rollups-sdk-attribute-action",
  "ephemeral-rollups-sdk-attribute-commit",
  "ephemeral-rollups-sdk-attribute-delegate",
@@ -2043,9 +2043,9 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-rollups-sdk-attribute-action"
-version = "0.6.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72f0b983783d3e2fa9e921a1760b606a830acff5a2d17493dd97c50971653090"
+checksum = "8c648b6aeeb82590d2056e73356ec7a938e929140bea51f4cdfe917602cbbbf1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2053,9 +2053,9 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-rollups-sdk-attribute-commit"
-version = "0.6.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8eaa12b48570efab341b925df215470cdb5bbd6edf09132cba0bf3608672e261"
+checksum = "707c013bb3e6b87f17020667ae0906d5aa794837bdb2a40ea875937652e3e22b"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -2063,9 +2063,9 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-rollups-sdk-attribute-delegate"
-version = "0.6.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "868eb256937326dc1ee629477c1935a8a8fbdb6dabcc5b926e8534f7390c4387"
+checksum = "d29bfe18f04832972396fde12f4293590bd578f33bd38345148abf187c01128e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2074,9 +2074,9 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-rollups-sdk-attribute-ephemeral"
-version = "0.6.6"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3194e93f3c5265da16111b9b8a70bece5a191614f4e8209d056e06ddc2cbad8"
+checksum = "f95f6e3f56fb565ef7ad2708f20fb6ec83dd28129e905cd2dd86bb5fda030569"
 dependencies = [
  "proc-macro2",
  "quote",
