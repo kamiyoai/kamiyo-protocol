@@ -1123,6 +1123,79 @@ export function getInviterMultiplierBuckets(inviterWallet: string): Array<{
   return rows;
 }
 
+/**
+ * Find inviters whose referee IP hash sets overlap significantly with the given inviter.
+ * Returns wallets that share more than `thresholdRatio` (0-1) of IP hashes.
+ */
+export function findCrossInviterIpOverlap(params: {
+  inviterWallet: string;
+  thresholdRatio: number;
+}): Array<{ inviterWallet: string; sharedIps: number; totalIps: number; overlapRatio: number }> {
+  const rows = db
+    .prepare(
+      `
+        WITH target_ips AS (
+          SELECT DISTINCT ip_hash
+          FROM staking_referral_attributions
+          WHERE inviter_wallet = ? AND ip_hash IS NOT NULL
+        ),
+        target_ip_count AS (
+          SELECT COUNT(*) as cnt FROM target_ips
+        ),
+        other_inviters AS (
+          SELECT
+            a.inviter_wallet,
+            COUNT(DISTINCT a.ip_hash) as shared_ips
+          FROM staking_referral_attributions a
+          INNER JOIN target_ips t ON a.ip_hash = t.ip_hash
+          WHERE a.inviter_wallet != ?
+            AND a.ip_hash IS NOT NULL
+          GROUP BY a.inviter_wallet
+        )
+        SELECT
+          o.inviter_wallet,
+          o.shared_ips,
+          (SELECT cnt FROM target_ip_count) as total_ips,
+          CAST(o.shared_ips AS REAL) / MAX(1, (SELECT cnt FROM target_ip_count)) as overlap_ratio
+        FROM other_inviters o
+        WHERE CAST(o.shared_ips AS REAL) / MAX(1, (SELECT cnt FROM target_ip_count)) >= ?
+        ORDER BY overlap_ratio DESC
+      `
+    )
+    .all(params.inviterWallet, params.inviterWallet, params.thresholdRatio) as Array<{
+    inviter_wallet: string;
+    shared_ips: number;
+    total_ips: number;
+    overlap_ratio: number;
+  }>;
+
+  return rows.map((row) => ({
+    inviterWallet: row.inviter_wallet,
+    sharedIps: row.shared_ips,
+    totalIps: row.total_ips,
+    overlapRatio: row.overlap_ratio,
+  }));
+}
+
+/**
+ * For a set of referee wallets, check if they share a common funding source wallet.
+ * This is a placeholder that returns referee wallets grouped by the same ip_hash
+ * (as a proxy for same-origin detection). On-chain funding source analysis
+ * should be done via Solana RPC by the caller.
+ */
+export function listRefereeWalletsByInviter(inviterWallet: string): string[] {
+  const rows = db
+    .prepare(
+      `
+        SELECT referee_wallet
+        FROM staking_referral_attributions
+        WHERE inviter_wallet = ?
+      `
+    )
+    .all(inviterWallet) as Array<{ referee_wallet: string }>;
+  return rows.map((row) => row.referee_wallet);
+}
+
 export function listOpenRiskFlags(limit: number): StakingReferralRiskFlag[] {
   const rows = db
     .prepare(

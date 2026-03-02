@@ -38,9 +38,10 @@ import {
   listOpenRiskFlags,
   listPayoutTransfersByInviter,
   listReferralCandidates,
-  resolveRiskFlagsForReferee,
   countAttributionsByInviter,
   countDistinctIpHashesByInviter,
+  findCrossInviterIpOverlap,
+  listRefereeWalletsByInviter,
   upsertPayoutRun,
   upsertPayoutTransfer,
   upsertRewardRow,
@@ -339,6 +340,72 @@ async function inferFirstQualifiedAt(params: {
   }
 }
 
+async function detectSharedFundingSources(params: {
+  connection: Connection;
+  inviterWallets: string[];
+  minSharedRatio: number;
+}): Promise<Set<string>> {
+  const flaggedInviters = new Set<string>();
+  const { connection, inviterWallets, minSharedRatio } = params;
+
+  for (const inviterWallet of inviterWallets) {
+    const refereeWallets = listRefereeWalletsByInviter(inviterWallet);
+    if (refereeWallets.length < 3) continue;
+
+    const funderCounts = new Map<string, number>();
+    let analyzed = 0;
+
+    for (const wallet of refereeWallets) {
+      try {
+        const pubkey = new PublicKey(wallet);
+        const signatures = await connection.getSignaturesForAddress(pubkey, { limit: 5 }, 'confirmed');
+        for (const sig of signatures) {
+          if (!sig.signature) continue;
+          try {
+            const tx = await connection.getParsedTransaction(sig.signature, {
+              commitment: 'confirmed',
+              maxSupportedTransactionVersion: 0,
+            });
+            if (!tx?.meta || !tx.transaction?.message?.accountKeys) continue;
+            const feePayer = tx.transaction.message.accountKeys[0]?.pubkey?.toBase58();
+            if (feePayer && feePayer !== wallet) {
+              funderCounts.set(feePayer, (funderCounts.get(feePayer) ?? 0) + 1);
+            }
+          } catch {
+            // skip individual tx parse failures
+          }
+        }
+        analyzed += 1;
+      } catch {
+        // skip wallets that fail RPC
+      }
+    }
+
+    if (analyzed < 3) continue;
+
+    for (const [funder, count] of funderCounts) {
+      if (count / analyzed >= minSharedRatio) {
+        flaggedInviters.add(inviterWallet);
+        insertRiskFlag({
+          code: 'shared_funding_source',
+          severity: 'high',
+          inviterWallet,
+          details: {
+            funderWallet: funder,
+            fundedCount: count,
+            totalAnalyzed: analyzed,
+            ratio: count / analyzed,
+          },
+        });
+        stakingReferralRiskFlagTotal.labels('shared_funding_source', 'high').inc();
+        break;
+      }
+    }
+  }
+
+  return flaggedInviters;
+}
+
 function serialiseLamports(lamports: number): string {
   return (lamports / LAMPORTS_PER_SOL).toFixed(9);
 }
@@ -611,6 +678,8 @@ function getCandidateRiskReason(
   payoutWeekEndSec: number,
   inviterRefereeCounts?: Map<string, number>,
   inviterDistinctIps?: Map<string, number>,
+  crossInviterClusters?: Set<string>,
+  fundingSourceClusters?: Set<string>,
 ): string | null {
   if (candidate.inviterWallet === candidate.refereeWallet) return 'self_referral';
   if (hasCircularAttribution(candidate.inviterWallet, candidate.refereeWallet)) return 'circular_referral';
@@ -620,7 +689,7 @@ function getCandidateRiskReason(
   if (!candidate.firstQualifiedAt) return 'missing_first_qualified';
 
   const ageDays = Math.floor((payoutWeekEndSec - candidate.firstQualifiedAt) / ONE_DAY_SECONDS);
-  if (ageDays < 7) return 'stake_age_under_7d';
+  if (ageDays < 14) return 'stake_age_under_14d';
 
   const openRiskCount = countOpenRiskFlagsForReferee(candidate.refereeWallet);
   if (openRiskCount > 0) return 'risk_flagged';
@@ -631,14 +700,23 @@ function getCandidateRiskReason(
     if (count > MAX_REFEREES_PER_INVITER) return 'inviter_referee_cap_exceeded';
   }
 
-  // Sybil detection: too few distinct IPs for the number of referees
+  // Sybil detection: IP diversity ratio — flag if distinct IPs < 40% of referee count
   if (inviterRefereeCounts && inviterDistinctIps) {
     const refereeCount = inviterRefereeCounts.get(candidate.inviterWallet) ?? 0;
     const distinctIps = inviterDistinctIps.get(candidate.inviterWallet) ?? 0;
-    // If >=5 referees but <=2 distinct IPs, it's suspicious
-    if (refereeCount >= 5 && distinctIps > 0 && distinctIps <= 2) {
+    if (refereeCount >= 5 && distinctIps > 0 && distinctIps < refereeCount * 0.4) {
       return 'low_ip_diversity';
     }
+  }
+
+  // Sybil detection: cross-inviter IP correlation (multiple inviters sharing >50% IPs)
+  if (crossInviterClusters && crossInviterClusters.has(candidate.inviterWallet)) {
+    return 'cross_inviter_ip_cluster';
+  }
+
+  // Sybil detection: shared funding source (referee wallets funded from the same wallet)
+  if (fundingSourceClusters && fundingSourceClusters.has(candidate.inviterWallet)) {
+    return 'shared_funding_source';
   }
 
   return null;
@@ -883,8 +961,58 @@ export async function runStakingReferralPayout(params?: {
     inviterDistinctIps.set(entry[0], countDistinctIpHashesByInviter(entry[0]));
   }
 
+  const connection = getSolanaConnection();
+
+  // Fix 4: Cross-inviter IP correlation — flag inviters that share >50% of IPs with another inviter
+  const crossInviterClusters = new Set<string>();
+  for (const inviterWallet of inviterRefereeCounts.keys()) {
+    const overlaps = findCrossInviterIpOverlap({
+      inviterWallet,
+      thresholdRatio: 0.5,
+    });
+    if (overlaps.length > 0) {
+      crossInviterClusters.add(inviterWallet);
+      for (const overlap of overlaps) {
+        crossInviterClusters.add(overlap.inviterWallet);
+        insertRiskFlag({
+          code: 'cross_inviter_ip_cluster',
+          severity: 'high',
+          inviterWallet,
+          details: {
+            correlatedInviter: overlap.inviterWallet,
+            sharedIps: overlap.sharedIps,
+            totalIps: overlap.totalIps,
+            overlapRatio: overlap.overlapRatio,
+          },
+        });
+        stakingReferralRiskFlagTotal.labels('cross_inviter_ip_cluster', 'high').inc();
+      }
+    }
+  }
+
+  // Fix 1: Funding source analysis — detect referee wallets funded from the same source
+  let fundingSourceClusters = new Set<string>();
+  try {
+    fundingSourceClusters = await detectSharedFundingSources({
+      connection,
+      inviterWallets: Array.from(inviterRefereeCounts.keys()),
+      minSharedRatio: 0.5,
+    });
+  } catch (error) {
+    logger.warn('funding source analysis failed, skipping', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   const rows = candidates.map((candidate) => {
-    const riskReason = getCandidateRiskReason(candidate, payoutWeekEndSec, inviterRefereeCounts, inviterDistinctIps);
+    const riskReason = getCandidateRiskReason(
+      candidate,
+      payoutWeekEndSec,
+      inviterRefereeCounts,
+      inviterDistinctIps,
+      crossInviterClusters,
+      fundingSourceClusters,
+    );
     const ageDays = candidate.firstQualifiedAt
       ? clamp(Math.floor((payoutWeekEndSec - candidate.firstQualifiedAt) / ONE_DAY_SECONDS), 0, REFERRAL_CONFIG.bonusMaxDays)
       : 0;
@@ -951,7 +1079,6 @@ export async function runStakingReferralPayout(params?: {
   }
 
   const executeTransfers = params?.executeTransfers ?? true;
-  const connection = getSolanaConnection();
   const treasury = REFERRAL_CONFIG.treasurySecret ? parseTreasuryKeypair(REFERRAL_CONFIG.treasurySecret) : null;
 
   let distributedLamports = 0;
@@ -1173,7 +1300,11 @@ export function getStakingReferralLeaderboard(params?: {
 
 export function verifyStakingReferralAdminToken(token: string | undefined): boolean {
   if (!REFERRAL_CONFIG.adminSecret) return false;
-  return token === REFERRAL_CONFIG.adminSecret;
+  if (!token) return false;
+  const expected = Buffer.from(REFERRAL_CONFIG.adminSecret, 'utf8');
+  const actual = Buffer.from(token, 'utf8');
+  if (expected.length !== actual.length) return false;
+  return crypto.timingSafeEqual(expected, actual);
 }
 
 let workerTimer: NodeJS.Timeout | null = null;
