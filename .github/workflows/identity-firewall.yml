@@ -45,7 +45,7 @@ jobs:
             if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]]; then
               range="$before..$after"
             else
-              range="$after"
+              range="${after}^!"
             fi
           fi
 
