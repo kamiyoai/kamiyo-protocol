@@ -86,7 +86,7 @@ if SINGULARITY_ENABLED and 'singularity' not in VENUES:
 KALSHI_SIGNAL_ONLY = env_bool('KYO_TRADING_KALSHI_SIGNAL_ONLY', True)
 
 STARTING_EQUITY_USD = max(1.0, env_float('KYO_TRADING_STARTING_EQUITY_USD', 200.0))
-MAX_NOTIONAL_USD_PER_DAY = max(1.0, env_float('KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY', 400.0))
+MAX_NOTIONAL_USD_PER_DAY = max(0.05, env_float('KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY', 400.0))
 MAX_OPEN_POSITIONS = max(1, env_int('KYO_TRADING_MAX_OPEN_POSITIONS', 2))
 MAX_POSITIONS_PER_MARKET = max(1, env_int('KYO_TRADING_MAX_POSITIONS_PER_MARKET', 1))
 MAX_MARKET_EXPOSURE_PCT = max(1.0, min(100.0, env_float('KYO_TRADING_MAX_MARKET_EXPOSURE_PCT', 25.0)))
@@ -102,17 +102,17 @@ ENTRY_PRICE_MIN = max(0.001, min(0.499, env_float('KYO_TRADING_ENTRY_PRICE_MIN',
 ENTRY_PRICE_MAX = max(ENTRY_PRICE_MIN + 0.001, min(0.999, env_float('KYO_TRADING_ENTRY_PRICE_MAX', 0.95)))
 CLOSE_ORPHAN_POSITIONS = env_bool('KYO_TRADING_CLOSE_ORPHAN_POSITIONS', True)
 ORPHAN_POSITION_HOLD_HOURS = max(0.0, env_float('KYO_TRADING_ORPHAN_POSITION_HOLD_HOURS', 2.0))
-BASE_NOTIONAL_PER_TRADE_USD = max(1.0, env_float('KYO_TRADING_NOTIONAL_PER_TRADE_USD', 25.0))
+BASE_NOTIONAL_PER_TRADE_USD = max(0.01, env_float('KYO_TRADING_NOTIONAL_PER_TRADE_USD', 25.0))
 COMPOUNDING_ENABLED = env_bool('KYO_TRADING_COMPOUNDING_ENABLED', False)
 NOTIONAL_PCT_OF_EQUITY = max(0.0, min(100.0, env_float('KYO_TRADING_NOTIONAL_PCT_OF_EQUITY', 12.5)))
-NOTIONAL_MIN_USD = max(1.0, env_float('KYO_TRADING_NOTIONAL_MIN_USD', 10.0))
+NOTIONAL_MIN_USD = max(0.01, env_float('KYO_TRADING_NOTIONAL_MIN_USD', 10.0))
 NOTIONAL_MAX_USD = max(NOTIONAL_MIN_USD, env_float('KYO_TRADING_NOTIONAL_MAX_USD', 250.0))
 VENUE_MIN_ALLOC_PCT = max(0.0, min(100.0, env_float('KYO_TRADING_VENUE_MIN_ALLOC_PCT', 20.0)))
 VENUE_MAX_ALLOC_PCT = max(VENUE_MIN_ALLOC_PCT, min(100.0, env_float('KYO_TRADING_VENUE_MAX_ALLOC_PCT', 70.0)))
 MAX_EXEC_ATTEMPTS_PER_TICK = max(1, min(100, env_int('KYO_TRADING_MAX_EXEC_ATTEMPTS_PER_TICK', 5)))
 MAX_FAILURES_PER_TICK = max(1, min(50, env_int('KYO_TRADING_MAX_FAILURES_PER_TICK', 3)))
 TICK_INTERVAL_SEC = max(15, env_int('KYO_TRADING_TICK_INTERVAL_SEC', 300))
-MICRO_LIVE_MAX_NOTIONAL_USD = max(1.0, env_float('KYO_TRADING_MICRO_LIVE_MAX_NOTIONAL_USD', 75.0))
+MICRO_LIVE_MAX_NOTIONAL_USD = max(0.05, env_float('KYO_TRADING_MICRO_LIVE_MAX_NOTIONAL_USD', 75.0))
 REAL_CLOSE_ENABLED = env_bool('KYO_TRADING_REAL_CLOSE_ENABLED', False)
 CLOSE_STRICT_TRACKING = env_bool('KYO_TRADING_CLOSE_STRICT_TRACKING', True)
 CLOSE_PENDING_RETRY_SEC = max(60, env_int('KYO_TRADING_CLOSE_PENDING_RETRY_SEC', 600))
@@ -777,6 +777,13 @@ def should_count_for_market_cooldown(error_message: str) -> bool:
     if 'order unmatched' in text:
         return True
     return False
+
+
+def is_market_resolved_error(error_message: str) -> bool:
+    text = str(error_message or '').strip().lower()
+    if not text:
+        return False
+    return 'already been resolved' in text or 'market has been resolved' in text
 
 
 def extract_process_error(stderr: str, stdout: str, fallback: str) -> str:
@@ -1940,6 +1947,7 @@ def run() -> int:
                 except Exception as exc:
                     close_error = str(exc).strip()[:300] or 'close_execution_failed'
                     close_counts_for_cooldown = should_count_for_market_cooldown(close_error)
+                    resolved_close_error = is_market_resolved_error(close_error)
                     if 'order unmatched' in close_error.lower():
                         add_warning(f'{venue}_order_unmatched')
                     add_warning(f'{venue}_close_execution_failed')
@@ -1956,7 +1964,8 @@ def run() -> int:
                         if failure_update.get('cooldownActivated'):
                             add_warning('market_failure_cooldown_activated')
                     if CLOSE_STRICT_TRACKING:
-                        live_close_deferred_tick += 1
+                        if not resolved_close_error:
+                            live_close_deferred_tick += 1
                         failed_close_row = {
                             'id': stable_trade_id(
                                 'trade-close-failed',
@@ -1986,6 +1995,34 @@ def run() -> int:
                         }
                         append_ledger_row(failed_close_row)
                         records_appended += 1
+                        if resolved_close_error:
+                            add_warning(f'{venue}_market_resolved_forced_close')
+                            gross_usd, cost_usd, realized_net = position_close_amounts(position, 'market_resolved')
+                            write_mark_to_market_row(
+                                venue=venue,
+                                market_id=str(position.get('marketId') or ''),
+                                position_id=str(position.get('positionId') or ''),
+                                order_id=str(position.get('orderId') or ''),
+                                gross_usd=gross_usd,
+                                cost_usd=cost_usd,
+                                net_usd=realized_net,
+                                close_reason='market_resolved',
+                                metadata={
+                                    'entryPrice': position.get('entryPrice'),
+                                    'markPrice': position.get('markPrice'),
+                                    'unrealizedPct': position.get('unrealizedPct'),
+                                    'executionMode': EXECUTION_MODE,
+                                    'candidateId': str(position.get('candidateId') or '').strip(),
+                                    'leaderFollowSnapshot': position.get('leaderFollowSnapshot')
+                                    if isinstance(position.get('leaderFollowSnapshot'), dict)
+                                    else {},
+                                    'error': close_error,
+                                },
+                            )
+                            mark_to_market_rows += 1
+                            records_appended += 1
+                            closed += 1
+                            continue
                         keep_open_positions.append(position)
                         continue
 

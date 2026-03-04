@@ -1408,6 +1408,65 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertEqual(len(close_calls), 1)
         self.assertAlmostEqual(close_calls[0], 0.836, places=8)
 
+    def test_limitless_resolved_close_error_forces_local_retire(self):
+        self.mod.FEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.FEED_PATH.write_text(json.dumps({'ok': True, 'opportunities': []}), encoding='utf-8')
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.REAL_CLOSE_ENABLED = True
+        self.mod.CLOSE_STRICT_TRACKING = True
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = ''
+
+        opened_at = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        self.mod.POSITIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POSITIONS_PATH.write_text(
+            json.dumps(
+                {
+                    'positions': [
+                        {
+                            'id': 'limitless-open-resolved',
+                            'positionId': 'limitless-open-resolved',
+                            'orderId': 'limitless-order-resolved',
+                            'marketId': 'limitless-mkt-resolved',
+                            'venue': 'limitless',
+                            'status': 'open',
+                            'openedAt': opened_at,
+                            'notionalUsd': 10.0,
+                            'limitlessPositionSize': 0.5,
+                            'limitlessMarketSlug': 'limitless-mkt-resolved',
+                            'limitlessTokenId': '12345',
+                            'direction': 'yes',
+                            'entryPrice': 0.5,
+                            'markPrice': 0.62,
+                            'unrealizedPct': 24.0,
+                        }
+                    ]
+                }
+            ),
+            encoding='utf-8',
+        )
+
+        with patch.object(
+            self.mod,
+            'live_execute_limitless',
+            side_effect=RuntimeError("Market 'limitless-mkt-resolved' has already been resolved."),
+        ):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertIn('limitless_market_resolved_forced_close', summary.get('warnings', []))
+        self.assertEqual(summary.get('openPositions'), 0)
+        rows = self._ledger_rows()
+        self.assertTrue(any(row.get('kind') == 'trade_close' and row.get('status') == 'failed' for row in rows))
+        self.assertTrue(
+            any(
+                row.get('kind') == 'mark_to_market'
+                and (row.get('metadata') or {}).get('closeReason') == 'market_resolved'
+                for row in rows
+            )
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
