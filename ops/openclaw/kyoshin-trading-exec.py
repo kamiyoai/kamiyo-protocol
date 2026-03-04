@@ -103,6 +103,10 @@ ENTRY_PRICE_MAX = max(ENTRY_PRICE_MIN + 0.001, min(0.999, env_float('KYO_TRADING
 CLOSE_ORPHAN_POSITIONS = env_bool('KYO_TRADING_CLOSE_ORPHAN_POSITIONS', True)
 ORPHAN_POSITION_HOLD_HOURS = max(0.0, env_float('KYO_TRADING_ORPHAN_POSITION_HOLD_HOURS', 2.0))
 BASE_NOTIONAL_PER_TRADE_USD = max(1.0, env_float('KYO_TRADING_NOTIONAL_PER_TRADE_USD', 25.0))
+COMPOUNDING_ENABLED = env_bool('KYO_TRADING_COMPOUNDING_ENABLED', False)
+NOTIONAL_PCT_OF_EQUITY = max(0.0, min(100.0, env_float('KYO_TRADING_NOTIONAL_PCT_OF_EQUITY', 12.5)))
+NOTIONAL_MIN_USD = max(1.0, env_float('KYO_TRADING_NOTIONAL_MIN_USD', 10.0))
+NOTIONAL_MAX_USD = max(NOTIONAL_MIN_USD, env_float('KYO_TRADING_NOTIONAL_MAX_USD', 250.0))
 VENUE_MIN_ALLOC_PCT = max(0.0, min(100.0, env_float('KYO_TRADING_VENUE_MIN_ALLOC_PCT', 20.0)))
 VENUE_MAX_ALLOC_PCT = max(VENUE_MIN_ALLOC_PCT, min(100.0, env_float('KYO_TRADING_VENUE_MAX_ALLOC_PCT', 70.0)))
 MAX_EXEC_ATTEMPTS_PER_TICK = max(1, min(100, env_int('KYO_TRADING_MAX_EXEC_ATTEMPTS_PER_TICK', 5)))
@@ -618,6 +622,13 @@ def build_venue_allocations(
     budget_by_venue = {venue: round(daily_budget_usd * normalized.get(venue, 0.0), 8) for venue in trading_venues}
     weight_by_venue = {venue: round(normalized.get(venue, 0.0), 8) for venue in trading_venues}
     return budget_by_venue, weight_by_venue
+
+
+def compute_base_notional_usd(equity_usd: float) -> float:
+    if not COMPOUNDING_ENABLED:
+        return round(BASE_NOTIONAL_PER_TRADE_USD, 8)
+    notional = max(0.0, equity_usd) * (NOTIONAL_PCT_OF_EQUITY / 100.0)
+    return round(clamp(notional, NOTIONAL_MIN_USD, NOTIONAL_MAX_USD), 8)
 
 
 def candidate_entry_price_allowed(candidate: dict[str, Any]) -> bool:
@@ -1871,6 +1882,12 @@ def run() -> int:
         append_ledger_row(row)
         records_appended += 1
 
+    sizing_equity_usd = current_equity
+    if COMPOUNDING_ENABLED:
+        latest_realized_net, _, _ = compute_trading_pnl(jsonl_rows(LEDGER_PATH))
+        sizing_equity_usd = round(max(0.0, STARTING_EQUITY_USD + latest_realized_net), 8)
+    base_notional_usd = compute_base_notional_usd(sizing_equity_usd)
+
     allocation_venues = ['polymarket', 'limitless']
     if singularity_paper_ready:
         allocation_venues.append('singularity')
@@ -1929,7 +1946,7 @@ def run() -> int:
             current_market_exposure = market_exposure.get(market_id, 0.0)
             market_room = max_market_exposure_usd - current_market_exposure
             day_room = MAX_NOTIONAL_USD_PER_DAY_EFFECTIVE - daily_notional_used
-            notional_usd = min(BASE_NOTIONAL_PER_TRADE_USD, venue_remaining, market_room, day_room)
+            notional_usd = min(base_notional_usd, venue_remaining, market_room, day_room)
             if notional_usd <= 0:
                 blocked_candidates += 1
                 continue
@@ -2224,6 +2241,9 @@ def run() -> int:
         'peakEquityUsd': round(peak_equity, 8),
         'currentEquityUsd': current_equity_after,
         'dailyNotionalUsdUsed': round(daily_notional_used, 8),
+        'baseNotionalUsd': round(base_notional_usd, 8),
+        'baseNotionalStaticUsd': round(BASE_NOTIONAL_PER_TRADE_USD, 8),
+        'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
         'maxNotionalUsdPerDay': round(MAX_NOTIONAL_USD_PER_DAY_EFFECTIVE, 8),
         'maxNotionalUsdPerDayConfigured': round(MAX_NOTIONAL_USD_PER_DAY, 8),
         'venueBudgets': venue_budgets,
@@ -2283,6 +2303,13 @@ def run() -> int:
         'blockedCandidates': blocked_candidates,
         'recordsAppended': records_appended,
         'dailyNotionalUsdUsed': round(daily_notional_used, 8),
+        'compoundingEnabled': COMPOUNDING_ENABLED,
+        'baseNotionalUsd': round(base_notional_usd, 8),
+        'baseNotionalStaticUsd': round(BASE_NOTIONAL_PER_TRADE_USD, 8),
+        'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
+        'notionalPctOfEquity': round(NOTIONAL_PCT_OF_EQUITY, 8),
+        'notionalMinUsd': round(NOTIONAL_MIN_USD, 8),
+        'notionalMaxUsd': round(NOTIONAL_MAX_USD, 8),
         'maxNotionalUsdPerDay': round(MAX_NOTIONAL_USD_PER_DAY_EFFECTIVE, 8),
         'maxNotionalUsdPerDayConfigured': round(MAX_NOTIONAL_USD_PER_DAY, 8),
         'entryPriceMin': round(ENTRY_PRICE_MIN, 8),
@@ -2335,6 +2362,8 @@ def run() -> int:
             'day': current_day,
             'dailyNotionalUsdUsed': round(daily_notional_used, 8),
             'peakEquityUsd': round(peak_equity, 8),
+            'baseNotionalUsd': round(base_notional_usd, 8),
+            'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
             'signalSeen': signal_seen,
             'lastStatus': summary,
         },
@@ -2355,6 +2384,9 @@ def run() -> int:
             'markToMarketRowsTick': mark_to_market_rows,
             'syntheticCloseViolationsTick': synthetic_close_violations_tick,
             'openPositions': len(open_positions),
+            'compoundingEnabled': COMPOUNDING_ENABLED,
+            'baseNotionalUsd': round(base_notional_usd, 8),
+            'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
             'polymarketTradesTick': trades_by_venue['polymarket'],
             'limitlessTradesTick': trades_by_venue['limitless'],
             'singularityPaperTradesTick': trades_by_venue['singularity'],

@@ -64,6 +64,10 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.mod.CLOSE_ORPHAN_POSITIONS = True
         self.mod.ORPHAN_POSITION_HOLD_HOURS = 2.0
         self.mod.BASE_NOTIONAL_PER_TRADE_USD = 25.0
+        self.mod.COMPOUNDING_ENABLED = False
+        self.mod.NOTIONAL_PCT_OF_EQUITY = 12.5
+        self.mod.NOTIONAL_MIN_USD = 10.0
+        self.mod.NOTIONAL_MAX_USD = 250.0
         self.mod.REAL_CLOSE_ENABLED = False
         self.mod.POLYMARKET_EXEC_CMD = ''
         self.mod.LIMITLESS_EXEC_CMD = ''
@@ -161,6 +165,52 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertEqual(close_metadata.get('candidateId'), 'cand-1')
         close_snapshot = close_metadata.get('leaderFollowSnapshot') or {}
         self.assertEqual(close_snapshot.get('mode'), 'shadow')
+
+    def test_compounding_sizes_notional_from_realized_equity(self):
+        self._write_feed()
+        self.mod.COMPOUNDING_ENABLED = True
+        self.mod.NOTIONAL_PCT_OF_EQUITY = 10.0
+        self.mod.NOTIONAL_MIN_USD = 5.0
+        self.mod.NOTIONAL_MAX_USD = 500.0
+        self.mod.LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        realized_seed_row = {
+            'id': 'seed-close-1',
+            'at': datetime.now(timezone.utc).isoformat(),
+            'source': 'trading',
+            'venue': 'limitless',
+            'kind': 'trade_close',
+            'status': 'success',
+            'realized': True,
+            'marketId': 'seed-market',
+            'positionId': 'seed-pos',
+            'orderId': 'seed-order',
+            'grossUsd': 300.0,
+            'costUsd': 0.0,
+            'netUsd': 300.0,
+            'paymentRef': '0x' + ('a' * 64),
+            'txSignature': '',
+        }
+        self.mod.LEDGER_PATH.write_text(json.dumps(realized_seed_row) + '\n', encoding='utf-8')
+
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('baseNotionalUsd'), 50.0)
+        self.assertEqual(summary.get('notionalSizingEquityUsd'), 500.0)
+
+        rows = self._ledger_rows()
+        open_row = next(row for row in rows if row.get('kind') == 'trade_open' and row.get('status') == 'success')
+        open_metadata = open_row.get('metadata') or {}
+        self.assertEqual(open_metadata.get('notionalUsd'), 50.0)
+
+    def test_compounding_notional_respects_min_max_clamps(self):
+        self.mod.COMPOUNDING_ENABLED = True
+        self.mod.NOTIONAL_PCT_OF_EQUITY = 10.0
+        self.mod.NOTIONAL_MIN_USD = 12.0
+        self.mod.NOTIONAL_MAX_USD = 80.0
+
+        self.assertEqual(self.mod.compute_base_notional_usd(50.0), 12.0)
+        self.assertEqual(self.mod.compute_base_notional_usd(300.0), 30.0)
+        self.assertEqual(self.mod.compute_base_notional_usd(2_000.0), 80.0)
 
     def test_blocks_when_revenue_guard_blocks_paid_execution(self):
         self._write_feed()
