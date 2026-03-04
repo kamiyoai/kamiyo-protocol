@@ -149,6 +149,20 @@ run() {
     fi
   done
 
+  echo "[1.6/6] ensuring trading bridge dependencies"
+  run_as_openclaw "
+    set -euo pipefail
+    if command -v npm >/dev/null 2>&1; then
+      cd \"$TARGET_BRIDGES_DIR\"
+      if [ ! -f package.json ]; then
+        printf '%s\n' '{\"name\":\"kyoshin-trading-bridges\",\"private\":true,\"type\":\"module\"}' > package.json
+      fi
+      if [ ! -d node_modules/@polymarket/clob-client ] || [ ! -d node_modules/@ethersproject/wallet ] || [ ! -d node_modules/@limitless-exchange/sdk ] || [ ! -d node_modules/ethers ]; then
+        npm install --silent --no-audit --no-fund --omit=dev @polymarket/clob-client @ethersproject/wallet @limitless-exchange/sdk ethers >/dev/null 2>&1 || true
+      fi
+    fi
+  "
+
   echo "[2/6] ensuring required runtime gate flags exist"
   append_env_if_missing "KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS" "true"
   append_env_if_missing "KYO_REQUIRE_KYOSHIN_RUNTIME" "true"
@@ -164,6 +178,14 @@ run() {
   append_env_if_missing "KYO_REQUIRE_TRADING_AGENT" "false"
   append_env_if_missing "KYO_TRADING_EXECUTION_MODE" "paper"
   append_env_if_missing "KYO_TRADING_VENUES" "polymarket,limitless,kalshi"
+  append_env_if_missing "KYO_TRADING_SINGULARITY_ENABLED" "true"
+  append_env_if_missing "KYO_TRADING_SINGULARITY_API_BASE_URL" ""
+  append_env_if_missing "KYO_TRADING_SINGULARITY_AUTH_WALLET" ""
+  append_env_if_missing "KYO_TRADING_SINGULARITY_PRIVATE_KEY_PATH" ""
+  append_env_if_missing "KYO_TRADING_SINGULARITY_BEARER_TOKEN" ""
+  append_env_if_missing "KYO_TRADING_SINGULARITY_MODE" "paper"
+  append_env_if_missing "KYO_TRADING_SINGULARITY_ORDERBOOK_LOOKUPS" "16"
+  append_env_if_missing "KYO_TRADING_TICK_INTERVAL_SEC" "300"
   append_env_if_missing "KYO_TRADING_POLYMARKET_GAMMA_BASE_URL" "https://gamma-api.polymarket.com"
   append_env_if_missing "KYO_TRADING_POLYMARKET_CLOB_BASE_URL" "https://clob.polymarket.com"
   append_env_if_missing "KYO_TRADING_POLYMARKET_GEO_URL" "https://polymarket.com/api/geoblock"
@@ -172,15 +194,29 @@ run() {
   append_env_if_missing "KYO_TRADING_LIMITLESS_API_BASE_URL" "https://api.limitless.exchange"
   append_env_if_missing "KYO_TRADING_LIMITLESS_API_KEY" ""
   append_env_if_missing "KYO_TRADING_LIMITLESS_EXEC_CMD" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_PRIVATE_KEY_PATH" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_REQUIRE_SIGNED_PAYLOAD" "false"
+  append_env_if_missing "KYO_TRADING_LIMITLESS_ORDER_TYPE" "FOK"
+  append_env_if_missing "KYO_TRADING_LIMITLESS_SIDE" "buy"
+  append_env_if_missing "KYO_TRADING_LIMITLESS_MAKER_ADDRESS" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_SIGNER_ADDRESS" ""
+  append_env_if_missing "KYO_TRADING_LIMITLESS_SIGNATURE_TYPE" "1"
   append_env_if_missing "KYO_TRADING_MIN_FILL_PROB" "0.55"
   append_env_if_missing "KYO_TRADING_MIN_MARKET_LIQUIDITY_USD" "10000"
   append_env_if_missing "KYO_TRADING_MIN_TIME_TO_EXPIRY_MIN" "45"
+  append_env_if_missing "KYO_TRADING_MAX_TIME_TO_EXPIRY_MIN" "1440"
+  append_env_if_missing "KYO_TRADING_MAX_EVENT_CLUSTER_EXPOSURE_PCT" "35"
   append_env_if_missing "KYO_TRADING_VENUE_MIN_ALLOC_PCT" "20"
   append_env_if_missing "KYO_TRADING_VENUE_MAX_ALLOC_PCT" "70"
+  append_env_if_missing "KYO_TRADING_MICRO_LIVE_MAX_NOTIONAL_USD" "75"
+  append_env_if_missing "KYO_TRADING_MIN_PAPER_CLOSES_FOR_LIVE" "200"
+  append_env_if_missing "KYO_TRADING_MIN_LIVE_CLOSES_TARGET_48H" "20"
+  append_env_if_missing "KYO_TRADING_ENFORCE_MICRO_LIVE_GATES" "true"
   append_env_if_missing "KYO_TRADING_KALSHI_SIGNAL_ONLY" "true"
   append_env_if_missing "KYO_TRADING_MAX_DRAWDOWN_PCT" "8"
   append_env_if_missing "KYO_TRADING_DAILY_LOSS_STOP_PCT" "1.5"
   append_env_if_missing "KYO_TRADING_MAX_OPEN_POSITIONS" "2"
+  append_env_if_missing "KYO_TRADING_MAX_POSITIONS_PER_MARKET" "1"
   append_env_if_missing "KYO_TRADING_MAX_MARKET_EXPOSURE_PCT" "25"
   append_env_if_missing "KYO_TRADING_MAX_NOTIONAL_USD_PER_DAY" "400"
   append_env_if_missing "KYO_TRADING_MAX_ORDER_SLIPPAGE_BPS" "120"
@@ -188,12 +224,24 @@ run() {
   append_env_if_missing "KYO_TRADING_TAKE_PROFIT_PCT" "12"
   append_env_if_missing "KYO_TRADING_STOP_LOSS_PCT" "8"
   append_env_if_missing "KYO_TRADING_MAX_HOLD_HOURS" "72"
+  append_env_if_missing "KYO_TRADING_ENTRY_PRICE_MIN" "0.05"
+  append_env_if_missing "KYO_TRADING_ENTRY_PRICE_MAX" "0.95"
+  append_env_if_missing "KYO_TRADING_CLOSE_ORPHAN_POSITIONS" "true"
+  append_env_if_missing "KYO_TRADING_ORPHAN_POSITION_HOLD_HOURS" "2"
+  append_env_if_missing "KYO_TRADING_MARKET_FAILURE_COOLDOWN_ENABLED" "true"
+  append_env_if_missing "KYO_TRADING_MARKET_FAILURE_THRESHOLD" "2"
+  append_env_if_missing "KYO_TRADING_MARKET_FAILURE_WINDOW_MIN" "60"
+  append_env_if_missing "KYO_TRADING_MARKET_FAILURE_COOLDOWN_MIN" "120"
   append_env_if_missing "KYO_TRADING_WEEKLY_LOSS_CAP_USD" "300"
   append_env_if_missing "KYO_TRADING_ROUTE_NET_BPS" "5000"
   append_env_if_missing "KYO_TRADING_ROUTE_MIN_SOL" "0.000001"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_ENABLED" "false"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD" ""
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_MIN_USD" "1"
   append_env_if_missing "KYO_TRADING_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
   append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
   append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
+  append_env_if_missing "KYO_X402_ALLOWED_NETWORKS" "eip155:8453,solana:mainnet"
   append_env_if_missing "KYO_ENABLE_DISTRIBUTION_ENGINE" "true"
   append_env_if_missing "KYO_ENABLE_OPERATOR_LOG" "true"
   append_env_if_missing "KYO_WEEKLY_SPEND_CAP_USD" "150"
@@ -231,6 +279,16 @@ run() {
       echo \"node_runtime=$(node -v 2>/dev/null || true)\"
     else
       echo 'node_runtime=missing'
+    fi
+    if [ -d \"$TARGET_BRIDGES_DIR/node_modules/@polymarket/clob-client\" ] && [ -d \"$TARGET_BRIDGES_DIR/node_modules/@ethersproject/wallet\" ]; then
+      echo 'polymarket_bridge_deps=installed'
+    else
+      echo 'polymarket_bridge_deps=missing'
+    fi
+    if [ -d \"$TARGET_BRIDGES_DIR/node_modules/@limitless-exchange/sdk\" ] && [ -d \"$TARGET_BRIDGES_DIR/node_modules/ethers\" ]; then
+      echo 'limitless_bridge_deps=installed'
+    else
+      echo 'limitless_bridge_deps=missing'
     fi
   "
 
@@ -311,6 +369,30 @@ run() {
       jq . \"$RUNTIME_STATE_DIR/trading-capabilities.json\"
     else
       echo 'missing trading-capabilities.json'
+    fi
+
+    echo
+    echo '--- leader-follow.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/leader-follow.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/leader-follow.json\"
+    else
+      echo 'missing leader-follow.json'
+    fi
+
+    echo
+    echo '--- leader-follow-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/leader-follow-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/leader-follow-state.json\"
+    else
+      echo 'missing leader-follow-state.json'
+    fi
+
+    echo
+    echo '--- singularity-paper.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/singularity-paper.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/singularity-paper.json\"
+    else
+      echo 'missing singularity-paper.json'
     fi
 
     echo
@@ -445,10 +527,17 @@ run() {
   echo "  - KYO_CLAWMART_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_CLAWMART_STAKING_ROUTE_CMD=...)"
   echo "Set trading routing credentials:"
   echo "  - KYO_TRADING_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_TRADING_STAKING_ROUTE_CMD=...)"
-  echo "  - KYO_TRADING_POLYMARKET_API_KEY/SECRET/PASSPHRASE + candidate polymarketOrder payloads"
-  echo "    (or set KYO_TRADING_POLYMARKET_EXEC_CMD=<execution bridge>)"
-  echo "  - KYO_TRADING_LIMITLESS_API_KEY=<limitless key> or KYO_TRADING_LIMITLESS_EXEC_CMD=<signed-order bridge>"
+  echo "  - KYO_TRADING_POLYMARKET_PRIVATE_KEY_PATH=/path/to/evm.key"
+  echo "  - KYO_TRADING_POLYMARKET_API_KEY/SECRET/PASSPHRASE (or allow API key derivation)"
+  echo "  - polymarket bridge deps in $TARGET_BRIDGES_DIR/node_modules (@polymarket/clob-client + @ethersproject/wallet)"
+  echo "  - limitless bridge deps in $TARGET_BRIDGES_DIR/node_modules (@limitless-exchange/sdk + ethers)"
+  echo "  - KYO_TRADING_LIMITLESS_API_KEY=<limitless key>"
+  echo "  - KYO_TRADING_LIMITLESS_PRIVATE_KEY_PATH=/path/to/evm.key (or KYO_TRADING_POLYMARKET_PRIVATE_KEY_PATH)"
+  echo "  - KYO_TRADING_LIMITLESS_REQUIRE_SIGNED_PAYLOAD=false to use SDK fallback order signing"
   echo "  - KYO_TRADING_POLYMARKET_REQUIRE_GEO_ALLOWED=true to hard-block geo-restricted live orders"
+  echo "  - KYO_TRADING_SINGULARITY_ENABLED=true and KYO_TRADING_SINGULARITY_API_BASE_URL=<url> for 5-minute paper training lane"
+  echo "  - KYO_TRADING_MAX_TIME_TO_EXPIRY_MIN=1440 and KYO_TRADING_MAX_EVENT_CLUSTER_EXPOSURE_PCT=35"
+  echo "  - KYO_TRADING_MICRO_LIVE_MAX_NOTIONAL_USD=75 and KYO_TRADING_ENFORCE_MICRO_LIVE_GATES=true"
   if [ "$has_systemctl" -eq 1 ]; then
     echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
   else

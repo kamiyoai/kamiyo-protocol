@@ -69,6 +69,12 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.mod.NOTIONAL_MIN_USD = 10.0
         self.mod.NOTIONAL_MAX_USD = 250.0
         self.mod.REAL_CLOSE_ENABLED = False
+        self.mod.MARKET_FAILURE_COOLDOWN_ENABLED = True
+        self.mod.MARKET_FAILURE_THRESHOLD = 2
+        self.mod.MARKET_FAILURE_WINDOW_MIN = 60
+        self.mod.MARKET_FAILURE_COOLDOWN_MIN = 120
+        self.mod.MARKET_FAILURE_WINDOW_SEC = 60 * 60
+        self.mod.MARKET_FAILURE_COOLDOWN_SEC = 120 * 60
         self.mod.POLYMARKET_EXEC_CMD = ''
         self.mod.LIMITLESS_EXEC_CMD = ''
         self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = True
@@ -349,6 +355,40 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertNotIn('no_live_trading_venue_available', summary.get('reasons', []))
         self.assertNotIn('limitless', summary.get('venueBlockers', {}))
         self.assertIn('limitless_order_unmatched', summary.get('warnings', []))
+
+    def test_market_failure_cooldown_blocks_repeated_simulation_failures(self):
+        self._write_feed()
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = ''
+        self.mod.MARKET_FAILURE_COOLDOWN_ENABLED = True
+        self.mod.MARKET_FAILURE_THRESHOLD = 1
+        self.mod.MARKET_FAILURE_WINDOW_MIN = 60
+        self.mod.MARKET_FAILURE_COOLDOWN_MIN = 120
+        self.mod.MARKET_FAILURE_WINDOW_SEC = 60 * 60
+        self.mod.MARKET_FAILURE_COOLDOWN_SEC = 120 * 60
+        self.mod.LIMITLESS_BRIDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.LIMITLESS_BRIDGE_PATH.write_text('#!/usr/bin/env node\n', encoding='utf-8')
+        self.mod.LIMITLESS_BRIDGE_PATH.chmod(0o700)
+
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', side_effect=RuntimeError('Simulation failed')
+        ):
+            code1, summary1 = self._run()
+        self.assertEqual(code1, 0)
+        self.assertEqual(summary1.get('failedTrades'), 1)
+        self.assertIn('market_failure_cooldown_activated', summary1.get('warnings', []))
+        self.assertEqual(summary1.get('activeMarketCooldowns'), 1)
+
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', side_effect=AssertionError('bridge should not execute during cooldown')
+        ):
+            code2, summary2 = self._run()
+        self.assertEqual(code2, 0)
+        self.assertEqual(summary2.get('executedTrades'), 0)
+        self.assertGreaterEqual(summary2.get('blockedByMarketCooldown', 0), 1)
+        self.assertIn('market_failure_cooldown_active', summary2.get('warnings', []))
 
     def test_live_mode_ignores_unexpected_realized_flag_without_close_intent(self):
         self._write_feed()

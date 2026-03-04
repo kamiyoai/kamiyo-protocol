@@ -116,6 +116,12 @@ MICRO_LIVE_MAX_NOTIONAL_USD = max(1.0, env_float('KYO_TRADING_MICRO_LIVE_MAX_NOT
 REAL_CLOSE_ENABLED = env_bool('KYO_TRADING_REAL_CLOSE_ENABLED', False)
 CLOSE_STRICT_TRACKING = env_bool('KYO_TRADING_CLOSE_STRICT_TRACKING', True)
 CLOSE_PENDING_RETRY_SEC = max(60, env_int('KYO_TRADING_CLOSE_PENDING_RETRY_SEC', 600))
+MARKET_FAILURE_COOLDOWN_ENABLED = env_bool('KYO_TRADING_MARKET_FAILURE_COOLDOWN_ENABLED', True)
+MARKET_FAILURE_THRESHOLD = max(1, env_int('KYO_TRADING_MARKET_FAILURE_THRESHOLD', 2))
+MARKET_FAILURE_WINDOW_MIN = max(1, env_int('KYO_TRADING_MARKET_FAILURE_WINDOW_MIN', 60))
+MARKET_FAILURE_COOLDOWN_MIN = max(1, env_int('KYO_TRADING_MARKET_FAILURE_COOLDOWN_MIN', 120))
+MARKET_FAILURE_WINDOW_SEC = MARKET_FAILURE_WINDOW_MIN * 60
+MARKET_FAILURE_COOLDOWN_SEC = MARKET_FAILURE_COOLDOWN_MIN * 60
 SLOT_RECOVERY_ENABLED = env_bool('KYO_TRADING_SLOT_RECOVERY_ENABLED', True)
 SLOT_RECOVERY_MIN_HOLD_HOURS = max(0.0, env_float('KYO_TRADING_SLOT_RECOVERY_MIN_HOLD_HOURS', 1.0))
 SLOT_RECOVERY_MIN_SCORE_DELTA = max(0.0, env_float('KYO_TRADING_SLOT_RECOVERY_MIN_SCORE_DELTA', 0.02))
@@ -629,6 +635,79 @@ def compute_base_notional_usd(equity_usd: float) -> float:
         return round(BASE_NOTIONAL_PER_TRADE_USD, 8)
     notional = max(0.0, equity_usd) * (NOTIONAL_PCT_OF_EQUITY / 100.0)
     return round(clamp(notional, NOTIONAL_MIN_USD, NOTIONAL_MAX_USD), 8)
+
+
+def normalize_market_failure_state(raw: Any, now: datetime) -> dict[str, dict[str, Any]]:
+    state = raw if isinstance(raw, dict) else {}
+    normalized: dict[str, dict[str, Any]] = {}
+    for market_id, entry in state.items():
+        market = str(market_id or '').strip()
+        if not market or not isinstance(entry, dict):
+            continue
+        failure_count = max(0, int(parse_float(entry.get('failureCount'), 0.0)))
+        window_start = parse_ts(entry.get('windowStartAt'))
+        cooldown_until = parse_ts(entry.get('cooldownUntil'))
+        last_failure = parse_ts(entry.get('lastFailureAt'))
+        if window_start and (now - window_start).total_seconds() > MARKET_FAILURE_WINDOW_SEC:
+            failure_count = 0
+            window_start = None
+        if cooldown_until and cooldown_until <= now:
+            cooldown_until = None
+        if not cooldown_until and failure_count <= 0:
+            continue
+        normalized[market] = {
+            'failureCount': failure_count,
+            'windowStartAt': window_start.isoformat() if window_start else '',
+            'lastFailureAt': last_failure.isoformat() if last_failure else '',
+            'cooldownUntil': cooldown_until.isoformat() if cooldown_until else '',
+        }
+    return normalized
+
+
+def market_cooldown_until(state: dict[str, dict[str, Any]], market_id: str) -> datetime | None:
+    entry = state.get(market_id) if isinstance(state, dict) else None
+    if not isinstance(entry, dict):
+        return None
+    return parse_ts(entry.get('cooldownUntil'))
+
+
+def market_in_failure_cooldown(state: dict[str, dict[str, Any]], market_id: str, now: datetime) -> bool:
+    if not market_id:
+        return False
+    cooldown_until = market_cooldown_until(state, market_id)
+    if cooldown_until is None:
+        return False
+    return cooldown_until > now
+
+
+def register_market_failure(
+    state: dict[str, dict[str, Any]],
+    market_id: str,
+    now: datetime,
+) -> dict[str, Any]:
+    market = str(market_id or '').strip()
+    if not market:
+        return {'cooldownActivated': False, 'failureCount': 0, 'cooldownUntil': ''}
+    entry = state.get(market) if isinstance(state.get(market), dict) else {}
+    failure_count = max(0, int(parse_float(entry.get('failureCount'), 0.0)))
+    window_start = parse_ts(entry.get('windowStartAt'))
+    if window_start is None or (now - window_start).total_seconds() > MARKET_FAILURE_WINDOW_SEC:
+        failure_count = 0
+        window_start = now
+    failure_count += 1
+    cooldown_activated = failure_count >= MARKET_FAILURE_THRESHOLD
+    cooldown_until = now + timedelta(seconds=MARKET_FAILURE_COOLDOWN_SEC) if cooldown_activated else parse_ts(entry.get('cooldownUntil'))
+    state[market] = {
+        'failureCount': failure_count,
+        'windowStartAt': window_start.isoformat(),
+        'lastFailureAt': now.isoformat(),
+        'cooldownUntil': cooldown_until.isoformat() if cooldown_until else '',
+    }
+    return {
+        'cooldownActivated': cooldown_activated,
+        'failureCount': failure_count,
+        'cooldownUntil': cooldown_until.isoformat() if cooldown_until else '',
+    }
 
 
 def candidate_entry_price_allowed(candidate: dict[str, Any]) -> bool:
@@ -1376,6 +1455,8 @@ def run() -> int:
     state = read_json(STATE_PATH, {})
     if not isinstance(state, dict):
         state = {}
+    now = datetime.now(timezone.utc)
+    market_failure_state = normalize_market_failure_state(state.get('marketFailureState'), now)
     positions_state = read_json(POSITIONS_PATH, {})
     if not isinstance(positions_state, dict):
         positions_state = {}
@@ -1499,6 +1580,8 @@ def run() -> int:
     records_appended = 0
     blocked_candidates = 0
     blocked_price_band = 0
+    blocked_market_cooldown = 0
+    market_failures_tick = 0
     exec_errors: list[dict[str, Any]] = []
     trades_by_venue = {'polymarket': 0, 'limitless': 0, 'singularity': 0}
     mark_to_market_rows = 0
@@ -1550,7 +1633,6 @@ def run() -> int:
             slot_recovery_reference_score = score
             break
 
-    now = datetime.now(timezone.utc)
     keep_open_positions: list[dict[str, Any]] = []
     mark_cache: dict[str, float | None] = {}
     for position in open_positions:
@@ -1940,6 +2022,15 @@ def run() -> int:
                 continue
 
             market_id = str(candidate.get('marketId') or candidate.get('id') or '')
+            if (
+                MARKET_FAILURE_COOLDOWN_ENABLED
+                and market_id
+                and market_in_failure_cooldown(market_failure_state, market_id, now)
+            ):
+                blocked_candidates += 1
+                blocked_market_cooldown += 1
+                add_warning('market_failure_cooldown_active')
+                continue
             if market_id and market_open_counts.get(market_id, 0) >= MAX_POSITIONS_PER_MARKET:
                 blocked_candidates += 1
                 continue
@@ -2160,6 +2251,7 @@ def run() -> int:
                     or 'market order unmatched' in normalized_error
                     or 'order unmatched' in normalized_error
                 )
+                has_simulation_failed = 'simulation failed' in normalized_error
                 has_balance_error = (
                     'not enough balance / allowance' in normalized_error
                     or 'insufficient balance' in normalized_error
@@ -2178,6 +2270,12 @@ def run() -> int:
                     add_warning(f'{venue}_order_unmatched')
                 else:
                     add_warning(f'{venue}_execution_failed')
+
+                if MARKET_FAILURE_COOLDOWN_ENABLED and market_id and has_simulation_failed:
+                    market_failures_tick += 1
+                    failure_update = register_market_failure(market_failure_state, market_id, now)
+                    if failure_update.get('cooldownActivated'):
+                        add_warning('market_failure_cooldown_activated')
 
                 daily_notional_used = round(max(0.0, daily_notional_used - notional_usd), 8)
                 market_exposure[market_id] = round(max(0.0, market_exposure.get(market_id, 0.0) - notional_usd), 8)
@@ -2208,6 +2306,13 @@ def run() -> int:
                 if live_mode and configured_live_venues and not usable_live_venues:
                     add_hard_reason('no_live_trading_venue_available')
                     break
+
+    market_failure_state = normalize_market_failure_state(market_failure_state, now)
+    active_market_cooldowns = sorted(
+        market_id
+        for market_id in market_failure_state.keys()
+        if market_in_failure_cooldown(market_failure_state, market_id, now)
+    )
 
     if len(open_positions) > MAX_OPEN_POSITIONS and not LIMITLESS_SYNC_POSITIONS:
         open_positions = open_positions[:MAX_OPEN_POSITIONS]
@@ -2244,6 +2349,8 @@ def run() -> int:
         'baseNotionalUsd': round(base_notional_usd, 8),
         'baseNotionalStaticUsd': round(BASE_NOTIONAL_PER_TRADE_USD, 8),
         'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
+        'marketFailureCooldownEnabled': MARKET_FAILURE_COOLDOWN_ENABLED,
+        'activeMarketCooldowns': len(active_market_cooldowns),
         'maxNotionalUsdPerDay': round(MAX_NOTIONAL_USD_PER_DAY_EFFECTIVE, 8),
         'maxNotionalUsdPerDayConfigured': round(MAX_NOTIONAL_USD_PER_DAY, 8),
         'venueBudgets': venue_budgets,
@@ -2315,6 +2422,14 @@ def run() -> int:
         'entryPriceMin': round(ENTRY_PRICE_MIN, 8),
         'entryPriceMax': round(ENTRY_PRICE_MAX, 8),
         'blockedByPriceBand': blocked_price_band,
+        'blockedByMarketCooldown': blocked_market_cooldown,
+        'marketFailuresTick': market_failures_tick,
+        'marketFailureCooldownEnabled': MARKET_FAILURE_COOLDOWN_ENABLED,
+        'marketFailureThreshold': MARKET_FAILURE_THRESHOLD,
+        'marketFailureWindowMin': MARKET_FAILURE_WINDOW_MIN,
+        'marketFailureCooldownMin': MARKET_FAILURE_COOLDOWN_MIN,
+        'activeMarketCooldowns': len(active_market_cooldowns),
+        'activeMarketCooldownIds': active_market_cooldowns[:12],
         'maxOpenPositions': MAX_OPEN_POSITIONS,
         'maxPositionsPerMarket': MAX_POSITIONS_PER_MARKET,
         'maxExecAttemptsPerTick': MAX_EXEC_ATTEMPTS_PER_TICK,
@@ -2364,6 +2479,7 @@ def run() -> int:
             'peakEquityUsd': round(peak_equity, 8),
             'baseNotionalUsd': round(base_notional_usd, 8),
             'notionalSizingEquityUsd': round(sizing_equity_usd, 8),
+            'marketFailureState': market_failure_state,
             'signalSeen': signal_seen,
             'lastStatus': summary,
         },
@@ -2391,6 +2507,9 @@ def run() -> int:
             'limitlessTradesTick': trades_by_venue['limitless'],
             'singularityPaperTradesTick': trades_by_venue['singularity'],
             'kalshiSignalsTick': signal_rows,
+            'blockedByMarketCooldown': blocked_market_cooldown,
+            'marketFailuresTick': market_failures_tick,
+            'activeMarketCooldowns': len(active_market_cooldowns),
             'drawdownPct': drawdown_pct_after,
             'weeklyRealizedNetUsd': weekly_realized_net_after,
             'reasons': summary['reasons'],

@@ -47,6 +47,9 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.mod.ROUTE_TOLERANCE_USD = 0.1
         self.mod.DRY_RUN = True
         self.mod.ROUTE_CMD = ''
+        self.mod.ROUTE_EARNINGS_SWEEP_ENABLED = False
+        self.mod.ROUTE_EARNINGS_SWEEP_CMD = ''
+        self.mod.ROUTE_EARNINGS_SWEEP_MIN_USD = 0.0
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -180,6 +183,54 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertEqual(result.get('attempted'), False)
         self.assertEqual(result.get('ok'), False)
         self.assertEqual(result.get('reason'), 'route_wallet_below_minimum_no_topup')
+
+    def test_maybe_sweep_route_wallet_reports_missing_cmd(self):
+        self.mod.ROUTE_EARNINGS_SWEEP_ENABLED = True
+        self.mod.ROUTE_EARNINGS_SWEEP_CMD = ''
+        with patch.object(
+            self.mod,
+            'route_wallet_snapshot',
+            return_value={'pubkey': 'route-pubkey', 'balanceSol': 0.01, 'keypairFound': True, 'solanaCliFound': True},
+        ):
+            result = self.mod.maybe_sweep_route_wallet_earnings(
+                solana_bin='solana',
+                required_balance_sol=0.2,
+                route_usd=10.0,
+                delta_usd=20.0,
+                checkpoint_id='cp-1',
+            )
+        self.assertEqual(result.get('attempted'), False)
+        self.assertEqual(result.get('ok'), False)
+        self.assertEqual(result.get('reason'), 'missing_earnings_sweep_cmd')
+
+    def test_maybe_sweep_route_wallet_updates_balance_after_success(self):
+        self.mod.ROUTE_EARNINGS_SWEEP_ENABLED = True
+        self.mod.ROUTE_EARNINGS_SWEEP_CMD = 'echo ok'
+        with patch.object(
+            self.mod,
+            'route_wallet_snapshot',
+            return_value={'pubkey': 'route-pubkey', 'balanceSol': 0.01, 'keypairFound': True, 'solanaCliFound': True},
+        ), patch.object(
+            self.mod,
+            'run_earnings_sweep_cmd',
+            return_value={'txSignature': 'sig-1', 'sweptSol': 0.25},
+        ), patch.object(
+            self.mod,
+            'read_solana_balance_pubkey',
+            return_value=0.26,
+        ):
+            result = self.mod.maybe_sweep_route_wallet_earnings(
+                solana_bin='solana',
+                required_balance_sol=0.2,
+                route_usd=10.0,
+                delta_usd=20.0,
+                checkpoint_id='cp-2',
+            )
+        self.assertEqual(result.get('attempted'), True)
+        self.assertEqual(result.get('ok'), True)
+        self.assertEqual(result.get('reason'), 'earnings_sweep_applied')
+        self.assertEqual(result.get('txSignature'), 'sig-1')
+        self.assertAlmostEqual(float(result.get('sweptSol')), 0.25, places=9)
 
 
 if __name__ == '__main__':

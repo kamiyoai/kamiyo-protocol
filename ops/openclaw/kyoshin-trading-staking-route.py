@@ -87,6 +87,9 @@ ROUTE_TOPUP_TARGET_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_TARGET_SOL'
 ROUTE_TOPUP_MAX_SOL_PER_RUN = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_MAX_SOL_PER_RUN', 0.0))
 ROUTE_TOPUP_FROM_KEYPAIR_PATH = os.getenv('KYO_TRADING_ROUTE_TOPUP_FROM_KEYPAIR_PATH', '').strip()
 ROUTE_TOPUP_CMD = os.getenv('KYO_TRADING_ROUTE_TOPUP_CMD', '').strip()
+ROUTE_EARNINGS_SWEEP_ENABLED = env_bool('KYO_TRADING_ROUTE_EARNINGS_SWEEP_ENABLED', False)
+ROUTE_EARNINGS_SWEEP_CMD = os.getenv('KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD', '').strip()
+ROUTE_EARNINGS_SWEEP_MIN_USD = max(0.0, env_float('KYO_TRADING_ROUTE_EARNINGS_SWEEP_MIN_USD', 0.0))
 EVM_TX_HASH_RE = re.compile(r'^0x[a-fA-F0-9]{64}$')
 SOLANA_SIGNATURE_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{80,96}$')
 
@@ -453,6 +456,70 @@ def run_topup_cmd(*, amount_sol: float, to_pubkey: str, required_balance_sol: fl
     }
 
 
+def run_earnings_sweep_cmd(
+    *,
+    to_pubkey: str,
+    route_usd: float,
+    delta_usd: float,
+    checkpoint_id: str,
+    required_balance_sol: float,
+    current_balance_sol: float,
+) -> dict[str, Any]:
+    env = os.environ.copy()
+    env.update(
+        {
+            'KYO_ROUTE_SWEEP_TO_PUBKEY': to_pubkey,
+            'KYO_ROUTE_SWEEP_TARGET_USD': f'{route_usd:.8f}',
+            'KYO_ROUTE_SWEEP_DELTA_USD': f'{delta_usd:.8f}',
+            'KYO_ROUTE_SWEEP_CHECKPOINT_ID': checkpoint_id,
+            'KYO_ROUTE_SWEEP_REQUIRED_BALANCE_SOL': format_sol(required_balance_sol),
+            'KYO_ROUTE_SWEEP_CURRENT_BALANCE_SOL': format_sol(current_balance_sol),
+        }
+    )
+    proc = subprocess.run(
+        ['bash', '-lc', ROUTE_EARNINGS_SWEEP_CMD],
+        capture_output=True,
+        text=True,
+        timeout=CLI_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or f'earnings_sweep_cmd_exit_{proc.returncode}').strip()[:350] or 'earnings_sweep_cmd_failed')
+
+    payload = None
+    for line in reversed((proc.stdout or '').splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            decoded = json.loads(stripped)
+        except Exception:
+            continue
+        if isinstance(decoded, dict):
+            payload = decoded
+            break
+    if payload is None:
+        raise RuntimeError('earnings_sweep_cmd_invalid_json')
+
+    signature = str(payload.get('txSignature') or payload.get('signature') or '').strip()
+    if not signature:
+        raise RuntimeError('earnings_sweep_cmd_missing_tx_signature')
+    swept_sol = max(
+        0.0,
+        parse_float(
+            payload.get('sweptSol')
+            if 'sweptSol' in payload
+            else payload.get('amountSol'),
+            0.0,
+        ),
+    )
+    return {
+        'txSignature': signature,
+        'sweptSol': swept_sol,
+    }
+
+
 def route_wallet_snapshot(*, solana_bin: str) -> dict[str, Any]:
     snapshot: dict[str, Any] = {
         'pubkey': '',
@@ -559,6 +626,77 @@ def maybe_topup_route_wallet(*, solana_bin: str, required_balance_sol: float) ->
     )
     if balance_after < required_balance_sol:
         result.update({'ok': False, 'reason': 'route_wallet_still_below_required_after_topup'})
+    return result
+
+
+def maybe_sweep_route_wallet_earnings(
+    *,
+    solana_bin: str,
+    required_balance_sol: float,
+    route_usd: float,
+    delta_usd: float,
+    checkpoint_id: str,
+) -> dict[str, Any]:
+    snapshot = route_wallet_snapshot(solana_bin=solana_bin)
+    result: dict[str, Any] = {
+        'attempted': False,
+        'ok': True,
+        'reason': 'not_required',
+        'requiredBalanceSol': round(max(0.0, required_balance_sol), 9),
+        'pubkey': str(snapshot.get('pubkey') or ''),
+        'balanceBeforeSol': round(parse_float(snapshot.get('balanceSol'), 0.0), 9),
+        'balanceAfterSol': round(parse_float(snapshot.get('balanceSol'), 0.0), 9),
+        'sweptSol': 0.0,
+        'txSignature': '',
+    }
+    if required_balance_sol <= 0:
+        return result
+    if not ROUTE_EARNINGS_SWEEP_ENABLED:
+        result.update({'reason': 'earnings_sweep_disabled'})
+        return result
+    if not ROUTE_EARNINGS_SWEEP_CMD:
+        result.update({'ok': False, 'reason': 'missing_earnings_sweep_cmd'})
+        return result
+    if route_usd < ROUTE_EARNINGS_SWEEP_MIN_USD:
+        result.update({'reason': 'earnings_sweep_below_min_usd'})
+        return result
+    if not snapshot.get('solanaCliFound'):
+        result.update({'ok': False, 'reason': 'missing_solana_cli'})
+        return result
+    current_balance = parse_float(snapshot.get('balanceSol'), 0.0)
+    if current_balance >= required_balance_sol:
+        result.update({'reason': 'already_sufficient'})
+        return result
+    route_pubkey = str(snapshot.get('pubkey') or '').strip()
+    if not route_pubkey:
+        result.update({'ok': False, 'reason': 'missing_trading_staking_pubkey'})
+        return result
+
+    result['attempted'] = True
+    try:
+        sweep = run_earnings_sweep_cmd(
+            to_pubkey=route_pubkey,
+            route_usd=route_usd,
+            delta_usd=delta_usd,
+            checkpoint_id=checkpoint_id,
+            required_balance_sol=required_balance_sol,
+            current_balance_sol=current_balance,
+        )
+    except Exception as exc:
+        result.update({'ok': False, 'reason': str(exc).strip()[:350] or 'earnings_sweep_failed'})
+        return result
+
+    balance_after = read_solana_balance_pubkey(solana_bin=solana_bin, pubkey=route_pubkey)
+    result.update(
+        {
+            'reason': 'earnings_sweep_applied',
+            'balanceAfterSol': round(balance_after, 9),
+            'sweptSol': round(parse_float(sweep.get('sweptSol'), 0.0), 9),
+            'txSignature': str(sweep.get('txSignature') or '').strip(),
+        }
+    )
+    if balance_after < required_balance_sol:
+        result.update({'ok': False, 'reason': 'route_wallet_still_below_required_after_earnings_sweep'})
     return result
 
 
@@ -697,13 +835,35 @@ def run() -> int:
         'toppedUpSol': 0.0,
         'txSignature': '',
     }
+    sweep_result: dict[str, Any] = {
+        'attempted': False,
+        'ok': True,
+        'reason': 'not_required',
+        'requiredBalanceSol': round(max(0.0, ROUTE_MIN_WALLET_SOL), 9),
+        'pubkey': str(route_wallet.get('pubkey') or ''),
+        'balanceBeforeSol': round(parse_float(route_wallet.get('balanceSol'), 0.0), 9),
+        'balanceAfterSol': round(parse_float(route_wallet.get('balanceSol'), 0.0), 9),
+        'sweptSol': 0.0,
+        'txSignature': '',
+    }
 
     def apply_wallet_fields(summary: dict[str, Any]) -> None:
+        balance_after = parse_float(route_wallet.get('balanceSol'), 0.0)
+        if sweep_result.get('attempted'):
+            balance_after = parse_float(sweep_result.get('balanceAfterSol'), balance_after)
+        if topup_result.get('attempted'):
+            balance_after = parse_float(topup_result.get('balanceAfterSol'), balance_after)
         summary.update(
             {
                 'routeWalletMinSol': ROUTE_MIN_WALLET_SOL,
-                'routeWalletPubkey': str(topup_result.get('pubkey') or route_wallet.get('pubkey') or ''),
-                'routeWalletBalanceSol': round(parse_float(topup_result.get('balanceAfterSol'), route_wallet.get('balanceSol', 0.0)), 9),
+                'routeWalletPubkey': str(topup_result.get('pubkey') or sweep_result.get('pubkey') or route_wallet.get('pubkey') or ''),
+                'routeWalletBalanceSol': round(balance_after, 9),
+                'earningsSweepEnabled': ROUTE_EARNINGS_SWEEP_ENABLED,
+                'earningsSweepAttempted': bool(sweep_result.get('attempted')),
+                'earningsSweepOk': bool(sweep_result.get('ok')),
+                'earningsSweepReason': str(sweep_result.get('reason') or ''),
+                'earningsSweepAmountSol': round(parse_float(sweep_result.get('sweptSol'), 0.0), 9),
+                'earningsSweepTxSignature': str(sweep_result.get('txSignature') or ''),
                 'topupEnabled': ROUTE_TOPUP_ENABLED,
                 'topupAttempted': bool(topup_result.get('attempted')),
                 'topupOk': bool(topup_result.get('ok')),
@@ -722,7 +882,35 @@ def run() -> int:
     delta_unrouted_usd = round(total_realized_net_usd - processed_realized_net_usd, 8)
     if delta_unrouted_usd <= ROUTE_TOLERANCE_USD:
         if ROUTE_MIN_WALLET_SOL > 0:
-            topup_result = maybe_topup_route_wallet(solana_bin=solana_bin, required_balance_sol=ROUTE_MIN_WALLET_SOL)
+            sweep_result = maybe_sweep_route_wallet_earnings(
+                solana_bin=solana_bin,
+                required_balance_sol=ROUTE_MIN_WALLET_SOL,
+                route_usd=0.0,
+                delta_usd=delta_unrouted_usd,
+                checkpoint_id=checkpoint_id,
+            )
+            if sweep_result.get('attempted') and str(sweep_result.get('txSignature') or '').strip():
+                append_json_line(
+                    LOG_PATH,
+                    {
+                        'at': now_iso(),
+                        'event': 'trading_route_wallet_earnings_sweep',
+                        'ok': bool(sweep_result.get('ok')),
+                        'reason': str(sweep_result.get('reason') or ''),
+                        'amountSol': round(parse_float(sweep_result.get('sweptSol'), 0.0), 9),
+                        'txSignature': str(sweep_result.get('txSignature') or ''),
+                        'routeWalletPubkey': str(sweep_result.get('pubkey') or ''),
+                    },
+                )
+            sweep_balance_after = parse_float(
+                sweep_result.get('balanceAfterSol'),
+                parse_float(route_wallet.get('balanceSol'), 0.0),
+            )
+            if sweep_balance_after < ROUTE_MIN_WALLET_SOL:
+                topup_result = maybe_topup_route_wallet(
+                    solana_bin=solana_bin,
+                    required_balance_sol=ROUTE_MIN_WALLET_SOL,
+                )
         summary = {
             'ok': True,
             'status': 'up_to_date',
@@ -781,7 +969,35 @@ def run() -> int:
         route_sol + ROUTE_MIN_WALLET_SOL + ROUTE_FEE_RESERVE_SOL + ROUTE_RENT_RESERVE_SOL,
     )
     if required_wallet_balance_sol > 0:
-        topup_result = maybe_topup_route_wallet(solana_bin=solana_bin, required_balance_sol=required_wallet_balance_sol)
+        sweep_result = maybe_sweep_route_wallet_earnings(
+            solana_bin=solana_bin,
+            required_balance_sol=required_wallet_balance_sol,
+            route_usd=route_usd,
+            delta_usd=delta_unrouted_usd,
+            checkpoint_id=checkpoint_id,
+        )
+        if sweep_result.get('attempted') and str(sweep_result.get('txSignature') or '').strip():
+            append_json_line(
+                LOG_PATH,
+                {
+                    'at': now_iso(),
+                    'event': 'trading_route_wallet_earnings_sweep',
+                    'ok': bool(sweep_result.get('ok')),
+                    'reason': str(sweep_result.get('reason') or ''),
+                    'amountSol': round(parse_float(sweep_result.get('sweptSol'), 0.0), 9),
+                    'txSignature': str(sweep_result.get('txSignature') or ''),
+                    'routeWalletPubkey': str(sweep_result.get('pubkey') or ''),
+                },
+            )
+        sweep_balance_after = parse_float(
+            sweep_result.get('balanceAfterSol'),
+            parse_float(route_wallet.get('balanceSol'), 0.0),
+        )
+        if sweep_balance_after < required_wallet_balance_sol:
+            topup_result = maybe_topup_route_wallet(
+                solana_bin=solana_bin,
+                required_balance_sol=required_wallet_balance_sol,
+            )
         if topup_result.get('attempted') and str(topup_result.get('txSignature') or '').strip():
             append_json_line(
                 LOG_PATH,
