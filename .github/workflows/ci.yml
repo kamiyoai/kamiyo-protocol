@@ -134,16 +134,16 @@ jobs:
         run: pnpm --filter kamiyo-companion build
 
       - name: PoCH SDK Build
-        run: pnpm --filter @kamiyo/sdk build
+        run: pnpm --filter @kamiyo-org/sdk build
 
       - name: OpenClaw 3.1 Compatibility Gate
         run: |
           node -e "const p=require('./packages/kamiyo-openclaw/package.json'); if (p.peerDependencies?.openclaw !== '>=3.1.0') { throw new Error('packages/kamiyo-openclaw peerDependencies.openclaw must be >=3.1.0'); }"
-          pnpm --filter @kamiyo/openclaw build
-          pnpm --filter @kamiyo/openclaw test
+          pnpm --filter @kamiyo-org/openclaw build
+          pnpm --filter @kamiyo-org/openclaw test
 
       - name: PoCH Agent Paranet Test
-        run: pnpm --filter @kamiyo/agent-paranet test
+        run: pnpm --filter @kamiyo-org/agent-paranet test
 
       - name: Docs Command Drift Check
         run: pnpm run check:docs
@@ -178,6 +178,41 @@ jobs:
       - name: PNPM Audit (Critical)
         run: pnpm audit --prod --audit-level=critical
 
+  kizuna_db_integration:
+    name: Kizuna DB Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kizuna_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kizuna_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - run: pnpm install
+
+      - name: Run Kizuna DB integration invariants
+        env:
+          KIZUNA_INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kizuna_ci
+        run: pnpm --filter @kamiyo-org/x402-facilitator test -- tests/kizuna-db.integration.test.ts
+
   openclaw_runtime_smoke:
     name: OpenClaw Runtime Smoke
     runs-on: ubuntu-latest
@@ -195,7 +230,7 @@ jobs:
       - run: pnpm install
 
       - name: Build OpenClaw plugin package
-        run: pnpm --filter @kamiyo/openclaw build
+        run: pnpm --filter @kamiyo-org/openclaw build
 
       - name: Install OpenClaw CLI
         run: npm install -g openclaw@2026.3.1
