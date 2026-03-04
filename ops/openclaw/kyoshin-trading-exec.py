@@ -347,6 +347,51 @@ def parse_token_minor(value: Any) -> float:
     return round(numeric, 8)
 
 
+def extract_limitless_position_size(result: dict[str, Any]) -> float:
+    raw = result.get('raw') if isinstance(result.get('raw'), dict) else {}
+    response = raw.get('response') if isinstance(raw.get('response'), dict) else {}
+    maker_matches = response.get('makerMatches') if isinstance(response.get('makerMatches'), list) else []
+    matched_total = 0.0
+    for item in maker_matches:
+        if not isinstance(item, dict):
+            continue
+        matched_total += max(0.0, parse_token_minor(item.get('matchedSize')))
+
+    execution = response.get('execution') if isinstance(response.get('execution'), dict) else {}
+    totals_raw = execution.get('totalsRaw') if isinstance(execution.get('totalsRaw'), dict) else {}
+    token_gross = max(0.0, parse_token_minor(totals_raw.get('tokenGross')))
+
+    return round(max(matched_total, token_gross), 8)
+
+
+def latest_limitless_position_sizes(rows: list[dict[str, Any]]) -> dict[str, float]:
+    latest: dict[str, tuple[datetime, float]] = {}
+    for row in rows:
+        if str(row.get('source') or '').strip().lower() != 'trading':
+            continue
+        if str(row.get('venue') or '').strip().lower() != 'limitless':
+            continue
+        if str(row.get('kind') or '').strip().lower() != 'trade_open':
+            continue
+        if str(row.get('status') or '').strip().lower() != 'success':
+            continue
+        position_id = str(row.get('positionId') or '').strip()
+        if not position_id:
+            continue
+        metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+        live_result = metadata.get('liveResult') if isinstance(metadata.get('liveResult'), dict) else {}
+        size = extract_limitless_position_size({'raw': live_result})
+        if size <= 0.0:
+            continue
+        row_ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt')) or datetime.min.replace(
+            tzinfo=timezone.utc
+        )
+        existing = latest.get(position_id)
+        if existing is None or row_ts >= existing[0]:
+            latest[position_id] = (row_ts, size)
+    return {position_id: value for position_id, (_, value) in latest.items()}
+
+
 def fetch_limitless_live_positions(existing_positions: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
     if not LIMITLESS_SYNC_POSITIONS or not LIMITLESS_API_BASE_URL or not LIMITLESS_API_KEY:
         return None
@@ -717,6 +762,21 @@ def candidate_entry_price_allowed(candidate: dict[str, Any]) -> bool:
     if entry_hint is None:
         return True
     return ENTRY_PRICE_MIN <= entry_hint <= ENTRY_PRICE_MAX
+
+
+def should_count_for_market_cooldown(error_message: str) -> bool:
+    text = str(error_message or '').strip().lower()
+    if not text:
+        return False
+    if 'simulation failed' in text:
+        return True
+    if 'order_unmatched' in text:
+        return True
+    if 'market order unmatched' in text:
+        return True
+    if 'order unmatched' in text:
+        return True
+    return False
 
 
 def extract_process_error(stderr: str, stdout: str, fallback: str) -> str:
@@ -1550,6 +1610,17 @@ def run() -> int:
 
     open_positions = positions_state.get('positions') if isinstance(positions_state.get('positions'), list) else []
     open_positions = [row for row in open_positions if isinstance(row, dict)]
+    limitless_size_hints = latest_limitless_position_sizes(rows)
+    if limitless_size_hints:
+        for position in open_positions:
+            if str(position.get('venue') or '').strip().lower() != 'limitless':
+                continue
+            if parse_float(position.get('limitlessPositionSize'), 0.0) > 0.0:
+                continue
+            position_id = str(position.get('positionId') or position.get('id') or '').strip()
+            hinted_size = limitless_size_hints.get(position_id, 0.0)
+            if hinted_size > 0.0:
+                position['limitlessPositionSize'] = hinted_size
     limitless_synced_count = 0
     if live_mode and LIMITLESS_SYNC_POSITIONS:
         limitless_synced = fetch_limitless_live_positions(open_positions)
@@ -1867,14 +1938,23 @@ def run() -> int:
                         add_warning('synthetic_realized_close_detected')
                         synthetic_close_violations_tick += 1
                 except Exception as exc:
+                    close_error = str(exc).strip()[:300] or 'close_execution_failed'
+                    close_counts_for_cooldown = should_count_for_market_cooldown(close_error)
+                    if 'order unmatched' in close_error.lower():
+                        add_warning(f'{venue}_order_unmatched')
                     add_warning(f'{venue}_close_execution_failed')
                     exec_errors.append(
                         {
                             'candidateId': str(position.get('candidateId') or position.get('id') or ''),
                             'venue': venue,
-                            'error': (str(exc).strip()[:300] or 'close_execution_failed'),
+                            'error': close_error,
                         }
                     )
+                    if MARKET_FAILURE_COOLDOWN_ENABLED and market_id and close_counts_for_cooldown:
+                        market_failures_tick += 1
+                        failure_update = register_market_failure(market_failure_state, market_id, now)
+                        if failure_update.get('cooldownActivated'):
+                            add_warning('market_failure_cooldown_activated')
                     if CLOSE_STRICT_TRACKING:
                         live_close_deferred_tick += 1
                         failed_close_row = {
@@ -1895,7 +1975,7 @@ def run() -> int:
                             'costUsd': 0.0,
                             'netUsd': 0.0,
                             'paymentRef': '',
-                            'error': (str(exc).strip()[:300] or 'close_execution_failed'),
+                            'error': close_error,
                             'metadata': {
                                 'executionMode': 'live',
                                 'executionIntent': 'close',
@@ -2157,6 +2237,9 @@ def run() -> int:
                             if isinstance(live_raw.get('tokenSelection'), dict)
                             else {}
                         )
+                        limitless_position_size = 0.0
+                        if venue == 'limitless':
+                            limitless_position_size = extract_limitless_position_size(result)
                         token_id = str(
                             token_selection.get('tokenID')
                             or metadata.get('polymarketTokenId')
@@ -2205,6 +2288,7 @@ def run() -> int:
                                     if isinstance(metadata.get('limitlessTokenIds'), dict)
                                     else {}
                                 ),
+                                'limitlessPositionSize': limitless_position_size,
                             }
                         )
                     succeeded += 1
@@ -2251,11 +2335,14 @@ def run() -> int:
                     or 'market order unmatched' in normalized_error
                     or 'order unmatched' in normalized_error
                 )
-                has_simulation_failed = 'simulation failed' in normalized_error
+                counts_for_market_cooldown = should_count_for_market_cooldown(error_message)
                 has_balance_error = (
                     'not enough balance / allowance' in normalized_error
                     or 'insufficient balance' in normalized_error
                     or 'insufficient funds' in normalized_error
+                    or 'insufficient collateral balance' in normalized_error
+                    or 'insufficient available conditional token balance' in normalized_error
+                    or 'insufficient conditional token balance' in normalized_error
                 )
 
                 if has_balance_error:
@@ -2271,7 +2358,7 @@ def run() -> int:
                 else:
                     add_warning(f'{venue}_execution_failed')
 
-                if MARKET_FAILURE_COOLDOWN_ENABLED and market_id and has_simulation_failed:
+                if MARKET_FAILURE_COOLDOWN_ENABLED and market_id and counts_for_market_cooldown:
                     market_failures_tick += 1
                     failure_update = register_market_failure(market_failure_state, market_id, now)
                     if failure_update.get('cooldownActivated'):

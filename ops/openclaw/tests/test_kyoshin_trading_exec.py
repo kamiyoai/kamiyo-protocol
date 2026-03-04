@@ -335,6 +335,39 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertEqual(summary.get('successfulTrades'), 1)
         self.assertEqual(summary.get('failedTrades'), 0)
 
+    def test_live_mode_records_limitless_position_size_from_bridge_response(self):
+        self._write_feed()
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.LIMITLESS_EXEC_CMD = ''
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_BRIDGE_PATH.write_text('#!/usr/bin/env node\n', encoding='utf-8')
+        self.mod.LIMITLESS_BRIDGE_PATH.chmod(0o700)
+        bridge_result = {
+            'orderId': 'limitless-order-size',
+            'positionId': 'limitless-position-size',
+            'grossUsd': 0.0,
+            'costUsd': 0.0,
+            'netUsd': 0.0,
+            'realized': False,
+            'paymentRef': '0x' + ('a' * 64),
+            'raw': {
+                'response': {
+                    'makerMatches': [{'matchedSize': '750000'}],
+                }
+            },
+        }
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', return_value=bridge_result
+        ):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'ok')
+        positions_payload = json.loads(self.mod.POSITIONS_PATH.read_text(encoding='utf-8'))
+        positions = positions_payload.get('positions', [])
+        self.assertEqual(len(positions), 1)
+        self.assertAlmostEqual(float(positions[0].get('limitlessPositionSize')), 0.75, places=8)
+
     def test_live_mode_unmatched_order_does_not_disable_venue(self):
         self._write_feed()
         self.mod.EXECUTION_MODE = 'live'
@@ -378,6 +411,41 @@ class KyoshinTradingExecTests(unittest.TestCase):
             code1, summary1 = self._run()
         self.assertEqual(code1, 0)
         self.assertEqual(summary1.get('failedTrades'), 1)
+        self.assertIn('market_failure_cooldown_activated', summary1.get('warnings', []))
+        self.assertEqual(summary1.get('activeMarketCooldowns'), 1)
+
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', side_effect=AssertionError('bridge should not execute during cooldown')
+        ):
+            code2, summary2 = self._run()
+        self.assertEqual(code2, 0)
+        self.assertEqual(summary2.get('executedTrades'), 0)
+        self.assertGreaterEqual(summary2.get('blockedByMarketCooldown', 0), 1)
+        self.assertIn('market_failure_cooldown_active', summary2.get('warnings', []))
+
+    def test_market_failure_cooldown_blocks_repeated_unmatched_orders(self):
+        self._write_feed()
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = ''
+        self.mod.MARKET_FAILURE_COOLDOWN_ENABLED = True
+        self.mod.MARKET_FAILURE_THRESHOLD = 1
+        self.mod.MARKET_FAILURE_WINDOW_MIN = 60
+        self.mod.MARKET_FAILURE_COOLDOWN_MIN = 120
+        self.mod.MARKET_FAILURE_WINDOW_SEC = 60 * 60
+        self.mod.MARKET_FAILURE_COOLDOWN_SEC = 120 * 60
+        self.mod.LIMITLESS_BRIDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.LIMITLESS_BRIDGE_PATH.write_text('#!/usr/bin/env node\n', encoding='utf-8')
+        self.mod.LIMITLESS_BRIDGE_PATH.chmod(0o700)
+
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', side_effect=RuntimeError('market order unmatched')
+        ):
+            code1, summary1 = self._run()
+        self.assertEqual(code1, 0)
+        self.assertEqual(summary1.get('failedTrades'), 1)
+        self.assertIn('limitless_order_unmatched', summary1.get('warnings', []))
         self.assertIn('market_failure_cooldown_activated', summary1.get('warnings', []))
         self.assertEqual(summary1.get('activeMarketCooldowns'), 1)
 
@@ -1251,6 +1319,94 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertEqual(summary.get('liveCloseRealizedTick'), 1)
         self.assertEqual(len(close_calls), 1)
         self.assertAlmostEqual(close_calls[0], 0.399, places=8)
+
+    def test_limitless_real_close_backfills_size_from_ledger_open_row(self):
+        self.mod.FEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.FEED_PATH.write_text(json.dumps({'ok': True, 'opportunities': []}), encoding='utf-8')
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.REAL_CLOSE_ENABLED = True
+        self.mod.CLOSE_STRICT_TRACKING = True
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = ''
+
+        opened_at = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        self.mod.POSITIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POSITIONS_PATH.write_text(
+            json.dumps(
+                {
+                    'positions': [
+                        {
+                            'id': 'limitless-open-hint',
+                            'positionId': 'limitless-open-hint',
+                            'orderId': 'limitless-order-hint',
+                            'marketId': 'limitless-mkt-hint',
+                            'venue': 'limitless',
+                            'status': 'open',
+                            'openedAt': opened_at,
+                            'notionalUsd': 25.0,
+                            'limitlessMarketSlug': 'limitless-mkt-hint',
+                            'limitlessTokenId': '12345',
+                            'direction': 'yes',
+                            'entryPrice': 0.5,
+                            'markPrice': 0.62,
+                            'unrealizedPct': 24.0,
+                        }
+                    ]
+                }
+            ),
+            encoding='utf-8',
+        )
+        self.mod.LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
+        open_row = {
+            'id': 'trade-open-ledger-hint',
+            'at': datetime.now(timezone.utc).isoformat(),
+            'source': 'trading',
+            'venue': 'limitless',
+            'kind': 'trade_open',
+            'status': 'success',
+            'realized': False,
+            'marketId': 'limitless-mkt-hint',
+            'positionId': 'limitless-open-hint',
+            'orderId': 'limitless-order-hint',
+            'grossUsd': 0.0,
+            'costUsd': 0.0,
+            'netUsd': 0.0,
+            'paymentRef': '0x' + ('a' * 64),
+            'metadata': {
+                'liveResult': {
+                    'response': {
+                        'makerMatches': [{'matchedSize': '880000'}]
+                    }
+                }
+            },
+        }
+        self.mod.LEDGER_PATH.write_text(json.dumps(open_row) + '\n', encoding='utf-8')
+
+        close_calls: list[float] = []
+
+        def fake_live_execute_limitless(candidate: dict, notional: float) -> dict:
+            close_calls.append(notional)
+            return {
+                'orderId': 'close-order-limitless-hint',
+                'positionId': 'limitless-open-hint',
+                'grossUsd': 0.2,
+                'costUsd': 0.01,
+                'netUsd': 0.19,
+                'realized': True,
+                'paymentRef': '0x' + ('b' * 64),
+                'txSignature': '0x' + ('b' * 64),
+                'raw': {'execution': {'txHash': '0x' + ('b' * 64)}},
+            }
+
+        with patch.object(self.mod, 'live_execute_limitless', side_effect=fake_live_execute_limitless):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('liveCloseAttemptsTick'), 1)
+        self.assertEqual(summary.get('liveCloseRealizedTick'), 1)
+        self.assertEqual(len(close_calls), 1)
+        self.assertAlmostEqual(close_calls[0], 0.836, places=8)
 
 
 if __name__ == '__main__':
