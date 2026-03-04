@@ -279,6 +279,27 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertEqual(summary.get('successfulTrades'), 1)
         self.assertEqual(summary.get('failedTrades'), 0)
 
+    def test_live_mode_unmatched_order_does_not_disable_venue(self):
+        self._write_feed()
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = ''
+        self.mod.LIMITLESS_BRIDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.LIMITLESS_BRIDGE_PATH.write_text('#!/usr/bin/env node\n', encoding='utf-8')
+        self.mod.LIMITLESS_BRIDGE_PATH.chmod(0o700)
+
+        with patch.object(self.mod, 'node_bin', return_value='/usr/bin/node'), patch.object(
+            self.mod, 'run_bridge_worker', side_effect=RuntimeError('limitless_order_unmatched: order was placed but did not match immediately')
+        ):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'degraded')
+        self.assertNotIn('no_live_trading_venue_available', summary.get('reasons', []))
+        self.assertNotIn('limitless', summary.get('venueBlockers', {}))
+        self.assertIn('limitless_order_unmatched', summary.get('warnings', []))
+
     def test_live_mode_ignores_unexpected_realized_flag_without_close_intent(self):
         self._write_feed()
         self.mod.EXECUTION_MODE = 'live'

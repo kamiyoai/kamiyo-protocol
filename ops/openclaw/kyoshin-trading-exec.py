@@ -2138,6 +2138,11 @@ def run() -> int:
                 has_auth_error = 'unauthorized' in normalized_error or 'invalid api key' in normalized_error
                 has_signer_alignment_error = 'signer_alignment_mismatch' in normalized_error
                 has_create_key_error = 'could not create api key' in normalized_error
+                has_unmatched_error = (
+                    'order_unmatched' in normalized_error
+                    or 'market order unmatched' in normalized_error
+                    or 'order unmatched' in normalized_error
+                )
                 has_balance_error = (
                     'not enough balance / allowance' in normalized_error
                     or 'insufficient balance' in normalized_error
@@ -2152,10 +2157,10 @@ def run() -> int:
                     blocker = f'{venue}_auth_failed'
                     venue_blockers[venue] = blocker
                     add_warning(blocker)
+                elif has_unmatched_error:
+                    add_warning(f'{venue}_order_unmatched')
                 else:
-                    blocker = f'{venue}_execution_failed'
-                    venue_blockers[venue] = blocker
-                    add_warning(blocker)
+                    add_warning(f'{venue}_execution_failed')
 
                 daily_notional_used = round(max(0.0, daily_notional_used - notional_usd), 8)
                 market_exposure[market_id] = round(max(0.0, market_exposure.get(market_id, 0.0) - notional_usd), 8)
