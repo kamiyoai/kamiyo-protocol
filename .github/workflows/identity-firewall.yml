@@ -1,0 +1,81 @@
+name: identity-firewall
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce identity separation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          remote_url="$(git remote get-url origin || true)"
+          if [[ "$remote_url" == *neuraminds* ]]; then
+            policy="neuraminds"
+            forbidden="kamiyo"
+          elif [[ "$remote_url" == *kamiyo-ai* || "$remote_url" == *kamiyo-* || "$remote_url" == *kamiyo/* ]]; then
+            policy="kamiyo"
+            forbidden="neuraminds"
+          else
+            echo "No identity policy for remote: $remote_url"
+            exit 0
+          fi
+
+          event_name="${{ github.event_name }}"
+          if [[ "$event_name" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+            range="$base_sha..$head_sha"
+          else
+            before="${{ github.event.before }}"
+            after="${{ github.sha }}"
+            if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]]; then
+              range="$before..$after"
+            else
+              range="$after"
+            fi
+          fi
+
+          mapfile -t commits < <(git rev-list --no-merges "$range" 2>/dev/null || true)
+          if [[ ${#commits[@]} -eq 0 ]]; then
+            echo "No commits to validate for range: $range"
+            exit 0
+          fi
+
+          violations=0
+          for c in "${commits[@]}"; do
+            an="$(git show -s --format=%an "$c")"
+            ae="$(git show -s --format=%ae "$c")"
+            cn="$(git show -s --format=%cn "$c")"
+            ce="$(git show -s --format=%ce "$c")"
+
+            blob="$(printf %sn%sn%sn%sn "$an" "$ae" "$cn" "$ce" | tr [:upper:] [:lower:])"
+            if grep -q "$forbidden" <<<"$blob"; then
+              echo "identity-firewall: violation in commit $c"
+              echo "  policy: $policy"
+              echo "  forbidden marker: $forbidden"
+              echo "  author: $an <$ae>"
+              echo "  committer: $cn <$ce>"
+              violations=1
+            fi
+          done
+
+          if [[ $violations -ne 0 ]]; then
+            echo "identity-firewall: blocked"
+            exit 1
+          fi
+
+          echo "identity-firewall: passed"
