@@ -81,6 +81,12 @@ ROUTE_REBASE_ON_OVERSHOOT = env_bool('KYO_TRADING_ROUTE_REBASE_ON_OVERSHOOT', Tr
 CLI_TIMEOUT_SECONDS = max(15, min(180, env_int('KYO_TRADING_ROUTE_CLI_TIMEOUT_SECONDS', 90)))
 ROUTE_FEE_RESERVE_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_FEE_RESERVE_SOL', 0.00001))
 ROUTE_RENT_RESERVE_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_ACCOUNT_RENT_RESERVE_SOL', 0.001))
+ROUTE_MIN_WALLET_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_MIN_WALLET_SOL', 0.0))
+ROUTE_TOPUP_ENABLED = env_bool('KYO_TRADING_ROUTE_TOPUP_ENABLED', False)
+ROUTE_TOPUP_TARGET_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_TARGET_SOL', 0.0))
+ROUTE_TOPUP_MAX_SOL_PER_RUN = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_MAX_SOL_PER_RUN', 0.0))
+ROUTE_TOPUP_FROM_KEYPAIR_PATH = os.getenv('KYO_TRADING_ROUTE_TOPUP_FROM_KEYPAIR_PATH', '').strip()
+ROUTE_TOPUP_CMD = os.getenv('KYO_TRADING_ROUTE_TOPUP_CMD', '').strip()
 EVM_TX_HASH_RE = re.compile(r'^0x[a-fA-F0-9]{64}$')
 SOLANA_SIGNATURE_RE = re.compile(r'^[1-9A-HJ-NP-Za-km-z]{80,96}$')
 
@@ -272,36 +278,43 @@ def parse_solana_balance(output: str) -> float:
     return max(0.0, parse_float(text, 0.0))
 
 
-def read_solana_balance(*, solana_bin: str, keypair: Path) -> float:
+def keypair_pubkey(keypair: Path) -> str:
     keygen_bin = shutil.which('solana-keygen')
     if not keygen_bin:
-        return 0.0
-    pubkey_proc = subprocess.run(
+        return ''
+    proc = subprocess.run(
         [keygen_bin, 'pubkey', str(keypair)],
         capture_output=True,
         text=True,
         timeout=CLI_TIMEOUT_SECONDS,
         check=False,
     )
-    if pubkey_proc.returncode != 0:
-        return 0.0
-    pubkey = (pubkey_proc.stdout or '').strip()
-    if not pubkey:
-        return 0.0
+    if proc.returncode != 0:
+        return ''
+    return (proc.stdout or '').strip()
 
-    cmd = [solana_bin, 'balance', pubkey]
+
+def read_solana_balance_pubkey(*, solana_bin: str, pubkey: str) -> float:
+    key = str(pubkey or '').strip()
+    if not key:
+        return 0.0
+    cmd = [solana_bin, 'balance', key]
     if RPC_URL:
         cmd.extend(['--url', RPC_URL])
-    bal_proc = subprocess.run(
+    proc = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         timeout=CLI_TIMEOUT_SECONDS,
         check=False,
     )
-    if bal_proc.returncode != 0:
+    if proc.returncode != 0:
         return 0.0
-    return parse_solana_balance(bal_proc.stdout or '')
+    return parse_solana_balance(proc.stdout or '')
+
+
+def read_solana_balance(*, solana_bin: str, keypair: Path) -> float:
+    return read_solana_balance_pubkey(solana_bin=solana_bin, pubkey=keypair_pubkey(keypair))
 
 
 def run_route_cmd(*, amount_sol: float, route_usd: float, delta_usd: float, checkpoint_id: str) -> dict[str, Any]:
@@ -350,6 +363,203 @@ def run_route_cmd(*, amount_sol: float, route_usd: float, delta_usd: float, chec
         'txSignature': signature,
         'routedSol': max(0.0, parse_float(payload.get('routedSol') if 'routedSol' in payload else payload.get('amountSol'), amount_sol)),
     }
+
+
+def run_transfer_from_keypair(*, solana_bin: str, from_keypair: Path, to_pubkey: str, amount_sol: float) -> dict[str, Any]:
+    if amount_sol <= 0:
+        raise RuntimeError('topup_amount_invalid')
+
+    def transfer_once(sol_amount: float) -> subprocess.CompletedProcess[str]:
+        cmd = [
+            solana_bin,
+            'transfer',
+            to_pubkey,
+            format_sol(sol_amount),
+            '--keypair',
+            str(from_keypair),
+            '--allow-unfunded-recipient',
+            '--output',
+            'json',
+        ]
+        if RPC_URL:
+            cmd.extend(['--url', RPC_URL])
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS, check=False)
+
+    attempted_sol = amount_sol
+    proc = transfer_once(attempted_sol)
+    if proc.returncode != 0:
+        text = proc.stderr or proc.stdout or ''
+        match = re.search(r'insufficient funds for spend \(([\d.]+) SOL\) \+ fee \(([\d.]+) SOL\)', text, re.IGNORECASE)
+        if match:
+            fee_sol = max(0.0, parse_float(match.group(2), 0.0))
+            adjusted = floor_precision(max(0.0, amount_sol - fee_sol - ROUTE_FEE_RESERVE_SOL - ROUTE_RENT_RESERVE_SOL), 9)
+            if adjusted > 0 and adjusted < amount_sol:
+                attempted_sol = adjusted
+                proc = transfer_once(attempted_sol)
+        if proc.returncode != 0:
+            raise RuntimeError(transfer_error(proc))
+
+    signature = parse_signature(proc.stdout or '')
+    if not signature:
+        raise RuntimeError('missing_topup_tx_signature')
+    return {
+        'txSignature': signature,
+        'toppedUpSol': attempted_sol,
+    }
+
+
+def run_topup_cmd(*, amount_sol: float, to_pubkey: str, required_balance_sol: float, current_balance_sol: float) -> dict[str, Any]:
+    env = os.environ.copy()
+    env.update(
+        {
+            'KYO_ROUTE_TOPUP_TO_PUBKEY': to_pubkey,
+            'KYO_ROUTE_TOPUP_AMOUNT_SOL': format_sol(amount_sol),
+            'KYO_ROUTE_TOPUP_REQUIRED_BALANCE_SOL': format_sol(required_balance_sol),
+            'KYO_ROUTE_TOPUP_CURRENT_BALANCE_SOL': format_sol(current_balance_sol),
+        }
+    )
+    proc = subprocess.run(
+        ['bash', '-lc', ROUTE_TOPUP_CMD],
+        capture_output=True,
+        text=True,
+        timeout=CLI_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout or f'topup_cmd_exit_{proc.returncode}').strip()[:350] or 'topup_cmd_failed')
+
+    payload = None
+    for line in reversed((proc.stdout or '').splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            decoded = json.loads(stripped)
+        except Exception:
+            continue
+        if isinstance(decoded, dict):
+            payload = decoded
+            break
+    if payload is None:
+        raise RuntimeError('topup_cmd_invalid_json')
+
+    signature = str(payload.get('txSignature') or payload.get('signature') or '').strip()
+    if not signature:
+        raise RuntimeError('topup_cmd_missing_tx_signature')
+    return {
+        'txSignature': signature,
+        'toppedUpSol': max(0.0, parse_float(payload.get('toppedUpSol') if 'toppedUpSol' in payload else payload.get('amountSol'), amount_sol)),
+    }
+
+
+def route_wallet_snapshot(*, solana_bin: str) -> dict[str, Any]:
+    snapshot: dict[str, Any] = {
+        'pubkey': '',
+        'balanceSol': 0.0,
+        'keypairFound': False,
+        'solanaCliFound': bool(solana_bin),
+    }
+    if not solana_bin or not KEYPAIR_PATH:
+        return snapshot
+    keypair = Path(KEYPAIR_PATH).expanduser()
+    if not keypair.exists():
+        return snapshot
+    snapshot['keypairFound'] = True
+    pubkey = keypair_pubkey(keypair)
+    if not pubkey:
+        return snapshot
+    snapshot['pubkey'] = pubkey
+    snapshot['balanceSol'] = read_solana_balance_pubkey(solana_bin=solana_bin, pubkey=pubkey)
+    return snapshot
+
+
+def compute_topup_amount(*, current_balance_sol: float, required_balance_sol: float) -> float:
+    desired = max(required_balance_sol, ROUTE_MIN_WALLET_SOL, ROUTE_TOPUP_TARGET_SOL)
+    deficit = max(0.0, desired - current_balance_sol)
+    if deficit <= 0:
+        return 0.0
+    if ROUTE_TOPUP_MAX_SOL_PER_RUN > 0:
+        deficit = min(deficit, ROUTE_TOPUP_MAX_SOL_PER_RUN)
+    return floor_precision(deficit, 9)
+
+
+def maybe_topup_route_wallet(*, solana_bin: str, required_balance_sol: float) -> dict[str, Any]:
+    snapshot = route_wallet_snapshot(solana_bin=solana_bin)
+    result: dict[str, Any] = {
+        'attempted': False,
+        'ok': True,
+        'reason': 'not_required',
+        'requiredBalanceSol': round(max(0.0, required_balance_sol), 9),
+        'pubkey': str(snapshot.get('pubkey') or ''),
+        'balanceBeforeSol': round(parse_float(snapshot.get('balanceSol'), 0.0), 9),
+        'balanceAfterSol': round(parse_float(snapshot.get('balanceSol'), 0.0), 9),
+        'toppedUpSol': 0.0,
+        'txSignature': '',
+    }
+    if required_balance_sol <= 0:
+        return result
+    if not snapshot.get('solanaCliFound'):
+        result.update({'ok': False, 'reason': 'missing_solana_cli'})
+        return result
+    if not snapshot.get('keypairFound'):
+        result.update({'ok': False, 'reason': 'missing_trading_staking_keypair'})
+        return result
+    current_balance = parse_float(snapshot.get('balanceSol'), 0.0)
+    if current_balance >= required_balance_sol:
+        result.update({'reason': 'already_sufficient'})
+        return result
+    if not ROUTE_TOPUP_ENABLED:
+        result.update({'ok': False, 'reason': 'route_wallet_below_minimum_no_topup'})
+        return result
+
+    amount_sol = compute_topup_amount(current_balance_sol=current_balance, required_balance_sol=required_balance_sol)
+    if amount_sol <= 0:
+        result.update({'ok': False, 'reason': 'topup_amount_zero'})
+        return result
+
+    route_pubkey = str(snapshot.get('pubkey') or '').strip()
+    if not route_pubkey:
+        result.update({'ok': False, 'reason': 'missing_trading_staking_pubkey'})
+        return result
+
+    result['attempted'] = True
+    try:
+        if ROUTE_TOPUP_CMD:
+            topup = run_topup_cmd(
+                amount_sol=amount_sol,
+                to_pubkey=route_pubkey,
+                required_balance_sol=required_balance_sol,
+                current_balance_sol=current_balance,
+            )
+        else:
+            if not ROUTE_TOPUP_FROM_KEYPAIR_PATH:
+                raise RuntimeError('missing_route_topup_source_keypair')
+            source_keypair = Path(ROUTE_TOPUP_FROM_KEYPAIR_PATH).expanduser()
+            if not source_keypair.exists():
+                raise RuntimeError('route_topup_source_keypair_not_found')
+            topup = run_transfer_from_keypair(
+                solana_bin=solana_bin,
+                from_keypair=source_keypair,
+                to_pubkey=route_pubkey,
+                amount_sol=amount_sol,
+            )
+    except Exception as exc:
+        result.update({'ok': False, 'reason': str(exc).strip()[:350] or 'route_topup_failed'})
+        return result
+
+    balance_after = read_solana_balance_pubkey(solana_bin=solana_bin, pubkey=route_pubkey)
+    result.update(
+        {
+            'reason': 'topup_applied',
+            'balanceAfterSol': round(balance_after, 9),
+            'toppedUpSol': round(parse_float(topup.get('toppedUpSol'), amount_sol), 9),
+            'txSignature': str(topup.get('txSignature') or '').strip(),
+        }
+    )
+    if balance_after < required_balance_sol:
+        result.update({'ok': False, 'reason': 'route_wallet_still_below_required_after_topup'})
+    return result
 
 
 def run_solana_transfer(*, amount_sol: float, pool_id: str) -> dict[str, Any]:
@@ -474,6 +684,35 @@ def run() -> int:
     state = read_json(STATE_PATH, {})
     if not isinstance(state, dict):
         state = {}
+    solana_bin = shutil.which('solana') or ''
+    route_wallet = route_wallet_snapshot(solana_bin=solana_bin)
+    topup_result: dict[str, Any] = {
+        'attempted': False,
+        'ok': True,
+        'reason': 'not_required',
+        'requiredBalanceSol': round(max(0.0, ROUTE_MIN_WALLET_SOL), 9),
+        'pubkey': str(route_wallet.get('pubkey') or ''),
+        'balanceBeforeSol': round(parse_float(route_wallet.get('balanceSol'), 0.0), 9),
+        'balanceAfterSol': round(parse_float(route_wallet.get('balanceSol'), 0.0), 9),
+        'toppedUpSol': 0.0,
+        'txSignature': '',
+    }
+
+    def apply_wallet_fields(summary: dict[str, Any]) -> None:
+        summary.update(
+            {
+                'routeWalletMinSol': ROUTE_MIN_WALLET_SOL,
+                'routeWalletPubkey': str(topup_result.get('pubkey') or route_wallet.get('pubkey') or ''),
+                'routeWalletBalanceSol': round(parse_float(topup_result.get('balanceAfterSol'), route_wallet.get('balanceSol', 0.0)), 9),
+                'topupEnabled': ROUTE_TOPUP_ENABLED,
+                'topupAttempted': bool(topup_result.get('attempted')),
+                'topupOk': bool(topup_result.get('ok')),
+                'topupReason': str(topup_result.get('reason') or ''),
+                'topupAmountSol': round(parse_float(topup_result.get('toppedUpSol'), 0.0), 9),
+                'topupTxSignature': str(topup_result.get('txSignature') or ''),
+                'topupRequiredBalanceSol': round(parse_float(topup_result.get('requiredBalanceSol'), ROUTE_MIN_WALLET_SOL), 9),
+            }
+        )
     processed_realized_net_usd = max(0.0, parse_float(state.get('processedRealizedNetUsd'), 0.0))
     rebased_processed_overshoot = False
     if ROUTE_REBASE_ON_OVERSHOOT and processed_realized_net_usd > total_realized_net_usd:
@@ -482,6 +721,8 @@ def run() -> int:
 
     delta_unrouted_usd = round(total_realized_net_usd - processed_realized_net_usd, 8)
     if delta_unrouted_usd <= ROUTE_TOLERANCE_USD:
+        if ROUTE_MIN_WALLET_SOL > 0:
+            topup_result = maybe_topup_route_wallet(solana_bin=solana_bin, required_balance_sol=ROUTE_MIN_WALLET_SOL)
         summary = {
             'ok': True,
             'status': 'up_to_date',
@@ -506,6 +747,7 @@ def run() -> int:
             'receiptsPath': str(ROUTE_RECEIPTS_PATH),
             'ledgerPath': str(LEDGER_PATH),
         }
+        apply_wallet_fields(summary)
         write_json(
             STATE_PATH,
             {
@@ -534,6 +776,25 @@ def run() -> int:
 
     route_usd = floor_precision(max(0.0, delta_unrouted_usd) * (ROUTE_BPS / 10_000.0), 8)
     route_sol = floor_precision(route_usd / SOL_PRICE_USD, 9)
+    required_wallet_balance_sol = max(
+        ROUTE_MIN_WALLET_SOL,
+        route_sol + ROUTE_MIN_WALLET_SOL + ROUTE_FEE_RESERVE_SOL + ROUTE_RENT_RESERVE_SOL,
+    )
+    if required_wallet_balance_sol > 0:
+        topup_result = maybe_topup_route_wallet(solana_bin=solana_bin, required_balance_sol=required_wallet_balance_sol)
+        if topup_result.get('attempted') and str(topup_result.get('txSignature') or '').strip():
+            append_json_line(
+                LOG_PATH,
+                {
+                    'at': now_iso(),
+                    'event': 'trading_route_wallet_topup',
+                    'ok': bool(topup_result.get('ok')),
+                    'reason': str(topup_result.get('reason') or ''),
+                    'amountSol': round(parse_float(topup_result.get('toppedUpSol'), 0.0), 9),
+                    'txSignature': str(topup_result.get('txSignature') or ''),
+                    'routeWalletPubkey': str(topup_result.get('pubkey') or ''),
+                },
+            )
     if route_sol < ROUTE_MIN_SOL:
         summary = {
             'ok': True,
@@ -556,6 +817,7 @@ def run() -> int:
             'receiptsPath': str(ROUTE_RECEIPTS_PATH),
             'ledgerPath': str(LEDGER_PATH),
         }
+        apply_wallet_fields(summary)
         write_json(
             STATE_PATH,
             {
@@ -598,6 +860,7 @@ def run() -> int:
             'routeSol': route_sol,
             'syntheticRealizedCloseViolations': synthetic_violations,
         }
+        apply_wallet_fields(summary)
         write_json(
             STATE_PATH,
             {
@@ -642,6 +905,7 @@ def run() -> int:
             'checkpointId': checkpoint_id,
             'syntheticRealizedCloseViolations': synthetic_violations,
         }
+        apply_wallet_fields(summary)
         write_json(
             STATE_PATH,
             {
@@ -744,6 +1008,7 @@ def run() -> int:
         'lastRoutedLedgerCursor': checkpoint_id,
         'lastRoutedNetUsd': round(route_usd, 8),
     }
+    apply_wallet_fields(summary)
     write_json(
         STATE_PATH,
         {

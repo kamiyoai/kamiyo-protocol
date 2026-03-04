@@ -162,6 +162,25 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertAlmostEqual(self.mod.parse_solana_balance('0.5'), 0.5, places=9)
         self.assertAlmostEqual(self.mod.parse_solana_balance(''), 0.0, places=9)
 
+    def test_compute_topup_amount_respects_cap(self):
+        self.mod.ROUTE_MIN_WALLET_SOL = 0.12
+        self.mod.ROUTE_TOPUP_TARGET_SOL = 0.15
+        self.mod.ROUTE_TOPUP_MAX_SOL_PER_RUN = 0.05
+        amount = self.mod.compute_topup_amount(current_balance_sol=0.01, required_balance_sol=0.12)
+        self.assertAlmostEqual(amount, 0.05, places=9)
+
+    def test_maybe_topup_route_wallet_reports_disabled_when_below_min(self):
+        self.mod.ROUTE_TOPUP_ENABLED = False
+        with patch.object(
+            self.mod,
+            'route_wallet_snapshot',
+            return_value={'pubkey': 'route-pubkey', 'balanceSol': 0.01, 'keypairFound': True, 'solanaCliFound': True},
+        ):
+            result = self.mod.maybe_topup_route_wallet(solana_bin='solana', required_balance_sol=0.12)
+        self.assertEqual(result.get('attempted'), False)
+        self.assertEqual(result.get('ok'), False)
+        self.assertEqual(result.get('reason'), 'route_wallet_below_minimum_no_topup')
+
 
 if __name__ == '__main__':
     unittest.main()
