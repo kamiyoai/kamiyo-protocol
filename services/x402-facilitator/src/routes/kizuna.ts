@@ -335,6 +335,15 @@ export function createKizunaRouter(): Router {
     const amountMicro = parsePositiveMicro(req.body?.amountMicro);
     const poolId = resolvePoolId(lane, req.body?.poolId, config);
 
+    if (config.KIZUNA_SECURED_ONLY && lane !== 'crypto-fast') {
+      sendError(res, 403, 'Enterprise lane is disabled in secured-only mode');
+      return;
+    }
+    if (assetId !== 'usdc') {
+      sendError(res, 400, 'Only USDC collateral is supported');
+      return;
+    }
+
     if (!collateralAccount || !amountMicro) {
       sendError(res, 400, 'collateralAccount and amountMicro are required');
       return;
@@ -381,6 +390,14 @@ export function createKizunaRouter(): Router {
     const amountMicro = parsePositiveMicro(req.body?.amountMicro);
     if (!agentId || !lane || !collateralAccount || !referenceId || !amountMicro) {
       sendError(res, 400, 'agentId, lane, collateralAccount, amountMicro, and referenceId are required');
+      return;
+    }
+    if (config.KIZUNA_SECURED_ONLY && lane !== 'crypto-fast') {
+      sendError(res, 403, 'Enterprise lane is disabled in secured-only mode');
+      return;
+    }
+    if (assetId !== 'usdc') {
+      sendError(res, 400, 'Only USDC collateral is supported');
       return;
     }
 
@@ -501,6 +518,14 @@ export function createKizunaRouter(): Router {
 
     if (!agentId || !lane || !collateralAccount || !referenceId || !amountMicro) {
       sendError(res, 400, 'agentId, lane, collateralAccount, amountMicro, and referenceId are required');
+      return;
+    }
+    if (config.KIZUNA_SECURED_ONLY && lane !== 'crypto-fast') {
+      sendError(res, 403, 'Enterprise lane is disabled in secured-only mode');
+      return;
+    }
+    if (assetId !== 'usdc') {
+      sendError(res, 400, 'Only USDC collateral is supported');
       return;
     }
 

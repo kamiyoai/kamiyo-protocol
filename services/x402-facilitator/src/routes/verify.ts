@@ -255,6 +255,17 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
           ? config.KIZUNA_FASTPATH_POOL_ID
           : config.KIZUNA_ENTERPRISE_POOL_ID);
 
+      if (config.KIZUNA_SECURED_ONLY && lane !== 'crypto-fast') {
+        sendVerifyFailure(
+          res,
+          403,
+          'kizuna_lane_disabled',
+          'Enterprise lane is disabled in secured-only mode',
+          payment.payer
+        );
+        return;
+      }
+
       const requestedMicro = parseUsdcMicroAmountBigint(requirementAmountRaw);
       if (requestedMicro == null) {
         sendVerifyFailure(res, 400, 'invalid_amount', 'Invalid payment requirement amount', payment.payer);

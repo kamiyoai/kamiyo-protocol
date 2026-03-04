@@ -64,7 +64,7 @@ async function resetTables(): Promise<void> {
 
   await query(
     `INSERT INTO kizuna_fastpath_pools (pool_id, status, ltv_cap_bps, reserve_ratio_bps, min_health_factor, max_single_micro)
-     VALUES ('fastpath-main', 'active', 6500, 10000, 1.15, 5000000)
+     VALUES ('fastpath-main', 'active', 6000, 10000, 1.5, 2000000)
      ON CONFLICT (pool_id) DO NOTHING`
   );
 

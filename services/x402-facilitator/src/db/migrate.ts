@@ -582,8 +582,50 @@ const MIGRATIONS = [
       ON CONFLICT (asset_id) DO NOTHING;
 
       INSERT INTO kizuna_fastpath_pools (pool_id, status, ltv_cap_bps, reserve_ratio_bps, min_health_factor, max_single_micro)
-      VALUES ('fastpath-main', 'active', 6500, 10000, 1.15, 5000000)
+      VALUES ('fastpath-main', 'active', 6000, 10000, 1.5, 2000000)
       ON CONFLICT (pool_id) DO NOTHING;
+
+      INSERT INTO kizuna_pool_reserves (pool_id, lane, reserved_micro, outstanding_micro, collateral_value_micro)
+      VALUES
+        ('enterprise-main', 'enterprise', 0, 0, 0),
+        ('fastpath-main', 'crypto-fast', 0, 0, 0)
+      ON CONFLICT (pool_id) DO NOTHING;
+    `,
+  },
+  {
+    name: '013_kizuna_secured_only_defaults',
+    sql: `
+      INSERT INTO kizuna_collateral_assets (asset_id, symbol, chain, haircut_bps, volatility_buffer_bps, status)
+      VALUES ('usdc', 'USDC', 'multi', 0, 0, 'active')
+      ON CONFLICT (asset_id) DO UPDATE
+      SET symbol = 'USDC',
+          chain = 'multi',
+          haircut_bps = 0,
+          volatility_buffer_bps = 0,
+          status = 'active',
+          updated_at = NOW();
+
+      UPDATE kizuna_collateral_assets
+      SET status = 'inactive',
+          updated_at = NOW()
+      WHERE asset_id <> 'usdc';
+
+      INSERT INTO kizuna_fastpath_pools (
+        pool_id,
+        status,
+        ltv_cap_bps,
+        reserve_ratio_bps,
+        min_health_factor,
+        max_single_micro
+      )
+      VALUES ('fastpath-main', 'active', 6000, 10000, 1.5, 2000000)
+      ON CONFLICT (pool_id) DO UPDATE
+      SET status = 'active',
+          ltv_cap_bps = 6000,
+          reserve_ratio_bps = 10000,
+          min_health_factor = 1.5,
+          max_single_micro = 2000000,
+          updated_at = NOW();
 
       INSERT INTO kizuna_pool_reserves (pool_id, lane, reserved_micro, outstanding_micro, collateral_value_micro)
       VALUES

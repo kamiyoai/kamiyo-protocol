@@ -243,6 +243,18 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           ? config.KIZUNA_FASTPATH_POOL_ID
           : config.KIZUNA_ENTERPRISE_POOL_ID);
 
+      if (config.KIZUNA_SECURED_ONLY && lane !== 'crypto-fast') {
+        sendSettleFailure(
+          res,
+          403,
+          'kizuna_lane_disabled',
+          'Enterprise lane is disabled in secured-only mode',
+          network,
+          payment.payer
+        );
+        return;
+      }
+
       const amount = parseSignedUsdcAmount(payment.amount, requirementAmountRaw);
       if (amount == null) {
         sendSettleFailure(

@@ -140,6 +140,7 @@ function setBaseEnv(): void {
   process.env.KIZUNA_KERNEL_SIGNING_KEYS = JSON.stringify({ kid1: 'secret-1' });
   process.env.KIZUNA_ENTERPRISE_POOL_ID = 'enterprise-main';
   process.env.KIZUNA_FASTPATH_POOL_ID = 'fastpath-main';
+  process.env.KIZUNA_SECURED_ONLY = 'false';
 }
 
 type InvokeResult = {
@@ -327,6 +328,36 @@ describe('kizuna route invariants', () => {
 
     expect(result.statusCode).toBe(503);
     expect(result.body.invalidReason).toBe('kizuna_kernel_unavailable');
+  });
+
+  it('blocks enterprise lane in secured-only mode', async () => {
+    process.env.KIZUNA_SECURED_ONLY = 'true';
+    clearConfigCache();
+
+    const { createVerifyRouter } = await import('../src/routes/verify');
+
+    mockGetKizunaReservationByNonce.mockResolvedValue(null);
+
+    const router = createVerifyRouter({} as any, Keypair.generate().publicKey);
+
+    const result = await invokePost(router, {
+      paymentHeader: 'exact:eip155:8453:Zm9v',
+      paymentRequirements: {
+        network: 'eip155:8453',
+        amount: '1000000',
+        extra: {
+          kizuna: {
+            mode: 'credit',
+            agentId: 'agent-1',
+            repayWallet: '0x2222222222222222222222222222222222222222',
+            lane: 'enterprise',
+          },
+        },
+      },
+    });
+
+    expect(result.statusCode).toBe(403);
+    expect(result.body.invalidReason).toBe('kizuna_lane_disabled');
   });
 
   it('rejects tampered decision envelope on settle', async () => {
