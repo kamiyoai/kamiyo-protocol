@@ -21,6 +21,22 @@ export interface Config {
   BASE_RPC_URL: string;
   BASE_FACILITATOR_KEY: string;
   BASE_TREASURY_ADDRESS: string;
+  KIZUNA_ENABLED: boolean;
+  KIZUNA_SHADOW_MODE: boolean;
+  KIZUNA_MAX_SINGLE_MICRO: number;
+  KIZUNA_RESERVATION_TTL_MS: number;
+  KIZUNA_INTERNAL_TOKEN: string;
+  WALLET_CONTROL_PLANE_URL: string;
+  CREDITS_INTERNAL_URL: string;
+  KIZUNA_KERNEL_URL: string;
+  KIZUNA_KERNEL_TIMEOUT_MS: number;
+  KIZUNA_KERNEL_FAIL_CLOSED: boolean;
+  KIZUNA_KERNEL_SIGNING_KEYS: Record<string, string>;
+  KIZUNA_ENTERPRISE_POOL_ID: string;
+  KIZUNA_FASTPATH_POOL_ID: string;
+  KIZUNA_FASTPATH_LTV_CAP_BPS: number;
+  KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: number;
+  KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: number;
 }
 
 const REQUIRED_VARS = [
@@ -46,7 +62,22 @@ const DEFAULTS: Partial<Config> = {
   SHADOWPAY_REFERRAL_ID: '64b30531ab33da27',
   BASE_RPC_URL: '',
   BASE_FACILITATOR_KEY: '',
-  BASE_TREASURY_ADDRESS: ''
+  BASE_TREASURY_ADDRESS: '',
+  KIZUNA_ENABLED: false,
+  KIZUNA_SHADOW_MODE: false,
+  KIZUNA_MAX_SINGLE_MICRO: 10_000_000,
+  KIZUNA_RESERVATION_TTL_MS: 120_000,
+  KIZUNA_INTERNAL_TOKEN: '',
+  WALLET_CONTROL_PLANE_URL: '',
+  CREDITS_INTERNAL_URL: '',
+  KIZUNA_KERNEL_URL: '',
+  KIZUNA_KERNEL_TIMEOUT_MS: 1500,
+  KIZUNA_KERNEL_FAIL_CLOSED: true,
+  KIZUNA_ENTERPRISE_POOL_ID: 'enterprise-main',
+  KIZUNA_FASTPATH_POOL_ID: 'fastpath-main',
+  KIZUNA_FASTPATH_LTV_CAP_BPS: 6500,
+  KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: 1.15,
+  KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: 2000,
 };
 
 let cachedConfig: Config | null = null;
@@ -154,6 +185,126 @@ export function validateConfig(): ValidationResult {
     warnings.push('BASE_FACILITATOR_KEY set but BASE_RPC_URL is empty');
   }
 
+  const kizunaEnabled = process.env.KIZUNA_ENABLED === 'true';
+  const kizunaMaxSingleMicro = process.env.KIZUNA_MAX_SINGLE_MICRO;
+  if (kizunaMaxSingleMicro) {
+    const n = parseInt(kizunaMaxSingleMicro, 10);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      errors.push('KIZUNA_MAX_SINGLE_MICRO must be a positive integer');
+    }
+  }
+
+  const kizunaReservationTtlMs = process.env.KIZUNA_RESERVATION_TTL_MS;
+  if (kizunaReservationTtlMs) {
+    const n = parseInt(kizunaReservationTtlMs, 10);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      errors.push('KIZUNA_RESERVATION_TTL_MS must be a positive integer');
+    }
+  }
+
+  const walletControlPlaneUrl = process.env.WALLET_CONTROL_PLANE_URL;
+  if (walletControlPlaneUrl) {
+    try {
+      new URL(walletControlPlaneUrl);
+    } catch {
+      errors.push('WALLET_CONTROL_PLANE_URL must be a valid URL');
+    }
+  }
+
+  const creditsInternalUrl = process.env.CREDITS_INTERNAL_URL;
+  if (creditsInternalUrl) {
+    try {
+      new URL(creditsInternalUrl);
+    } catch {
+      errors.push('CREDITS_INTERNAL_URL must be a valid URL');
+    }
+  }
+
+  const kizunaKernelUrl = process.env.KIZUNA_KERNEL_URL;
+  if (kizunaKernelUrl) {
+    try {
+      new URL(kizunaKernelUrl);
+    } catch {
+      errors.push('KIZUNA_KERNEL_URL must be a valid URL');
+    }
+  }
+
+  const kernelTimeoutRaw = process.env.KIZUNA_KERNEL_TIMEOUT_MS;
+  if (kernelTimeoutRaw) {
+    const n = parseInt(kernelTimeoutRaw, 10);
+    if (!Number.isSafeInteger(n) || n <= 0) {
+      errors.push('KIZUNA_KERNEL_TIMEOUT_MS must be a positive integer');
+    }
+  }
+
+  const ltvCapRaw = process.env.KIZUNA_FASTPATH_LTV_CAP_BPS;
+  if (ltvCapRaw) {
+    const n = parseInt(ltvCapRaw, 10);
+    if (!Number.isSafeInteger(n) || n <= 0 || n > 10_000) {
+      errors.push('KIZUNA_FASTPATH_LTV_CAP_BPS must be between 1 and 10000');
+    }
+  }
+
+  const minHealthRaw = process.env.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR;
+  if (minHealthRaw) {
+    const n = Number(minHealthRaw);
+    if (!Number.isFinite(n) || n <= 0) {
+      errors.push('KIZUNA_FASTPATH_MIN_HEALTH_FACTOR must be a positive number');
+    }
+  }
+
+  const assetHaircutRaw = process.env.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS;
+  if (assetHaircutRaw) {
+    const n = parseInt(assetHaircutRaw, 10);
+    if (!Number.isSafeInteger(n) || n < 0 || n > 10_000) {
+      errors.push('KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS must be between 0 and 10000');
+    }
+  }
+
+  const kernelSigningKeysRaw = process.env.KIZUNA_KERNEL_SIGNING_KEYS;
+  if (kernelSigningKeysRaw) {
+    try {
+      const parsed = JSON.parse(kernelSigningKeysRaw) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        errors.push('KIZUNA_KERNEL_SIGNING_KEYS must be a JSON object');
+      } else {
+        for (const [keyId, keyValue] of Object.entries(parsed as Record<string, unknown>)) {
+          if (!keyId.trim() || typeof keyValue !== 'string' || !keyValue.trim()) {
+            errors.push('KIZUNA_KERNEL_SIGNING_KEYS entries must be non-empty strings');
+            break;
+          }
+        }
+      }
+    } catch {
+      errors.push('KIZUNA_KERNEL_SIGNING_KEYS must be valid JSON');
+    }
+  }
+
+  if (kizunaEnabled) {
+    if (!process.env.KIZUNA_INTERNAL_TOKEN?.trim()) {
+      errors.push('KIZUNA_INTERNAL_TOKEN is required when KIZUNA_ENABLED=true');
+    }
+    if (!walletControlPlaneUrl?.trim()) {
+      errors.push('WALLET_CONTROL_PLANE_URL is required when KIZUNA_ENABLED=true');
+    }
+    if (!creditsInternalUrl?.trim()) {
+      errors.push('CREDITS_INTERNAL_URL is required when KIZUNA_ENABLED=true');
+    }
+    if (!(process.env.KIZUNA_ENTERPRISE_POOL_ID || DEFAULTS.KIZUNA_ENTERPRISE_POOL_ID)?.trim()) {
+      errors.push('KIZUNA_ENTERPRISE_POOL_ID is required when KIZUNA_ENABLED=true');
+    }
+    if (!(process.env.KIZUNA_FASTPATH_POOL_ID || DEFAULTS.KIZUNA_FASTPATH_POOL_ID)?.trim()) {
+      errors.push('KIZUNA_FASTPATH_POOL_ID is required when KIZUNA_ENABLED=true');
+    }
+    const kernelFailClosed = (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) === 'true';
+    if (kernelFailClosed && !kizunaKernelUrl?.trim()) {
+      errors.push('KIZUNA_KERNEL_URL is required when fail-closed mode is enabled');
+    }
+    if (kernelFailClosed && !kernelSigningKeysRaw?.trim()) {
+      errors.push('KIZUNA_KERNEL_SIGNING_KEYS is required when fail-closed mode is enabled');
+    }
+  }
+
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -183,7 +334,56 @@ export function getConfig(): Config {
     SHADOWPAY_REFERRAL_ID: process.env.SHADOWPAY_REFERRAL_ID || DEFAULTS.SHADOWPAY_REFERRAL_ID!,
     BASE_RPC_URL: process.env.BASE_RPC_URL || DEFAULTS.BASE_RPC_URL!,
     BASE_FACILITATOR_KEY: process.env.BASE_FACILITATOR_KEY || DEFAULTS.BASE_FACILITATOR_KEY!,
-    BASE_TREASURY_ADDRESS: process.env.BASE_TREASURY_ADDRESS || DEFAULTS.BASE_TREASURY_ADDRESS!
+    BASE_TREASURY_ADDRESS: process.env.BASE_TREASURY_ADDRESS || DEFAULTS.BASE_TREASURY_ADDRESS!,
+    KIZUNA_ENABLED: process.env.KIZUNA_ENABLED === 'true',
+    KIZUNA_SHADOW_MODE: process.env.KIZUNA_SHADOW_MODE === 'true',
+    KIZUNA_MAX_SINGLE_MICRO: parseInt(
+      process.env.KIZUNA_MAX_SINGLE_MICRO || String(DEFAULTS.KIZUNA_MAX_SINGLE_MICRO),
+      10
+    ),
+    KIZUNA_RESERVATION_TTL_MS: parseInt(
+      process.env.KIZUNA_RESERVATION_TTL_MS || String(DEFAULTS.KIZUNA_RESERVATION_TTL_MS),
+      10
+    ),
+    KIZUNA_INTERNAL_TOKEN: process.env.KIZUNA_INTERNAL_TOKEN || DEFAULTS.KIZUNA_INTERNAL_TOKEN!,
+    WALLET_CONTROL_PLANE_URL:
+      process.env.WALLET_CONTROL_PLANE_URL || DEFAULTS.WALLET_CONTROL_PLANE_URL!,
+    CREDITS_INTERNAL_URL: process.env.CREDITS_INTERNAL_URL || DEFAULTS.CREDITS_INTERNAL_URL!,
+    KIZUNA_KERNEL_URL: process.env.KIZUNA_KERNEL_URL || DEFAULTS.KIZUNA_KERNEL_URL!,
+    KIZUNA_KERNEL_TIMEOUT_MS: parseInt(
+      process.env.KIZUNA_KERNEL_TIMEOUT_MS || String(DEFAULTS.KIZUNA_KERNEL_TIMEOUT_MS),
+      10
+    ),
+    KIZUNA_KERNEL_FAIL_CLOSED:
+      (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) ===
+      'true',
+    KIZUNA_KERNEL_SIGNING_KEYS: (() => {
+      const raw = process.env.KIZUNA_KERNEL_SIGNING_KEYS;
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          ([key, value]) => key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
+        )
+      );
+    })(),
+    KIZUNA_ENTERPRISE_POOL_ID:
+      process.env.KIZUNA_ENTERPRISE_POOL_ID || DEFAULTS.KIZUNA_ENTERPRISE_POOL_ID!,
+    KIZUNA_FASTPATH_POOL_ID:
+      process.env.KIZUNA_FASTPATH_POOL_ID || DEFAULTS.KIZUNA_FASTPATH_POOL_ID!,
+    KIZUNA_FASTPATH_LTV_CAP_BPS: parseInt(
+      process.env.KIZUNA_FASTPATH_LTV_CAP_BPS || String(DEFAULTS.KIZUNA_FASTPATH_LTV_CAP_BPS),
+      10
+    ),
+    KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: Number(
+      process.env.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR ||
+        String(DEFAULTS.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR)
+    ),
+    KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: parseInt(
+      process.env.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS ||
+        String(DEFAULTS.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS),
+      10
+    ),
   };
 
   return cachedConfig;
@@ -215,6 +415,22 @@ export function getRedactedConfig(): Record<string, string> {
     SHADOWPAY_REFERRAL_ID: config.SHADOWPAY_REFERRAL_ID,
     BASE_RPC_URL: config.BASE_RPC_URL || '',
     BASE_FACILITATOR_KEY: config.BASE_FACILITATOR_KEY ? '[REDACTED]' : '',
-    BASE_TREASURY_ADDRESS: config.BASE_TREASURY_ADDRESS || ''
+    BASE_TREASURY_ADDRESS: config.BASE_TREASURY_ADDRESS || '',
+    KIZUNA_ENABLED: String(config.KIZUNA_ENABLED),
+    KIZUNA_SHADOW_MODE: String(config.KIZUNA_SHADOW_MODE),
+    KIZUNA_MAX_SINGLE_MICRO: String(config.KIZUNA_MAX_SINGLE_MICRO),
+    KIZUNA_RESERVATION_TTL_MS: String(config.KIZUNA_RESERVATION_TTL_MS),
+    KIZUNA_INTERNAL_TOKEN: config.KIZUNA_INTERNAL_TOKEN ? '[REDACTED]' : '',
+    WALLET_CONTROL_PLANE_URL: config.WALLET_CONTROL_PLANE_URL,
+    CREDITS_INTERNAL_URL: config.CREDITS_INTERNAL_URL,
+    KIZUNA_KERNEL_URL: config.KIZUNA_KERNEL_URL,
+    KIZUNA_KERNEL_TIMEOUT_MS: String(config.KIZUNA_KERNEL_TIMEOUT_MS),
+    KIZUNA_KERNEL_FAIL_CLOSED: String(config.KIZUNA_KERNEL_FAIL_CLOSED),
+    KIZUNA_KERNEL_SIGNING_KEYS: Object.keys(config.KIZUNA_KERNEL_SIGNING_KEYS).join(','),
+    KIZUNA_ENTERPRISE_POOL_ID: config.KIZUNA_ENTERPRISE_POOL_ID,
+    KIZUNA_FASTPATH_POOL_ID: config.KIZUNA_FASTPATH_POOL_ID,
+    KIZUNA_FASTPATH_LTV_CAP_BPS: String(config.KIZUNA_FASTPATH_LTV_CAP_BPS),
+    KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: String(config.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR),
+    KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: String(config.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS),
   };
 }

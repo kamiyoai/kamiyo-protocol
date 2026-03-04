@@ -11,6 +11,7 @@ export interface ParsedVerifyInput {
   requirementAmountRaw?: string;
   requirementNetwork?: string;
   requirementPayTo?: string;
+  requirementKizuna?: ParsedKizunaRequirement;
 }
 
 export interface ParsedSettleInput {
@@ -22,6 +23,17 @@ export interface ParsedSettleInput {
   requirementAmountRaw?: string;
   requirementNetwork?: string;
   requirementResource?: string;
+  requirementKizuna?: ParsedKizunaRequirement;
+}
+
+export interface ParsedKizunaRequirement {
+  mode: 'credit';
+  agentId: string;
+  repayWallet: string;
+  lane: 'enterprise' | 'crypto-fast';
+  collateralAccount?: string;
+  poolId?: string;
+  decisionEnvelope?: unknown;
 }
 
 function asRecord(value: unknown): UnknownRecord | null {
@@ -132,6 +144,54 @@ function extractAsset(
   );
 }
 
+function extractKizunaRequirement(
+  paymentRequirements: UnknownRecord
+): { ok: true; value?: ParsedKizunaRequirement } | { ok: false; error: string } {
+  const extra = asRecord(paymentRequirements.extra);
+  if (!extra) return { ok: true };
+
+  const kizuna = asRecord(extra.kizuna);
+  if (!kizuna) return { ok: true };
+
+  const mode = asString(kizuna.mode);
+  const agentId = asString(kizuna.agentId);
+  const repayWallet = asString(kizuna.repayWallet);
+  const laneRaw = asString(kizuna.lane) || 'enterprise';
+  const lane = laneRaw === 'enterprise' || laneRaw === 'crypto-fast' ? laneRaw : null;
+  const collateralAccount = asString(kizuna.collateralAccount);
+  const poolId = asString(kizuna.poolId);
+  const decisionEnvelope = kizuna.decisionEnvelope;
+
+  if (mode !== 'credit') {
+    return { ok: false, error: 'paymentRequirements.extra.kizuna.mode must be credit' };
+  }
+  if (!agentId) {
+    return { ok: false, error: 'paymentRequirements.extra.kizuna.agentId is required' };
+  }
+  if (!repayWallet) {
+    return { ok: false, error: 'paymentRequirements.extra.kizuna.repayWallet is required' };
+  }
+  if (!lane) {
+    return { ok: false, error: 'paymentRequirements.extra.kizuna.lane must be enterprise or crypto-fast' };
+  }
+  if (lane === 'crypto-fast' && !collateralAccount) {
+    return { ok: false, error: 'paymentRequirements.extra.kizuna.collateralAccount is required for lane=crypto-fast' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      mode: 'credit',
+      agentId,
+      repayWallet,
+      lane,
+      collateralAccount: collateralAccount || undefined,
+      poolId: poolId || undefined,
+      decisionEnvelope,
+    },
+  };
+}
+
 function parseUsdcMicroAmount(amountRaw: string): number | null {
   const trimmed = amountRaw.trim();
   if (!trimmed) return null;
@@ -223,6 +283,9 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
   const legacyHeader = asString(root.paymentHeader);
   const legacyRequirements = asRecord(root.paymentRequirements);
   if (legacyHeader && legacyRequirements) {
+    const kizuna = extractKizunaRequirement(legacyRequirements);
+    if (!kizuna.ok) return kizuna;
+
     const network = asString(legacyRequirements.network);
     if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
 
@@ -239,6 +302,7 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
         requirementAmountRaw,
         requirementNetwork: network,
         requirementPayTo: asString(legacyRequirements.payTo),
+        requirementKizuna: kizuna.value,
       },
     };
   }
@@ -260,6 +324,9 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
   if (!paymentPayload || !paymentRequirements) {
     return { ok: false, error: 'Missing paymentPayload or paymentRequirements' };
   }
+
+  const kizuna = extractKizunaRequirement(paymentRequirements);
+  if (!kizuna.ok) return kizuna;
 
   const network = extractRequirementNetwork(paymentRequirements, paymentPayload);
   if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
@@ -289,6 +356,7 @@ export function parseVerifyInput(body: unknown): { ok: true; value: ParsedVerify
       requirementAmountRaw,
       requirementNetwork: network,
       requirementPayTo: extractMerchantWallet(paymentRequirements, paymentPayload),
+      requirementKizuna: kizuna.value,
     },
   };
 }
@@ -314,6 +382,9 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
 
   const paymentRequirements = asRecord(root.paymentRequirements);
   if (legacyHeader && paymentRequirements) {
+    const kizuna = extractKizunaRequirement(paymentRequirements);
+    if (!kizuna.ok) return kizuna;
+
     const network = asString(paymentRequirements.network);
     if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
 
@@ -334,6 +405,7 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
         requirementAmountRaw,
         requirementNetwork: network,
         requirementResource: asString(paymentRequirements.resource),
+        requirementKizuna: kizuna.value,
       },
     };
   }
@@ -342,6 +414,9 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
   if (!paymentPayload || !paymentRequirements) {
     return { ok: false, error: 'Missing paymentPayload or paymentRequirements' };
   }
+
+  const kizuna = extractKizunaRequirement(paymentRequirements);
+  if (!kizuna.ok) return kizuna;
 
   const network = extractRequirementNetwork(paymentRequirements, paymentPayload);
   if (!network) return { ok: false, error: 'Missing paymentRequirements.network' };
@@ -377,6 +452,7 @@ export function parseSettleInput(body: unknown): { ok: true; value: ParsedSettle
       requirementAmountRaw,
       requirementNetwork: network,
       requirementResource: extractResource(paymentRequirements, paymentPayload),
+      requirementKizuna: kizuna.value,
     },
   };
 }

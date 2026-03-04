@@ -7,9 +7,29 @@ import { getConfig } from '../config';
 import { VerifyResponse } from '../types';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
 import { parseSignedUsdcAmount, parseUsdcMicroAmountBigint, parseVerifyInput } from '../protocol/request-compat';
-import { getPaymentSessionByTokenHash } from '../db/queries';
+import {
+  createKizunaReservation,
+  getKizunaCollateralPosition,
+  getKizunaCollateralSummary,
+  getKizunaFastpathPool,
+  getKizunaAccount,
+  getKizunaOutstandingMicro,
+  getKizunaReservationByNonce,
+  getKizunaUnderwriteSnapshot,
+  KizunaLane,
+  getPaymentSessionByTokenHash,
+  insertKizunaUnderwriteDecision,
+} from '../db/queries';
 import { hashSessionToken, parseSessionPaymentHeader } from '../services/session';
 import { getUsdcDelegateState } from '../services/solana-session';
+import { runKizunaUnderwrite } from '../services/kizuna-underwrite';
+import { getKizunaMandateLimits } from '../services/kizuna-wallet-control-plane';
+import {
+  evaluateKizunaKernelDecision,
+  hashKizunaDecisionEnvelope,
+  KernelEvaluateResult,
+  mintLocalKizunaEnvelope,
+} from '../services/kizuna-kernel';
 
 function sendVerifyFailure(
   res: Response,
@@ -29,6 +49,132 @@ function sendVerifyFailure(
   });
 }
 
+function parseNonNegativeBigint(value: string | null | undefined): bigint {
+  if (!value) return 0n;
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n ? parsed : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function minBigint(a: bigint, b: bigint): bigint {
+  return a < b ? a : b;
+}
+
+function toRiskBand(scoreRaw: number, lane: KizunaLane, healthFactor?: number): string {
+  if (lane === 'crypto-fast') {
+    if ((healthFactor ?? 0) < 1) return 'critical';
+    if ((healthFactor ?? 0) < 1.2) return 'elevated';
+  }
+  if (scoreRaw >= 700) return 'low';
+  if (scoreRaw >= 450) return 'medium';
+  return 'high';
+}
+
+function buildFallbackDecision(params: {
+  agentId: string;
+  payerWallet: string;
+  requestNonce: string;
+  network: string;
+  lane: KizunaLane;
+  poolId: string;
+  requestedMicro: bigint;
+  outstandingMicro: bigint;
+  maxSingleMicro: bigint;
+  mandateSingleLimitMicro: bigint | null;
+  snapshot: NonNullable<Awaited<ReturnType<typeof getKizunaUnderwriteSnapshot>>>;
+  collateral?: {
+    effectiveCollateralMicro: bigint;
+    ltvCapBps: number;
+    healthFactor: number;
+  };
+}): KernelEvaluateResult {
+  const underwrite = runKizunaUnderwrite({
+    requestedMicro: params.requestedMicro,
+    outstandingMicro: params.outstandingMicro,
+    maxSingleMicro: params.maxSingleMicro,
+    mandateSingleLimitMicro: params.mandateSingleLimitMicro,
+    snapshot: params.snapshot,
+  });
+
+  let availableMicro = underwrite.availableMicro;
+  let approvedMicro = underwrite.approvedMicro;
+  let ltvBps: number | undefined;
+  let healthFactor: number | undefined;
+  const reasonCodes = [...underwrite.reasonCodes];
+
+  if (params.lane === 'crypto-fast') {
+    if (!params.collateral) {
+      availableMicro = 0n;
+      approvedMicro = 0n;
+      reasonCodes.push('fastpath_no_collateral');
+    } else {
+      const collateralLimit =
+        (params.collateral.effectiveCollateralMicro * BigInt(params.collateral.ltvCapBps)) / 10_000n;
+      const collateralAvailable =
+        collateralLimit > params.outstandingMicro ? collateralLimit - params.outstandingMicro : 0n;
+
+      availableMicro = minBigint(availableMicro, collateralAvailable);
+      approvedMicro = minBigint(params.requestedMicro, availableMicro);
+      healthFactor = params.collateral.healthFactor;
+      ltvBps =
+        params.collateral.effectiveCollateralMicro > 0n
+          ? Number(
+              (params.outstandingMicro * 10_000n) / params.collateral.effectiveCollateralMicro
+            )
+          : 0;
+
+      if (collateralAvailable <= 0n) {
+        reasonCodes.push('fastpath_collateral_limit_reached');
+      }
+      if ((healthFactor ?? 0) < 1) {
+        reasonCodes.push('fastpath_health_factor_breach');
+        approvedMicro = 0n;
+      }
+    }
+  }
+
+  const decisionId = `fallback:${params.payerWallet}:${params.requestNonce}`;
+  const policyPackId =
+    params.lane === 'crypto-fast' ? 'kizuna-fastpath-default-v1' : 'kizuna-enterprise-default-v1';
+  const riskBand = toRiskBand(underwrite.scoreRaw, params.lane, healthFactor);
+
+  const decisionEnvelope = mintLocalKizunaEnvelope({
+    decisionId,
+    agentId: params.agentId,
+    payerWallet: params.payerWallet,
+    requestNonce: params.requestNonce,
+    network: params.network,
+    lane: params.lane,
+    poolId: params.poolId,
+    approvedMicro: approvedMicro.toString(10),
+    policyPackId,
+    riskBand,
+    ltvBps,
+    healthFactor,
+  });
+
+  return {
+    approved: approvedMicro > 0n,
+    decisionId,
+    approvedMicro: approvedMicro.toString(10),
+    availableMicro: availableMicro.toString(10),
+    outstandingMicro: params.outstandingMicro.toString(10),
+    scoreRaw: underwrite.scoreRaw,
+    reasonCodes,
+    tier: underwrite.tier,
+    lane: params.lane,
+    poolId: params.poolId,
+    policyPackId,
+    riskBand,
+    ltvBps,
+    healthFactor,
+    decisionEnvelope,
+  };
+}
+
 export function createVerifyRouter(connection: Connection, facilitator: PublicKey): Router {
   const router = Router();
 
@@ -46,6 +192,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
       requirementAmountRaw,
       requirementNetwork,
       requirementPayTo,
+      requirementKizuna,
     } = parsedInput.value;
 
     const scheme = parsePaymentScheme(paymentHeader);
@@ -61,6 +208,365 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         sendVerifyFailure(res, 400, 'network_mismatch', 'paymentRequirements.network does not match payment payload network');
         return;
       }
+    }
+
+    if (requirementKizuna) {
+      const config = getConfig();
+      if (!config.KIZUNA_ENABLED) {
+        sendVerifyFailure(res, 400, 'kizuna_disabled', 'Kizuna credit mode is disabled');
+        return;
+      }
+
+      if (scheme.scheme === 'session') {
+        sendVerifyFailure(res, 400, 'invalid_request', 'Kizuna does not support session payment headers');
+        return;
+      }
+
+      const payment = decodePaymentHeader(paymentHeader);
+      if (!payment) {
+        sendVerifyFailure(res, 400, 'invalid_payment_payload', 'Malformed payment header');
+        return;
+      }
+
+      if (!isPaymentFresh(payment, config.MAX_PAYMENT_AGE_MS)) {
+        sendVerifyFailure(res, 400, 'payment_expired', 'Payment expired', payment.payer);
+        return;
+      }
+
+      if (!verifyPaymentAuth(payment)) {
+        sendVerifyFailure(res, 400, 'invalid_signature', 'Invalid signature', payment.payer);
+        return;
+      }
+
+      if (!isValidPayerForNetwork(payment.payer, network)) {
+        sendVerifyFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet for network', payment.payer);
+        return;
+      }
+
+      if (!requirementAmountRaw) {
+        sendVerifyFailure(res, 400, 'invalid_amount', 'Missing payment requirement amount', payment.payer);
+        return;
+      }
+
+      const lane = requirementKizuna.lane;
+      const poolId =
+        requirementKizuna.poolId ||
+        (lane === 'crypto-fast'
+          ? config.KIZUNA_FASTPATH_POOL_ID
+          : config.KIZUNA_ENTERPRISE_POOL_ID);
+
+      const requestedMicro = parseUsdcMicroAmountBigint(requirementAmountRaw);
+      if (requestedMicro == null) {
+        sendVerifyFailure(res, 400, 'invalid_amount', 'Invalid payment requirement amount', payment.payer);
+        return;
+      }
+
+      const requestedAmount = Number(requestedMicro) / 1_000_000;
+      if (maxAmount != null && requestedAmount > maxAmount) {
+        sendVerifyFailure(res, 400, 'amount_exceeds_maximum', 'Amount exceeds maximum', payment.payer);
+        return;
+      }
+      if (requestedAmount > config.MAX_SETTLEMENT_AMOUNT) {
+        sendVerifyFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds facilitator limit', payment.payer);
+        return;
+      }
+
+      const account = await getKizunaAccount(requirementKizuna.agentId);
+      if (!account || account.status !== 'active') {
+        sendVerifyFailure(res, 404, 'kizuna_account_not_found', 'Kizuna account not found', payment.payer);
+        return;
+      }
+      if (account.payer_wallet !== payment.payer) {
+        sendVerifyFailure(res, 400, 'payer_mismatch', 'Kizuna payer mismatch', payment.payer);
+        return;
+      }
+      if (account.repay_wallet !== requirementKizuna.repayWallet) {
+        sendVerifyFailure(res, 400, 'repay_wallet_mismatch', 'Kizuna repay wallet mismatch', payment.payer);
+        return;
+      }
+
+      const replay = await getKizunaReservationByNonce(payment.payer, payment.nonce);
+      if (replay) {
+        if (replay.lane !== lane || replay.pool_id !== poolId) {
+          sendVerifyFailure(res, 409, 'kizuna_cross_lane_replay', 'Reservation exists for different lane or pool', payment.payer);
+          return;
+        }
+
+        const stillReserved =
+          replay.status === 'reserved' && new Date(replay.expires_at).getTime() > Date.now();
+        const settled = replay.status === 'consumed';
+        const effectiveApproved = settled || stillReserved || config.KIZUNA_SHADOW_MODE;
+        const response: VerifyResponse = {
+          valid: effectiveApproved,
+          isValid: effectiveApproved,
+          payer: payment.payer,
+          amount: requestedAmount.toString(),
+          resource: payment.resource || resource || '',
+          balance: 0,
+          sufficient: effectiveApproved,
+          extensions: {
+            kamiyo: {
+              network,
+              balance: 0,
+              sufficient: effectiveApproved,
+            },
+            kizuna: {
+              approved: replay.decision.approved,
+              decisionId: replay.decision.id,
+              approvedMicro: replay.decision.approved_micro,
+              availableMicro: replay.decision.available_micro,
+              outstandingMicro: replay.decision.outstanding_micro,
+              lane: replay.lane,
+              poolId: replay.pool_id,
+              policyPackId: replay.decision.policy_pack_id,
+              riskBand: replay.decision.risk_band,
+              ltvBps: replay.decision.ltv_bps,
+              healthFactor: replay.decision.health_factor
+                ? Number(replay.decision.health_factor)
+                : undefined,
+              decisionEnvelope: null,
+              replayed: true,
+            },
+          },
+        };
+
+        if (!effectiveApproved) {
+          response.error = 'Kizuna reservation is no longer active';
+          response.invalidReason = 'kizuna_reservation_inactive';
+          response.invalidMessage = response.error;
+        }
+
+        res.json(response);
+        return;
+      }
+
+      const [snapshot, outstandingMicro, fastpathPool] = await Promise.all([
+        getKizunaUnderwriteSnapshot(requirementKizuna.agentId, payment.payer),
+        getKizunaOutstandingMicro(requirementKizuna.agentId, { lane, poolId }),
+        lane === 'crypto-fast' ? getKizunaFastpathPool(poolId) : Promise.resolve(null),
+      ]);
+
+      if (!snapshot) {
+        sendVerifyFailure(res, 404, 'kizuna_account_not_found', 'Kizuna account not found', payment.payer);
+        return;
+      }
+
+      if (lane === 'crypto-fast' && (!fastpathPool || fastpathPool.status !== 'active')) {
+        sendVerifyFailure(res, 409, 'kizuna_pool_unavailable', 'Fast path pool is unavailable', payment.payer);
+        return;
+      }
+
+      const laneMaxSingleMicro =
+        lane === 'crypto-fast' && fastpathPool?.max_single_micro
+          ? parseNonNegativeBigint(fastpathPool.max_single_micro)
+          : BigInt(config.KIZUNA_MAX_SINGLE_MICRO);
+
+      let mandateSingleLimitMicro = parseNonNegativeBigint(account.mandate_single_limit_micro);
+      try {
+        const limits = await getKizunaMandateLimits(requirementKizuna.agentId);
+        if (limits?.caps.singleMicro) {
+          mandateSingleLimitMicro = parseNonNegativeBigint(limits.caps.singleMicro);
+        }
+      } catch {
+        // keep cached mandate cap when control-plane lookup fails
+      }
+
+      let collateralContext:
+        | {
+            collateralAccount: string;
+            assetId: string;
+            totalDepositedMicro: string;
+            totalWithdrawnMicro: string;
+            availableMicro: string;
+            effectiveCollateralMicro: string;
+            ltvCapBps: number;
+            healthFactor: number;
+          }
+        | undefined;
+
+      if (lane === 'crypto-fast') {
+        const collateralAccount = requirementKizuna.collateralAccount!;
+        const collateralPosition = await getKizunaCollateralPosition({
+          agentId: requirementKizuna.agentId,
+          poolId,
+          collateralAccount,
+        });
+        const summary = await getKizunaCollateralSummary(requirementKizuna.agentId, poolId);
+        if (collateralPosition && summary) {
+          collateralContext = {
+            collateralAccount,
+            assetId: collateralPosition.assets[0]?.assetId || 'usdc',
+            totalDepositedMicro: collateralPosition.totalAvailableMicro,
+            totalWithdrawnMicro: '0',
+            availableMicro: collateralPosition.totalAvailableMicro,
+            effectiveCollateralMicro: collateralPosition.effectiveCollateralMicro,
+            ltvCapBps: fastpathPool?.ltv_cap_bps || config.KIZUNA_FASTPATH_LTV_CAP_BPS,
+            healthFactor: summary.healthFactor,
+          };
+        }
+      }
+
+      let decisionResult: KernelEvaluateResult;
+      try {
+        decisionResult = await evaluateKizunaKernelDecision({
+          agentId: requirementKizuna.agentId,
+          payerWallet: payment.payer,
+          repayWallet: requirementKizuna.repayWallet,
+          requestNonce: payment.nonce,
+          network,
+          requestedMicro: requestedMicro.toString(10),
+          maxSingleMicro: laneMaxSingleMicro.toString(10),
+          outstandingMicro: outstandingMicro.toString(10),
+          lane,
+          poolId,
+          mandateSingleLimitMicro:
+            mandateSingleLimitMicro > 0n ? mandateSingleLimitMicro.toString(10) : null,
+          accountStatus: account.status,
+          accountAgeDays: Math.max(
+            0,
+            Math.floor((Date.now() - snapshot.accountCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
+          ),
+          settlementCount: snapshot.settlementsConfirmed,
+          disputesFiled: snapshot.disputesFiled,
+          disputesWon: snapshot.disputesWon,
+          avgQuality: snapshot.avgQuality,
+          debtClosed: snapshot.debtsClosed,
+          debtTotal: snapshot.debtsTotal,
+          collateral: collateralContext,
+        });
+      } catch (err) {
+        if (config.KIZUNA_KERNEL_FAIL_CLOSED && !config.KIZUNA_SHADOW_MODE) {
+          sendVerifyFailure(
+            res,
+            503,
+            'kizuna_kernel_unavailable',
+            `Kizuna kernel evaluate failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+            payment.payer
+          );
+          return;
+        }
+
+        decisionResult = buildFallbackDecision({
+          agentId: requirementKizuna.agentId,
+          payerWallet: payment.payer,
+          requestNonce: payment.nonce,
+          network,
+          lane,
+          poolId,
+          requestedMicro,
+          outstandingMicro,
+          maxSingleMicro: laneMaxSingleMicro > 0n ? laneMaxSingleMicro : BigInt(config.KIZUNA_MAX_SINGLE_MICRO),
+          mandateSingleLimitMicro: mandateSingleLimitMicro > 0n ? mandateSingleLimitMicro : null,
+          snapshot,
+          collateral:
+            lane === 'crypto-fast' && collateralContext
+              ? {
+                  effectiveCollateralMicro: parseNonNegativeBigint(
+                    collateralContext.effectiveCollateralMicro
+                  ),
+                  ltvCapBps: collateralContext.ltvCapBps,
+                  healthFactor: collateralContext.healthFactor,
+                }
+              : undefined,
+        });
+      }
+
+      const envelopeHash = decisionResult.decisionEnvelope
+        ? hashKizunaDecisionEnvelope(decisionResult.decisionEnvelope)
+        : null;
+
+      const decision = await insertKizunaUnderwriteDecision({
+        agentId: requirementKizuna.agentId,
+        payerWallet: payment.payer,
+        repayWallet: requirementKizuna.repayWallet,
+        requestNonce: payment.nonce,
+        network,
+        lane: decisionResult.lane,
+        poolId: decisionResult.poolId,
+        requestedMicro: requestedMicro.toString(10),
+        approved: decisionResult.approved,
+        approvedMicro: decisionResult.approvedMicro,
+        availableMicro: decisionResult.availableMicro,
+        outstandingMicro: decisionResult.outstandingMicro,
+        scoreRaw: decisionResult.scoreRaw,
+        reasonCodes: decisionResult.reasonCodes,
+        tier: decisionResult.tier,
+        policyPackId: decisionResult.policyPackId,
+        riskBand: decisionResult.riskBand,
+        ltvBps: decisionResult.ltvBps ?? null,
+        healthFactor:
+          decisionResult.healthFactor != null
+            ? decisionResult.healthFactor.toString()
+            : null,
+        decisionEnvelopeHash: envelopeHash,
+      });
+
+      const approvedMicro = parseNonNegativeBigint(decisionResult.approvedMicro);
+      const reserveMicro =
+        approvedMicro > 0n ? approvedMicro : config.KIZUNA_SHADOW_MODE ? requestedMicro : 0n;
+
+      if (reserveMicro > 0n) {
+        try {
+          await createKizunaReservation({
+            decisionId: decision.id,
+            agentId: requirementKizuna.agentId,
+            payerWallet: payment.payer,
+            requestNonce: payment.nonce,
+            network,
+            lane: decisionResult.lane,
+            poolId: decisionResult.poolId,
+            amountMicro: reserveMicro.toString(10),
+            ttlMs: config.KIZUNA_RESERVATION_TTL_MS,
+          });
+        } catch {
+          const idempotentReservation = await getKizunaReservationByNonce(payment.payer, payment.nonce);
+          if (!idempotentReservation) {
+            sendVerifyFailure(res, 500, 'server_error', 'Failed to reserve Kizuna credit', payment.payer);
+            return;
+          }
+        }
+      }
+
+      const effectiveApproved = decisionResult.approved || config.KIZUNA_SHADOW_MODE;
+      const response: VerifyResponse = {
+        valid: effectiveApproved,
+        isValid: effectiveApproved,
+        payer: payment.payer,
+        amount: requestedAmount.toString(),
+        resource: payment.resource || resource || '',
+        balance: 0,
+        sufficient: effectiveApproved,
+        extensions: {
+          kamiyo: {
+            network,
+            balance: 0,
+            sufficient: effectiveApproved,
+          },
+          kizuna: {
+            approved: decisionResult.approved,
+            decisionId: decision.id,
+            approvedMicro: decisionResult.approvedMicro,
+            availableMicro: decisionResult.availableMicro,
+            outstandingMicro: decisionResult.outstandingMicro,
+            lane: decisionResult.lane,
+            decisionEnvelope: decisionResult.decisionEnvelope,
+            policyPackId: decisionResult.policyPackId,
+            riskBand: decisionResult.riskBand,
+            poolId: decisionResult.poolId,
+            ltvBps: decisionResult.ltvBps,
+            healthFactor: decisionResult.healthFactor,
+          },
+        },
+      };
+
+      if (!effectiveApproved) {
+        response.error = 'Kizuna credit not approved';
+        response.invalidReason = 'kizuna_credit_denied';
+        response.invalidMessage = decisionResult.reasonCodes.join(', ');
+      }
+
+      res.json(response);
+      return;
     }
 
     if (scheme.scheme === 'session') {

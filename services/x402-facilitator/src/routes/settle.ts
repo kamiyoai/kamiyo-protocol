@@ -32,12 +32,22 @@ import {
   getPaymentSessionByTokenHash,
   reservePaymentSessionSpend,
   releasePaymentSessionSpend,
+  finalizeKizunaSettlement,
+  getKizunaAccount,
+  getKizunaDebtByReservationId,
+  getKizunaReservationByNonce,
+  releaseKizunaReservation,
 } from '../db/queries';
 import { calculateReputationScore } from '../services/reputation';
 import { canonicalizeNetwork, isSupportedNetwork, BASE_MAINNET_CAIP2, isValidPayerForNetwork } from '../protocol/networks';
 import { parseSignedUsdcAmount, parseSettleInput, parseUsdcMicroAmountBigint } from '../protocol/request-compat';
 import { hashSessionToken, parseSessionPaymentHeader } from '../services/session';
 import { settleDelegatedUsdcTransfer } from '../services/solana-session';
+import {
+  commitKizunaKernelDecision,
+  hashKizunaDecisionEnvelope,
+  verifyKizunaDecisionEnvelope,
+} from '../services/kizuna-kernel';
 
 function sendSettleFailure(
   res: Response,
@@ -159,6 +169,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
       requirementAmountRaw,
       requirementNetwork,
       requirementResource,
+      requirementKizuna,
     } = parsedInput.value;
 
     const normalizedAsset = asset || 'USDC';
@@ -180,6 +191,415 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
         sendSettleFailure(res, 400, 'network_mismatch', 'paymentRequirements.network does not match payment payload network', network);
         return;
       }
+    }
+
+    if (requirementKizuna) {
+      const config = getConfig();
+      if (!config.KIZUNA_ENABLED) {
+        sendSettleFailure(res, 400, 'kizuna_disabled', 'Kizuna credit mode is disabled', network);
+        return;
+      }
+
+      if (mode !== 'x402') {
+        sendSettleFailure(res, 400, 'invalid_request', 'Kizuna requires x402 paymentRequirements', network);
+        return;
+      }
+
+      if (scheme.scheme === 'session') {
+        sendSettleFailure(res, 400, 'invalid_request', 'Kizuna does not support session payment headers', network);
+        return;
+      }
+
+      const payment = decodePaymentHeader(paymentHeader);
+      if (!payment) {
+        sendSettleFailure(res, 400, 'invalid_payment_payload', 'Malformed payment header', network);
+        return;
+      }
+
+      if (!isPaymentFresh(payment, config.MAX_PAYMENT_AGE_MS)) {
+        sendSettleFailure(res, 400, 'payment_expired', 'Payment expired', network, payment.payer);
+        return;
+      }
+
+      if (!verifyPaymentAuth(payment)) {
+        sendSettleFailure(res, 400, 'invalid_signature', 'Invalid signature', network, payment.payer);
+        return;
+      }
+
+      if (!isValidPayerForNetwork(payment.payer, network)) {
+        sendSettleFailure(res, 400, 'invalid_payer_wallet', 'Invalid payer wallet for network', network, payment.payer);
+        return;
+      }
+
+      if (!requirementAmountRaw) {
+        sendSettleFailure(res, 400, 'invalid_amount', 'Missing paymentRequirements.amount', network, payment.payer);
+        return;
+      }
+
+      const lane = requirementKizuna.lane;
+      const poolId =
+        requirementKizuna.poolId ||
+        (lane === 'crypto-fast'
+          ? config.KIZUNA_FASTPATH_POOL_ID
+          : config.KIZUNA_ENTERPRISE_POOL_ID);
+
+      const amount = parseSignedUsdcAmount(payment.amount, requirementAmountRaw);
+      if (amount == null) {
+        sendSettleFailure(
+          res,
+          400,
+          'amount_mismatch',
+          'Amount mismatch with payment requirements',
+          network,
+          payment.payer
+        );
+        return;
+      }
+
+      const amountMicro = parseUsdcMicroAmountBigint(requirementAmountRaw);
+      if (amountMicro == null) {
+        sendSettleFailure(res, 400, 'invalid_amount', 'Invalid paymentRequirements.amount', network, payment.payer);
+        return;
+      }
+
+      if (
+        requirementResource &&
+        payment.resource &&
+        requirementResource !== payment.resource
+      ) {
+        sendSettleFailure(
+          res,
+          400,
+          'resource_mismatch',
+          'Resource mismatch with payment requirements',
+          network,
+          payment.payer
+        );
+        return;
+      }
+
+      if (amount > config.MAX_SETTLEMENT_AMOUNT) {
+        sendSettleFailure(res, 400, 'amount_exceeds_limit', 'Amount exceeds limit', network, payment.payer);
+        return;
+      }
+
+      if ((req as any).merchantWallet !== merchantWallet) {
+        sendSettleFailure(res, 403, 'merchant_mismatch', 'Merchant wallet does not match API key', network, payment.payer);
+        return;
+      }
+
+      const isBase = network === BASE_MAINNET_CAIP2;
+      if (isBase) {
+        if (!isAddress(merchantWallet)) {
+          sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Base wallet address', network, payment.payer);
+          return;
+        }
+      } else {
+        try {
+          new PublicKey(merchantWallet);
+        } catch {
+          sendSettleFailure(res, 400, 'invalid_wallet', 'Invalid Solana wallet address', network, payment.payer);
+          return;
+        }
+      }
+
+      const account = await getKizunaAccount(requirementKizuna.agentId);
+      if (!account || account.status !== 'active') {
+        sendSettleFailure(res, 404, 'kizuna_account_not_found', 'Kizuna account not found', network, payment.payer);
+        return;
+      }
+
+      if (account.payer_wallet !== payment.payer) {
+        sendSettleFailure(res, 400, 'payer_mismatch', 'Kizuna payer mismatch', network, payment.payer);
+        return;
+      }
+
+      if (account.repay_wallet !== requirementKizuna.repayWallet) {
+        sendSettleFailure(res, 400, 'repay_wallet_mismatch', 'Kizuna repay wallet mismatch', network, payment.payer);
+        return;
+      }
+
+      const reservation = await getKizunaReservationByNonce(payment.payer, payment.nonce);
+      if (!reservation) {
+        sendSettleFailure(res, 409, 'kizuna_reservation_missing', 'No active Kizuna reservation', network, payment.payer);
+        return;
+      }
+
+      if (reservation.lane !== lane || reservation.pool_id !== poolId) {
+        sendSettleFailure(
+          res,
+          409,
+          'kizuna_cross_lane_replay',
+          'Reservation lane or pool does not match request',
+          network,
+          payment.payer
+        );
+        return;
+      }
+
+      if (reservation.agent_id !== requirementKizuna.agentId) {
+        sendSettleFailure(res, 400, 'kizuna_agent_mismatch', 'Kizuna reservation agent mismatch', network, payment.payer);
+        return;
+      }
+
+      if (reservation.network !== network) {
+        sendSettleFailure(res, 400, 'network_mismatch', 'Kizuna reservation network mismatch', network, payment.payer);
+        return;
+      }
+
+      if (reservation.status === 'consumed') {
+        const debt = await getKizunaDebtByReservationId(reservation.id);
+        if (!reservation.tx_hash || !debt) {
+          sendSettleFailure(res, 409, 'kizuna_reservation_consumed', 'Kizuna reservation already consumed', network, payment.payer);
+          return;
+        }
+
+        const feeFromDb = Number((await getSettlementById(debt.settlement_id))?.fee_amount || '0');
+        const netFromDb = amount - feeFromDb;
+        res.json({
+          success: true,
+          transaction: reservation.tx_hash,
+          payer: payment.payer,
+          txHash: reservation.tx_hash,
+          amount,
+          fee: feeFromDb,
+          net: netFromDb,
+          network,
+          idempotent: true,
+          extensions: {
+            kizuna: {
+              debtId: debt.id,
+              outstandingMicro: debt.outstanding_micro,
+              lane: debt.lane,
+              poolId: debt.pool_id,
+            },
+          },
+        });
+        return;
+      }
+
+      if (reservation.status !== 'reserved') {
+        sendSettleFailure(
+          res,
+          409,
+          'kizuna_reservation_inactive',
+          `Kizuna reservation is ${reservation.status}`,
+          network,
+          payment.payer
+        );
+        return;
+      }
+
+      if (new Date(reservation.expires_at).getTime() <= Date.now()) {
+        await releaseKizunaReservation(reservation.id, 'expired').catch(() => {});
+        sendSettleFailure(res, 409, 'kizuna_reservation_expired', 'Kizuna reservation expired', network, payment.payer);
+        return;
+      }
+
+      try {
+        if (BigInt(reservation.amount_micro) < amountMicro) {
+          sendSettleFailure(
+            res,
+            400,
+            'kizuna_amount_exceeds_reservation',
+            'Requested amount exceeds reserved credit',
+            network,
+            payment.payer
+          );
+          return;
+        }
+      } catch {
+        sendSettleFailure(res, 500, 'server_error', 'Invalid Kizuna reservation state', network, payment.payer);
+        return;
+      }
+
+      let envelopeHash: string | null = null;
+      if (reservation.decision.decision_envelope_hash) {
+        if (!requirementKizuna.decisionEnvelope) {
+          sendSettleFailure(
+            res,
+            400,
+            'kizuna_envelope_missing',
+            'Kizuna decisionEnvelope is required for settlement',
+            network,
+            payment.payer
+          );
+          return;
+        }
+
+        try {
+          const envelope = verifyKizunaDecisionEnvelope(requirementKizuna.decisionEnvelope);
+          envelopeHash = hashKizunaDecisionEnvelope(envelope);
+          if (envelopeHash !== reservation.decision.decision_envelope_hash) {
+            sendSettleFailure(
+              res,
+              400,
+              'kizuna_envelope_mismatch',
+              'Decision envelope does not match reservation',
+              network,
+              payment.payer
+            );
+            return;
+          }
+          if (envelope.payload.agentId !== requirementKizuna.agentId) {
+            sendSettleFailure(res, 400, 'kizuna_agent_mismatch', 'Envelope agent mismatch', network, payment.payer);
+            return;
+          }
+          if (envelope.payload.payerWallet !== payment.payer) {
+            sendSettleFailure(res, 400, 'payer_mismatch', 'Envelope payer mismatch', network, payment.payer);
+            return;
+          }
+          if (envelope.payload.requestNonce !== payment.nonce) {
+            sendSettleFailure(res, 400, 'replayed_payment', 'Envelope nonce mismatch', network, payment.payer);
+            return;
+          }
+          if (envelope.payload.network !== network) {
+            sendSettleFailure(res, 400, 'network_mismatch', 'Envelope network mismatch', network, payment.payer);
+            return;
+          }
+          if (envelope.payload.lane !== lane || envelope.payload.poolId !== poolId) {
+            sendSettleFailure(res, 400, 'kizuna_cross_lane_replay', 'Envelope lane/pool mismatch', network, payment.payer);
+            return;
+          }
+          const envelopeApproved = BigInt(envelope.payload.approvedMicro);
+          if (envelopeApproved < amountMicro) {
+            sendSettleFailure(
+              res,
+              400,
+              'kizuna_amount_exceeds_reservation',
+              'Amount exceeds envelope-approved credit',
+              network,
+              payment.payer
+            );
+            return;
+          }
+        } catch (err) {
+          sendSettleFailure(
+            res,
+            400,
+            'kizuna_envelope_invalid',
+            `Invalid decision envelope: ${getErrorMessage(err)}`,
+            network,
+            payment.payer
+          );
+          return;
+        }
+      }
+
+      let settlementId: string | null = null;
+      let onchain: { txHash: string; fee: number; net: number; feeTxHash?: string | null } | null = null;
+      let kernelCommitted = false;
+      let kernelCommitError: string | null = null;
+
+      try {
+        const [stats, disputeStats, avgQuality, monthlyVol] = await Promise.all([
+          getSettlementStats(merchantWallet),
+          getWalletDisputeStats(merchantWallet),
+          getWalletAverageQuality(merchantWallet),
+          getMonthlyVolume(merchantWallet),
+        ]);
+
+        const repScore = calculateReputationScore(
+          stats.totalSettlements,
+          disputeStats.filed,
+          disputeStats.won,
+          avgQuality
+        );
+        const discountPct = calculateFeeDiscountPct(repScore, monthlyVol);
+        const effectiveFeeBps = applyDiscount(config.SETTLEMENT_FEE_BPS, discountPct);
+
+        const settlement = await insertSettlement(
+          merchantWallet,
+          payment.payer,
+          amount,
+          0,
+          'USDC',
+          '',
+          'pending',
+          network
+        );
+        settlementId = settlement.id;
+
+        if (isBase) {
+          onchain = await settlePaymentBase(merchantWallet, amount, effectiveFeeBps);
+        } else {
+          onchain = await settlePayment(
+            connection,
+            facilitatorKeypair,
+            new PublicKey(merchantWallet),
+            amount,
+            effectiveFeeBps
+          );
+        }
+
+        const debt = await finalizeKizunaSettlement({
+          reservationId: reservation.id,
+          settlementId: settlement.id,
+          txHash: onchain.txHash,
+          feeAmount: onchain.fee,
+          feeTxHash: onchain.feeTxHash || onchain.txHash,
+          lane,
+          poolId,
+          decisionEnvelopeHash: envelopeHash,
+        });
+
+        try {
+          await commitKizunaKernelDecision({
+            decisionId: reservation.decision.id,
+            debtId: debt.id,
+            settlementId: settlement.id,
+            txHash: onchain.txHash,
+            lane,
+            poolId,
+          });
+          kernelCommitted = true;
+        } catch (err) {
+          kernelCommitError = getErrorMessage(err);
+        }
+
+        res.json({
+          success: true,
+          transaction: onchain.txHash,
+          payer: payment.payer,
+          txHash: onchain.txHash,
+          amount,
+          fee: onchain.fee,
+          net: onchain.net,
+          network,
+          extensions: {
+            kizuna: {
+              debtId: debt.id,
+              outstandingMicro: debt.outstanding_micro,
+              principalMicro: debt.principal_micro,
+              lane: debt.lane,
+              poolId: debt.pool_id,
+              decisionEnvelopeHash: debt.decision_envelope_hash,
+              decisionId: reservation.decision.id,
+              kernelCommitted,
+              kernelCommitError,
+            },
+          },
+          feeDiscount: discountPct > 0
+            ? { discountPct, effectiveFeeBps, reason: `reputation=${repScore}, volume=${monthlyVol}` }
+            : undefined,
+        });
+      } catch (err) {
+        if (settlementId) {
+          await updateSettlementStatus(settlementId, 'failed').catch(() => {});
+        }
+        if (!onchain) {
+          await releaseKizunaReservation(reservation.id, 'released').catch(() => {});
+        }
+        sendSettleFailure(
+          res,
+          500,
+          'settlement_failed',
+          `Settlement failed: ${getErrorMessage(err)}`,
+          network,
+          payment.payer
+        );
+      }
+      return;
     }
 
     if (mode === 'legacy' && (legacyAmount == null || !Number.isFinite(legacyAmount) || legacyAmount <= 0)) {

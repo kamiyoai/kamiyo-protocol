@@ -1,4 +1,4 @@
-import { query, queryOne } from './pool';
+import { query, queryOne, withTransaction } from './pool';
 import { Settlement, EscrowRecord, DisputeRecord, OracleVoteRecord } from '../types';
 
 type SessionChallengeRow = {
@@ -507,4 +507,1695 @@ export async function getWalletAverageQuality(wallet: string): Promise<number> {
     [wallet]
   );
   return parseFloat(row?.avg_quality || '0');
+}
+
+export type KizunaAccountRow = {
+  id: string;
+  agent_id: string;
+  payer_wallet: string;
+  repay_wallet: string;
+  passport_address: string | null;
+  networks: unknown;
+  mandate_single_limit_micro: string | null;
+  mandate_daily_limit_micro: string | null;
+  mandate_monthly_limit_micro: string | null;
+  mandate_human_approval_micro: string | null;
+  status: 'active' | 'suspended';
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type KizunaLane = 'enterprise' | 'crypto-fast';
+
+export type KizunaDecisionRow = {
+  id: string;
+  agent_id: string;
+  payer_wallet: string;
+  repay_wallet: string;
+  request_nonce: string;
+  network: string;
+  lane: KizunaLane;
+  pool_id: string;
+  requested_micro: string;
+  approved: boolean;
+  approved_micro: string;
+  available_micro: string;
+  outstanding_micro: string;
+  score_raw: number;
+  reason_codes: string[];
+  tier: string;
+  policy_pack_id: string | null;
+  risk_band: string | null;
+  ltv_bps: number | null;
+  health_factor: string | null;
+  decision_envelope_hash: string | null;
+  created_at: Date;
+};
+
+export type KizunaReservationRow = {
+  id: string;
+  decision_id: string;
+  agent_id: string;
+  payer_wallet: string;
+  request_nonce: string;
+  network: string;
+  lane: KizunaLane;
+  pool_id: string;
+  amount_micro: string;
+  status: 'reserved' | 'consumed' | 'released' | 'expired';
+  expires_at: Date;
+  settlement_id: string | null;
+  tx_hash: string | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type KizunaDebtRow = {
+  id: string;
+  agent_id: string;
+  payer_wallet: string;
+  repay_wallet: string;
+  network: string;
+  lane: KizunaLane;
+  pool_id: string;
+  settlement_id: string;
+  decision_id: string | null;
+  reservation_id: string | null;
+  decision_envelope_hash: string | null;
+  principal_micro: string;
+  outstanding_micro: string;
+  status: 'open' | 'closed' | 'written_off';
+  tx_hash: string | null;
+  created_at: Date;
+  updated_at: Date;
+  closed_at: Date | null;
+};
+
+export type KizunaRepaymentRow = {
+  id: string;
+  agent_id: string;
+  debt_id: string | null;
+  reference_id: string;
+  source: 'credits';
+  amount_micro: string;
+  applied_micro: string;
+  created_at: Date;
+};
+
+export type KizunaAccountTransactionRow = {
+  id: string;
+  type: 'debt' | 'repayment';
+  created_at: Date;
+  amount_micro: string;
+  lane: KizunaLane;
+  pool_id: string;
+  outstanding_micro: string | null;
+  status: string | null;
+  tx_hash: string | null;
+  reference_id: string | null;
+  source: string | null;
+};
+
+export type KizunaCollateralPositionRow = {
+  id: string;
+  agent_id: string;
+  pool_id: string;
+  collateral_account: string;
+  asset_id: string;
+  deposited_micro: string;
+  withdrawn_micro: string;
+  locked_micro: string;
+  status: 'active' | 'frozen' | 'closed';
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type KizunaPoolReserveRow = {
+  pool_id: string;
+  lane: KizunaLane;
+  reserved_micro: string;
+  outstanding_micro: string;
+  collateral_value_micro: string;
+  updated_at: Date;
+};
+
+export type KizunaFastpathPoolRow = {
+  pool_id: string;
+  status: 'active' | 'paused' | 'frozen';
+  ltv_cap_bps: number;
+  reserve_ratio_bps: number;
+  min_health_factor: string;
+  max_single_micro: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type KizunaCollateralAssetRow = {
+  asset_id: string;
+  symbol: string;
+  chain: string;
+  haircut_bps: number;
+  volatility_buffer_bps: number;
+  status: 'active' | 'inactive';
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type KizunaUnderwriteSnapshot = {
+  accountCreatedAt: Date;
+  settlementsConfirmed: number;
+  disputesFiled: number;
+  disputesWon: number;
+  avgQuality: number;
+  debtsTotal: number;
+  debtsClosed: number;
+  latestActivityAt: Date;
+};
+
+function parseMicro(value: string | null | undefined): bigint {
+  if (!value) return 0n;
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n ? parsed : 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function toNumericDelta(value: bigint): string {
+  return value.toString(10);
+}
+
+async function ensureKizunaPoolReserve(
+  client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  poolId: string,
+  lane: KizunaLane
+): Promise<void> {
+  await client.query(
+    `INSERT INTO kizuna_pool_reserves (pool_id, lane, reserved_micro, outstanding_micro, collateral_value_micro)
+     VALUES ($1, $2, 0, 0, 0)
+     ON CONFLICT (pool_id) DO NOTHING`,
+    [poolId, lane]
+  );
+}
+
+async function bumpKizunaPoolReserve(
+  client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  params: {
+    poolId: string;
+    lane: KizunaLane;
+    reservedDelta?: bigint;
+    outstandingDelta?: bigint;
+    collateralDelta?: bigint;
+  }
+): Promise<void> {
+  await ensureKizunaPoolReserve(client, params.poolId, params.lane);
+  await client.query(
+    `UPDATE kizuna_pool_reserves
+     SET reserved_micro = GREATEST(reserved_micro + $3::numeric, 0),
+         outstanding_micro = GREATEST(outstanding_micro + $4::numeric, 0),
+         collateral_value_micro = GREATEST(collateral_value_micro + $5::numeric, 0),
+         updated_at = NOW()
+     WHERE pool_id = $1 AND lane = $2`,
+    [
+      params.poolId,
+      params.lane,
+      toNumericDelta(params.reservedDelta ?? 0n),
+      toNumericDelta(params.outstandingDelta ?? 0n),
+      toNumericDelta(params.collateralDelta ?? 0n),
+    ]
+  );
+}
+
+export async function upsertKizunaAccount(params: {
+  agentId: string;
+  payerWallet: string;
+  repayWallet: string;
+  networks: string[];
+  passportAddress?: string | null;
+  mandateSingleLimitMicro?: string | null;
+  mandateDailyLimitMicro?: string | null;
+  mandateMonthlyLimitMicro?: string | null;
+  mandateHumanApprovalMicro?: string | null;
+}): Promise<KizunaAccountRow> {
+  const rows = await query<KizunaAccountRow>(
+    `INSERT INTO kizuna_accounts (
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       passport_address,
+       networks,
+       mandate_single_limit_micro,
+       mandate_daily_limit_micro,
+       mandate_monthly_limit_micro,
+       mandate_human_approval_micro
+     )
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
+     ON CONFLICT (agent_id) DO UPDATE
+     SET payer_wallet = EXCLUDED.payer_wallet,
+         repay_wallet = EXCLUDED.repay_wallet,
+         passport_address = EXCLUDED.passport_address,
+         networks = EXCLUDED.networks,
+         mandate_single_limit_micro = EXCLUDED.mandate_single_limit_micro,
+         mandate_daily_limit_micro = EXCLUDED.mandate_daily_limit_micro,
+         mandate_monthly_limit_micro = EXCLUDED.mandate_monthly_limit_micro,
+         mandate_human_approval_micro = EXCLUDED.mandate_human_approval_micro,
+         updated_at = NOW()
+     RETURNING
+       id,
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       passport_address,
+       networks,
+       mandate_single_limit_micro::text,
+       mandate_daily_limit_micro::text,
+       mandate_monthly_limit_micro::text,
+       mandate_human_approval_micro::text,
+       status,
+       created_at,
+       updated_at`,
+    [
+      params.agentId,
+      params.payerWallet,
+      params.repayWallet,
+      params.passportAddress ?? null,
+      JSON.stringify(params.networks || []),
+      params.mandateSingleLimitMicro ?? null,
+      params.mandateDailyLimitMicro ?? null,
+      params.mandateMonthlyLimitMicro ?? null,
+      params.mandateHumanApprovalMicro ?? null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function getKizunaAccount(agentId: string): Promise<KizunaAccountRow | null> {
+  return queryOne<KizunaAccountRow>(
+    `SELECT
+       id,
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       passport_address,
+       networks,
+       mandate_single_limit_micro::text,
+       mandate_daily_limit_micro::text,
+       mandate_monthly_limit_micro::text,
+       mandate_human_approval_micro::text,
+       status,
+       created_at,
+       updated_at
+     FROM kizuna_accounts
+     WHERE agent_id = $1`,
+    [agentId]
+  );
+}
+
+export async function getKizunaOutstandingMicro(
+  agentId: string,
+  scope?: { lane?: KizunaLane; poolId?: string }
+): Promise<bigint> {
+  const params: unknown[] = [agentId];
+  let extraWhere = '';
+  if (scope?.lane) {
+    params.push(scope.lane);
+    extraWhere += ` AND lane = $${params.length}`;
+  }
+  if (scope?.poolId) {
+    params.push(scope.poolId);
+    extraWhere += ` AND pool_id = $${params.length}`;
+  }
+
+  const row = await queryOne<{ outstanding_micro: string }>(
+    `SELECT COALESCE(SUM(outstanding_micro), 0)::text AS outstanding_micro
+     FROM kizuna_debts
+     WHERE agent_id = $1 AND status = 'open'${extraWhere}`,
+    params
+  );
+  return parseMicro(row?.outstanding_micro);
+}
+
+export async function insertKizunaUnderwriteDecision(params: {
+  agentId: string;
+  payerWallet: string;
+  repayWallet: string;
+  requestNonce: string;
+  network: string;
+  lane: KizunaLane;
+  poolId: string;
+  requestedMicro: string;
+  approved: boolean;
+  approvedMicro: string;
+  availableMicro: string;
+  outstandingMicro: string;
+  scoreRaw: number;
+  reasonCodes: string[];
+  tier: string;
+  policyPackId?: string | null;
+  riskBand?: string | null;
+  ltvBps?: number | null;
+  healthFactor?: string | null;
+  decisionEnvelopeHash?: string | null;
+}): Promise<KizunaDecisionRow> {
+  const rows = await query<KizunaDecisionRow>(
+    `INSERT INTO kizuna_underwrite_decisions (
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       request_nonce,
+       network,
+       lane,
+       pool_id,
+       requested_micro,
+       approved,
+       approved_micro,
+       available_micro,
+       outstanding_micro,
+       score_raw,
+       reason_codes,
+       tier,
+       policy_pack_id,
+       risk_band,
+       ltv_bps,
+       health_factor,
+       decision_envelope_hash
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+     RETURNING
+       id,
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       request_nonce,
+       network,
+       lane,
+       pool_id,
+       requested_micro::text,
+       approved,
+       approved_micro::text,
+       available_micro::text,
+       outstanding_micro::text,
+       score_raw,
+       reason_codes,
+       tier,
+       policy_pack_id,
+       risk_band,
+       ltv_bps,
+       health_factor::text,
+       decision_envelope_hash,
+       created_at`,
+    [
+      params.agentId,
+      params.payerWallet,
+      params.repayWallet,
+      params.requestNonce,
+      params.network,
+      params.lane,
+      params.poolId,
+      params.requestedMicro,
+      params.approved,
+      params.approvedMicro,
+      params.availableMicro,
+      params.outstandingMicro,
+      params.scoreRaw,
+      params.reasonCodes,
+      params.tier,
+      params.policyPackId ?? null,
+      params.riskBand ?? null,
+      params.ltvBps ?? null,
+      params.healthFactor ?? null,
+      params.decisionEnvelopeHash ?? null,
+    ]
+  );
+  return rows[0];
+}
+
+export async function createKizunaReservation(params: {
+  decisionId: string;
+  agentId: string;
+  payerWallet: string;
+  requestNonce: string;
+  network: string;
+  lane: KizunaLane;
+  poolId: string;
+  amountMicro: string;
+  ttlMs: number;
+}): Promise<KizunaReservationRow> {
+  return withTransaction(async (client) => {
+    const result = await client.query<KizunaReservationRow>(
+      `INSERT INTO kizuna_credit_reservations (
+         decision_id,
+         agent_id,
+         payer_wallet,
+         request_nonce,
+         network,
+         lane,
+         pool_id,
+         amount_micro,
+         expires_at
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW() + ($9::text || ' milliseconds')::interval)
+       RETURNING
+         id,
+         decision_id,
+         agent_id,
+         payer_wallet,
+         request_nonce,
+         network,
+         lane,
+         pool_id,
+         amount_micro::text,
+         status,
+         expires_at,
+         settlement_id::text,
+         tx_hash,
+         created_at,
+         updated_at`,
+      [
+        params.decisionId,
+        params.agentId,
+        params.payerWallet,
+        params.requestNonce,
+        params.network,
+        params.lane,
+        params.poolId,
+        params.amountMicro,
+        String(params.ttlMs),
+      ]
+    );
+
+    const row = result.rows[0];
+    await bumpKizunaPoolReserve(client, {
+      poolId: row.pool_id,
+      lane: row.lane,
+      reservedDelta: parseMicro(row.amount_micro),
+    });
+
+    return row;
+  });
+}
+
+export async function getKizunaReservationByNonce(
+  payerWallet: string,
+  requestNonce: string
+): Promise<(KizunaReservationRow & { decision: KizunaDecisionRow }) | null> {
+  const row = await queryOne<
+    KizunaReservationRow & {
+      decision_id_fk: string;
+      decision_agent_id: string;
+      decision_payer_wallet: string;
+      decision_repay_wallet: string;
+      decision_request_nonce: string;
+      decision_network: string;
+      decision_lane: KizunaLane;
+      decision_pool_id: string;
+      decision_requested_micro: string;
+      decision_approved: boolean;
+      decision_approved_micro: string;
+      decision_available_micro: string;
+      decision_outstanding_micro: string;
+      decision_score_raw: number;
+      decision_reason_codes: string[];
+      decision_tier: string;
+      decision_policy_pack_id: string | null;
+      decision_risk_band: string | null;
+      decision_ltv_bps: number | null;
+      decision_health_factor: string | null;
+      decision_envelope_hash: string | null;
+      decision_created_at: Date;
+    }
+  >(
+    `SELECT
+       r.id,
+       r.decision_id,
+       r.agent_id,
+       r.payer_wallet,
+       r.request_nonce,
+       r.network,
+       r.lane,
+       r.pool_id,
+       r.amount_micro::text,
+       r.status,
+       r.expires_at,
+       r.settlement_id::text,
+       r.tx_hash,
+       r.created_at,
+       r.updated_at,
+       d.id AS decision_id_fk,
+       d.agent_id AS decision_agent_id,
+       d.payer_wallet AS decision_payer_wallet,
+       d.repay_wallet AS decision_repay_wallet,
+       d.request_nonce AS decision_request_nonce,
+       d.network AS decision_network,
+       d.lane AS decision_lane,
+       d.pool_id AS decision_pool_id,
+       d.requested_micro::text AS decision_requested_micro,
+       d.approved AS decision_approved,
+       d.approved_micro::text AS decision_approved_micro,
+       d.available_micro::text AS decision_available_micro,
+       d.outstanding_micro::text AS decision_outstanding_micro,
+       d.score_raw AS decision_score_raw,
+       d.reason_codes AS decision_reason_codes,
+       d.tier AS decision_tier,
+       d.policy_pack_id AS decision_policy_pack_id,
+       d.risk_band AS decision_risk_band,
+       d.ltv_bps AS decision_ltv_bps,
+       d.health_factor::text AS decision_health_factor,
+       d.decision_envelope_hash AS decision_envelope_hash,
+       d.created_at AS decision_created_at
+     FROM kizuna_credit_reservations r
+     INNER JOIN kizuna_underwrite_decisions d ON d.id = r.decision_id
+     WHERE r.payer_wallet = $1 AND r.request_nonce = $2`,
+    [payerWallet, requestNonce]
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    decision_id: row.decision_id,
+    agent_id: row.agent_id,
+    payer_wallet: row.payer_wallet,
+    request_nonce: row.request_nonce,
+    network: row.network,
+    lane: row.lane,
+    pool_id: row.pool_id,
+    amount_micro: row.amount_micro,
+    status: row.status,
+    expires_at: row.expires_at,
+    settlement_id: row.settlement_id,
+    tx_hash: row.tx_hash,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    decision: {
+      id: row.decision_id_fk,
+      agent_id: row.decision_agent_id,
+      payer_wallet: row.decision_payer_wallet,
+      repay_wallet: row.decision_repay_wallet,
+      request_nonce: row.decision_request_nonce,
+      network: row.decision_network,
+      lane: row.decision_lane,
+      pool_id: row.decision_pool_id,
+      requested_micro: row.decision_requested_micro,
+      approved: row.decision_approved,
+      approved_micro: row.decision_approved_micro,
+      available_micro: row.decision_available_micro,
+      outstanding_micro: row.decision_outstanding_micro,
+      score_raw: row.decision_score_raw,
+      reason_codes: row.decision_reason_codes,
+      tier: row.decision_tier,
+      policy_pack_id: row.decision_policy_pack_id,
+      risk_band: row.decision_risk_band,
+      ltv_bps: row.decision_ltv_bps,
+      health_factor: row.decision_health_factor,
+      decision_envelope_hash: row.decision_envelope_hash,
+      created_at: row.decision_created_at,
+    },
+  };
+}
+
+export async function releaseKizunaReservation(
+  reservationId: string,
+  status: 'released' | 'expired'
+): Promise<void> {
+  await withTransaction(async (client) => {
+    const result = await client.query<{
+      amount_micro: string;
+      lane: KizunaLane;
+      pool_id: string;
+    }>(
+      `UPDATE kizuna_credit_reservations
+       SET status = $2, updated_at = NOW()
+       WHERE id = $1 AND status = 'reserved'
+       RETURNING amount_micro::text, lane, pool_id`,
+      [reservationId, status]
+    );
+
+    const row = result.rows[0];
+    if (!row) return;
+
+    await bumpKizunaPoolReserve(client, {
+      poolId: row.pool_id,
+      lane: row.lane,
+      reservedDelta: -parseMicro(row.amount_micro),
+    });
+  });
+}
+
+export async function getKizunaDebtByReservationId(reservationId: string): Promise<KizunaDebtRow | null> {
+  return queryOne<KizunaDebtRow>(
+     `SELECT
+       id,
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       network,
+       lane,
+       pool_id,
+       settlement_id::text,
+       decision_id::text,
+       reservation_id::text,
+       decision_envelope_hash,
+       principal_micro::text,
+       outstanding_micro::text,
+       status,
+       tx_hash,
+       created_at,
+       updated_at,
+       closed_at
+     FROM kizuna_debts
+     WHERE reservation_id = $1`,
+    [reservationId]
+  );
+}
+
+export async function getKizunaDebtBySettlementId(settlementId: string): Promise<KizunaDebtRow | null> {
+  return queryOne<KizunaDebtRow>(
+     `SELECT
+       id,
+       agent_id,
+       payer_wallet,
+       repay_wallet,
+       network,
+       lane,
+       pool_id,
+       settlement_id::text,
+       decision_id::text,
+       reservation_id::text,
+       decision_envelope_hash,
+       principal_micro::text,
+       outstanding_micro::text,
+       status,
+       tx_hash,
+       created_at,
+       updated_at,
+       closed_at
+     FROM kizuna_debts
+     WHERE settlement_id = $1`,
+    [settlementId]
+  );
+}
+
+export async function finalizeKizunaSettlement(params: {
+  reservationId: string;
+  settlementId: string;
+  txHash: string;
+  feeAmount: number;
+  feeTxHash: string | null;
+  lane?: KizunaLane;
+  poolId?: string;
+  decisionEnvelopeHash?: string | null;
+}): Promise<KizunaDebtRow> {
+  return withTransaction(async (client) => {
+    const reservationResult = await client.query<{
+      id: string;
+      decision_id: string;
+      agent_id: string;
+      payer_wallet: string;
+      request_nonce: string;
+      network: string;
+      lane: KizunaLane;
+      pool_id: string;
+      amount_micro: string;
+      status: KizunaReservationRow['status'];
+      expires_at: Date;
+      tx_hash: string | null;
+      repay_wallet: string;
+      decision_envelope_hash: string | null;
+    }>(
+      `SELECT
+         r.id,
+         r.decision_id,
+         r.agent_id,
+         r.payer_wallet,
+         r.request_nonce,
+         r.network,
+         r.lane,
+         r.pool_id,
+         r.amount_micro::text,
+         r.status,
+         r.expires_at,
+         r.tx_hash,
+         d.repay_wallet,
+         d.decision_envelope_hash
+       FROM kizuna_credit_reservations r
+       INNER JOIN kizuna_underwrite_decisions d ON d.id = r.decision_id
+       WHERE r.id = $1
+       FOR UPDATE`,
+      [params.reservationId]
+    );
+
+    const reservation = reservationResult.rows[0];
+    if (!reservation) throw new Error('kizuna_reservation_not_found');
+
+    if (reservation.status !== 'reserved') {
+      throw new Error(`kizuna_reservation_${reservation.status}`);
+    }
+    if (params.lane && params.lane !== reservation.lane) {
+      throw new Error('kizuna_lane_mismatch');
+    }
+    if (params.poolId && params.poolId !== reservation.pool_id) {
+      throw new Error('kizuna_pool_mismatch');
+    }
+
+    if (new Date(reservation.expires_at).getTime() <= Date.now()) {
+      await client.query(
+        `UPDATE kizuna_credit_reservations
+         SET status = 'expired', updated_at = NOW()
+         WHERE id = $1`,
+        [reservation.id]
+      );
+      await bumpKizunaPoolReserve(client, {
+        poolId: reservation.pool_id,
+        lane: reservation.lane,
+        reservedDelta: -parseMicro(reservation.amount_micro),
+      });
+      throw new Error('kizuna_reservation_expired');
+    }
+
+    await client.query(
+      `UPDATE settlements
+       SET status = 'confirmed', tx_hash = $2, fee_amount = $3
+       WHERE id = $1`,
+      [params.settlementId, params.txHash, params.feeAmount]
+    );
+
+    await client.query(
+      `INSERT INTO fee_ledger (settlement_id, escrow_id, fee_type, amount, treasury_tx)
+       VALUES ($1, NULL, 'settlement', $2, $3)`,
+      [params.settlementId, params.feeAmount, params.feeTxHash]
+    );
+
+    const debtResult = await client.query<KizunaDebtRow>(
+      `INSERT INTO kizuna_debts (
+         agent_id,
+         payer_wallet,
+         repay_wallet,
+         network,
+         lane,
+         pool_id,
+         settlement_id,
+         decision_id,
+         reservation_id,
+         decision_envelope_hash,
+         principal_micro,
+         outstanding_micro,
+         status,
+         tx_hash
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,'open',$12)
+       ON CONFLICT (settlement_id) DO UPDATE
+       SET tx_hash = EXCLUDED.tx_hash,
+           decision_envelope_hash = COALESCE(EXCLUDED.decision_envelope_hash, kizuna_debts.decision_envelope_hash),
+           updated_at = NOW()
+       RETURNING
+         id,
+         agent_id,
+         payer_wallet,
+         repay_wallet,
+         network,
+         lane,
+         pool_id,
+         settlement_id::text,
+         decision_id::text,
+         reservation_id::text,
+         decision_envelope_hash,
+         principal_micro::text,
+         outstanding_micro::text,
+         status,
+         tx_hash,
+         created_at,
+         updated_at,
+         closed_at`,
+      [
+        reservation.agent_id,
+        reservation.payer_wallet,
+        reservation.repay_wallet,
+        reservation.network,
+        reservation.lane,
+        reservation.pool_id,
+        params.settlementId,
+        reservation.decision_id,
+        reservation.id,
+        params.decisionEnvelopeHash ?? reservation.decision_envelope_hash,
+        reservation.amount_micro,
+        params.txHash,
+      ]
+    );
+
+    await client.query(
+      `UPDATE kizuna_credit_reservations
+       SET status = 'consumed',
+           settlement_id = $2,
+           tx_hash = $3,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [reservation.id, params.settlementId, params.txHash]
+    );
+
+    await bumpKizunaPoolReserve(client, {
+      poolId: reservation.pool_id,
+      lane: reservation.lane,
+      reservedDelta: -parseMicro(reservation.amount_micro),
+      outstandingDelta: parseMicro(reservation.amount_micro),
+    });
+
+    return debtResult.rows[0];
+  });
+}
+
+export async function listKizunaTransactions(
+  agentId: string,
+  limit = 50
+): Promise<KizunaAccountTransactionRow[]> {
+  return query<KizunaAccountTransactionRow>(
+    `SELECT *
+     FROM (
+       SELECT
+         d.id::text AS id,
+         'debt'::text AS type,
+         d.created_at,
+         d.principal_micro::text AS amount_micro,
+         d.lane,
+         d.pool_id,
+         d.outstanding_micro::text AS outstanding_micro,
+         d.status::text AS status,
+         d.tx_hash,
+         NULL::text AS reference_id,
+         NULL::text AS source
+       FROM kizuna_debts d
+       WHERE d.agent_id = $1
+       UNION ALL
+       SELECT
+         r.id::text AS id,
+         'repayment'::text AS type,
+         r.created_at,
+         r.applied_micro::text AS amount_micro,
+         COALESCE(d2.lane, 'enterprise') AS lane,
+         COALESCE(d2.pool_id, 'enterprise-main') AS pool_id,
+         NULL::text AS outstanding_micro,
+         NULL::text AS status,
+         NULL::text AS tx_hash,
+         r.reference_id,
+         r.source
+       FROM kizuna_repayments r
+       LEFT JOIN kizuna_debts d2 ON d2.id = r.debt_id
+       WHERE r.agent_id = $1
+     ) txs
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [agentId, Math.max(1, Math.min(limit, 200))]
+  ) as Promise<KizunaAccountTransactionRow[]>;
+}
+
+export async function getKizunaRepaymentByReference(
+  agentId: string,
+  referenceId: string
+): Promise<KizunaRepaymentRow | null> {
+  return queryOne<KizunaRepaymentRow>(
+    `SELECT
+       id,
+       agent_id,
+       debt_id::text,
+       reference_id,
+       source,
+       amount_micro::text,
+       applied_micro::text,
+       created_at
+     FROM kizuna_repayments
+     WHERE agent_id = $1 AND reference_id = $2`,
+    [agentId, referenceId]
+  );
+}
+
+export async function applyKizunaRepayment(params: {
+  agentId: string;
+  amountMicro: string;
+  source: 'credits';
+  referenceId: string;
+  lane?: KizunaLane;
+  poolId?: string;
+}): Promise<{
+  repayment: KizunaRepaymentRow;
+  idempotent: boolean;
+  outstandingMicro: string;
+}> {
+  return withTransaction(async (client) => {
+    const scopeParams: unknown[] = [params.agentId];
+    let scopeWhere = '';
+    if (params.lane) {
+      scopeParams.push(params.lane);
+      scopeWhere += ` AND lane = $${scopeParams.length}`;
+    }
+    if (params.poolId) {
+      scopeParams.push(params.poolId);
+      scopeWhere += ` AND pool_id = $${scopeParams.length}`;
+    }
+
+    const existing = await client.query<KizunaRepaymentRow>(
+      `SELECT
+         id,
+         agent_id,
+         debt_id::text,
+         reference_id,
+         source,
+         amount_micro::text,
+         applied_micro::text,
+         created_at
+       FROM kizuna_repayments
+       WHERE agent_id = $1 AND reference_id = $2
+       FOR UPDATE`,
+      [params.agentId, params.referenceId]
+    );
+
+    if (existing.rows[0]) {
+      const outstanding = await client.query<{ outstanding_micro: string }>(
+        `SELECT COALESCE(SUM(outstanding_micro), 0)::text AS outstanding_micro
+         FROM kizuna_debts
+         WHERE agent_id = $1 AND status = 'open'${scopeWhere}`,
+        scopeParams
+      );
+      return {
+        repayment: existing.rows[0],
+        idempotent: true,
+        outstandingMicro: outstanding.rows[0]?.outstanding_micro || '0',
+      };
+    }
+
+    const debts = await client.query<{
+      id: string;
+      lane: KizunaLane;
+      pool_id: string;
+      outstanding_micro: string;
+    }>(
+      `SELECT id, lane, pool_id, outstanding_micro::text
+       FROM kizuna_debts
+       WHERE agent_id = $1 AND status = 'open'${scopeWhere}
+       ORDER BY created_at ASC
+       FOR UPDATE`,
+      scopeParams
+    );
+
+    let remaining = parseMicro(params.amountMicro);
+    let applied = 0n;
+    let appliedDebtId: string | null = null;
+    const outstandingDeltas = new Map<string, { lane: KizunaLane; poolId: string; amount: bigint }>();
+
+    for (const debt of debts.rows) {
+      if (remaining <= 0n) break;
+      const debtOutstanding = parseMicro(debt.outstanding_micro);
+      if (debtOutstanding <= 0n) continue;
+
+      const payment = debtOutstanding < remaining ? debtOutstanding : remaining;
+      const nextOutstanding = debtOutstanding - payment;
+      const nextStatus = nextOutstanding === 0n ? 'closed' : 'open';
+
+      await client.query(
+        `UPDATE kizuna_debts
+         SET outstanding_micro = $2,
+             status = $3,
+             updated_at = NOW(),
+             closed_at = CASE WHEN $3 = 'closed' THEN NOW() ELSE NULL END
+         WHERE id = $1`,
+        [debt.id, nextOutstanding.toString(10), nextStatus]
+      );
+
+      if (!appliedDebtId) {
+        appliedDebtId = debt.id;
+      }
+      const key = `${debt.lane}:${debt.pool_id}`;
+      const existingDelta = outstandingDeltas.get(key);
+      if (existingDelta) {
+        existingDelta.amount += payment;
+      } else {
+        outstandingDeltas.set(key, {
+          lane: debt.lane,
+          poolId: debt.pool_id,
+          amount: payment,
+        });
+      }
+
+      applied += payment;
+      remaining -= payment;
+    }
+
+    for (const delta of outstandingDeltas.values()) {
+      await bumpKizunaPoolReserve(client, {
+        poolId: delta.poolId,
+        lane: delta.lane,
+        outstandingDelta: -delta.amount,
+      });
+    }
+
+    const repaymentResult = await client.query<KizunaRepaymentRow>(
+      `INSERT INTO kizuna_repayments (
+         agent_id,
+         debt_id,
+         reference_id,
+         source,
+         amount_micro,
+         applied_micro
+       )
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING
+         id,
+         agent_id,
+         debt_id::text,
+         reference_id,
+         source,
+         amount_micro::text,
+         applied_micro::text,
+         created_at`,
+      [
+        params.agentId,
+        appliedDebtId,
+        params.referenceId,
+        params.source,
+        params.amountMicro,
+        applied.toString(10),
+      ]
+    );
+
+    const outstanding = await client.query<{ outstanding_micro: string }>(
+      `SELECT COALESCE(SUM(outstanding_micro), 0)::text AS outstanding_micro
+       FROM kizuna_debts
+       WHERE agent_id = $1 AND status = 'open'${scopeWhere}`,
+      scopeParams
+    );
+
+    return {
+      repayment: repaymentResult.rows[0],
+      idempotent: false,
+      outstandingMicro: outstanding.rows[0]?.outstanding_micro || '0',
+    };
+  });
+}
+
+export async function getKizunaCollateralAsset(assetId: string): Promise<KizunaCollateralAssetRow | null> {
+  return queryOne<KizunaCollateralAssetRow>(
+    `SELECT
+       asset_id,
+       symbol,
+       chain,
+       haircut_bps,
+       volatility_buffer_bps,
+       status,
+       created_at,
+       updated_at
+     FROM kizuna_collateral_assets
+     WHERE asset_id = $1`,
+    [assetId]
+  );
+}
+
+export async function getKizunaFastpathPool(poolId: string): Promise<KizunaFastpathPoolRow | null> {
+  return queryOne<KizunaFastpathPoolRow>(
+    `SELECT
+       pool_id,
+       status,
+       ltv_cap_bps,
+       reserve_ratio_bps,
+       min_health_factor::text AS min_health_factor,
+       max_single_micro::text AS max_single_micro,
+       created_at,
+       updated_at
+     FROM kizuna_fastpath_pools
+     WHERE pool_id = $1`,
+    [poolId]
+  );
+}
+
+export async function getKizunaPoolReserve(poolId: string): Promise<KizunaPoolReserveRow | null> {
+  return queryOne<KizunaPoolReserveRow>(
+    `SELECT
+       pool_id,
+       lane,
+       reserved_micro::text,
+       outstanding_micro::text,
+       collateral_value_micro::text,
+       updated_at
+     FROM kizuna_pool_reserves
+     WHERE pool_id = $1`,
+    [poolId]
+  );
+}
+
+export async function getKizunaPool(poolId: string): Promise<{
+  poolId: string;
+  lane: KizunaLane;
+  status: string;
+  ltvCapBps: number | null;
+  reserveRatioBps: number | null;
+  minHealthFactor: string | null;
+  maxSingleMicro: string | null;
+  reservedMicro: string;
+  outstandingMicro: string;
+  collateralValueMicro: string;
+  updatedAt: Date;
+} | null> {
+  const reserve = await getKizunaPoolReserve(poolId);
+  if (!reserve) return null;
+  const fastpath = await getKizunaFastpathPool(poolId);
+  return {
+    poolId: reserve.pool_id,
+    lane: reserve.lane,
+    status: fastpath?.status || 'active',
+    ltvCapBps: fastpath?.ltv_cap_bps ?? null,
+    reserveRatioBps: fastpath?.reserve_ratio_bps ?? null,
+    minHealthFactor: fastpath?.min_health_factor ?? null,
+    maxSingleMicro: fastpath?.max_single_micro ?? null,
+    reservedMicro: reserve.reserved_micro,
+    outstandingMicro: reserve.outstanding_micro,
+    collateralValueMicro: reserve.collateral_value_micro,
+    updatedAt: reserve.updated_at,
+  };
+}
+
+export async function listKizunaCollateralPositions(
+  agentId: string,
+  poolId?: string
+): Promise<
+  Array<
+    KizunaCollateralPositionRow & {
+      available_micro: string;
+      haircut_bps: number;
+      effective_collateral_micro: string;
+      symbol: string;
+    }
+  >
+> {
+  const params: unknown[] = [agentId];
+  const poolFilter = poolId ? 'AND p.pool_id = $2' : '';
+  if (poolId) params.push(poolId);
+
+  return query<
+    KizunaCollateralPositionRow & {
+      available_micro: string;
+      haircut_bps: number;
+      effective_collateral_micro: string;
+      symbol: string;
+    }
+  >(
+    `SELECT
+       p.id,
+       p.agent_id,
+       p.pool_id,
+       p.collateral_account,
+       p.asset_id,
+       p.deposited_micro::text,
+       p.withdrawn_micro::text,
+       p.locked_micro::text,
+       p.status,
+       p.created_at,
+       p.updated_at,
+       GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0)::text AS available_micro,
+       a.haircut_bps,
+       a.symbol,
+       ((GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0) * (10000 - a.haircut_bps)) / 10000)::text AS effective_collateral_micro
+     FROM kizuna_collateral_positions p
+     INNER JOIN kizuna_collateral_assets a ON a.asset_id = p.asset_id
+     WHERE p.agent_id = $1 ${poolFilter}
+     ORDER BY p.updated_at DESC`,
+    params
+  );
+}
+
+export async function getKizunaCollateralPosition(params: {
+  agentId: string;
+  poolId: string;
+  collateralAccount: string;
+}): Promise<{
+  collateralAccount: string;
+  totalAvailableMicro: string;
+  effectiveCollateralMicro: string;
+  assets: Array<{
+    assetId: string;
+    symbol: string;
+    availableMicro: string;
+    haircutBps: number;
+    effectiveCollateralMicro: string;
+  }>;
+} | null> {
+  const rows = await query<{
+    asset_id: string;
+    symbol: string;
+    available_micro: string;
+    haircut_bps: number;
+    effective_collateral_micro: string;
+  }>(
+    `SELECT
+       p.asset_id,
+       a.symbol,
+       GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0)::text AS available_micro,
+       a.haircut_bps,
+       ((GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0) * (10000 - a.haircut_bps)) / 10000)::text AS effective_collateral_micro
+     FROM kizuna_collateral_positions p
+     INNER JOIN kizuna_collateral_assets a ON a.asset_id = p.asset_id
+     WHERE p.agent_id = $1
+       AND p.pool_id = $2
+       AND p.collateral_account = $3
+       AND p.status = 'active'`,
+    [params.agentId, params.poolId, params.collateralAccount]
+  );
+
+  if (!rows.length) return null;
+
+  let totalAvailable = 0n;
+  let totalEffective = 0n;
+  for (const row of rows) {
+    totalAvailable += parseMicro(row.available_micro);
+    totalEffective += parseMicro(row.effective_collateral_micro);
+  }
+
+  return {
+    collateralAccount: params.collateralAccount,
+    totalAvailableMicro: totalAvailable.toString(10),
+    effectiveCollateralMicro: totalEffective.toString(10),
+    assets: rows.map((row) => ({
+      assetId: row.asset_id,
+      symbol: row.symbol,
+      availableMicro: row.available_micro,
+      haircutBps: row.haircut_bps,
+      effectiveCollateralMicro: row.effective_collateral_micro,
+    })),
+  };
+}
+
+export async function getKizunaCollateralSummary(
+  agentId: string,
+  poolId: string
+): Promise<{
+  poolId: string;
+  totalAvailableMicro: string;
+  effectiveCollateralMicro: string;
+  outstandingMicro: string;
+  ltvBps: number;
+  healthFactor: number;
+} | null> {
+  const [positionAggregate, reserve, pool] = await Promise.all([
+    queryOne<{ total_available_micro: string; effective_collateral_micro: string }>(
+      `SELECT
+         COALESCE(SUM(GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0)), 0)::text AS total_available_micro,
+         COALESCE(
+           SUM((GREATEST(p.deposited_micro - p.withdrawn_micro - p.locked_micro, 0) * (10000 - a.haircut_bps)) / 10000),
+           0
+         )::text AS effective_collateral_micro
+       FROM kizuna_collateral_positions p
+       INNER JOIN kizuna_collateral_assets a ON a.asset_id = p.asset_id
+       WHERE p.agent_id = $1
+         AND p.pool_id = $2
+         AND p.status = 'active'`,
+      [agentId, poolId]
+    ),
+    getKizunaPoolReserve(poolId),
+    getKizunaFastpathPool(poolId),
+  ]);
+
+  if (!reserve) return null;
+
+  const effectiveCollateral = parseMicro(positionAggregate?.effective_collateral_micro);
+  const totalAvailable = parseMicro(positionAggregate?.total_available_micro);
+  const outstanding = parseMicro(reserve.outstanding_micro);
+  const ltvBpsRaw = effectiveCollateral > 0n ? Number((outstanding * 10_000n) / effectiveCollateral) : 0;
+  const ltvBps = Math.max(0, Math.min(10_000, ltvBpsRaw));
+  const ltvCapBps = pool?.ltv_cap_bps || 6500;
+  const healthFactor =
+    outstanding > 0n
+      ? (Number(effectiveCollateral) * ltvCapBps) / (Number(outstanding) * 10_000)
+      : Number.POSITIVE_INFINITY;
+
+  return {
+    poolId,
+    totalAvailableMicro: totalAvailable.toString(10),
+    effectiveCollateralMicro: effectiveCollateral.toString(10),
+    outstandingMicro: outstanding.toString(10),
+    ltvBps,
+    healthFactor: Number.isFinite(healthFactor) ? healthFactor : 9999,
+  };
+}
+
+export async function getKizunaLatestHealthSnapshot(
+  agentId: string,
+  poolId: string
+): Promise<{
+  id: string;
+  lane: KizunaLane;
+  pool_id: string;
+  collateral_value_micro: string;
+  debt_outstanding_micro: string;
+  ltv_bps: number;
+  health_factor: string;
+  source: string;
+  created_at: Date;
+} | null> {
+  return queryOne(
+    `SELECT
+       id,
+       lane,
+       pool_id,
+       collateral_value_micro::text,
+       debt_outstanding_micro::text,
+       ltv_bps,
+       health_factor::text,
+       source,
+       created_at
+     FROM kizuna_health_snapshots
+     WHERE agent_id = $1 AND pool_id = $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [agentId, poolId]
+  );
+}
+
+export async function applyKizunaCollateralEvent(params: {
+  agentId: string;
+  lane: KizunaLane;
+  poolId: string;
+  collateralAccount: string;
+  assetId: string;
+  amountMicro: string;
+  eventType: 'deposit' | 'withdraw';
+  referenceId: string;
+  txHash?: string | null;
+}): Promise<{
+  idempotent: boolean;
+  position: KizunaCollateralPositionRow;
+  poolReserve: KizunaPoolReserveRow;
+  summary: {
+    ltvBps: number;
+    healthFactor: number;
+    effectiveCollateralMicro: string;
+    outstandingMicro: string;
+  };
+}> {
+  return withTransaction(async (client) => {
+    const existingEvent = await client.query<{ pool_id: string; lane: KizunaLane }>(
+      `SELECT pool_id, lane
+       FROM kizuna_collateral_events
+       WHERE agent_id = $1 AND reference_id = $2
+       FOR UPDATE`,
+      [params.agentId, params.referenceId]
+    );
+
+    if (existingEvent.rows[0]) {
+      const position = await client.query<KizunaCollateralPositionRow>(
+        `SELECT
+           id,
+           agent_id,
+           pool_id,
+           collateral_account,
+           asset_id,
+           deposited_micro::text,
+           withdrawn_micro::text,
+           locked_micro::text,
+           status,
+           created_at,
+           updated_at
+         FROM kizuna_collateral_positions
+         WHERE agent_id = $1
+           AND pool_id = $2
+           AND collateral_account = $3
+           AND asset_id = $4`,
+        [params.agentId, params.poolId, params.collateralAccount, params.assetId]
+      );
+      const reserve = await client.query<KizunaPoolReserveRow>(
+        `SELECT
+           pool_id,
+           lane,
+           reserved_micro::text,
+           outstanding_micro::text,
+           collateral_value_micro::text,
+           updated_at
+         FROM kizuna_pool_reserves
+         WHERE pool_id = $1`,
+        [params.poolId]
+      );
+      const summary = await getKizunaCollateralSummary(params.agentId, params.poolId);
+      if (!position.rows[0] || !reserve.rows[0] || !summary) {
+        throw new Error('kizuna_collateral_state_missing');
+      }
+      return {
+        idempotent: true,
+        position: position.rows[0],
+        poolReserve: reserve.rows[0],
+        summary: {
+          ltvBps: summary.ltvBps,
+          healthFactor: summary.healthFactor,
+          effectiveCollateralMicro: summary.effectiveCollateralMicro,
+          outstandingMicro: summary.outstandingMicro,
+        },
+      };
+    }
+
+    const assetResult = await client.query<KizunaCollateralAssetRow>(
+      `SELECT
+         asset_id,
+         symbol,
+         chain,
+         haircut_bps,
+         volatility_buffer_bps,
+         status,
+         created_at,
+         updated_at
+       FROM kizuna_collateral_assets
+       WHERE asset_id = $1`,
+      [params.assetId]
+    );
+    const asset = assetResult.rows[0];
+    if (!asset || asset.status !== 'active') {
+      throw new Error('kizuna_collateral_asset_not_supported');
+    }
+
+    const amount = parseMicro(params.amountMicro);
+    if (amount <= 0n) {
+      throw new Error('kizuna_collateral_amount_invalid');
+    }
+
+    let position: KizunaCollateralPositionRow | null = null;
+    if (params.eventType === 'deposit') {
+      const positionResult = await client.query<KizunaCollateralPositionRow>(
+        `INSERT INTO kizuna_collateral_positions (
+           agent_id,
+           pool_id,
+           collateral_account,
+           asset_id,
+           deposited_micro,
+           withdrawn_micro,
+           locked_micro,
+           status
+         )
+         VALUES ($1,$2,$3,$4,$5,0,0,'active')
+         ON CONFLICT (agent_id, pool_id, collateral_account, asset_id) DO UPDATE
+         SET deposited_micro = kizuna_collateral_positions.deposited_micro + EXCLUDED.deposited_micro,
+             updated_at = NOW()
+         RETURNING
+           id,
+           agent_id,
+           pool_id,
+           collateral_account,
+           asset_id,
+           deposited_micro::text,
+           withdrawn_micro::text,
+           locked_micro::text,
+           status,
+           created_at,
+           updated_at`,
+        [params.agentId, params.poolId, params.collateralAccount, params.assetId, amount.toString(10)]
+      );
+      position = positionResult.rows[0];
+    } else {
+      const positionResult = await client.query<KizunaCollateralPositionRow>(
+        `UPDATE kizuna_collateral_positions
+         SET withdrawn_micro = withdrawn_micro + $5::numeric,
+             updated_at = NOW()
+         WHERE agent_id = $1
+           AND pool_id = $2
+           AND collateral_account = $3
+           AND asset_id = $4
+           AND status = 'active'
+           AND deposited_micro - withdrawn_micro - locked_micro >= $5::numeric
+         RETURNING
+           id,
+           agent_id,
+           pool_id,
+           collateral_account,
+           asset_id,
+           deposited_micro::text,
+           withdrawn_micro::text,
+           locked_micro::text,
+           status,
+           created_at,
+           updated_at`,
+        [params.agentId, params.poolId, params.collateralAccount, params.assetId, amount.toString(10)]
+      );
+      position = positionResult.rows[0] || null;
+      if (!position) {
+        throw new Error('kizuna_collateral_withdraw_insufficient_available');
+      }
+    }
+
+    await client.query(
+      `INSERT INTO kizuna_collateral_events (
+         agent_id,
+         pool_id,
+         lane,
+         collateral_account,
+         asset_id,
+         reference_id,
+         event_type,
+         amount_micro,
+         tx_hash
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        params.agentId,
+        params.poolId,
+        params.lane,
+        params.collateralAccount,
+        params.assetId,
+        params.referenceId,
+        params.eventType,
+        amount.toString(10),
+        params.txHash ?? null,
+      ]
+    );
+
+    const haircutFactorBps = BigInt(10_000 - asset.haircut_bps);
+    const effectiveDelta = (amount * haircutFactorBps) / 10_000n;
+    await bumpKizunaPoolReserve(client, {
+      poolId: params.poolId,
+      lane: params.lane,
+      collateralDelta: params.eventType === 'deposit' ? effectiveDelta : -effectiveDelta,
+    });
+
+    const reserveResult = await client.query<KizunaPoolReserveRow>(
+      `SELECT
+         pool_id,
+         lane,
+         reserved_micro::text,
+         outstanding_micro::text,
+         collateral_value_micro::text,
+         updated_at
+       FROM kizuna_pool_reserves
+       WHERE pool_id = $1`,
+      [params.poolId]
+    );
+    const reserve = reserveResult.rows[0];
+    if (!reserve) {
+      throw new Error('kizuna_pool_not_found');
+    }
+
+    const poolResult = await client.query<{ ltv_cap_bps: number }>(
+      `SELECT ltv_cap_bps
+       FROM kizuna_fastpath_pools
+       WHERE pool_id = $1`,
+      [params.poolId]
+    );
+    const ltvCapBps = poolResult.rows[0]?.ltv_cap_bps ?? 6500;
+    const collateralValue = parseMicro(reserve.collateral_value_micro);
+    const outstanding = parseMicro(reserve.outstanding_micro);
+    const ltvRaw = collateralValue > 0n ? Number((outstanding * 10_000n) / collateralValue) : 0;
+    const ltvBps = Math.max(0, Math.min(10_000, ltvRaw));
+    const healthFactor =
+      outstanding > 0n
+        ? (Number(collateralValue) * ltvCapBps) / (Number(outstanding) * 10_000)
+        : 9999;
+
+    await client.query(
+      `INSERT INTO kizuna_health_snapshots (
+         agent_id,
+         lane,
+         pool_id,
+         collateral_value_micro,
+         debt_outstanding_micro,
+         ltv_bps,
+         health_factor,
+         source
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'facilitator')`,
+      [
+        params.agentId,
+        params.lane,
+        params.poolId,
+        collateralValue.toString(10),
+        outstanding.toString(10),
+        ltvBps,
+        healthFactor.toString(),
+      ]
+    );
+
+    return {
+      idempotent: false,
+      position,
+      poolReserve: reserve,
+      summary: {
+        ltvBps,
+        healthFactor,
+        effectiveCollateralMicro: collateralValue.toString(10),
+        outstandingMicro: outstanding.toString(10),
+      },
+    };
+  });
+}
+
+export async function getKizunaUnderwriteSnapshot(
+  agentId: string,
+  payerWallet: string
+): Promise<KizunaUnderwriteSnapshot | null> {
+  const account = await getKizunaAccount(agentId);
+  if (!account) return null;
+
+  const [settlements, disputes, quality, debts] = await Promise.all([
+    queryOne<{ confirmed: string; last_settlement_at: Date | null }>(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'confirmed')::text AS confirmed,
+         MAX(created_at) AS last_settlement_at
+       FROM settlements
+       WHERE payer_wallet = $1`,
+      [payerWallet]
+    ),
+    queryOne<{ filed: string; won: string }>(
+      `SELECT
+         COUNT(*)::text AS filed,
+         COUNT(*) FILTER (WHERE resolution = 'payer_wins')::text AS won
+       FROM disputes
+       WHERE opener_wallet = $1 AND status = 'resolved'`,
+      [payerWallet]
+    ),
+    queryOne<{ avg_quality: string }>(
+      `SELECT COALESCE(AVG(quality_score), 0)::text AS avg_quality
+       FROM escrow_records
+       WHERE payer_wallet = $1 AND quality_score IS NOT NULL`,
+      [payerWallet]
+    ),
+    queryOne<{ total: string; closed: string; last_repayment_at: Date | null }>(
+      `SELECT
+         COUNT(*)::text AS total,
+         COUNT(*) FILTER (WHERE status = 'closed')::text AS closed,
+         MAX(updated_at) FILTER (WHERE status = 'closed') AS last_repayment_at
+       FROM kizuna_debts
+       WHERE agent_id = $1`,
+      [agentId]
+    ),
+  ]);
+
+  const settlementAt = settlements?.last_settlement_at
+    ? new Date(settlements.last_settlement_at)
+    : null;
+  const repaymentAt = debts?.last_repayment_at ? new Date(debts.last_repayment_at) : null;
+  const accountCreatedAt = new Date(account.created_at);
+
+  let latestActivityAt = accountCreatedAt;
+  if (settlementAt && settlementAt > latestActivityAt) latestActivityAt = settlementAt;
+  if (repaymentAt && repaymentAt > latestActivityAt) latestActivityAt = repaymentAt;
+
+  return {
+    accountCreatedAt,
+    settlementsConfirmed: parseInt(settlements?.confirmed || '0', 10),
+    disputesFiled: parseInt(disputes?.filed || '0', 10),
+    disputesWon: parseInt(disputes?.won || '0', 10),
+    avgQuality: parseFloat(quality?.avg_quality || '0'),
+    debtsTotal: parseInt(debts?.total || '0', 10),
+    debtsClosed: parseInt(debts?.closed || '0', 10),
+    latestActivityAt,
+  };
 }
