@@ -389,6 +389,69 @@ class KyoshinTradingExecTests(unittest.TestCase):
         self.assertNotIn('limitless', summary.get('venueBlockers', {}))
         self.assertIn('limitless_order_unmatched', summary.get('warnings', []))
 
+    def test_live_mode_skips_open_after_close_attempt(self):
+        self._write_feed()
+        self.mod.EXECUTION_MODE = 'live'
+        self.mod.VENUES = ['limitless']
+        self.mod.REAL_CLOSE_ENABLED = True
+        self.mod.CLOSE_STRICT_TRACKING = True
+        self.mod.SKIP_OPEN_AFTER_CLOSE = True
+        self.mod.LIMITLESS_REQUIRE_SIGNED_PAYLOAD = False
+        self.mod.LIMITLESS_EXEC_CMD = 'echo "{}"'
+
+        opened_at = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        self.mod.POSITIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POSITIONS_PATH.write_text(
+            json.dumps(
+                {
+                    'positions': [
+                        {
+                            'id': 'limitless-open-existing',
+                            'positionId': 'limitless-open-existing',
+                            'orderId': 'limitless-order-existing',
+                            'marketId': 'mkt-1',
+                            'venue': 'limitless',
+                            'status': 'open',
+                            'openedAt': opened_at,
+                            'notionalUsd': 1.0,
+                            'limitlessPositionSize': 0.5,
+                            'limitlessMarketSlug': 'mkt-1',
+                            'limitlessTokenId': '12345',
+                            'direction': 'yes',
+                            'entryPrice': 0.5,
+                            'markPrice': 0.62,
+                            'unrealizedPct': 24.0,
+                        }
+                    ]
+                }
+            ),
+            encoding='utf-8',
+        )
+
+        def fake_live_execute_limitless(candidate: dict, notional: float) -> dict:
+            kind = str(candidate.get('kind') or '').strip().lower()
+            if kind != 'close_candidate':
+                raise AssertionError('open execution should be skipped after close attempt')
+            return {
+                'orderId': 'close-order-skip-open',
+                'positionId': 'limitless-open-existing',
+                'grossUsd': 0.12,
+                'costUsd': 0.01,
+                'netUsd': 0.11,
+                'realized': True,
+                'paymentRef': '0x' + ('a' * 64),
+                'txSignature': '0x' + ('a' * 64),
+                'raw': {'execution': {'txHash': '0x' + ('a' * 64)}},
+            }
+
+        with patch.object(self.mod, 'live_execute_limitless', side_effect=fake_live_execute_limitless):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('executedTrades'), 0)
+        self.assertEqual(summary.get('liveCloseAttemptsTick'), 1)
+        self.assertNotIn('open_skipped_after_close', summary.get('warnings', []))
+
     def test_market_failure_cooldown_blocks_repeated_simulation_failures(self):
         self._write_feed()
         self.mod.EXECUTION_MODE = 'live'

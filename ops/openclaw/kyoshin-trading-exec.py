@@ -116,6 +116,7 @@ MICRO_LIVE_MAX_NOTIONAL_USD = max(0.05, env_float('KYO_TRADING_MICRO_LIVE_MAX_NO
 REAL_CLOSE_ENABLED = env_bool('KYO_TRADING_REAL_CLOSE_ENABLED', False)
 CLOSE_STRICT_TRACKING = env_bool('KYO_TRADING_CLOSE_STRICT_TRACKING', True)
 CLOSE_PENDING_RETRY_SEC = max(60, env_int('KYO_TRADING_CLOSE_PENDING_RETRY_SEC', 600))
+SKIP_OPEN_AFTER_CLOSE = env_bool('KYO_TRADING_SKIP_OPEN_AFTER_CLOSE', True)
 MARKET_FAILURE_COOLDOWN_ENABLED = env_bool('KYO_TRADING_MARKET_FAILURE_COOLDOWN_ENABLED', True)
 MARKET_FAILURE_THRESHOLD = max(1, env_int('KYO_TRADING_MARKET_FAILURE_THRESHOLD', 2))
 MARKET_FAILURE_WINDOW_MIN = max(1, env_int('KYO_TRADING_MARKET_FAILURE_WINDOW_MIN', 60))
@@ -2095,6 +2096,8 @@ def run() -> int:
     venue_budget_remaining = dict(venue_budgets)
 
     if hard_reasons:
+        blocked_candidates = len(tradable_candidates)
+    elif live_mode and SKIP_OPEN_AFTER_CLOSE and live_close_attempts_tick > 0:
         blocked_candidates = len(tradable_candidates)
     else:
         for candidate in tradable_candidates:
