@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import { JsonRpcProvider, Wallet } from 'ethers';
+import { Contract, JsonRpcProvider, Wallet } from 'ethers';
 
 const RELAY_API_BASE_DEFAULT = 'https://api.relay.link';
 const SOLANA_CHAIN_ID = 792703809;
@@ -8,6 +8,7 @@ const SOLANA_NATIVE_ADDRESS = '11111111111111111111111111111111';
 const DEFAULT_BUFFER_BPS = 300;
 const DEFAULT_TIMEOUT_MS = 180000;
 const DEFAULT_POLL_MS = 2500;
+const ERC20_BALANCE_ABI = ['function balanceOf(address owner) view returns (uint256)'];
 
 const CHAIN_DEFAULTS = {
   1: {
@@ -129,6 +130,11 @@ function toTokenUnits(amount, decimals) {
   const factor = 10 ** decimals;
   const normalized = Math.ceil(amount * factor);
   return String(Math.max(1, normalized));
+}
+
+function toUnitsFloat(units, decimals) {
+  const base = 10 ** decimals;
+  return Number(units) / base;
 }
 
 function fromTokenUnits(raw, decimals) {
@@ -410,6 +416,68 @@ async function executeTransactionStep({ step, walletByChain }) {
   return txHashes;
 }
 
+async function resolveOriginSpendAmount({
+  originChainId,
+  originCurrency,
+  walletByChain,
+  requestedAmountUnits,
+}) {
+  const wallet = walletByChain(originChainId);
+  if (!originCurrency || !String(originCurrency).startsWith('0x')) {
+    return {
+      amountUnits: requestedAmountUnits,
+      requestedAmountUnits,
+      availableAmountUnits: requestedAmountUnits,
+      partial: false,
+    };
+  }
+
+  const token = new Contract(originCurrency, ERC20_BALANCE_ABI, wallet.provider);
+  let availableRaw;
+  try {
+    availableRaw = await token.balanceOf(wallet.address);
+  } catch (error) {
+    fail('origin_balance_read_failed', 'failed to read source token balance for sweep', {
+      chainId: originChainId,
+      currency: originCurrency,
+      reason: String(error?.message || error),
+    });
+  }
+
+  const availableUnits = BigInt(String(availableRaw || 0));
+  const minReserveBps = Math.max(0, Math.floor(envNumber('KYO_TRADING_ROUTE_EARNINGS_SWEEP_BALANCE_RESERVE_BPS', 50)));
+  const spendableUnits =
+    minReserveBps > 0
+      ? (availableUnits * BigInt(Math.max(0, 10000 - minReserveBps))) / 10000n
+      : availableUnits;
+
+  if (spendableUnits <= 0n) {
+    fail('insufficient_source_balance', 'source token balance is zero for earnings sweep', {
+      chainId: originChainId,
+      currency: originCurrency,
+      availableUnits: availableUnits.toString(),
+    });
+  }
+
+  const cappedUnits = requestedAmountUnits <= spendableUnits ? requestedAmountUnits : spendableUnits;
+  if (cappedUnits <= 0n) {
+    fail('insufficient_source_balance', 'spendable source token balance is zero after reserve', {
+      chainId: originChainId,
+      currency: originCurrency,
+      availableUnits: availableUnits.toString(),
+      spendableUnits: spendableUnits.toString(),
+      reserveBps: minReserveBps,
+    });
+  }
+
+  return {
+    amountUnits: cappedUnits,
+    requestedAmountUnits,
+    availableAmountUnits: availableUnits,
+    partial: cappedUnits < requestedAmountUnits,
+  };
+}
+
 async function waitForStatus({ apiBase, requestId, timeoutMs, pollMs }) {
   const started = Date.now();
   let lastPayload = null;
@@ -464,7 +532,14 @@ async function main() {
   };
 
   const sourceWallet = walletByChain(originChainId);
-  const amount = toTokenUnits(sweepUsdTarget, 6);
+  const requestedAmountUnits = BigInt(toTokenUnits(sweepUsdTarget, 6));
+  const amountResolution = await resolveOriginSpendAmount({
+    originChainId,
+    originCurrency,
+    walletByChain,
+    requestedAmountUnits,
+  });
+  const amount = amountResolution.amountUnits.toString();
 
   const quotePayload = {
     user: sourceWallet.address,
@@ -543,6 +618,10 @@ async function main() {
     requestId,
     originTxHash: txHashes[0] || '',
     destinationTxHash,
+    sweepInputUsd: Number(toUnitsFloat(amountResolution.amountUnits, 6).toFixed(6)),
+    sweepInputRequestedUsd: Number(toUnitsFloat(amountResolution.requestedAmountUnits, 6).toFixed(6)),
+    sweepInputAvailableUsd: Number(toUnitsFloat(amountResolution.availableAmountUnits, 6).toFixed(6)),
+    sweepInputPartial: amountResolution.partial,
   };
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
