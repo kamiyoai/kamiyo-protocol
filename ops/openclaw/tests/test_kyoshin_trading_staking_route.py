@@ -74,6 +74,7 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
                     'status': 'success',
                     'realized': True,
                     'netUsd': 20.0,
+                    'txSignature': '0x' + 'a' * 64,
                 },
                 {
                     'id': 'close-2',
@@ -83,6 +84,7 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
                     'status': 'success',
                     'realized': True,
                     'netUsd': -2.0,
+                    'txSignature': '0x' + 'b' * 64,
                 },
             ]
         )
@@ -117,6 +119,48 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('status'), 'up_to_date')
         self.assertEqual(float(summary.get('realizedNetUsdTotal')), 0.0)
+
+    def test_rebases_processed_overshoot_when_enabled(self):
+        self._append_ledger(
+            [
+                {
+                    'id': 'close-4',
+                    'at': '2026-03-01T13:00:00+00:00',
+                    'source': 'trading',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'netUsd': 10.0,
+                    'txSignature': '0x' + 'c' * 64,
+                }
+            ]
+        )
+        self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.STATE_PATH.write_text(
+            json.dumps(
+                {
+                    'processedRealizedNetUsd': 35.0,
+                    'lastRoutedLedgerCursor': 'trade-close-old',
+                    'lastRoutedNetUsd': 12.5,
+                }
+            ),
+            encoding='utf-8',
+        )
+
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'up_to_date')
+        self.assertEqual(summary.get('rebasedProcessedOvershoot'), True)
+        self.assertAlmostEqual(float(summary.get('processedRealizedNetUsd')), 10.0, places=6)
+        self.assertAlmostEqual(float(summary.get('deltaUnroutedUsd')), 0.0, places=6)
+
+        state_after = json.loads(self.mod.STATE_PATH.read_text(encoding='utf-8'))
+        self.assertAlmostEqual(float(state_after.get('processedRealizedNetUsd', 0.0)), 10.0, places=6)
+
+    def test_parse_solana_balance(self):
+        self.assertAlmostEqual(self.mod.parse_solana_balance('0.123456789 SOL'), 0.123456789, places=9)
+        self.assertAlmostEqual(self.mod.parse_solana_balance('0.5'), 0.5, places=9)
+        self.assertAlmostEqual(self.mod.parse_solana_balance(''), 0.0, places=9)
 
 
 if __name__ == '__main__':
