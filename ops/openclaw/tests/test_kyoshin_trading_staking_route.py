@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -231,6 +232,30 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertEqual(result.get('reason'), 'earnings_sweep_applied')
         self.assertEqual(result.get('txSignature'), 'sig-1')
         self.assertAlmostEqual(float(result.get('sweptSol')), 0.25, places=9)
+
+    def test_run_earnings_sweep_cmd_sets_target_sol_env(self):
+        self.mod.ROUTE_EARNINGS_SWEEP_CMD = 'echo ok'
+        self.mod.SOL_PRICE_USD = 175.5
+        completed = subprocess.CompletedProcess(
+            args=['bash', '-lc', 'echo ok'],
+            returncode=0,
+            stdout='{"txSignature":"0x' + 'a' * 64 + '","sweptSol":0.123}\n',
+            stderr='',
+        )
+        with patch.object(self.mod.subprocess, 'run', return_value=completed) as mocked_run:
+            result = self.mod.run_earnings_sweep_cmd(
+                to_pubkey='route-pubkey',
+                route_usd=42.0,
+                delta_usd=52.0,
+                checkpoint_id='checkpoint-1',
+                required_balance_sol=0.55,
+                current_balance_sol=0.2,
+            )
+        self.assertEqual(result.get('txSignature'), '0x' + 'a' * 64)
+        self.assertAlmostEqual(float(result.get('sweptSol')), 0.123, places=9)
+        env = mocked_run.call_args.kwargs.get('env') or {}
+        self.assertEqual(env.get('KYO_ROUTE_SWEEP_TARGET_SOL'), '0.35')
+        self.assertEqual(env.get('KYO_ROUTE_SWEEP_SOL_PRICE_USD'), '175.50000000')
 
 
 if __name__ == '__main__':

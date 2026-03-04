@@ -465,6 +465,7 @@ def run_earnings_sweep_cmd(
     required_balance_sol: float,
     current_balance_sol: float,
 ) -> dict[str, Any]:
+    target_sol = floor_precision(max(0.0, required_balance_sol - current_balance_sol), 9)
     env = os.environ.copy()
     env.update(
         {
@@ -474,6 +475,8 @@ def run_earnings_sweep_cmd(
             'KYO_ROUTE_SWEEP_CHECKPOINT_ID': checkpoint_id,
             'KYO_ROUTE_SWEEP_REQUIRED_BALANCE_SOL': format_sol(required_balance_sol),
             'KYO_ROUTE_SWEEP_CURRENT_BALANCE_SOL': format_sol(current_balance_sol),
+            'KYO_ROUTE_SWEEP_TARGET_SOL': format_sol(target_sol),
+            'KYO_ROUTE_SWEEP_SOL_PRICE_USD': f'{SOL_PRICE_USD:.8f}',
         }
     )
     proc = subprocess.run(

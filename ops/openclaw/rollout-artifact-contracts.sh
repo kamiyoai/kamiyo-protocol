@@ -106,6 +106,7 @@ run() {
     "kyoshin-trading-feed.py"
     "kyoshin-trading-exec.py"
     "kyoshin-trading-staking-route.py"
+    "kyoshin-trading-earnings-sweep.sh"
     "kyoshin-x402-agentcash.py"
     "kyoshin-clawmart-staking-route.py"
     "kyoshin-clawmart-monitor.py"
@@ -138,6 +139,7 @@ run() {
     "trading-bridge-shared.mjs"
     "kyoshin-polymarket-bridge.mjs"
     "kyoshin-limitless-bridge.mjs"
+    "kyoshin-earnings-sweep-bridge.mjs"
   )
   for bridge in "${bridges[@]}"; do
     if is_true "$USE_SUDO"; then
@@ -236,8 +238,14 @@ run() {
   append_env_if_missing "KYO_TRADING_ROUTE_NET_BPS" "5000"
   append_env_if_missing "KYO_TRADING_ROUTE_MIN_SOL" "0.000001"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_ENABLED" "false"
-  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD" ""
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD" "$TARGET_BIN_DIR/kyoshin-trading-earnings-sweep.sh"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_MIN_USD" "1"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_RELAY_API_BASE_URL" "https://api.relay.link"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_EVM_CHAIN_ID" "137"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_ORIGIN_CURRENCY" "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_BUFFER_BPS" "300"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_TIMEOUT_MS" "180000"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_POLL_MS" "2500"
   append_env_if_missing "KYO_TRADING_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
   append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
   append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
@@ -270,7 +278,7 @@ run() {
   echo "[2.5/6] verifying trading bridge readiness"
   run_as_openclaw "
     set -euo pipefail
-    if [ -x \"$TARGET_BRIDGES_DIR/kyoshin-polymarket-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-limitless-bridge.mjs\" ]; then
+    if [ -x \"$TARGET_BRIDGES_DIR/kyoshin-polymarket-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-limitless-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-earnings-sweep-bridge.mjs\" ]; then
       echo 'bridges_installed=true'
     else
       echo 'bridges_installed=false'
