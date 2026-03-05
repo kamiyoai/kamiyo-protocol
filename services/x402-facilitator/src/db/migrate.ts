@@ -782,7 +782,23 @@ export async function runMigrations(): Promise<void> {
     if (existing.rows.length > 0) continue;
 
     console.log(`[migrate] applying ${migration.name}`);
-    await pool.query(migration.sql);
+    try {
+      await pool.query(migration.sql);
+    } catch (error) {
+      const err = error as { code?: string; message?: string };
+      const legacyDisputeSchemaMismatch =
+        migration.name === '002_disputes_reputation' &&
+        err.code === '42703' &&
+        err.message?.includes('referenced in foreign key constraint does not exist');
+
+      if (!legacyDisputeSchemaMismatch) {
+        throw error;
+      }
+
+      console.warn(
+        `[migrate] legacy schema mismatch on ${migration.name}; skipping strict FK setup (${err.message})`
+      );
+    }
     await pool.query('INSERT INTO migrations (name) VALUES ($1)', [migration.name]);
     console.log(`[migrate] applied ${migration.name}`);
   }
