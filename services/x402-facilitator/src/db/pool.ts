@@ -3,11 +3,21 @@ import { getConfig } from '../config';
 
 let pool: Pool | null = null;
 
+function shouldUseSsl(databaseUrl: string): boolean {
+  const mode = process.env.PGSSLMODE?.trim().toLowerCase();
+  if (mode === 'disable') return false;
+  if (mode && mode !== 'allow' && mode !== 'prefer') return true;
+  if (/sslmode=disable/i.test(databaseUrl)) return false;
+  if (/sslmode=(?:require|verify-ca|verify-full)/i.test(databaseUrl)) return true;
+  return process.env.RENDER === 'true' || process.env.NODE_ENV === 'production';
+}
+
 export function getPool(): Pool {
   if (!pool) {
     const config = getConfig();
     pool = new Pool({
       connectionString: config.DATABASE_URL,
+      ssl: shouldUseSsl(config.DATABASE_URL) ? { rejectUnauthorized: false } : undefined,
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
