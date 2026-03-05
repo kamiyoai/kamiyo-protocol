@@ -40,6 +40,20 @@ function parsePositiveMicro(value: unknown): bigint | null {
   }
 }
 
+function parseNonNegativeMicro(value: unknown): bigint | null {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+    return BigInt(value);
+  }
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  try {
+    return BigInt(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 function parseLane(value: unknown): 'enterprise' | 'crypto-fast' | null {
   const lane = asString(value);
   if (!lane) return 'enterprise';
@@ -82,6 +96,34 @@ function sendError(res: Response, status: number, error: string): void {
   res.status(status).json({ error });
 }
 
+function parseManualMandateCaps(value: unknown): {
+  singleMicro: string;
+  dailyMicro: string;
+  monthlyMicro: string;
+  humanApprovalMicro: string;
+} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const single = parseNonNegativeMicro(record.singleMicro);
+  const daily = parseNonNegativeMicro(record.dailyMicro);
+  const monthly = parseNonNegativeMicro(record.monthlyMicro);
+  const human =
+    parseNonNegativeMicro(record.humanApprovalMicro) ??
+    parseNonNegativeMicro(record.singleLimitMicro) ??
+    parseNonNegativeMicro(record.singleMicro);
+
+  if (single == null || daily == null || monthly == null || human == null) {
+    return null;
+  }
+
+  return {
+    singleMicro: single.toString(10),
+    dailyMicro: daily.toString(10),
+    monthlyMicro: monthly.toString(10),
+    humanApprovalMicro: human.toString(10),
+  };
+}
+
 export function createKizunaRouter(): Router {
   const router = Router();
 
@@ -108,30 +150,77 @@ export function createKizunaRouter(): Router {
           .filter((value: string) => value === 'solana' || value === 'base')
       : [];
     const networks = requestedNetworks.length > 0 ? requestedNetworks : ['solana', 'base'];
+    const manualMandateCaps = parseManualMandateCaps(req.body?.manualMandate);
+    if (req.body?.manualMandate && !manualMandateCaps) {
+      sendError(
+        res,
+        400,
+        'manualMandate requires non-negative string/number fields: singleMicro, dailyMicro, monthlyMicro, humanApprovalMicro'
+      );
+      return;
+    }
 
     try {
-      await syncKizunaMandate({
-        agentId,
-        passportAddress,
-        networks: networks as Array<'base' | 'solana'>,
-      });
+      let mandateMeta:
+        | {
+            source: 'meishi' | 'manual';
+            passportAddress: string | null;
+            caps: {
+              singleMicro: string;
+              dailyMicro: string;
+              monthlyMicro: string;
+              humanApprovalMicro: string;
+            };
+            mandateVersion?: number;
+            validFrom?: string;
+            validUntil?: string;
+          }
+        | null = null;
 
-      const limits = await getKizunaMandateLimits(agentId);
-      if (!limits) {
-        sendError(res, 404, 'No active mandate limits found for agent');
-        return;
+      try {
+        await syncKizunaMandate({
+          agentId,
+          passportAddress,
+          networks: networks as Array<'base' | 'solana'>,
+        });
+
+        const limits = await getKizunaMandateLimits(agentId);
+        if (limits) {
+          mandateMeta = {
+            source: 'meishi',
+            passportAddress: limits.passportAddress,
+            caps: limits.caps,
+            mandateVersion: limits.mandateVersion,
+            validFrom: limits.validFrom,
+            validUntil: limits.validUntil,
+          };
+        }
+      } catch {
+        mandateMeta = null;
+      }
+
+      if (!mandateMeta) {
+        if (!manualMandateCaps) {
+          sendError(res, 502, 'Mandate sync unavailable and no manualMandate provided');
+          return;
+        }
+        mandateMeta = {
+          source: 'manual',
+          passportAddress: passportAddress || null,
+          caps: manualMandateCaps,
+        };
       }
 
       const account = await upsertKizunaAccount({
         agentId,
         payerWallet,
         repayWallet,
-        passportAddress: limits.passportAddress,
+        passportAddress: mandateMeta.passportAddress,
         networks,
-        mandateSingleLimitMicro: limits.caps.singleMicro,
-        mandateDailyLimitMicro: limits.caps.dailyMicro,
-        mandateMonthlyLimitMicro: limits.caps.monthlyMicro,
-        mandateHumanApprovalMicro: limits.caps.humanApprovalMicro,
+        mandateSingleLimitMicro: mandateMeta.caps.singleMicro,
+        mandateDailyLimitMicro: mandateMeta.caps.dailyMicro,
+        mandateMonthlyLimitMicro: mandateMeta.caps.monthlyMicro,
+        mandateHumanApprovalMicro: mandateMeta.caps.humanApprovalMicro,
       });
 
       const outstandingMicro = await getKizunaOutstandingMicro(agentId);
@@ -139,7 +228,7 @@ export function createKizunaRouter(): Router {
       res.status(201).json({
         account: toApiAccount(account),
         outstandingMicro: outstandingMicro.toString(10),
-        mandate: limits,
+        mandate: mandateMeta,
       });
     } catch (err) {
       sendError(res, 502, err instanceof Error ? err.message : 'Kizuna onboarding failed');
