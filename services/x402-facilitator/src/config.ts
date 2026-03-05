@@ -34,6 +34,7 @@ export interface Config {
   KIZUNA_KERNEL_SIGNING_KEYS: Record<string, string>;
   KIZUNA_ENTERPRISE_POOL_ID: string;
   KIZUNA_FASTPATH_POOL_ID: string;
+  KIZUNA_ENTERPRISE_REQUIRE_PREFUND: boolean;
   KIZUNA_SECURED_ONLY: boolean;
   KIZUNA_FASTPATH_LTV_CAP_BPS: number;
   KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: number;
@@ -76,9 +77,10 @@ const DEFAULTS: Partial<Config> = {
   KIZUNA_KERNEL_FAIL_CLOSED: true,
   KIZUNA_ENTERPRISE_POOL_ID: 'enterprise-main',
   KIZUNA_FASTPATH_POOL_ID: 'fastpath-main',
-  KIZUNA_SECURED_ONLY: true,
-  KIZUNA_FASTPATH_LTV_CAP_BPS: 6000,
-  KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: 1.5,
+  KIZUNA_ENTERPRISE_REQUIRE_PREFUND: true,
+  KIZUNA_SECURED_ONLY: false,
+  KIZUNA_FASTPATH_LTV_CAP_BPS: 4000,
+  KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: 1.8,
   KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: 0,
 };
 
@@ -298,6 +300,12 @@ export function validateConfig(): ValidationResult {
     if (!(process.env.KIZUNA_FASTPATH_POOL_ID || DEFAULTS.KIZUNA_FASTPATH_POOL_ID)?.trim()) {
       errors.push('KIZUNA_FASTPATH_POOL_ID is required when KIZUNA_ENABLED=true');
     }
+    const enterpriseRequirePrefundRaw =
+      process.env.KIZUNA_ENTERPRISE_REQUIRE_PREFUND ??
+      String(DEFAULTS.KIZUNA_ENTERPRISE_REQUIRE_PREFUND);
+    if (enterpriseRequirePrefundRaw !== 'true' && enterpriseRequirePrefundRaw !== 'false') {
+      errors.push('KIZUNA_ENTERPRISE_REQUIRE_PREFUND must be true or false');
+    }
     const kernelFailClosed = (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) === 'true';
     if (kernelFailClosed && !kizunaKernelUrl?.trim()) {
       errors.push('KIZUNA_KERNEL_URL is required when fail-closed mode is enabled');
@@ -373,6 +381,11 @@ export function getConfig(): Config {
       process.env.KIZUNA_ENTERPRISE_POOL_ID || DEFAULTS.KIZUNA_ENTERPRISE_POOL_ID!,
     KIZUNA_FASTPATH_POOL_ID:
       process.env.KIZUNA_FASTPATH_POOL_ID || DEFAULTS.KIZUNA_FASTPATH_POOL_ID!,
+    KIZUNA_ENTERPRISE_REQUIRE_PREFUND:
+      (
+        process.env.KIZUNA_ENTERPRISE_REQUIRE_PREFUND ||
+        String(DEFAULTS.KIZUNA_ENTERPRISE_REQUIRE_PREFUND)
+      ) === 'true',
     KIZUNA_SECURED_ONLY:
       (process.env.KIZUNA_SECURED_ONLY || String(DEFAULTS.KIZUNA_SECURED_ONLY)) === 'true',
     KIZUNA_FASTPATH_LTV_CAP_BPS: parseInt(
@@ -433,6 +446,7 @@ export function getRedactedConfig(): Record<string, string> {
     KIZUNA_KERNEL_SIGNING_KEYS: Object.keys(config.KIZUNA_KERNEL_SIGNING_KEYS).join(','),
     KIZUNA_ENTERPRISE_POOL_ID: config.KIZUNA_ENTERPRISE_POOL_ID,
     KIZUNA_FASTPATH_POOL_ID: config.KIZUNA_FASTPATH_POOL_ID,
+    KIZUNA_ENTERPRISE_REQUIRE_PREFUND: String(config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND),
     KIZUNA_SECURED_ONLY: String(config.KIZUNA_SECURED_ONLY),
     KIZUNA_FASTPATH_LTV_CAP_BPS: String(config.KIZUNA_FASTPATH_LTV_CAP_BPS),
     KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: String(config.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR),

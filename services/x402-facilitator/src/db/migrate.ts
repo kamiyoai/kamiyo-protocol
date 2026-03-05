@@ -634,6 +634,107 @@ const MIGRATIONS = [
       ON CONFLICT (pool_id) DO NOTHING;
     `,
   },
+  {
+    name: '014_kizuna_billable_events',
+    sql: `
+      CREATE TABLE IF NOT EXISTS kizuna_billable_settlement_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        reservation_id UUID NOT NULL REFERENCES kizuna_credit_reservations(id) ON DELETE CASCADE,
+        settlement_id UUID NOT NULL REFERENCES settlements(id) ON DELETE CASCADE,
+        debt_id UUID NOT NULL REFERENCES kizuna_debts(id) ON DELETE CASCADE,
+        agent_id TEXT NOT NULL REFERENCES kizuna_accounts(agent_id) ON DELETE CASCADE,
+        payer_wallet TEXT NOT NULL,
+        merchant_wallet TEXT NOT NULL,
+        network TEXT NOT NULL,
+        lane TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        amount_micro NUMERIC(30, 0) NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        emitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT chk_kizuna_billable_lane CHECK (lane IN ('enterprise', 'crypto-fast')),
+        CONSTRAINT chk_kizuna_billable_amount CHECK (amount_micro >= 0),
+        CONSTRAINT uq_kizuna_billable_reservation_settlement UNIQUE (reservation_id, settlement_id),
+        CONSTRAINT uq_kizuna_billable_idempotency_key UNIQUE (idempotency_key)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_billable_emitted_at
+        ON kizuna_billable_settlement_events(emitted_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_billable_lane_pool_emitted
+        ON kizuna_billable_settlement_events(lane, pool_id, emitted_at DESC);
+    `,
+  },
+  {
+    name: '015_kizuna_enterprise_prefund',
+    sql: `
+      ALTER TABLE kizuna_credit_reservations
+        ADD COLUMN IF NOT EXISTS funding_mode TEXT NOT NULL DEFAULT 'none',
+        ADD COLUMN IF NOT EXISTS locked_micro NUMERIC(30, 0) NOT NULL DEFAULT 0;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_kizuna_reservations_funding_mode') THEN
+          ALTER TABLE kizuna_credit_reservations
+            ADD CONSTRAINT chk_kizuna_reservations_funding_mode
+            CHECK (funding_mode IN ('none', 'prefunded', 'collateralized'));
+        END IF;
+      END $$;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_kizuna_reservations_locked_micro') THEN
+          ALTER TABLE kizuna_credit_reservations
+            ADD CONSTRAINT chk_kizuna_reservations_locked_micro
+            CHECK (locked_micro >= 0);
+        END IF;
+      END $$;
+
+      UPDATE kizuna_credit_reservations
+      SET funding_mode = CASE
+        WHEN lane = 'crypto-fast' THEN 'collateralized'
+        ELSE 'none'
+      END
+      WHERE funding_mode = 'none';
+
+      CREATE TABLE IF NOT EXISTS kizuna_enterprise_balances (
+        agent_id TEXT NOT NULL REFERENCES kizuna_accounts(agent_id) ON DELETE CASCADE,
+        pool_id TEXT NOT NULL,
+        available_micro NUMERIC(30, 0) NOT NULL DEFAULT 0,
+        reserved_micro NUMERIC(30, 0) NOT NULL DEFAULT 0,
+        spent_micro NUMERIC(30, 0) NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (agent_id, pool_id),
+        CONSTRAINT chk_kizuna_enterprise_available CHECK (available_micro >= 0),
+        CONSTRAINT chk_kizuna_enterprise_reserved CHECK (reserved_micro >= 0),
+        CONSTRAINT chk_kizuna_enterprise_spent CHECK (spent_micro >= 0)
+      );
+
+      CREATE TABLE IF NOT EXISTS kizuna_funding_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        agent_id TEXT NOT NULL REFERENCES kizuna_accounts(agent_id) ON DELETE CASCADE,
+        lane TEXT NOT NULL,
+        pool_id TEXT NOT NULL,
+        reference_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        amount_micro NUMERIC(30, 0) NOT NULL,
+        tx_hash TEXT,
+        metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT chk_kizuna_funding_lane CHECK (lane IN ('enterprise', 'crypto-fast')),
+        CONSTRAINT chk_kizuna_funding_event_type CHECK (event_type IN ('deposit', 'withdraw')),
+        CONSTRAINT chk_kizuna_funding_amount CHECK (amount_micro >= 0),
+        CONSTRAINT uq_kizuna_funding_reference UNIQUE (agent_id, pool_id, reference_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_enterprise_balances_pool
+        ON kizuna_enterprise_balances(pool_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_funding_events_agent_created
+        ON kizuna_funding_events(agent_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_funding_events_pool_created
+        ON kizuna_funding_events(pool_id, created_at DESC);
+
+      ALTER TABLE kizuna_billable_settlement_events
+        ALTER COLUMN debt_id DROP NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

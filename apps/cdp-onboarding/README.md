@@ -1,6 +1,10 @@
 # CDP Onboarding (Reference)
 
-Web reference app for CDP embedded end-user onboarding, Kamiyo wallet control plane provisioning, and Base session auth.
+Web reference app for CDP embedded onboarding plus Kizuna operator controls:
+1. Agent wallet provisioning
+2. Spend permission setup
+3. Base session setup
+4. Kizuna account onboarding, repayment, enterprise funding, and transaction review
 
 ## Setup
 
@@ -10,5 +14,5 @@ Web reference app for CDP embedded end-user onboarding, Kamiyo wallet control pl
 ## Run
 
 ```bash
-pnpm --filter @kamiyo/cdp-onboarding dev
+pnpm --filter @kamiyo-org/cdp-onboarding dev
 ```

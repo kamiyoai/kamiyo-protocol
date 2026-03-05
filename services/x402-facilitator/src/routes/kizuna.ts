@@ -1,14 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import {
+  applyKizunaFundingEvent,
   applyKizunaCollateralEvent,
   applyKizunaRepayment,
   getKizunaCollateralPosition,
   getKizunaCollateralSummary,
   getKizunaAccount,
+  getKizunaEnterpriseBalance,
   getKizunaLatestHealthSnapshot,
   getKizunaOutstandingMicro,
   getKizunaPool,
+  listKizunaFundingEvents,
   listKizunaTransactions,
   listKizunaCollateralPositions,
   upsertKizunaAccount,
@@ -162,7 +165,10 @@ export function createKizunaRouter(): Router {
       return;
     }
 
-    const outstandingMicro = await getKizunaOutstandingMicro(agentId);
+    const [outstandingMicro, enterpriseBalance] = await Promise.all([
+      getKizunaOutstandingMicro(agentId),
+      getKizunaEnterpriseBalance(agentId, config.KIZUNA_ENTERPRISE_POOL_ID),
+    ]);
 
     let creditsBalanceMicro: string | null = null;
     try {
@@ -175,6 +181,7 @@ export function createKizunaRouter(): Router {
       account: toApiAccount(account),
       outstandingMicro: outstandingMicro.toString(10),
       creditsBalanceMicro,
+      enterpriseBalance,
     });
   });
 
@@ -313,6 +320,222 @@ export function createKizunaRouter(): Router {
         return;
       }
       sendError(res, 502, message);
+    }
+  });
+
+  router.post('/funding/:agentId/deposit-intent', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+
+    const agentId = asString(req.params.agentId);
+    const lane = parseLane(req.body?.lane) || 'enterprise';
+    const amountMicro = parsePositiveMicro(req.body?.amountMicro);
+    if (!agentId || !amountMicro) {
+      sendError(res, 400, 'agentId and amountMicro are required');
+      return;
+    }
+    if (lane !== 'enterprise') {
+      sendError(res, 400, 'Funding APIs are enterprise lane only');
+      return;
+    }
+
+    const poolId = resolvePoolId(lane, req.body?.poolId, config);
+    const [account, pool] = await Promise.all([
+      getKizunaAccount(agentId),
+      getKizunaPool(poolId),
+    ]);
+    if (!account) {
+      sendError(res, 404, 'Kizuna account not found');
+      return;
+    }
+    if (!pool || pool.lane !== 'enterprise') {
+      sendError(res, 404, 'Enterprise pool not found');
+      return;
+    }
+
+    res.status(201).json({
+      intentId: randomUUID(),
+      agentId,
+      lane,
+      poolId,
+      amountMicro: amountMicro.toString(10),
+      expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    });
+  });
+
+  router.post('/funding/:agentId/confirm', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+
+    const agentId = asString(req.params.agentId);
+    const lane = parseLane(req.body?.lane) || 'enterprise';
+    const referenceId = asString(req.body?.referenceId);
+    const txHash = asString(req.body?.txHash) || null;
+    const amountMicro = parsePositiveMicro(req.body?.amountMicro);
+    if (!agentId || !referenceId || !amountMicro) {
+      sendError(res, 400, 'agentId, amountMicro, and referenceId are required');
+      return;
+    }
+    if (lane !== 'enterprise') {
+      sendError(res, 400, 'Funding APIs are enterprise lane only');
+      return;
+    }
+
+    const poolId = resolvePoolId(lane, req.body?.poolId, config);
+    const [account, pool] = await Promise.all([
+      getKizunaAccount(agentId),
+      getKizunaPool(poolId),
+    ]);
+    if (!account) {
+      sendError(res, 404, 'Kizuna account not found');
+      return;
+    }
+    if (!pool || pool.lane !== 'enterprise') {
+      sendError(res, 404, 'Enterprise pool not found');
+      return;
+    }
+
+    try {
+      const result = await applyKizunaFundingEvent({
+        agentId,
+        lane,
+        poolId,
+        referenceId,
+        eventType: 'deposit',
+        amountMicro: amountMicro.toString(10),
+        txHash,
+      });
+
+      res.json({
+        ok: true,
+        idempotent: result.idempotent,
+        lane,
+        poolId,
+        event: result.event,
+        balance: result.balance,
+      });
+    } catch (err) {
+      sendError(res, 409, err instanceof Error ? err.message : 'kizuna_funding_confirm_failed');
+    }
+  });
+
+  router.get('/funding/:agentId', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+
+    const agentId = asString(req.params.agentId);
+    if (!agentId) {
+      sendError(res, 400, 'agentId is required');
+      return;
+    }
+
+    const lane = parseLane(req.query.lane) || 'enterprise';
+    if (lane !== 'enterprise') {
+      sendError(res, 400, 'Funding APIs are enterprise lane only');
+      return;
+    }
+
+    const poolId = resolvePoolId(lane, req.query.poolId, config);
+    const limitRaw = parseInt(asString(req.query.limit), 10);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+
+    const [account, balance, events] = await Promise.all([
+      getKizunaAccount(agentId),
+      getKizunaEnterpriseBalance(agentId, poolId),
+      listKizunaFundingEvents(agentId, limit, poolId),
+    ]);
+    if (!account) {
+      sendError(res, 404, 'Kizuna account not found');
+      return;
+    }
+
+    res.json({
+      agentId,
+      lane,
+      poolId,
+      balance: balance || {
+        agent_id: agentId,
+        pool_id: poolId,
+        available_micro: '0',
+        reserved_micro: '0',
+        spent_micro: '0',
+        updated_at: new Date(0),
+      },
+      events,
+      count: events.length,
+    });
+  });
+
+  router.post('/funding/:agentId/withdraw', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+
+    const agentId = asString(req.params.agentId);
+    const lane = parseLane(req.body?.lane) || 'enterprise';
+    const referenceId = asString(req.body?.referenceId);
+    const txHash = asString(req.body?.txHash) || null;
+    const amountMicro = parsePositiveMicro(req.body?.amountMicro);
+    if (!agentId || !referenceId || !amountMicro) {
+      sendError(res, 400, 'agentId, amountMicro, and referenceId are required');
+      return;
+    }
+    if (lane !== 'enterprise') {
+      sendError(res, 400, 'Funding APIs are enterprise lane only');
+      return;
+    }
+
+    const poolId = resolvePoolId(lane, req.body?.poolId, config);
+    const [account, pool] = await Promise.all([
+      getKizunaAccount(agentId),
+      getKizunaPool(poolId),
+    ]);
+    if (!account) {
+      sendError(res, 404, 'Kizuna account not found');
+      return;
+    }
+    if (!pool || pool.lane !== 'enterprise') {
+      sendError(res, 404, 'Enterprise pool not found');
+      return;
+    }
+
+    try {
+      const result = await applyKizunaFundingEvent({
+        agentId,
+        lane,
+        poolId,
+        referenceId,
+        eventType: 'withdraw',
+        amountMicro: amountMicro.toString(10),
+        txHash,
+      });
+
+      res.json({
+        ok: true,
+        idempotent: result.idempotent,
+        lane,
+        poolId,
+        event: result.event,
+        balance: result.balance,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'kizuna_funding_withdraw_failed';
+      if (message.includes('insufficient')) {
+        sendError(res, 409, message);
+        return;
+      }
+      sendError(res, 409, message);
     }
   });
 
