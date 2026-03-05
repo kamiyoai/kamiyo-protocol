@@ -109,8 +109,19 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_disputes_opener ON disputes(opener_wallet);
       CREATE INDEX IF NOT EXISTS idx_oracle_votes_dispute ON oracle_votes(dispute_id);
 
-      ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
-        FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
+            FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+          WHEN undefined_column THEN NULL;
+          WHEN undefined_table THEN NULL;
+          WHEN OTHERS THEN
+            RAISE NOTICE 'skipping fk_escrow_dispute migration constraint: %', SQLERRM;
+        END;
+      END $$;
     `,
   },
   {
