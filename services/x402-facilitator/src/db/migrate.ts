@@ -112,8 +112,7 @@ const MIGRATIONS = [
       DO $$
       BEGIN
         BEGIN
-          ALTER TABLE disputes ADD CONSTRAINT fk_disputes_escrow
-            FOREIGN KEY (escrow_id) REFERENCES escrow_records(id);
+          EXECUTE 'ALTER TABLE disputes ADD CONSTRAINT fk_disputes_escrow FOREIGN KEY (escrow_id) REFERENCES escrow_records(id)';
         EXCEPTION
           WHEN duplicate_object THEN NULL;
           WHEN undefined_column THEN NULL;
@@ -123,8 +122,7 @@ const MIGRATIONS = [
         END;
 
         BEGIN
-          ALTER TABLE oracle_votes ADD CONSTRAINT fk_oracle_votes_dispute
-            FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+          EXECUTE 'ALTER TABLE oracle_votes ADD CONSTRAINT fk_oracle_votes_dispute FOREIGN KEY (dispute_id) REFERENCES disputes(id)';
         EXCEPTION
           WHEN duplicate_object THEN NULL;
           WHEN undefined_column THEN NULL;
@@ -134,8 +132,7 @@ const MIGRATIONS = [
         END;
 
         BEGIN
-          ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
-            FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+          EXECUTE 'ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute FOREIGN KEY (dispute_id) REFERENCES disputes(id)';
         EXCEPTION
           WHEN duplicate_object THEN NULL;
           WHEN undefined_column THEN NULL;
