@@ -13,6 +13,9 @@ ENV_FILE="${ENV_FILE:-/etc/kamiyo/kyoshin-exec.env}"
 UNIT_FILE="/etc/systemd/system/kamiyo-kyoshin-exec.service"
 WATCHDOG_SERVICE_FILE="/etc/systemd/system/kamiyo-kyoshin-watchdog.service"
 WATCHDOG_TIMER_FILE="/etc/systemd/system/kamiyo-kyoshin-watchdog.timer"
+ASSESS_BOOTSTRAP_SERVICE_FILE="/etc/systemd/system/kamiyo-kyoshin-assessment-bootstrap.service"
+ASSESS_GROWTH_SERVICE_FILE="/etc/systemd/system/kamiyo-kyoshin-assessment-growth.service"
+ASSESS_GROWTH_TIMER_FILE="/etc/systemd/system/kamiyo-kyoshin-assessment-growth.timer"
 
 if ! id "$RUN_USER" >/dev/null 2>&1; then
   echo "missing user: $RUN_USER" >&2
@@ -157,20 +160,41 @@ fi
 if ! grep -q '^KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT=' "$ENV_FILE"; then
   echo "KAMIYO_SWARM_NEAR_MARKET_WITHDRAW_LIMIT=20" >>"$ENV_FILE"
 fi
+if grep -q '^KYO_ASSESS_STATE_PATH=' "$ENV_FILE"; then
+  sed -i "s|^KYO_ASSESS_STATE_PATH=.*|KYO_ASSESS_STATE_PATH=$RUNTIME_DIR/db/assessment-growth-state.json|" "$ENV_FILE"
+else
+  echo "KYO_ASSESS_STATE_PATH=$RUNTIME_DIR/db/assessment-growth-state.json" >>"$ENV_FILE"
+fi
+if ! grep -q '^KYO_ASSESS_BOOTSTRAP_TARGET=' "$ENV_FILE"; then
+  echo "KYO_ASSESS_BOOTSTRAP_TARGET=1000" >>"$ENV_FILE"
+fi
+if ! grep -q '^KYO_ASSESS_MAX_CYCLES_PER_RUN=' "$ENV_FILE"; then
+  echo "KYO_ASSESS_MAX_CYCLES_PER_RUN=1000" >>"$ENV_FILE"
+fi
+if ! grep -q '^KYO_ASSESS_MODE=' "$ENV_FILE"; then
+  echo "KYO_ASSESS_MODE=auto" >>"$ENV_FILE"
+fi
 
 chmod 600 "$ENV_FILE"
 sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-exec.service" >"$UNIT_FILE"
+sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-assessment-bootstrap.service" >"$ASSESS_BOOTSTRAP_SERVICE_FILE"
+sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-assessment-growth.service" >"$ASSESS_GROWTH_SERVICE_FILE"
 chmod 644 "$UNIT_FILE"
+chmod 644 "$ASSESS_BOOTSTRAP_SERVICE_FILE" "$ASSESS_GROWTH_SERVICE_FILE"
 install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-watchdog.service" "$WATCHDOG_SERVICE_FILE"
 install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-watchdog.timer" "$WATCHDOG_TIMER_FILE"
+install -m 644 "$APP_ROOT/ops/kyoshin-exec/kamiyo-kyoshin-assessment-growth.timer" "$ASSESS_GROWTH_TIMER_FILE"
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/promote-stage.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/guarded-promote.sh" /usr/local/bin/kamiyo-kyoshin-exec-stage-guarded
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/preflight.sh" /usr/local/bin/kamiyo-kyoshin-exec-preflight
 install -m 750 "$APP_ROOT/ops/kyoshin-exec/watchdog.sh" /usr/local/bin/kamiyo-kyoshin-exec-watchdog
+sed "s|__KAMIYO_APP_ROOT__|$APP_ROOT|g" "$APP_ROOT/ops/kyoshin-exec/assessment-growth.sh" >/usr/local/bin/kamiyo-kyoshin-assessment-growth
+chmod 750 /usr/local/bin/kamiyo-kyoshin-assessment-growth
 
 systemctl daemon-reload
 systemctl enable --now kamiyo-kyoshin-exec.service
 systemctl enable --now kamiyo-kyoshin-watchdog.timer
+systemctl enable --now kamiyo-kyoshin-assessment-growth.timer
 systemctl start kamiyo-kyoshin-watchdog.service
 sleep 2
 systemctl --no-pager --full status kamiyo-kyoshin-exec.service | sed -n '1,30p'
