@@ -133,6 +133,8 @@ function parseFacilitatorUrls(): string[] {
 
 const FACILITATOR_URLS = parseFacilitatorUrls();
 const FACILITATOR_URL = FACILITATOR_URLS[0] || 'https://x402.kamiyo.ai';
+const KIZUNA_UPSTREAM_URL = normalizeFacilitatorUrl(process.env.KIZUNA_UPSTREAM_URL || '');
+const KIZUNA_PROXY_TIMEOUT_MS = parseInt(process.env.KIZUNA_PROXY_TIMEOUT_MS || '10000', 10);
 const DKG_ENDPOINT = process.env.DKG_ENDPOINT || '';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
 const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
@@ -502,6 +504,83 @@ function getPaymentHeader(req: Request): string | null {
   return null;
 }
 
+function getForwardHeaders(req: Request): Headers {
+  const headers = new Headers();
+  const candidates = ['accept', 'content-type', 'authorization', 'x-api-key', 'idempotency-key'];
+  for (const key of candidates) {
+    const value = req.headers[key];
+    if (Array.isArray(value)) {
+      if (value.length > 0) headers.set(key, value.join(','));
+      continue;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+
+function readProxyBody(req: Request): string | undefined {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return undefined;
+  }
+  if (req.body === undefined) {
+    return undefined;
+  }
+  if (typeof req.body === 'string') {
+    return req.body;
+  }
+  return JSON.stringify(req.body);
+}
+
+type SupportedPayload = {
+  kinds?: unknown;
+  extensions?: unknown;
+  signers?: unknown;
+};
+
+function mergeSupportedPayload(local: SupportedPayload, remote: SupportedPayload): SupportedPayload {
+  const localKinds = Array.isArray(local.kinds) ? local.kinds : [];
+  const remoteKinds = Array.isArray(remote.kinds) ? remote.kinds : [];
+  const localExtensions = Array.isArray(local.extensions) ? local.extensions : [];
+  const remoteExtensions = Array.isArray(remote.extensions) ? remote.extensions : [];
+  const localSigners =
+    local.signers && typeof local.signers === 'object' ? (local.signers as Record<string, unknown>) : {};
+  const remoteSigners =
+    remote.signers && typeof remote.signers === 'object' ? (remote.signers as Record<string, unknown>) : {};
+
+  return {
+    kinds: remoteKinds.length > 0 ? remoteKinds : localKinds,
+    extensions: Array.from(new Set([...localExtensions, ...remoteExtensions])),
+    signers: { ...localSigners, ...remoteSigners },
+  };
+}
+
+async function fetchKizunaSupported(local: SupportedPayload): Promise<SupportedPayload> {
+  if (!KIZUNA_UPSTREAM_URL) {
+    return local;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KIZUNA_PROXY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${KIZUNA_UPSTREAM_URL}/supported`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return local;
+    }
+
+    const remote = (await response.json()) as SupportedPayload;
+    return mergeSupportedPayload(local, remote);
+  } catch {
+    return local;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function x402Middleware(basePrice: number, description: string) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const resource = req.path;
@@ -690,11 +769,49 @@ async function fetchSignals(): Promise<Record<string, unknown>[]> {
 }
 
 app.get('/supported', (_req, res) => {
-  res.json({
+  const localPayload: SupportedPayload = {
     kinds: getAdvertisedKinds(),
     extensions: ['discovery'],
     signers: getAdvertisedSigners(),
-  });
+  };
+
+  fetchKizunaSupported(localPayload)
+    .then((payload) => res.json(payload))
+    .catch(() => res.json(localPayload));
+});
+
+app.use('/kizuna', async (req, res) => {
+  if (!KIZUNA_UPSTREAM_URL) {
+    return res.status(404).json({
+      error: 'Kizuna is not configured on this gateway',
+    });
+  }
+
+  const targetUrl = `${KIZUNA_UPSTREAM_URL}${req.originalUrl}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KIZUNA_PROXY_TIMEOUT_MS);
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: req.method,
+      headers: getForwardHeaders(req),
+      body: readProxyBody(req),
+      signal: controller.signal,
+    });
+
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const raw = await upstream.text();
+    res.status(upstream.status);
+    res.set('content-type', contentType);
+    return res.send(raw);
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? 'Kizuna upstream timeout'
+      : 'Kizuna upstream unavailable';
+    return res.status(502).json({ error: message });
+  } finally {
+    clearTimeout(timeout);
+  }
 });
 
 // Mount facilitator endpoints (/verify, /settle, /facilitator-info)
@@ -715,6 +832,7 @@ app.get('/health', (_req, res) => {
       settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
       dkg: Boolean(DKG_ENDPOINT),
       facilitatorMode: FACILITATOR_MODE,
+      kizunaProxy: Boolean(KIZUNA_UPSTREAM_URL),
     },
   });
 });
