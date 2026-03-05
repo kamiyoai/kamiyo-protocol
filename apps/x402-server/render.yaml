@@ -27,5 +27,9 @@ services:
         value: "https://dkg.kamiyo.ai"
       - key: PAYAI_FACILITATOR_URL
         value: "https://facilitator.payai.network"
+      - key: KIZUNA_UPSTREAM_URL
+        sync: false
+      - key: KIZUNA_PROXY_TIMEOUT_MS
+        value: "10000"
     healthCheckPath: /health
     autoDeploy: true
