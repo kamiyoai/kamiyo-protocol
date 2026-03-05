@@ -95,7 +95,7 @@ const MIGRATIONS = [
 
       CREATE TABLE IF NOT EXISTS oracle_votes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        dispute_id UUID NOT NULL REFERENCES disputes(id),
+        dispute_id UUID NOT NULL,
         oracle TEXT NOT NULL,
         commitment_hash TEXT NOT NULL,
         quality_score SMALLINT,
@@ -111,6 +111,17 @@ const MIGRATIONS = [
 
       DO $$
       BEGIN
+        BEGIN
+          ALTER TABLE oracle_votes ADD CONSTRAINT fk_oracle_votes_dispute
+            FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+          WHEN undefined_column THEN NULL;
+          WHEN undefined_table THEN NULL;
+          WHEN OTHERS THEN
+            RAISE NOTICE 'skipping fk_oracle_votes_dispute migration constraint: %', SQLERRM;
+        END;
+
         BEGIN
           ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
             FOREIGN KEY (dispute_id) REFERENCES disputes(id);
