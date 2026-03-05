@@ -11,6 +11,7 @@ import {
   createKizunaReservation,
   getKizunaCollateralPosition,
   getKizunaCollateralSummary,
+  getKizunaEnterpriseBalance,
   getKizunaFastpathPool,
   getKizunaAccount,
   getKizunaOutstandingMicro,
@@ -326,9 +327,11 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
               decisionId: replay.decision.id,
               approvedMicro: replay.decision.approved_micro,
               availableMicro: replay.decision.available_micro,
+              lockedMicro: replay.locked_micro,
               outstandingMicro: replay.decision.outstanding_micro,
               lane: replay.lane,
               poolId: replay.pool_id,
+              fundingMode: replay.funding_mode,
               policyPackId: replay.decision.policy_pack_id,
               riskBand: replay.decision.risk_band,
               ltvBps: replay.decision.ltv_bps,
@@ -351,10 +354,13 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         return;
       }
 
-      const [snapshot, outstandingMicro, fastpathPool] = await Promise.all([
+      const [snapshot, outstandingMicro, fastpathPool, enterpriseBalance] = await Promise.all([
         getKizunaUnderwriteSnapshot(requirementKizuna.agentId, payment.payer),
         getKizunaOutstandingMicro(requirementKizuna.agentId, { lane, poolId }),
         lane === 'crypto-fast' ? getKizunaFastpathPool(poolId) : Promise.resolve(null),
+        lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND
+          ? getKizunaEnterpriseBalance(requirementKizuna.agentId, poolId)
+          : Promise.resolve(null),
       ]);
 
       if (!snapshot) {
@@ -365,6 +371,20 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
       if (lane === 'crypto-fast' && (!fastpathPool || fastpathPool.status !== 'active')) {
         sendVerifyFailure(res, 409, 'kizuna_pool_unavailable', 'Fast path pool is unavailable', payment.payer);
         return;
+      }
+
+      if (lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND) {
+        const prefundAvailable = parseNonNegativeBigint(enterpriseBalance?.available_micro);
+        if (prefundAvailable < requestedMicro) {
+          sendVerifyFailure(
+            res,
+            409,
+            'kizuna_prefund_insufficient',
+            'Insufficient prefunded balance for enterprise lane',
+            payment.payer
+          );
+          return;
+        }
       }
 
       const laneMaxSingleMicro =
@@ -512,13 +532,34 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         decisionEnvelopeHash: envelopeHash,
       });
 
-      const approvedMicro = parseNonNegativeBigint(decisionResult.approvedMicro);
+      const decisionAvailableMicro = parseNonNegativeBigint(decisionResult.availableMicro);
+      const prefundAvailableMicro =
+        lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND
+          ? parseNonNegativeBigint(enterpriseBalance?.available_micro)
+          : null;
+      const effectiveAvailableMicro =
+        prefundAvailableMicro == null
+          ? decisionAvailableMicro
+          : minBigint(decisionAvailableMicro, prefundAvailableMicro);
+      const approvedMicro = minBigint(
+        parseNonNegativeBigint(decisionResult.approvedMicro),
+        effectiveAvailableMicro
+      );
       const reserveMicro =
         approvedMicro > 0n ? approvedMicro : config.KIZUNA_SHADOW_MODE ? requestedMicro : 0n;
+      const requestedFundingMode =
+        lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND
+          ? 'prefunded'
+          : lane === 'crypto-fast'
+            ? 'collateralized'
+            : 'none';
+      const requestedLockedMicro = requestedFundingMode === 'prefunded' ? reserveMicro : 0n;
+      let reservationLockedMicro = requestedLockedMicro;
+      let reservationFundingMode: 'none' | 'prefunded' | 'collateralized' = requestedFundingMode;
 
       if (reserveMicro > 0n) {
         try {
-          await createKizunaReservation({
+          const reservation = await createKizunaReservation({
             decisionId: decision.id,
             agentId: requirementKizuna.agentId,
             payerWallet: payment.payer,
@@ -528,17 +569,35 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
             poolId: decisionResult.poolId,
             amountMicro: reserveMicro.toString(10),
             ttlMs: config.KIZUNA_RESERVATION_TTL_MS,
+            fundingMode: requestedFundingMode,
+            lockedMicro: requestedLockedMicro.toString(10),
           });
-        } catch {
+          reservationLockedMicro = parseNonNegativeBigint(reservation.locked_micro);
+          reservationFundingMode = reservation.funding_mode;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'kizuna_reservation_failed';
+          if (message.includes('kizuna_prefund_insufficient')) {
+            sendVerifyFailure(
+              res,
+              409,
+              'kizuna_prefund_insufficient',
+              'Insufficient prefunded balance for enterprise lane',
+              payment.payer
+            );
+            return;
+          }
           const idempotentReservation = await getKizunaReservationByNonce(payment.payer, payment.nonce);
           if (!idempotentReservation) {
             sendVerifyFailure(res, 500, 'server_error', 'Failed to reserve Kizuna credit', payment.payer);
             return;
           }
+          reservationLockedMicro = parseNonNegativeBigint(idempotentReservation.locked_micro);
+          reservationFundingMode = idempotentReservation.funding_mode;
         }
       }
 
-      const effectiveApproved = decisionResult.approved || config.KIZUNA_SHADOW_MODE;
+      const decisionApproved = decisionResult.approved && approvedMicro > 0n;
+      const effectiveApproved = decisionApproved || config.KIZUNA_SHADOW_MODE;
       const response: VerifyResponse = {
         valid: effectiveApproved,
         isValid: effectiveApproved,
@@ -554,11 +613,13 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
             sufficient: effectiveApproved,
           },
           kizuna: {
-            approved: decisionResult.approved,
+            approved: decisionApproved,
             decisionId: decision.id,
-            approvedMicro: decisionResult.approvedMicro,
-            availableMicro: decisionResult.availableMicro,
+            approvedMicro: approvedMicro.toString(10),
+            availableMicro: effectiveAvailableMicro.toString(10),
+            lockedMicro: reservationLockedMicro.toString(10),
             outstandingMicro: decisionResult.outstandingMicro,
+            fundingMode: reservationFundingMode,
             lane: decisionResult.lane,
             decisionEnvelope: decisionResult.decisionEnvelope,
             policyPackId: decisionResult.policyPackId,

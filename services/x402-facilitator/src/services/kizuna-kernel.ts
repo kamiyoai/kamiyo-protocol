@@ -298,7 +298,7 @@ export async function evaluateKizunaKernelDecision(input: KernelEvaluateInput): 
 
 export async function commitKizunaKernelDecision(input: {
   decisionId: string;
-  debtId: string;
+  debtId?: string;
   settlementId: string;
   txHash: string;
   lane: KizunaLane;

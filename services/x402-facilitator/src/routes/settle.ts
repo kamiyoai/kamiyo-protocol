@@ -34,6 +34,7 @@ import {
   releasePaymentSessionSpend,
   finalizeKizunaSettlement,
   getKizunaAccount,
+  getKizunaBillableSettlementEvent,
   getKizunaDebtByReservationId,
   getKizunaReservationByNonce,
   releaseKizunaReservation,
@@ -361,12 +362,50 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
 
       if (reservation.status === 'consumed') {
         const debt = await getKizunaDebtByReservationId(reservation.id);
-        if (!reservation.tx_hash || !debt) {
+        const prefundedEnterpriseReplay =
+          reservation.lane === 'enterprise' && reservation.funding_mode === 'prefunded';
+        if (
+          !reservation.tx_hash ||
+          (!debt && !prefundedEnterpriseReplay)
+        ) {
           sendSettleFailure(res, 409, 'kizuna_reservation_consumed', 'Kizuna reservation already consumed', network, payment.payer);
           return;
         }
 
-        const feeFromDb = Number((await getSettlementById(debt.settlement_id))?.fee_amount || '0');
+        let kernelCommitted = true;
+        let kernelCommitError: string | null = null;
+        try {
+          await commitKizunaKernelDecision({
+            decisionId: reservation.decision.id,
+            debtId: debt?.id,
+            settlementId: debt?.settlement_id || reservation.settlement_id || '',
+            txHash: reservation.tx_hash,
+            lane: reservation.lane,
+            poolId: reservation.pool_id,
+          });
+        } catch (err) {
+          kernelCommitted = false;
+          kernelCommitError = getErrorMessage(err);
+          if (config.KIZUNA_KERNEL_FAIL_CLOSED && !config.KIZUNA_SHADOW_MODE) {
+            sendSettleFailure(
+              res,
+              503,
+              'kizuna_kernel_unavailable',
+              `Kizuna kernel commit failed after settlement; retry settle to finalize: ${kernelCommitError}`,
+              network,
+              payment.payer
+            );
+            return;
+          }
+        }
+
+        const billableEvent = await getKizunaBillableSettlementEvent(
+          reservation.id,
+          debt?.settlement_id || reservation.settlement_id || ''
+        );
+
+        const settledId = debt?.settlement_id || reservation.settlement_id || '';
+        const feeFromDb = Number((await getSettlementById(settledId))?.fee_amount || '0');
         const netFromDb = amount - feeFromDb;
         res.json({
           success: true,
@@ -380,10 +419,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           idempotent: true,
           extensions: {
             kizuna: {
-              debtId: debt.id,
-              outstandingMicro: debt.outstanding_micro,
-              lane: debt.lane,
-              poolId: debt.pool_id,
+              debtId: debt?.id || null,
+              outstandingMicro: debt?.outstanding_micro || '0',
+              fundingConsumedMicro:
+                reservation.funding_mode === 'prefunded' ? reservation.locked_micro : '0',
+              lane: reservation.lane,
+              poolId: reservation.pool_id,
+              billableEventId: billableEvent?.id || null,
+              billableIdempotencyKey:
+                billableEvent?.idempotency_key || `${reservation.id}:${settledId}`,
+              kernelCommitted,
+              kernelCommitError,
             },
           },
         });
@@ -544,7 +590,7 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           );
         }
 
-        const debt = await finalizeKizunaSettlement({
+        const settlementResult = await finalizeKizunaSettlement({
           reservationId: reservation.id,
           settlementId: settlement.id,
           txHash: onchain.txHash,
@@ -554,11 +600,15 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           poolId,
           decisionEnvelopeHash: envelopeHash,
         });
+        const billableEvent = await getKizunaBillableSettlementEvent(
+          reservation.id,
+          settlement.id
+        );
 
         try {
           await commitKizunaKernelDecision({
             decisionId: reservation.decision.id,
-            debtId: debt.id,
+            debtId: settlementResult.debt?.id,
             settlementId: settlement.id,
             txHash: onchain.txHash,
             lane,
@@ -567,6 +617,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           kernelCommitted = true;
         } catch (err) {
           kernelCommitError = getErrorMessage(err);
+          if (config.KIZUNA_KERNEL_FAIL_CLOSED && !config.KIZUNA_SHADOW_MODE) {
+            sendSettleFailure(
+              res,
+              503,
+              'kizuna_kernel_unavailable',
+              `Kizuna kernel commit failed after settlement; retry settle to finalize: ${kernelCommitError}`,
+              network,
+              payment.payer
+            );
+            return;
+          }
         }
 
         res.json({
@@ -580,13 +641,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           network,
           extensions: {
             kizuna: {
-              debtId: debt.id,
-              outstandingMicro: debt.outstanding_micro,
-              principalMicro: debt.principal_micro,
-              lane: debt.lane,
-              poolId: debt.pool_id,
-              decisionEnvelopeHash: debt.decision_envelope_hash,
+              debtId: settlementResult.debt?.id || null,
+              outstandingMicro: settlementResult.debt?.outstanding_micro || '0',
+              principalMicro: settlementResult.debt?.principal_micro || null,
+              fundingConsumedMicro: settlementResult.fundingConsumedMicro,
+              lane: settlementResult.lane,
+              poolId: settlementResult.poolId,
+              decisionEnvelopeHash: settlementResult.debt?.decision_envelope_hash || null,
               decisionId: reservation.decision.id,
+              billableEventId: billableEvent?.id || null,
+              billableIdempotencyKey:
+                billableEvent?.idempotency_key || `${reservation.id}:${settlement.id}`,
               kernelCommitted,
               kernelCommitError,
             },

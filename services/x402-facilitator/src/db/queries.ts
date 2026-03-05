@@ -526,6 +526,7 @@ export type KizunaAccountRow = {
 };
 
 export type KizunaLane = 'enterprise' | 'crypto-fast';
+export type KizunaFundingMode = 'none' | 'prefunded' | 'collateralized';
 
 export type KizunaDecisionRow = {
   id: string;
@@ -562,6 +563,8 @@ export type KizunaReservationRow = {
   lane: KizunaLane;
   pool_id: string;
   amount_micro: string;
+  funding_mode: KizunaFundingMode;
+  locked_micro: string;
   status: 'reserved' | 'consumed' | 'released' | 'expired';
   expires_at: Date;
   settlement_id: string | null;
@@ -661,6 +664,59 @@ export type KizunaCollateralAssetRow = {
   updated_at: Date;
 };
 
+export type KizunaBillableSettlementEventRow = {
+  id: string;
+  reservation_id: string;
+  settlement_id: string;
+  debt_id: string | null;
+  agent_id: string;
+  payer_wallet: string;
+  merchant_wallet: string;
+  network: string;
+  lane: KizunaLane;
+  pool_id: string;
+  amount_micro: string;
+  idempotency_key: string;
+  payload: unknown;
+  emitted_at: Date;
+};
+
+export type KizunaEnterpriseBalanceRow = {
+  agent_id: string;
+  pool_id: string;
+  available_micro: string;
+  reserved_micro: string;
+  spent_micro: string;
+  updated_at: Date;
+};
+
+export type KizunaFundingEventRow = {
+  id: string;
+  agent_id: string;
+  lane: KizunaLane;
+  pool_id: string;
+  reference_id: string;
+  event_type: 'deposit' | 'withdraw';
+  amount_micro: string;
+  tx_hash: string | null;
+  metadata_json: unknown;
+  created_at: Date;
+};
+
+export type KizunaFinalizeSettlementResult = {
+  lane: KizunaLane;
+  poolId: string;
+  reservationId: string;
+  settlementId: string;
+  agentId: string;
+  payerWallet: string;
+  network: string;
+  txHash: string;
+  amountMicro: string;
+  fundingConsumedMicro: string;
+  debt: KizunaDebtRow | null;
+};
+
 export type KizunaUnderwriteSnapshot = {
   accountCreatedAt: Date;
   settlementsConfirmed: number;
@@ -725,6 +781,65 @@ async function bumpKizunaPoolReserve(
       toNumericDelta(params.collateralDelta ?? 0n),
     ]
   );
+}
+
+async function ensureKizunaEnterpriseBalance(
+  client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  agentId: string,
+  poolId: string
+): Promise<void> {
+  await client.query(
+    `INSERT INTO kizuna_enterprise_balances (agent_id, pool_id, available_micro, reserved_micro, spent_micro)
+     VALUES ($1, $2, 0, 0, 0)
+     ON CONFLICT (agent_id, pool_id) DO NOTHING`,
+    [agentId, poolId]
+  );
+}
+
+async function mutateKizunaEnterpriseBalance(
+  client: { query: (text: string, params?: unknown[]) => Promise<{ rows: unknown[] }> },
+  params: {
+    agentId: string;
+    poolId: string;
+    availableDelta?: bigint;
+    reservedDelta?: bigint;
+    spentDelta?: bigint;
+    minAvailable?: bigint;
+    minReserved?: bigint;
+  }
+): Promise<KizunaEnterpriseBalanceRow | null> {
+  await ensureKizunaEnterpriseBalance(client, params.agentId, params.poolId);
+  const result = await client.query(
+    `UPDATE kizuna_enterprise_balances
+     SET available_micro = available_micro + $3::numeric,
+         reserved_micro = reserved_micro + $4::numeric,
+         spent_micro = spent_micro + $5::numeric,
+         updated_at = NOW()
+     WHERE agent_id = $1
+       AND pool_id = $2
+       AND available_micro + $3::numeric >= 0
+       AND reserved_micro + $4::numeric >= 0
+       AND spent_micro + $5::numeric >= 0
+       AND ($6::numeric IS NULL OR available_micro >= $6::numeric)
+       AND ($7::numeric IS NULL OR reserved_micro >= $7::numeric)
+     RETURNING
+       agent_id,
+       pool_id,
+       available_micro::text,
+       reserved_micro::text,
+       spent_micro::text,
+       updated_at`,
+    [
+      params.agentId,
+      params.poolId,
+      toNumericDelta(params.availableDelta ?? 0n),
+      toNumericDelta(params.reservedDelta ?? 0n),
+      toNumericDelta(params.spentDelta ?? 0n),
+      params.minAvailable != null ? params.minAvailable.toString(10) : null,
+      params.minReserved != null ? params.minReserved.toString(10) : null,
+    ]
+  );
+  return (result.rows[0] as KizunaEnterpriseBalanceRow | undefined) || null;
 }
 
 export async function upsertKizunaAccount(params: {
@@ -941,8 +1056,18 @@ export async function createKizunaReservation(params: {
   poolId: string;
   amountMicro: string;
   ttlMs: number;
+  fundingMode?: KizunaFundingMode;
+  lockedMicro?: string;
 }): Promise<KizunaReservationRow> {
   return withTransaction(async (client) => {
+    const fundingMode: KizunaFundingMode =
+      params.fundingMode || (params.lane === 'crypto-fast' ? 'collateralized' : 'none');
+    const lockedMicro = parseMicro(params.lockedMicro);
+
+    if (fundingMode === 'prefunded' && lockedMicro <= 0n) {
+      throw new Error('kizuna_prefund_lock_invalid');
+    }
+
     const result = await client.query<KizunaReservationRow>(
       `INSERT INTO kizuna_credit_reservations (
          decision_id,
@@ -953,9 +1078,11 @@ export async function createKizunaReservation(params: {
          lane,
          pool_id,
          amount_micro,
+         funding_mode,
+         locked_micro,
          expires_at
        )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW() + ($9::text || ' milliseconds')::interval)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, NOW() + ($11::text || ' milliseconds')::interval)
        RETURNING
          id,
          decision_id,
@@ -966,6 +1093,8 @@ export async function createKizunaReservation(params: {
          lane,
          pool_id,
          amount_micro::text,
+         funding_mode,
+         locked_micro::text,
          status,
          expires_at,
          settlement_id::text,
@@ -981,6 +1110,8 @@ export async function createKizunaReservation(params: {
         params.lane,
         params.poolId,
         params.amountMicro,
+        fundingMode,
+        lockedMicro.toString(10),
         String(params.ttlMs),
       ]
     );
@@ -991,6 +1122,20 @@ export async function createKizunaReservation(params: {
       lane: row.lane,
       reservedDelta: parseMicro(row.amount_micro),
     });
+
+    if (row.funding_mode === 'prefunded') {
+      const locked = parseMicro(row.locked_micro);
+      const balance = await mutateKizunaEnterpriseBalance(client, {
+        agentId: row.agent_id,
+        poolId: row.pool_id,
+        availableDelta: -locked,
+        reservedDelta: locked,
+        minAvailable: locked,
+      });
+      if (!balance) {
+        throw new Error('kizuna_prefund_insufficient');
+      }
+    }
 
     return row;
   });
@@ -1036,6 +1181,8 @@ export async function getKizunaReservationByNonce(
        r.lane,
        r.pool_id,
        r.amount_micro::text,
+       r.funding_mode,
+       r.locked_micro::text,
        r.status,
        r.expires_at,
        r.settlement_id::text,
@@ -1080,6 +1227,8 @@ export async function getKizunaReservationByNonce(
     lane: row.lane,
     pool_id: row.pool_id,
     amount_micro: row.amount_micro,
+    funding_mode: row.funding_mode,
+    locked_micro: row.locked_micro,
     status: row.status,
     expires_at: row.expires_at,
     settlement_id: row.settlement_id,
@@ -1122,11 +1271,14 @@ export async function releaseKizunaReservation(
       amount_micro: string;
       lane: KizunaLane;
       pool_id: string;
+      agent_id: string;
+      funding_mode: KizunaFundingMode;
+      locked_micro: string;
     }>(
       `UPDATE kizuna_credit_reservations
        SET status = $2, updated_at = NOW()
        WHERE id = $1 AND status = 'reserved'
-       RETURNING amount_micro::text, lane, pool_id`,
+       RETURNING amount_micro::text, lane, pool_id, agent_id, funding_mode, locked_micro::text`,
       [reservationId, status]
     );
 
@@ -1138,6 +1290,20 @@ export async function releaseKizunaReservation(
       lane: row.lane,
       reservedDelta: -parseMicro(row.amount_micro),
     });
+
+    if (row.funding_mode === 'prefunded') {
+      const locked = parseMicro(row.locked_micro);
+      const balance = await mutateKizunaEnterpriseBalance(client, {
+        agentId: row.agent_id,
+        poolId: row.pool_id,
+        availableDelta: locked,
+        reservedDelta: -locked,
+        minReserved: locked,
+      });
+      if (!balance) {
+        throw new Error('kizuna_prefund_release_failed');
+      }
+    }
   });
 }
 
@@ -1204,7 +1370,7 @@ export async function finalizeKizunaSettlement(params: {
   lane?: KizunaLane;
   poolId?: string;
   decisionEnvelopeHash?: string | null;
-}): Promise<KizunaDebtRow> {
+}): Promise<KizunaFinalizeSettlementResult> {
   return withTransaction(async (client) => {
     const reservationResult = await client.query<{
       id: string;
@@ -1216,6 +1382,8 @@ export async function finalizeKizunaSettlement(params: {
       lane: KizunaLane;
       pool_id: string;
       amount_micro: string;
+      funding_mode: KizunaFundingMode;
+      locked_micro: string;
       status: KizunaReservationRow['status'];
       expires_at: Date;
       tx_hash: string | null;
@@ -1232,6 +1400,8 @@ export async function finalizeKizunaSettlement(params: {
          r.lane,
          r.pool_id,
          r.amount_micro::text,
+         r.funding_mode,
+         r.locked_micro::text,
          r.status,
          r.expires_at,
          r.tx_hash,
@@ -1269,6 +1439,19 @@ export async function finalizeKizunaSettlement(params: {
         lane: reservation.lane,
         reservedDelta: -parseMicro(reservation.amount_micro),
       });
+      if (reservation.funding_mode === 'prefunded') {
+        const locked = parseMicro(reservation.locked_micro);
+        const balance = await mutateKizunaEnterpriseBalance(client, {
+          agentId: reservation.agent_id,
+          poolId: reservation.pool_id,
+          availableDelta: locked,
+          reservedDelta: -locked,
+          minReserved: locked,
+        });
+        if (!balance) {
+          throw new Error('kizuna_prefund_release_failed');
+        }
+      }
       throw new Error('kizuna_reservation_expired');
     }
 
@@ -1285,62 +1468,84 @@ export async function finalizeKizunaSettlement(params: {
       [params.settlementId, params.feeAmount, params.feeTxHash]
     );
 
-    const debtResult = await client.query<KizunaDebtRow>(
-      `INSERT INTO kizuna_debts (
-         agent_id,
-         payer_wallet,
-         repay_wallet,
-         network,
-         lane,
-         pool_id,
-         settlement_id,
-         decision_id,
-         reservation_id,
-         decision_envelope_hash,
-         principal_micro,
-         outstanding_micro,
-         status,
-         tx_hash
-       )
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,'open',$12)
-       ON CONFLICT (settlement_id) DO UPDATE
-       SET tx_hash = EXCLUDED.tx_hash,
-           decision_envelope_hash = COALESCE(EXCLUDED.decision_envelope_hash, kizuna_debts.decision_envelope_hash),
-           updated_at = NOW()
-       RETURNING
-         id,
-         agent_id,
-         payer_wallet,
-         repay_wallet,
-         network,
-         lane,
-         pool_id,
-         settlement_id::text,
-         decision_id::text,
-         reservation_id::text,
-         decision_envelope_hash,
-         principal_micro::text,
-         outstanding_micro::text,
-         status,
-         tx_hash,
-         created_at,
-         updated_at,
-         closed_at`,
-      [
-        reservation.agent_id,
-        reservation.payer_wallet,
-        reservation.repay_wallet,
-        reservation.network,
-        reservation.lane,
-        reservation.pool_id,
-        params.settlementId,
-        reservation.decision_id,
-        reservation.id,
-        params.decisionEnvelopeHash ?? reservation.decision_envelope_hash,
-        reservation.amount_micro,
-        params.txHash,
-      ]
-    );
+    const isPrefundedEnterprise =
+      reservation.lane === 'enterprise' && reservation.funding_mode === 'prefunded';
+    let debt: KizunaDebtRow | null = null;
+
+    if (isPrefundedEnterprise) {
+      const locked = parseMicro(reservation.locked_micro);
+      if (locked <= 0n) {
+        throw new Error('kizuna_prefund_lock_invalid');
+      }
+      const balance = await mutateKizunaEnterpriseBalance(client, {
+        agentId: reservation.agent_id,
+        poolId: reservation.pool_id,
+        reservedDelta: -locked,
+        spentDelta: locked,
+        minReserved: locked,
+      });
+      if (!balance) {
+        throw new Error('kizuna_prefund_consume_failed');
+      }
+    } else {
+      const debtResult = await client.query<KizunaDebtRow>(
+        `INSERT INTO kizuna_debts (
+           agent_id,
+           payer_wallet,
+           repay_wallet,
+           network,
+           lane,
+           pool_id,
+           settlement_id,
+           decision_id,
+           reservation_id,
+           decision_envelope_hash,
+           principal_micro,
+           outstanding_micro,
+           status,
+           tx_hash
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,'open',$12)
+         ON CONFLICT (settlement_id) DO UPDATE
+         SET tx_hash = EXCLUDED.tx_hash,
+             decision_envelope_hash = COALESCE(EXCLUDED.decision_envelope_hash, kizuna_debts.decision_envelope_hash),
+             updated_at = NOW()
+         RETURNING
+           id,
+           agent_id,
+           payer_wallet,
+           repay_wallet,
+           network,
+           lane,
+           pool_id,
+           settlement_id::text,
+           decision_id::text,
+           reservation_id::text,
+           decision_envelope_hash,
+           principal_micro::text,
+           outstanding_micro::text,
+           status,
+           tx_hash,
+           created_at,
+           updated_at,
+           closed_at`,
+        [
+          reservation.agent_id,
+          reservation.payer_wallet,
+          reservation.repay_wallet,
+          reservation.network,
+          reservation.lane,
+          reservation.pool_id,
+          params.settlementId,
+          reservation.decision_id,
+          reservation.id,
+          params.decisionEnvelopeHash ?? reservation.decision_envelope_hash,
+          reservation.amount_micro,
+          params.txHash,
+        ]
+      );
+      debt = debtResult.rows[0];
+    }
 
     await client.query(
       `UPDATE kizuna_credit_reservations
@@ -1352,15 +1557,113 @@ export async function finalizeKizunaSettlement(params: {
       [reservation.id, params.settlementId, params.txHash]
     );
 
+    const settlementMeta = await client.query<{ merchant_wallet: string }>(
+      `SELECT merchant_wallet
+       FROM settlements
+       WHERE id = $1`,
+      [params.settlementId]
+    );
+    const merchantWallet = settlementMeta.rows[0]?.merchant_wallet;
+    if (!merchantWallet) {
+      throw new Error('kizuna_settlement_not_found');
+    }
+
+    const billablePayload = {
+      eventType: 'kizuna.settlement.confirmed',
+      reservationId: reservation.id,
+      settlementId: params.settlementId,
+      debtId: debt?.id || null,
+      decisionId: reservation.decision_id,
+      txHash: params.txHash,
+      lane: reservation.lane,
+      poolId: reservation.pool_id,
+      network: reservation.network,
+      amountMicro: reservation.amount_micro,
+      agentId: reservation.agent_id,
+      payerWallet: reservation.payer_wallet,
+      merchantWallet,
+    };
+
+    await client.query(
+      `INSERT INTO kizuna_billable_settlement_events (
+         reservation_id,
+         settlement_id,
+         debt_id,
+         agent_id,
+         payer_wallet,
+         merchant_wallet,
+         network,
+         lane,
+         pool_id,
+         amount_micro,
+         idempotency_key,
+         payload
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
+       ON CONFLICT (reservation_id, settlement_id) DO NOTHING`,
+      [
+        reservation.id,
+        params.settlementId,
+        debt?.id || null,
+        reservation.agent_id,
+        reservation.payer_wallet,
+        merchantWallet,
+        reservation.network,
+        reservation.lane,
+        reservation.pool_id,
+        reservation.amount_micro,
+        `${reservation.id}:${params.settlementId}`,
+        JSON.stringify(billablePayload),
+      ]
+    );
+
     await bumpKizunaPoolReserve(client, {
       poolId: reservation.pool_id,
       lane: reservation.lane,
       reservedDelta: -parseMicro(reservation.amount_micro),
-      outstandingDelta: parseMicro(reservation.amount_micro),
+      outstandingDelta: isPrefundedEnterprise ? 0n : parseMicro(reservation.amount_micro),
     });
 
-    return debtResult.rows[0];
+    return {
+      lane: reservation.lane,
+      poolId: reservation.pool_id,
+      reservationId: reservation.id,
+      settlementId: params.settlementId,
+      agentId: reservation.agent_id,
+      payerWallet: reservation.payer_wallet,
+      network: reservation.network,
+      txHash: params.txHash,
+      amountMicro: reservation.amount_micro,
+      fundingConsumedMicro: isPrefundedEnterprise ? reservation.locked_micro : '0',
+      debt,
+    };
   });
+}
+
+export async function getKizunaBillableSettlementEvent(
+  reservationId: string,
+  settlementId: string
+): Promise<KizunaBillableSettlementEventRow | null> {
+  return queryOne<KizunaBillableSettlementEventRow>(
+    `SELECT
+       id,
+       reservation_id::text,
+       settlement_id::text,
+       debt_id::text,
+       agent_id,
+       payer_wallet,
+       merchant_wallet,
+       network,
+       lane,
+       pool_id,
+       amount_micro::text,
+       idempotency_key,
+       payload,
+       emitted_at
+     FROM kizuna_billable_settlement_events
+     WHERE reservation_id = $1 AND settlement_id = $2`,
+    [reservationId, settlementId]
+  );
 }
 
 export async function listKizunaTransactions(
@@ -1668,6 +1971,159 @@ export async function getKizunaPool(poolId: string): Promise<{
     collateralValueMicro: reserve.collateral_value_micro,
     updatedAt: reserve.updated_at,
   };
+}
+
+export async function getKizunaEnterpriseBalance(
+  agentId: string,
+  poolId: string
+): Promise<KizunaEnterpriseBalanceRow | null> {
+  return queryOne<KizunaEnterpriseBalanceRow>(
+    `SELECT
+       agent_id,
+       pool_id,
+       available_micro::text,
+       reserved_micro::text,
+       spent_micro::text,
+       updated_at
+     FROM kizuna_enterprise_balances
+     WHERE agent_id = $1 AND pool_id = $2`,
+    [agentId, poolId]
+  );
+}
+
+export async function listKizunaFundingEvents(
+  agentId: string,
+  limit = 50,
+  poolId?: string
+): Promise<KizunaFundingEventRow[]> {
+  const params: unknown[] = [agentId];
+  let where = '';
+  if (poolId) {
+    params.push(poolId);
+    where = ` AND pool_id = $${params.length}`;
+  }
+  params.push(Math.max(1, Math.min(limit, 200)));
+  return query<KizunaFundingEventRow>(
+    `SELECT
+       id,
+       agent_id,
+       lane,
+       pool_id,
+       reference_id,
+       event_type,
+       amount_micro::text,
+       tx_hash,
+       metadata_json,
+       created_at
+     FROM kizuna_funding_events
+     WHERE agent_id = $1${where}
+     ORDER BY created_at DESC
+     LIMIT $${params.length}`,
+    params
+  );
+}
+
+export async function applyKizunaFundingEvent(params: {
+  agentId: string;
+  lane: KizunaLane;
+  poolId: string;
+  referenceId: string;
+  eventType: 'deposit' | 'withdraw';
+  amountMicro: string;
+  txHash?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<{
+  idempotent: boolean;
+  event: KizunaFundingEventRow;
+  balance: KizunaEnterpriseBalanceRow;
+}> {
+  return withTransaction(async (client) => {
+    const amount = parseMicro(params.amountMicro);
+    if (amount <= 0n) {
+      throw new Error('kizuna_funding_amount_invalid');
+    }
+
+    const existing = await client.query<KizunaFundingEventRow>(
+      `SELECT
+         id,
+         agent_id,
+         lane,
+         pool_id,
+         reference_id,
+         event_type,
+         amount_micro::text,
+         tx_hash,
+         metadata_json,
+         created_at
+       FROM kizuna_funding_events
+       WHERE agent_id = $1 AND pool_id = $2 AND reference_id = $3
+       FOR UPDATE`,
+      [params.agentId, params.poolId, params.referenceId]
+    );
+
+    if (existing.rows[0]) {
+      const event = existing.rows[0];
+      if (event.event_type !== params.eventType || event.amount_micro !== amount.toString(10)) {
+        throw new Error('kizuna_funding_reference_conflict');
+      }
+      const balance = await getKizunaEnterpriseBalance(params.agentId, params.poolId);
+      if (!balance) {
+        throw new Error('kizuna_enterprise_balance_missing');
+      }
+      return { idempotent: true, event, balance };
+    }
+
+    const balance = await mutateKizunaEnterpriseBalance(client, {
+      agentId: params.agentId,
+      poolId: params.poolId,
+      availableDelta: params.eventType === 'deposit' ? amount : -amount,
+      minAvailable: params.eventType === 'withdraw' ? amount : undefined,
+    });
+    if (!balance) {
+      throw new Error('kizuna_funding_insufficient_available');
+    }
+
+    const eventResult = await client.query<KizunaFundingEventRow>(
+      `INSERT INTO kizuna_funding_events (
+         agent_id,
+         lane,
+         pool_id,
+         reference_id,
+         event_type,
+         amount_micro,
+         tx_hash,
+         metadata_json
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
+       RETURNING
+         id,
+         agent_id,
+         lane,
+         pool_id,
+         reference_id,
+         event_type,
+         amount_micro::text,
+         tx_hash,
+         metadata_json,
+         created_at`,
+      [
+        params.agentId,
+        params.lane,
+        params.poolId,
+        params.referenceId,
+        params.eventType,
+        amount.toString(10),
+        params.txHash ?? null,
+        JSON.stringify(params.metadata ?? {}),
+      ]
+    );
+
+    return {
+      idempotent: false,
+      event: eventResult.rows[0],
+      balance,
+    };
+  });
 }
 
 export async function listKizunaCollateralPositions(

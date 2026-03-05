@@ -2,10 +2,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { clearConfigCache } from '../src/config';
 import { runMigrations } from '../src/db/migrate';
 import {
+  applyKizunaFundingEvent,
   applyKizunaCollateralEvent,
   applyKizunaRepayment,
   createKizunaReservation,
+  getKizunaEnterpriseBalance,
   finalizeKizunaSettlement,
+  getKizunaBillableSettlementEvent,
   getKizunaCollateralSummary,
   getKizunaDebtBySettlementId,
   getKizunaPoolReserve,
@@ -45,6 +48,9 @@ async function resetTables(): Promise<void> {
       kizuna_underwrite_decisions,
       fee_ledger,
       settlements,
+      kizuna_billable_settlement_events,
+      kizuna_funding_events,
+      kizuna_enterprise_balances,
       kizuna_collateral_events,
       kizuna_health_snapshots,
       kizuna_risk_actions,
@@ -95,6 +101,8 @@ async function seedReservation(params: {
   lane: 'enterprise' | 'crypto-fast';
   poolId: string;
   amountMicro: string;
+  fundingMode?: 'none' | 'prefunded' | 'collateralized';
+  lockedMicro?: string;
 }): Promise<ReservationFixture> {
   const decision = await insertKizunaUnderwriteDecision({
     agentId: params.agentId,
@@ -129,6 +137,8 @@ async function seedReservation(params: {
     poolId: params.poolId,
     amountMicro: params.amountMicro,
     ttlMs: 120000,
+    fundingMode: params.fundingMode,
+    lockedMicro: params.lockedMicro,
   });
 
   const settlement = await insertSettlement(
@@ -261,7 +271,7 @@ describe.skipIf(!hasIntegrationDb)('kizuna db integration', () => {
       amountMicro: '1500000',
     });
 
-    const debt = await finalizeKizunaSettlement({
+    const result = await finalizeKizunaSettlement({
       reservationId: fixture.reservationId,
       settlementId: fixture.settlementId,
       txHash: '0xdebt',
@@ -271,11 +281,12 @@ describe.skipIf(!hasIntegrationDb)('kizuna db integration', () => {
       poolId: 'enterprise-main',
       decisionEnvelopeHash: 'nonce-debt-1',
     });
+    const debt = result.debt;
 
-    expect(debt.status).toBe('open');
+    expect(debt?.status).toBe('open');
 
     const persisted = await getKizunaDebtBySettlementId(fixture.settlementId);
-    expect(persisted?.id).toBe(debt.id);
+    expect(persisted?.id).toBe(debt?.id);
 
     const count = await queryOne<{ count: string }>(
       `SELECT COUNT(*)::text AS count
@@ -285,6 +296,132 @@ describe.skipIf(!hasIntegrationDb)('kizuna db integration', () => {
     );
 
     expect(count?.count).toBe('1');
+  });
+
+  it('consumes prefunded enterprise reservations without creating debt', async () => {
+    const agentId = 'agent-prefund';
+    const payer = '0x1111111111111111111111111111111111111111';
+    const repay = '0x2222222222222222222222222222222222222222';
+    const prefundMicro = '2000000';
+    const settleMicro = '1200000';
+
+    await seedAccount(agentId, payer, repay);
+    await applyKizunaFundingEvent({
+      agentId,
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+      referenceId: 'prefund-1',
+      eventType: 'deposit',
+      amountMicro: prefundMicro,
+      txHash: '0xprefund',
+    });
+
+    const fixture = await seedReservation({
+      agentId,
+      payerWallet: payer,
+      repayWallet: repay,
+      nonce: 'nonce-prefund-1',
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+      amountMicro: settleMicro,
+      fundingMode: 'prefunded',
+      lockedMicro: settleMicro,
+    });
+
+    const balanceBefore = await getKizunaEnterpriseBalance(agentId, 'enterprise-main');
+    expect(balanceBefore?.available_micro).toBe('800000');
+    expect(balanceBefore?.reserved_micro).toBe('1200000');
+    expect(balanceBefore?.spent_micro).toBe('0');
+
+    const result = await finalizeKizunaSettlement({
+      reservationId: fixture.reservationId,
+      settlementId: fixture.settlementId,
+      txHash: '0xprefund-settle',
+      feeAmount: 0,
+      feeTxHash: '0xprefund-settle',
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+      decisionEnvelopeHash: 'nonce-prefund-1',
+    });
+
+    expect(result.debt).toBeNull();
+    expect(result.fundingConsumedMicro).toBe(settleMicro);
+
+    const balanceAfter = await getKizunaEnterpriseBalance(agentId, 'enterprise-main');
+    expect(balanceAfter?.available_micro).toBe('800000');
+    expect(balanceAfter?.reserved_micro).toBe('0');
+    expect(balanceAfter?.spent_micro).toBe('1200000');
+
+    const reserveAfter = await getKizunaPoolReserve('enterprise-main');
+    expect(reserveAfter?.reserved_micro).toBe('0');
+    expect(reserveAfter?.outstanding_micro).toBe('0');
+
+    const event = await getKizunaBillableSettlementEvent(fixture.reservationId, fixture.settlementId);
+    expect(event?.debt_id).toBeNull();
+  });
+
+  it('emits exactly one billable settlement event keyed by reservation/settlement', async () => {
+    const agentId = 'agent-billable';
+    const payer = '0x1111111111111111111111111111111111111111';
+    const repay = '0x2222222222222222222222222222222222222222';
+
+    await seedAccount(agentId, payer, repay);
+
+    const fixture = await seedReservation({
+      agentId,
+      payerWallet: payer,
+      repayWallet: repay,
+      nonce: 'nonce-billable-1',
+      lane: 'crypto-fast',
+      poolId: 'fastpath-main',
+      amountMicro: '1750000',
+    });
+
+    const result = await finalizeKizunaSettlement({
+      reservationId: fixture.reservationId,
+      settlementId: fixture.settlementId,
+      txHash: '0xbillable',
+      feeAmount: 0,
+      feeTxHash: '0xbillable',
+      lane: 'crypto-fast',
+      poolId: 'fastpath-main',
+      decisionEnvelopeHash: 'nonce-billable-1',
+    });
+    const debt = result.debt;
+
+    const event = await getKizunaBillableSettlementEvent(
+      fixture.reservationId,
+      fixture.settlementId
+    );
+
+    expect(event).toBeTruthy();
+    expect(event?.debt_id).toBe(debt?.id);
+    expect(event?.lane).toBe('crypto-fast');
+    expect(event?.pool_id).toBe('fastpath-main');
+    expect(event?.amount_micro).toBe('1750000');
+    expect(event?.idempotency_key).toBe(`${fixture.reservationId}:${fixture.settlementId}`);
+
+    await expect(
+      finalizeKizunaSettlement({
+        reservationId: fixture.reservationId,
+        settlementId: fixture.settlementId,
+        txHash: '0xbillable-retry',
+        feeAmount: 0,
+        feeTxHash: '0xbillable-retry',
+        lane: 'crypto-fast',
+        poolId: 'fastpath-main',
+        decisionEnvelopeHash: 'nonce-billable-1',
+      })
+    ).rejects.toThrow('kizuna_reservation_consumed');
+
+    const eventCount = await queryOne<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+       FROM kizuna_billable_settlement_events
+       WHERE reservation_id = $1 AND settlement_id = $2`,
+      [fixture.reservationId, fixture.settlementId]
+    );
+
+    expect(eventCount?.count).toBe('1');
   });
 
   it('applies repayments idempotently and scoped by lane/pool without negative balances', async () => {

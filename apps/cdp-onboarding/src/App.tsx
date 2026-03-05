@@ -53,6 +53,75 @@ type SessionAuthorizeResponse = {
   paymentHeader: string;
 };
 
+type KizunaAccountState = {
+  account: {
+    agentId: string;
+    payerWallet: string;
+    repayWallet: string;
+    passportAddress: string | null;
+    status: string;
+    mandate: {
+      singleLimitMicro: string | null;
+      dailyLimitMicro: string | null;
+      monthlyLimitMicro: string | null;
+      humanApprovalMicro: string | null;
+    };
+  };
+  outstandingMicro: string;
+  creditsBalanceMicro?: string | null;
+  enterpriseBalance?: {
+    available_micro: string;
+    reserved_micro: string;
+    spent_micro: string;
+    updated_at: string | Date;
+  } | null;
+};
+
+type KizunaTransaction = {
+  id: string;
+  type: 'debt' | 'repayment';
+  created_at: string;
+  amount_micro: string;
+  outstanding_micro: string | null;
+  status: string | null;
+  tx_hash: string | null;
+  reference_id: string | null;
+  source: string | null;
+};
+
+type KizunaFundingIntent = {
+  intentId: string;
+  agentId: string;
+  lane: 'enterprise';
+  poolId: string;
+  amountMicro: string;
+  expiresAt: string;
+};
+
+type KizunaFundingEvent = {
+  id: string;
+  lane: 'enterprise' | 'crypto-fast';
+  pool_id: string;
+  reference_id: string;
+  event_type: 'deposit' | 'withdraw';
+  amount_micro: string;
+  tx_hash: string | null;
+  created_at: string;
+};
+
+type KizunaFundingState = {
+  agentId: string;
+  lane: 'enterprise';
+  poolId: string;
+  balance: {
+    available_micro: string;
+    reserved_micro: string;
+    spent_micro: string;
+    updated_at: string | Date;
+  };
+  events: KizunaFundingEvent[];
+};
+
 const USDC_BASE: EvmAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 function envUrl(key: string, fallback: string): string {
@@ -112,6 +181,18 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return json as T;
 }
 
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    const msg = json && typeof json === 'object' && typeof (json as any).error === 'string'
+      ? (json as any).error
+      : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return json as T;
+}
+
 function parseEvmAddress(value: string): EvmAddress | null {
   const trimmed = value.trim();
   return /^0x[0-9a-fA-F]{40}$/.test(trimmed) ? (trimmed as EvmAddress) : null;
@@ -158,6 +239,21 @@ export function App() {
   const [sessionResult, setSessionResult] = useState<SessionAuthorizeResponse | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionBusy, setSessionBusy] = useState(false);
+
+  const [kizunaAgentId, setKizunaAgentId] = useState('');
+  const [kizunaPayerWallet, setKizunaPayerWallet] = useState('');
+  const [kizunaRepayWallet, setKizunaRepayWallet] = useState('');
+  const [kizunaPassportAddress, setKizunaPassportAddress] = useState('');
+  const [kizunaRepayAmountMicro, setKizunaRepayAmountMicro] = useState('1000000');
+  const [kizunaReferenceId, setKizunaReferenceId] = useState(`kizuna-${Date.now()}`);
+  const [kizunaFundingAmountMicro, setKizunaFundingAmountMicro] = useState('1000000');
+  const [kizunaFundingReferenceId, setKizunaFundingReferenceId] = useState(`funding-${Date.now()}`);
+  const [kizunaFundingIntent, setKizunaFundingIntent] = useState<KizunaFundingIntent | null>(null);
+  const [kizunaFundingState, setKizunaFundingState] = useState<KizunaFundingState | null>(null);
+  const [kizunaBusy, setKizunaBusy] = useState(false);
+  const [kizunaError, setKizunaError] = useState<string | null>(null);
+  const [kizunaAccount, setKizunaAccount] = useState<KizunaAccountState | null>(null);
+  const [kizunaTransactions, setKizunaTransactions] = useState<KizunaTransaction[]>([]);
 
   async function handleRevealAccessToken() {
     setAccessTokenError(null);
@@ -346,6 +442,179 @@ export function App() {
       setSessionError(asErrorMessage(err));
     } finally {
       setSessionBusy(false);
+    }
+  }
+
+  async function handleKizunaRefresh() {
+    const agent = kizunaAgentId.trim();
+    if (!agent) {
+      setKizunaError('Kizuna agentId is required');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      const [accountResp, txResp, fundingResp] = await Promise.all([
+        getJson<KizunaAccountState>(`${facilitatorUrl}/kizuna/accounts/${encodeURIComponent(agent)}`),
+        getJson<{ transactions: KizunaTransaction[] }>(
+          `${facilitatorUrl}/kizuna/accounts/${encodeURIComponent(agent)}/transactions?limit=20`
+        ),
+        getJson<KizunaFundingState>(
+          `${facilitatorUrl}/kizuna/funding/${encodeURIComponent(agent)}?lane=enterprise&limit=20`
+        ),
+      ]);
+      setKizunaAccount(accountResp);
+      setKizunaTransactions(txResp.transactions || []);
+      setKizunaFundingState(fundingResp);
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
+    }
+  }
+
+  async function handleKizunaOnboard() {
+    const agent = kizunaAgentId.trim();
+    const payer = kizunaPayerWallet.trim();
+    const repay = kizunaRepayWallet.trim();
+    if (!agent || !payer || !repay) {
+      setKizunaError('Kizuna agentId, payer wallet, and repay wallet are required');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      await postJson(`${facilitatorUrl}/kizuna/accounts/onboard`, {
+        agentId: agent,
+        payerWallet: payer,
+        repayWallet: repay,
+        passportAddress: kizunaPassportAddress.trim() || undefined,
+        networks: ['solana', 'base'],
+      });
+      await handleKizunaRefresh();
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
+    }
+  }
+
+  async function handleKizunaRepay() {
+    const agent = kizunaAgentId.trim();
+    const referenceId = kizunaReferenceId.trim();
+    if (!agent || !referenceId) {
+      setKizunaError('Kizuna agentId and referenceId are required');
+      return;
+    }
+    if (!/^\\d+$/.test(kizunaRepayAmountMicro.trim())) {
+      setKizunaError('Repay amount must be a positive micro amount');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      await postJson(`${facilitatorUrl}/kizuna/accounts/${encodeURIComponent(agent)}/repay`, {
+        source: 'credits',
+        amountMicro: kizunaRepayAmountMicro.trim(),
+        referenceId,
+      });
+      setKizunaReferenceId(`kizuna-${Date.now()}`);
+      await handleKizunaRefresh();
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
+    }
+  }
+
+  async function handleKizunaFundingIntent() {
+    const agent = kizunaAgentId.trim();
+    if (!agent) {
+      setKizunaError('Kizuna agentId is required');
+      return;
+    }
+    if (!/^\d+$/.test(kizunaFundingAmountMicro.trim())) {
+      setKizunaError('Funding amount must be a positive micro amount');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      const intent = await postJson<KizunaFundingIntent>(
+        `${facilitatorUrl}/kizuna/funding/${encodeURIComponent(agent)}/deposit-intent`,
+        {
+          lane: 'enterprise',
+          amountMicro: kizunaFundingAmountMicro.trim(),
+        }
+      );
+      setKizunaFundingIntent(intent);
+      await handleKizunaRefresh();
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
+    }
+  }
+
+  async function handleKizunaFundingConfirm() {
+    const agent = kizunaAgentId.trim();
+    const referenceId = kizunaFundingReferenceId.trim();
+    if (!agent || !referenceId) {
+      setKizunaError('Kizuna agentId and funding reference are required');
+      return;
+    }
+    if (!/^\d+$/.test(kizunaFundingAmountMicro.trim())) {
+      setKizunaError('Funding amount must be a positive micro amount');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      await postJson(`${facilitatorUrl}/kizuna/funding/${encodeURIComponent(agent)}/confirm`, {
+        lane: 'enterprise',
+        amountMicro: kizunaFundingAmountMicro.trim(),
+        referenceId,
+      });
+      setKizunaFundingReferenceId(`funding-${Date.now()}`);
+      await handleKizunaRefresh();
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
+    }
+  }
+
+  async function handleKizunaFundingWithdraw() {
+    const agent = kizunaAgentId.trim();
+    const referenceId = kizunaFundingReferenceId.trim();
+    if (!agent || !referenceId) {
+      setKizunaError('Kizuna agentId and funding reference are required');
+      return;
+    }
+    if (!/^\d+$/.test(kizunaFundingAmountMicro.trim())) {
+      setKizunaError('Funding amount must be a positive micro amount');
+      return;
+    }
+
+    setKizunaError(null);
+    setKizunaBusy(true);
+    try {
+      await postJson(`${facilitatorUrl}/kizuna/funding/${encodeURIComponent(agent)}/withdraw`, {
+        lane: 'enterprise',
+        amountMicro: kizunaFundingAmountMicro.trim(),
+        referenceId,
+      });
+      setKizunaFundingReferenceId(`funding-${Date.now()}`);
+      await handleKizunaRefresh();
+    } catch (err) {
+      setKizunaError(asErrorMessage(err));
+    } finally {
+      setKizunaBusy(false);
     }
   }
 
@@ -566,6 +835,224 @@ export function App() {
                   <div className="label">Expires</div>
                   <div className="value">{new Date(sessionResult.expiresAt).toLocaleString()}</div>
                 </div>
+              </div>
+            ) : null}
+
+            <div className="divider" />
+
+            <h2 className="cardTitle">Kizuna Operator</h2>
+            <p className="muted">
+              Technical controls for Kizuna credit proxy accounts: onboard, read state, trigger credits repayment, and inspect recent debt/repayment events.
+            </p>
+
+            <label className="field">
+              <span className="fieldLabel">Kizuna agentId</span>
+              <input
+                className="input"
+                value={kizunaAgentId}
+                onChange={(e) => setKizunaAgentId(e.target.value)}
+                placeholder="Agent identity (Solana public key)"
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Payer wallet (x402 signer)</span>
+              <input
+                className="input mono"
+                value={kizunaPayerWallet}
+                onChange={(e) => setKizunaPayerWallet(e.target.value)}
+                placeholder="payer wallet address"
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Repay wallet (credits ledger)</span>
+              <input
+                className="input mono"
+                value={kizunaRepayWallet}
+                onChange={(e) => setKizunaRepayWallet(e.target.value)}
+                placeholder="repay wallet address"
+              />
+            </label>
+
+            <label className="field">
+              <span className="fieldLabel">Passport address (optional)</span>
+              <input
+                className="input mono"
+                value={kizunaPassportAddress}
+                onChange={(e) => setKizunaPassportAddress(e.target.value)}
+                placeholder="Meishi passport PDA"
+              />
+            </label>
+
+            <div className="actions">
+              <button className="btn" disabled={kizunaBusy} onClick={handleKizunaOnboard}>
+                {kizunaBusy ? 'Working…' : 'Onboard Kizuna account'}
+              </button>
+              <button className="btn ghost" disabled={kizunaBusy} onClick={handleKizunaRefresh}>
+                Refresh account state
+              </button>
+            </div>
+
+            <div className="fieldRow">
+              <label className="field">
+                <span className="fieldLabel">Repay amount (micro)</span>
+                <input
+                  className="input"
+                  value={kizunaRepayAmountMicro}
+                  onChange={(e) => setKizunaRepayAmountMicro(e.target.value)}
+                  placeholder="1000000"
+                />
+              </label>
+
+              <label className="field">
+                <span className="fieldLabel">Repay reference</span>
+                <input
+                  className="input mono"
+                  value={kizunaReferenceId}
+                  onChange={(e) => setKizunaReferenceId(e.target.value)}
+                  placeholder="kizuna-..."
+                />
+              </label>
+            </div>
+
+            <div className="actions">
+              <button className="btn" disabled={kizunaBusy} onClick={handleKizunaRepay}>
+                Repay from credits
+              </button>
+            </div>
+
+            <div className="divider" />
+
+            <h3 className="cardSubtitle">Enterprise Funding</h3>
+            <p className="muted">Prefund enterprise lane balance to unlock credit approvals without unsecured settlement risk.</p>
+
+            <div className="fieldRow">
+              <label className="field">
+                <span className="fieldLabel">Funding amount (micro)</span>
+                <input
+                  className="input"
+                  value={kizunaFundingAmountMicro}
+                  onChange={(e) => setKizunaFundingAmountMicro(e.target.value)}
+                  placeholder="1000000"
+                />
+              </label>
+
+              <label className="field">
+                <span className="fieldLabel">Funding reference</span>
+                <input
+                  className="input mono"
+                  value={kizunaFundingReferenceId}
+                  onChange={(e) => setKizunaFundingReferenceId(e.target.value)}
+                  placeholder="funding-..."
+                />
+              </label>
+            </div>
+
+            <div className="actions">
+              <button className="btn ghost" disabled={kizunaBusy} onClick={handleKizunaFundingIntent}>
+                Create deposit intent
+              </button>
+              <button className="btn" disabled={kizunaBusy} onClick={handleKizunaFundingConfirm}>
+                Confirm deposit
+              </button>
+              <button className="btn ghost" disabled={kizunaBusy} onClick={handleKizunaFundingWithdraw}>
+                Withdraw funding
+              </button>
+            </div>
+
+            {kizunaError ? <p className="error">{kizunaError}</p> : null}
+
+            {kizunaAccount ? (
+              <div className="rows">
+                <div className="row">
+                  <div className="label">Status</div>
+                  <div className="value">{kizunaAccount.account.status}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Outstanding</div>
+                  <div className="value mono">{kizunaAccount.outstandingMicro}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Credits balance</div>
+                  <div className="value mono">{kizunaAccount.creditsBalanceMicro ?? 'unavailable'}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Mandate single</div>
+                  <div className="value mono">{kizunaAccount.account.mandate.singleLimitMicro ?? '—'}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Enterprise available</div>
+                  <div className="value mono">
+                    {kizunaFundingState?.balance.available_micro ??
+                      kizunaAccount.enterpriseBalance?.available_micro ??
+                      '0'}
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="label">Enterprise reserved</div>
+                  <div className="value mono">
+                    {kizunaFundingState?.balance.reserved_micro ??
+                      kizunaAccount.enterpriseBalance?.reserved_micro ??
+                      '0'}
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="label">Enterprise spent</div>
+                  <div className="value mono">
+                    {kizunaFundingState?.balance.spent_micro ??
+                      kizunaAccount.enterpriseBalance?.spent_micro ??
+                      '0'}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {kizunaFundingIntent ? (
+              <div className="rows">
+                <h3 className="cardSubtitle">Latest Funding Intent</h3>
+                <div className="row">
+                  <div className="label">Intent</div>
+                  <div className="value mono">{kizunaFundingIntent.intentId}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Pool</div>
+                  <div className="value mono">{kizunaFundingIntent.poolId}</div>
+                </div>
+                <div className="row">
+                  <div className="label">Expires</div>
+                  <div className="value">{new Date(kizunaFundingIntent.expiresAt).toLocaleString()}</div>
+                </div>
+              </div>
+            ) : null}
+
+            {kizunaTransactions.length > 0 ? (
+              <div className="rows">
+                <h3 className="cardSubtitle">Recent Kizuna Transactions</h3>
+                {kizunaTransactions.map((tx) => (
+                  <div className="row" key={tx.id}>
+                    <div className="label">{tx.type}</div>
+                    <div className="value mono">
+                      {tx.amount_micro}
+                      {tx.reference_id ? ` | ref=${tx.reference_id}` : ''}
+                      {tx.status ? ` | ${tx.status}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {kizunaFundingState?.events?.length ? (
+              <div className="rows">
+                <h3 className="cardSubtitle">Recent Funding Events</h3>
+                {kizunaFundingState.events.map((event) => (
+                  <div className="row" key={event.id}>
+                    <div className="label">{event.event_type}</div>
+                    <div className="value mono">
+                      {event.amount_micro} | ref={event.reference_id}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : null}
           </section>
