@@ -78,7 +78,7 @@ const MIGRATIONS = [
     sql: `
       CREATE TABLE IF NOT EXISTS disputes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        escrow_id UUID NOT NULL REFERENCES escrow_records(id),
+        escrow_id UUID NOT NULL,
         escrow_address TEXT NOT NULL,
         opener_wallet TEXT NOT NULL,
         reason TEXT NOT NULL,
@@ -95,7 +95,7 @@ const MIGRATIONS = [
 
       CREATE TABLE IF NOT EXISTS oracle_votes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        dispute_id UUID NOT NULL REFERENCES disputes(id),
+        dispute_id UUID NOT NULL,
         oracle TEXT NOT NULL,
         commitment_hash TEXT NOT NULL,
         quality_score SMALLINT,
@@ -104,13 +104,89 @@ const MIGRATIONS = [
         UNIQUE(dispute_id, oracle)
       );
 
+      ALTER TABLE disputes
+        ADD COLUMN IF NOT EXISTS escrow_id UUID,
+        ADD COLUMN IF NOT EXISTS escrow_address TEXT,
+        ADD COLUMN IF NOT EXISTS opener_wallet TEXT,
+        ADD COLUMN IF NOT EXISTS reason TEXT,
+        ADD COLUMN IF NOT EXISTS median_score SMALLINT,
+        ADD COLUMN IF NOT EXISTS refund_percentage SMALLINT,
+        ADD COLUMN IF NOT EXISTS resolution TEXT,
+        ADD COLUMN IF NOT EXISTS finalize_tx TEXT,
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS commit_phase_ends_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS reveal_phase_ends_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+
+      ALTER TABLE disputes
+        ALTER COLUMN status SET DEFAULT 'commit_phase',
+        ALTER COLUMN created_at SET DEFAULT NOW();
+
+      UPDATE disputes
+      SET
+        status = COALESCE(status, 'commit_phase'),
+        created_at = COALESCE(created_at, NOW())
+      WHERE status IS NULL OR created_at IS NULL;
+
+      ALTER TABLE oracle_votes
+        ADD COLUMN IF NOT EXISTS dispute_id UUID,
+        ADD COLUMN IF NOT EXISTS oracle TEXT,
+        ADD COLUMN IF NOT EXISTS commitment_hash TEXT,
+        ADD COLUMN IF NOT EXISTS quality_score SMALLINT,
+        ADD COLUMN IF NOT EXISTS committed_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS revealed_at TIMESTAMPTZ;
+
+      ALTER TABLE oracle_votes
+        ALTER COLUMN committed_at SET DEFAULT NOW();
+
+      UPDATE oracle_votes
+      SET committed_at = COALESCE(committed_at, NOW())
+      WHERE committed_at IS NULL;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_oracle_votes_dispute_oracle') THEN
+          ALTER TABLE oracle_votes ADD CONSTRAINT uq_oracle_votes_dispute_oracle UNIQUE (dispute_id, oracle);
+        END IF;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS idx_disputes_escrow ON disputes(escrow_address);
       CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
       CREATE INDEX IF NOT EXISTS idx_disputes_opener ON disputes(opener_wallet);
       CREATE INDEX IF NOT EXISTS idx_oracle_votes_dispute ON oracle_votes(dispute_id);
 
-      ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute
-        FOREIGN KEY (dispute_id) REFERENCES disputes(id);
+      DO $$
+      BEGIN
+        BEGIN
+          EXECUTE 'ALTER TABLE disputes ADD CONSTRAINT fk_disputes_escrow FOREIGN KEY (escrow_id) REFERENCES escrow_records(id)';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+          WHEN undefined_column THEN NULL;
+          WHEN undefined_table THEN NULL;
+          WHEN OTHERS THEN
+            RAISE NOTICE 'skipping fk_disputes_escrow migration constraint: %', SQLERRM;
+        END;
+
+        BEGIN
+          EXECUTE 'ALTER TABLE oracle_votes ADD CONSTRAINT fk_oracle_votes_dispute FOREIGN KEY (dispute_id) REFERENCES disputes(id)';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+          WHEN undefined_column THEN NULL;
+          WHEN undefined_table THEN NULL;
+          WHEN OTHERS THEN
+            RAISE NOTICE 'skipping fk_oracle_votes_dispute migration constraint: %', SQLERRM;
+        END;
+
+        BEGIN
+          EXECUTE 'ALTER TABLE escrow_records ADD CONSTRAINT fk_escrow_dispute FOREIGN KEY (dispute_id) REFERENCES disputes(id)';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+          WHEN undefined_column THEN NULL;
+          WHEN undefined_table THEN NULL;
+          WHEN OTHERS THEN
+            RAISE NOTICE 'skipping fk_escrow_dispute migration constraint: %', SQLERRM;
+        END;
+      END $$;
     `,
   },
   {

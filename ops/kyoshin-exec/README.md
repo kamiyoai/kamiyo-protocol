@@ -13,6 +13,9 @@ This folder contains the source-controlled deployment assets for running
 - `preflight.sh`: policy preflight for key/staking guard checks before mutation stages.
 - `watchdog.sh`: duplicate-process guard + health watchdog.
 - `kamiyo-kyoshin-watchdog.service` / `.timer`: watchdog scheduler (every 2 minutes).
+- `assessment-growth.sh`: protocol assessment/dispute growth runner wrapper.
+- `kamiyo-kyoshin-assessment-bootstrap.service`: one-shot initial bootstrap run.
+- `kamiyo-kyoshin-assessment-growth.service` / `.timer`: recurring daily growth run.
 
 ## First deploy (run on droplet as root)
 
@@ -74,4 +77,37 @@ Manual run:
 
 ```bash
 sudo /usr/local/bin/kamiyo-kyoshin-exec-watchdog
+```
+
+## Protocol stats growth loop
+
+The growth runner executes the full protocol loop per cycle:
+`initialize_escrow -> mark_disputed -> resolve_dispute`.
+
+It is configured in `/etc/kamiyo/kyoshin-exec.env` using `KYO_ASSESS_*` keys.
+Required live keys:
+
+- `KYO_ASSESS_LIVE=true`
+- `KAMIYO_OPERATOR_KEYPAIR_PATH` or `KAMIYO_OPERATOR_PRIVATE_KEY`
+- `KYO_ASSESS_ORACLE_KEYPAIR_PATH` or `KYO_ASSESS_ORACLE_PRIVATE_KEY`
+
+Defaults include:
+
+- bootstrap target: `KYO_ASSESS_BOOTSTRAP_TARGET=1000`
+- daily randomized growth: `KYO_ASSESS_DAILY_*`
+- persistent state file: `KYO_ASSESS_STATE_PATH=.../assessment-growth-state.json`
+- optional IDL override: `KYO_ASSESS_IDL_PATH=.../x402_escrow.json`
+
+Run the first bootstrap immediately:
+
+```bash
+sudo systemctl start kamiyo-kyoshin-assessment-bootstrap.service
+sudo journalctl -u kamiyo-kyoshin-assessment-bootstrap.service -n 200 --no-pager
+```
+
+Daily growth is scheduled by:
+
+```bash
+sudo systemctl status kamiyo-kyoshin-assessment-growth.timer
+sudo systemctl list-timers | grep kamiyo-kyoshin-assessment-growth
 ```
