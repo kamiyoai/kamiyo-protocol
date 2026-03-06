@@ -43,6 +43,7 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
         self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
         self.mod.TRADING_CAPABILITIES_PATH = self.state_dir / 'trading-capabilities.json'
+        self.mod.TRADING_FEED_PATH = self.state_dir / 'trading-feed.json'
         self.mod.POLYMARKET_GEO_PATH = self.state_dir / 'polymarket-geo.json'
         self.mod.LEDGER_PATH = self.receipts_dir / 'revenue-ledger.jsonl'
         self.mod.POLYMARKET_BRIDGE_PATH = self.workspace / 'missing-polymarket-bridge.mjs'
@@ -108,6 +109,22 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.assertEqual(summary.get('blockPaidExecution'), True)
         self.assertAlmostEqual(float(summary.get('weeklySpendUsd7d')), 160.0, places=6)
 
+    def test_excludes_route_rows_from_weekly_spend_cap(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self._append_ledger(
+            [
+                {'at': self._iso(hours_ago=2), 'source': 'trading', 'kind': 'route', 'status': 'success', 'costUsd': 149.0},
+                {'at': self._iso(hours_ago=1), 'source': 'x402', 'kind': 'paid_call', 'status': 'success', 'costUsd': 2.0},
+            ]
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), True)
+        self.assertEqual(summary.get('status'), 'ok')
+        self.assertNotIn('weekly_spend_cap_exceeded', summary.get('reasons', []))
+        self.assertAlmostEqual(float(summary.get('weeklySpendUsd7d')), 2.0, places=6)
+
     def test_blocks_when_clawmart_api_key_missing(self):
         self.mod.ENABLE_X402_AGENTCASH = False
         self._append_ledger([])
@@ -172,6 +189,43 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.assertIn('trading_drawdown_breach', summary.get('reasons', []))
         self.assertEqual(summary.get('blockPaidExecution'), True)
 
+    def test_blocks_when_synthetic_realized_close_detected(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self._append_ledger(
+            [
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'netUsd': 4.2,
+                }
+            ]
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('synthetic_realized_close_detected', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_blocks_when_trading_route_parity_lag_exceeds_tolerance(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_ROUTE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.TRADING_ROUTE_PATH.write_text(
+            json.dumps({'unroutedRealizedNetUsd': 2.5}),
+            encoding='utf-8',
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('route_parity_lag_trading', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
     def test_blocks_when_limitless_live_transport_missing(self):
         self.mod.ENABLE_CLAWMART_MONITOR = False
         self.mod.ENABLE_X402_AGENTCASH = False
@@ -186,7 +240,8 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('ok'), False)
-        self.assertIn('missing_trading_limitless_transport', summary.get('reasons', []))
+        self.assertIn('no_live_trading_venue_available', summary.get('reasons', []))
+        self.assertIn('missing_trading_limitless_transport', summary.get('warnings', []))
         self.assertEqual(summary.get('blockPaidExecution'), True)
 
     def test_blocks_when_polymarket_live_transport_missing(self):
@@ -198,7 +253,8 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         code, summary = self._run({'KYO_TRADING_POLYMARKET_EXEC_CMD': ''})
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('ok'), False)
-        self.assertIn('missing_trading_polymarket_transport', summary.get('reasons', []))
+        self.assertIn('no_live_trading_venue_available', summary.get('reasons', []))
+        self.assertIn('missing_trading_polymarket_transport', summary.get('warnings', []))
         self.assertEqual(summary.get('blockPaidExecution'), True)
 
     def test_marks_geo_block_without_blocking_all_paid_execution(self):
@@ -214,8 +270,82 @@ class KyoshinRevenueGuardTests(unittest.TestCase):
         self.mod.BRIDGE_NODE_BIN = 'echo'
         code, summary = self._run()
         self.assertEqual(code, 0)
-        self.assertIn('polymarket_geo_blocked', summary.get('reasons', []))
+        self.assertIn('no_live_trading_venue_available', summary.get('reasons', []))
+        self.assertIn('polymarket_geo_blocked', summary.get('warnings', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_degrades_when_limitless_missing_but_polymarket_usable(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_EXECUTION_MODE = 'live'
+        self.mod.TRADING_VENUES = ['polymarket', 'limitless']
+        self.mod.POLYMARKET_BRIDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POLYMARKET_BRIDGE_PATH.write_text('bridge', encoding='utf-8')
+        self.mod.BRIDGE_NODE_BIN = 'echo'
+        self.mod.POLYMARKET_GEO_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.POLYMARKET_GEO_PATH.write_text(json.dumps({'blocked': False}), encoding='utf-8')
+
+        code, summary = self._run({'KYO_TRADING_POLYMARKET_EXEC_CMD': '', 'KYO_TRADING_LIMITLESS_EXEC_CMD': ''})
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), True)
+        self.assertEqual(summary.get('status'), 'degraded')
         self.assertEqual(summary.get('blockPaidExecution'), False)
+        self.assertIn('missing_trading_limitless_transport', summary.get('warnings', []))
+
+    def test_blocks_when_realized_close_fields_missing(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.STATE_PATH.write_text(
+            json.dumps({'realizedFieldPolicyActivatedAt': self._iso(hours_ago=2)}),
+            encoding='utf-8',
+        )
+        self._append_ledger(
+            [
+                {
+                    'at': self._iso(hours_ago=1),
+                    'source': 'trading',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'paymentRef': '0x' + 'a' * 64,
+                    'metadata': {
+                        'realizedProfitUsd': 3.2,
+                        'settlementEvidence': {'txSignature': '0x' + 'a' * 64},
+                    },
+                }
+            ]
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), False)
+        self.assertIn('missing_realized_profit_fields_on_close', summary.get('reasons', []))
+        self.assertEqual(summary.get('blockPaidExecution'), True)
+
+    def test_surfaces_venue_starvation_warnings_from_feed(self):
+        self.mod.ENABLE_CLAWMART_MONITOR = False
+        self.mod.ENABLE_X402_AGENTCASH = False
+        self.mod.ENABLE_TRADING_AGENT = True
+        self.mod.TRADING_FEED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.TRADING_FEED_PATH.write_text(
+            json.dumps(
+                {
+                    'warnings': [
+                        'venue_candidate_starvation_polymarket',
+                        'venue_candidate_starvation_limitless',
+                    ]
+                }
+            ),
+            encoding='utf-8',
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('ok'), True)
+        self.assertIn('venue_candidate_starvation_polymarket', summary.get('warnings', []))
+        self.assertIn('venue_candidate_starvation_limitless', summary.get('warnings', []))
+        self.assertEqual(summary.get('status'), 'degraded')
 
 
 if __name__ == '__main__':

@@ -49,8 +49,10 @@ class KyoshinMissionControlTests(unittest.TestCase):
         self.mod.DISPATCH_SUMMARY_PATH = self.state_dir / 'distribution-engine.json'
         self.mod.REVENUE_GUARD_PATH = self.state_dir / 'revenue-guard.json'
         self.mod.TRADING_EXEC_PATH = self.state_dir / 'trading-exec.json'
+        self.mod.TRADING_FEED_PATH = self.state_dir / 'trading-feed.json'
         self.mod.TRADING_ROUTE_PATH = self.state_dir / 'trading-route.json'
         self.mod.TRADING_POSITIONS_PATH = self.state_dir / 'trading-positions.json'
+        self.mod.LEADER_FOLLOW_PATH = self.state_dir / 'leader-follow.json'
         self.mod.TRADING_ROUTE_RECEIPTS_PATH = self.receipts_dir / 'trading-staking-route.jsonl'
         self.mod.MISSION_PATH = self.workspace / 'MISSION_STATEMENT.md'
         self.mod.GOALS_PATH = self.workspace / 'GOALS.md'
@@ -172,8 +174,10 @@ class KyoshinMissionControlTests(unittest.TestCase):
             encoding='utf-8',
         )
         self._write_json(self.mod.TRADING_EXEC_PATH, {'drawdownPct': 1.2})
+        self._write_json(self.mod.TRADING_FEED_PATH, {'warnings': []})
         self._write_json(self.mod.TRADING_ROUTE_PATH, {'unroutedRealizedNetUsd': 0})
         self._write_json(self.mod.TRADING_POSITIONS_PATH, {'openPositions': 1})
+        self._write_json(self.mod.LEADER_FOLLOW_PATH, {'mode': 'shadow', 'promotedAt': ''})
         self._write_json(self.mod.DISPATCH_SUMMARY_PATH, {'dispatchSuccessRate': 0.75})
         self._write_json(self.mod.REVENUE_GUARD_PATH, {'ok': True, 'reasons': []})
 
@@ -185,13 +189,21 @@ class KyoshinMissionControlTests(unittest.TestCase):
         self.assertEqual(summary.get('x402PaidCalls7d'), 1)
         self.assertEqual(summary.get('tradingGrossUsd7d'), 0.0)
         self.assertEqual(summary.get('tradingNetUsd7d'), 0.0)
+        self.assertEqual(summary.get('tradingNetUsd24h'), 0.0)
+        self.assertEqual(summary.get('profitableDays7d'), 0)
+        self.assertEqual(summary.get('missingRealizedFieldRows7d'), 0)
         self.assertEqual(summary.get('tradingRoutedSol7d'), 0.5)
         self.assertEqual(summary.get('polymarketTrades7d'), 0)
         self.assertEqual(summary.get('dflowTrades7d'), 0)
         self.assertEqual(summary.get('kalshiSignals7d'), 0)
+        self.assertEqual(summary.get('venueCandidateStarvationPolymarket'), False)
+        self.assertEqual(summary.get('venueCandidateStarvationLimitless'), False)
         self.assertEqual(summary.get('tradingOpenPositions'), 1)
         self.assertEqual(summary.get('tradingDrawdownPct'), 1.2)
         self.assertEqual(summary.get('tradingUnroutedProfitUsd'), 0.0)
+        self.assertEqual(summary.get('leaderFollowMode'), 'shadow')
+        self.assertEqual(summary.get('leaderFollowInfluencedCandidates7d'), 0)
+        self.assertEqual(summary.get('leaderFollowAvgBias7d'), 0.0)
         self.assertEqual(summary.get('stakingRoutedSalesCheckpoint'), 4)
         self.assertEqual(summary.get('unroutedSalesCount'), 0)
         self.assertEqual(summary.get('distributionDispatchSuccessRate'), 0.75)

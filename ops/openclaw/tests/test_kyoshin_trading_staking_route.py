@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -67,28 +68,45 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
             code = self.mod.run()
         return code, json.loads(stdout.getvalue().strip())
 
+    def _iso(self, *, minutes_ago: int = 0) -> str:
+        return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
+
     def test_routes_50_percent_of_unrouted_positive_realized_net(self):
         self._append_ledger(
             [
                 {
                     'id': 'close-1',
-                    'at': '2026-03-01T10:00:00+00:00',
+                    'at': self._iso(minutes_ago=2),
                     'source': 'trading',
                     'kind': 'trade_close',
                     'status': 'success',
                     'realized': True,
                     'netUsd': 20.0,
                     'txSignature': '0x' + 'a' * 64,
+                    'metadata': {
+                        'openCostBasisUsd': 100.0,
+                        'closeProceedsUsd': 120.0,
+                        'realizedProfitUsd': 20.0,
+                        'closeOrderId': 'close-order-1',
+                        'closePaymentRef': '0x' + 'a' * 64,
+                    },
                 },
                 {
                     'id': 'close-2',
-                    'at': '2026-03-01T11:00:00+00:00',
+                    'at': self._iso(minutes_ago=1),
                     'source': 'trading',
                     'kind': 'trade_close',
                     'status': 'success',
                     'realized': True,
                     'netUsd': -2.0,
                     'txSignature': '0x' + 'b' * 64,
+                    'metadata': {
+                        'openCostBasisUsd': 120.0,
+                        'closeProceedsUsd': 118.0,
+                        'realizedProfitUsd': -2.0,
+                        'closeOrderId': 'close-order-2',
+                        'closePaymentRef': '0x' + 'b' * 64,
+                    },
                 },
             ]
         )
@@ -97,9 +115,9 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(summary.get('ok'), True)
         self.assertEqual(summary.get('status'), 'routed')
-        self.assertAlmostEqual(float(summary.get('realizedNetUsdTotal')), 20.0, places=6)
-        self.assertAlmostEqual(float(summary.get('routeUsd')), 10.0, places=6)
-        self.assertAlmostEqual(float(summary.get('routeSol')), 0.1, places=6)
+        self.assertAlmostEqual(float(summary.get('realizedNetUsdTotal')), 18.0, places=6)
+        self.assertAlmostEqual(float(summary.get('routeUsd')), 9.0, places=6)
+        self.assertAlmostEqual(float(summary.get('routeSol')), 0.09, places=6)
 
         receipt_rows = [json.loads(line) for line in self.mod.ROUTE_RECEIPTS_PATH.read_text(encoding='utf-8').splitlines() if line.strip()]
         self.assertEqual(len(receipt_rows), 1)
@@ -110,12 +128,13 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
             [
                 {
                     'id': 'close-3',
-                    'at': '2026-03-01T12:00:00+00:00',
+                    'at': self._iso(minutes_ago=1),
                     'source': 'trading',
                     'kind': 'trade_close',
                     'status': 'success',
                     'realized': True,
                     'netUsd': -5.0,
+                    'metadata': {'realizedProfitUsd': -5.0},
                 }
             ]
         )
@@ -124,18 +143,50 @@ class KyoshinTradingStakingRouteTests(unittest.TestCase):
         self.assertEqual(summary.get('status'), 'up_to_date')
         self.assertEqual(float(summary.get('realizedNetUsdTotal')), 0.0)
 
+    def test_skips_realized_rows_missing_required_profit_fields(self):
+        self._append_ledger(
+            [
+                {
+                    'id': 'close-missing-fields',
+                    'at': self._iso(minutes_ago=1),
+                    'source': 'trading',
+                    'kind': 'trade_close',
+                    'status': 'success',
+                    'realized': True,
+                    'paymentRef': '0x' + 'd' * 64,
+                    'metadata': {
+                        'realizedProfitUsd': 8.0,
+                        'closeOrderId': 'close-order-missing-fields',
+                        'closePaymentRef': '0x' + 'd' * 64,
+                    },
+                }
+            ]
+        )
+        code, summary = self._run()
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'up_to_date')
+        self.assertEqual(float(summary.get('realizedNetUsdTotal')), 0.0)
+        self.assertEqual(int(summary.get('missingRealizedFieldRows')), 1)
+
     def test_rebases_processed_overshoot_when_enabled(self):
         self._append_ledger(
             [
                 {
                     'id': 'close-4',
-                    'at': '2026-03-01T13:00:00+00:00',
+                    'at': self._iso(minutes_ago=1),
                     'source': 'trading',
                     'kind': 'trade_close',
                     'status': 'success',
                     'realized': True,
                     'netUsd': 10.0,
                     'txSignature': '0x' + 'c' * 64,
+                    'metadata': {
+                        'openCostBasisUsd': 100.0,
+                        'closeProceedsUsd': 110.0,
+                        'realizedProfitUsd': 10.0,
+                        'closeOrderId': 'close-order-4',
+                        'closePaymentRef': '0x' + 'c' * 64,
+                    },
                 }
             ]
         )

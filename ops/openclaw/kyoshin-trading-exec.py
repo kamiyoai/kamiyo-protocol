@@ -456,6 +456,10 @@ def fetch_limitless_live_positions(existing_positions: list[dict[str, Any]]) -> 
                     'status': 'open',
                     'openedAt': opened_at,
                     'notionalUsd': round(max(0.0, cost), 8),
+                    'openCostBasisUsd': round(
+                        max(0.0, parse_float(prior.get('openCostBasisUsd'), cost)),
+                        8,
+                    ),
                     'confidence': parse_float(prior.get('confidence'), 0.0),
                     'expectedNetUsd': parse_float(prior.get('expectedNetUsd'), 0.0),
                     'feesEstimate': parse_float(prior.get('feesEstimate'), 0.0),
@@ -548,6 +552,23 @@ def has_settlement_evidence_from_row(row: dict[str, Any]) -> bool:
     return False
 
 
+def realized_profit_from_close_row(row: dict[str, Any]) -> float:
+    metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+    explicit = row.get('realizedProfitUsd')
+    if explicit is None and isinstance(metadata, dict):
+        explicit = metadata.get('realizedProfitUsd')
+    value = parse_float(explicit, float('nan'))
+    if value == value:
+        return round(value, 8)
+
+    close_proceeds = parse_float(metadata.get('closeProceedsUsd'), float('nan'))
+    open_cost = parse_float(metadata.get('openCostBasisUsd'), float('nan'))
+    if close_proceeds == close_proceeds and open_cost == open_cost:
+        return round(close_proceeds - open_cost, 8)
+
+    return 0.0
+
+
 def compute_trading_pnl(rows: list[dict[str, Any]]) -> tuple[float, float, float]:
     now = datetime.now(timezone.utc)
     cutoff_week = now - timedelta(days=7)
@@ -567,7 +588,7 @@ def compute_trading_pnl(rows: list[dict[str, Any]]) -> tuple[float, float, float
             continue
         if not has_settlement_evidence_from_row(row):
             continue
-        net = parse_float(row.get('netUsd'), 0.0)
+        net = realized_profit_from_close_row(row)
         all_realized += net
         ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt'))
         if ts is None:
@@ -1062,6 +1083,23 @@ def candidate_leader_follow_snapshot(candidate: dict[str, Any]) -> dict[str, Any
     }
 
 
+def close_metadata_fields(
+    *,
+    open_cost_basis_usd: float,
+    close_proceeds_usd: float,
+    realized_profit_usd: float,
+    close_order_id: str,
+    close_payment_ref: str,
+) -> dict[str, Any]:
+    return {
+        'openCostBasisUsd': round(max(0.0, open_cost_basis_usd), 8),
+        'closeProceedsUsd': round(max(0.0, close_proceeds_usd), 8),
+        'realizedProfitUsd': round(realized_profit_usd, 8),
+        'closeOrderId': str(close_order_id or '').strip(),
+        'closePaymentRef': str(close_payment_ref or '').strip(),
+    }
+
+
 def build_live_close_candidate(position: dict[str, Any], close_reason: str) -> dict[str, Any] | None:
     venue = str(position.get('venue') or '').strip().lower()
     if venue not in {'polymarket', 'limitless'}:
@@ -1417,7 +1455,7 @@ def summarize_live_48h(rows: list[dict[str, Any]]) -> dict[str, float | int]:
         ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt'))
         if ts is None or ts < cutoff:
             continue
-        net += parse_float(row.get('netUsd'), 0.0)
+        net += realized_profit_from_close_row(row)
         trades += 1
     return {'tradingNetUsd48h': round(net, 8), 'microLiveTrades48h': trades}
 
@@ -1546,7 +1584,11 @@ def run() -> int:
     realized_close_count = count_realized_closes(rows)
     peak_equity_state = parse_float(state.get('peakEquityUsd'), STARTING_EQUITY_USD)
     peak_equity_reconciled = False
-    if realized_close_count == 0 and all_realized_net <= 0 and peak_equity_state > current_equity:
+    if (
+        all_realized_net <= 0
+        and current_equity <= STARTING_EQUITY_USD
+        and peak_equity_state > current_equity
+    ):
         peak_equity_state = max(current_equity, STARTING_EQUITY_USD)
         peak_equity_reconciled = True
     peak_equity = max(current_equity, peak_equity_state, STARTING_EQUITY_USD)
@@ -1857,6 +1899,25 @@ def run() -> int:
                         and has_settlement_evidence_from_result(close_result)
                     )
                     if can_record_realized_close:
+                        open_cost_basis = round(
+                            max(
+                                0.0,
+                                parse_float(
+                                    position.get('openCostBasisUsd'),
+                                    parse_float(position.get('notionalUsd'), close_notional),
+                                ),
+                            ),
+                            8,
+                        )
+                        close_proceeds = round(max(0.0, close_result['netUsd']), 8)
+                        realized_profit = round(close_proceeds - open_cost_basis, 8)
+                        close_fields = close_metadata_fields(
+                            open_cost_basis_usd=open_cost_basis,
+                            close_proceeds_usd=close_proceeds,
+                            realized_profit_usd=realized_profit,
+                            close_order_id=str(close_result.get('orderId') or ''),
+                            close_payment_ref=str(close_result.get('paymentRef') or ''),
+                        )
                         live_close_realized_tick += 1
                         close_row = {
                             'id': stable_trade_id(
@@ -1875,12 +1936,14 @@ def run() -> int:
                             'grossUsd': close_result['grossUsd'],
                             'costUsd': close_result['costUsd'],
                             'netUsd': close_result['netUsd'],
+                            'realizedProfitUsd': realized_profit,
                             'paymentRef': close_result['paymentRef'],
                             'txSignature': close_result['txSignature'],
                             'metadata': {
                                 'executionMode': 'live',
                                 'executionIntent': 'close',
                                 'closeReason': close_reason,
+                                **close_fields,
                                 'candidateId': str(position.get('candidateId') or '').strip(),
                                 'leaderFollowSnapshot': position.get('leaderFollowSnapshot')
                                 if isinstance(position.get('leaderFollowSnapshot'), dict)
@@ -1900,6 +1963,25 @@ def run() -> int:
                     if CLOSE_STRICT_TRACKING:
                         live_close_deferred_tick += 1
                         add_warning(f'{venue}_close_unsettled')
+                        open_cost_basis = round(
+                            max(
+                                0.0,
+                                parse_float(
+                                    position.get('openCostBasisUsd'),
+                                    parse_float(position.get('notionalUsd'), close_notional),
+                                ),
+                            ),
+                            8,
+                        )
+                        close_proceeds = round(max(0.0, close_result.get('netUsd', 0.0)), 8)
+                        realized_profit = round(close_proceeds - open_cost_basis, 8)
+                        close_fields = close_metadata_fields(
+                            open_cost_basis_usd=open_cost_basis,
+                            close_proceeds_usd=close_proceeds,
+                            realized_profit_usd=realized_profit,
+                            close_order_id=str(close_result.get('orderId') or ''),
+                            close_payment_ref=str(close_result.get('paymentRef') or ''),
+                        )
                         pending_row = {
                             'id': stable_trade_id(
                                 'trade-close-pending',
@@ -1923,6 +2005,7 @@ def run() -> int:
                                 'executionMode': 'live',
                                 'executionIntent': 'close',
                                 'closeReason': close_reason,
+                                **close_fields,
                                 'candidateId': str(position.get('candidateId') or '').strip(),
                                 'leaderFollowSnapshot': position.get('leaderFollowSnapshot')
                                 if isinstance(position.get('leaderFollowSnapshot'), dict)
@@ -1967,6 +2050,23 @@ def run() -> int:
                     if CLOSE_STRICT_TRACKING:
                         if not resolved_close_error:
                             live_close_deferred_tick += 1
+                        open_cost_basis = round(
+                            max(
+                                0.0,
+                                parse_float(
+                                    position.get('openCostBasisUsd'),
+                                    parse_float(position.get('notionalUsd'), close_notional),
+                                ),
+                            ),
+                            8,
+                        )
+                        close_fields = close_metadata_fields(
+                            open_cost_basis_usd=open_cost_basis,
+                            close_proceeds_usd=0.0,
+                            realized_profit_usd=0.0,
+                            close_order_id='',
+                            close_payment_ref='',
+                        )
                         failed_close_row = {
                             'id': stable_trade_id(
                                 'trade-close-failed',
@@ -1990,6 +2090,7 @@ def run() -> int:
                                 'executionMode': 'live',
                                 'executionIntent': 'close',
                                 'closeReason': close_reason,
+                                **close_fields,
                                 'candidateId': str(position.get('candidateId') or '').strip(),
                                 'linkedOpenPositionId': str(position.get('positionId') or position.get('id') or ''),
                             },
@@ -2185,6 +2286,7 @@ def run() -> int:
                     'candidateId': candidate_id,
                     'leaderFollowSnapshot': leader_follow_snapshot,
                     'notionalUsd': round(notional_usd, 8),
+                    'openCostBasisUsd': round(notional_usd, 8),
                     'confidence': parse_float(candidate.get('confidence'), 0.0),
                     'expectedNetUsd': parse_float(candidate.get('expectedNetUsd'), 0.0),
                     'allocationWeight': venue_weights.get(venue, 0.0),
@@ -2217,6 +2319,16 @@ def run() -> int:
                     ) and has_settlement_evidence_from_result(result)
 
                     if can_record_realized_close:
+                        open_cost_basis = round(max(0.0, notional_usd), 8)
+                        close_proceeds = round(max(0.0, result['netUsd']), 8)
+                        realized_profit = round(close_proceeds - open_cost_basis, 8)
+                        close_fields = close_metadata_fields(
+                            open_cost_basis_usd=open_cost_basis,
+                            close_proceeds_usd=close_proceeds,
+                            realized_profit_usd=realized_profit,
+                            close_order_id=str(result.get('orderId') or ''),
+                            close_payment_ref=str(result.get('paymentRef') or ''),
+                        )
                         close_row = {
                             'id': stable_trade_id('trade-close', result['positionId']),
                             'at': now_iso(),
@@ -2231,12 +2343,14 @@ def run() -> int:
                             'grossUsd': result['grossUsd'],
                             'costUsd': result['costUsd'],
                             'netUsd': result['netUsd'],
+                            'realizedProfitUsd': realized_profit,
                             'paymentRef': result['paymentRef'],
                             'txSignature': result['txSignature'],
                             'metadata': {
                                 'executionMode': 'live',
                                 'candidateId': candidate_id,
                                 'leaderFollowSnapshot': leader_follow_snapshot,
+                                **close_fields,
                                 'settlementEvidence': {
                                     'settlementRef': result['settlementRef'],
                                     'txSignature': result['txSignature'],
@@ -2301,6 +2415,7 @@ def run() -> int:
                                 'status': 'open',
                                 'openedAt': now_iso(),
                                 'notionalUsd': round(notional_usd, 8),
+                                'openCostBasisUsd': round(notional_usd, 8),
                                 'confidence': parse_float(candidate.get('confidence'), 0.0),
                                 'expectedNetUsd': parse_float(candidate.get('expectedNetUsd'), 0.0),
                                 'feesEstimate': parse_float(candidate.get('feesEstimate'), 0.0),

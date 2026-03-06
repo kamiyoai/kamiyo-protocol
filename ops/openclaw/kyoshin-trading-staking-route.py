@@ -6,7 +6,7 @@ import os
 import re
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +63,7 @@ def env_float(name: str, default: float) -> float:
 ENABLE_TRADING_AGENT = env_bool('KYO_ENABLE_TRADING_AGENT', False)
 DEFAULT_POOL_URL = 'https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d'
 STAKING_POOL_URL = os.getenv('KYO_TRADING_STAKING_POOL_URL', DEFAULT_POOL_URL).strip() or DEFAULT_POOL_URL
-ROUTE_BPS = max(1, min(10000, env_int('KYO_TRADING_ROUTE_NET_BPS', 5000)))
+ROUTE_BPS = max(0, min(10000, env_int('KYO_TRADING_ROUTE_NET_BPS', 5000)))
 ROUTE_MIN_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_MIN_SOL', 0.000001))
 SOL_PRICE_USD = max(
     0.000001,
@@ -82,6 +82,7 @@ CLI_TIMEOUT_SECONDS = max(15, min(180, env_int('KYO_TRADING_ROUTE_CLI_TIMEOUT_SE
 ROUTE_FEE_RESERVE_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_FEE_RESERVE_SOL', 0.00001))
 ROUTE_RENT_RESERVE_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_ACCOUNT_RENT_RESERVE_SOL', 0.001))
 ROUTE_MIN_WALLET_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_MIN_WALLET_SOL', 0.0))
+ROUTE_BASIS_WINDOW_HOURS = max(1, min(72, env_int('KYO_TRADING_ROUTE_BASIS_WINDOW_HOURS', 24)))
 ROUTE_TOPUP_ENABLED = env_bool('KYO_TRADING_ROUTE_TOPUP_ENABLED', False)
 ROUTE_TOPUP_TARGET_SOL = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_TARGET_SOL', 0.0))
 ROUTE_TOPUP_MAX_SOL_PER_RUN = max(0.0, env_float('KYO_TRADING_ROUTE_TOPUP_MAX_SOL_PER_RUN', 0.0))
@@ -202,6 +203,36 @@ def has_settlement_evidence(row: dict[str, Any]) -> bool:
             if looks_like_chain_tx_ref(settlement.get(key)):
                 return True
     return False
+
+
+def realized_profit_from_close_row(row: dict[str, Any]) -> float:
+    metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+    explicit = row.get('realizedProfitUsd')
+    if explicit is None and isinstance(metadata, dict):
+        explicit = metadata.get('realizedProfitUsd')
+    value = parse_float(explicit, float('nan'))
+    if value == value:
+        return round(value, 8)
+
+    close_proceeds = parse_float(metadata.get('closeProceedsUsd'), float('nan'))
+    open_cost = parse_float(metadata.get('openCostBasisUsd'), float('nan'))
+    if close_proceeds == close_proceeds and open_cost == open_cost:
+        return round(close_proceeds - open_cost, 8)
+
+    return 0.0
+
+
+def close_row_has_required_realized_fields(row: dict[str, Any]) -> bool:
+    metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+    for key in ('openCostBasisUsd', 'closeProceedsUsd', 'realizedProfitUsd'):
+        value = parse_float(metadata.get(key), float('nan'))
+        if value != value:
+            return False
+    close_order_id = str(metadata.get('closeOrderId') or row.get('orderId') or '').strip()
+    close_payment_ref = str(metadata.get('closePaymentRef') or row.get('paymentRef') or '').strip()
+    if not close_order_id or not close_payment_ref:
+        return False
+    return True
 
 
 def looks_like_chain_tx_ref(value: Any) -> bool:
@@ -770,12 +801,16 @@ def run_solana_transfer(*, amount_sol: float, pool_id: str) -> dict[str, Any]:
     }
 
 
-def trading_realized_snapshot(rows: list[dict[str, Any]]) -> tuple[float, str, int, int]:
+def trading_realized_snapshot(rows: list[dict[str, Any]], *, window_hours: int) -> dict[str, Any]:
     total_realized_net = 0.0
+    window_realized_net = 0.0
     latest_id = ''
     latest_ts = datetime.fromtimestamp(0, tz=timezone.utc)
     row_count = 0
     synthetic_realized_close_violations = 0
+    missing_realized_field_rows = 0
+    now = datetime.now(timezone.utc)
+    window_cutoff = now - timedelta(hours=max(1, window_hours))
     for row in rows:
         source = str(row.get('source') or '').strip().lower()
         if source != 'trading':
@@ -792,15 +827,27 @@ def trading_realized_snapshot(rows: list[dict[str, Any]]) -> tuple[float, str, i
         if not has_settlement_evidence(row):
             synthetic_realized_close_violations += 1
             continue
-        net = parse_float(row.get('netUsd'), 0.0)
-        if net > 0:
-            total_realized_net += net
+        if not close_row_has_required_realized_fields(row):
+            missing_realized_field_rows += 1
+            continue
+        realized_profit = realized_profit_from_close_row(row)
+        total_realized_net += realized_profit
         row_count += 1
         ts = parse_ts(row.get('at') or row.get('timestamp') or row.get('executedAt'))
+        if ts is not None and ts >= window_cutoff:
+            window_realized_net += realized_profit
         if ts is not None and ts >= latest_ts:
             latest_ts = ts
             latest_id = str(row.get('id') or '').strip() or latest_id
-    return round(max(0.0, total_realized_net), 8), latest_id, row_count, synthetic_realized_close_violations
+    return {
+        'realizedNetUsdTotal': round(max(0.0, total_realized_net), 8),
+        'realizedNetUsdWindow': round(window_realized_net, 8),
+        'checkpointId': latest_id,
+        'realizedRows': row_count,
+        'syntheticRealizedCloseViolations': synthetic_realized_close_violations,
+        'missingRealizedFieldRows': missing_realized_field_rows,
+        'routeBasisWindowHours': max(1, window_hours),
+    }
 
 
 def run() -> int:
@@ -821,7 +868,13 @@ def run() -> int:
         return 0
 
     rows = jsonl_rows(LEDGER_PATH)
-    total_realized_net_usd, checkpoint_id, realized_rows, synthetic_violations = trading_realized_snapshot(rows)
+    realized_snapshot = trading_realized_snapshot(rows, window_hours=ROUTE_BASIS_WINDOW_HOURS)
+    total_realized_net_usd = round(parse_float(realized_snapshot.get('realizedNetUsdTotal'), 0.0), 8)
+    realized_net_usd_24h = round(parse_float(realized_snapshot.get('realizedNetUsdWindow'), 0.0), 8)
+    checkpoint_id = str(realized_snapshot.get('checkpointId') or '')
+    realized_rows = int(realized_snapshot.get('realizedRows') or 0)
+    synthetic_violations = int(realized_snapshot.get('syntheticRealizedCloseViolations') or 0)
+    missing_realized_field_rows = int(realized_snapshot.get('missingRealizedFieldRows') or 0)
     state = read_json(STATE_PATH, {})
     if not isinstance(state, dict):
         state = {}
@@ -883,6 +936,7 @@ def run() -> int:
         rebased_processed_overshoot = True
 
     delta_unrouted_usd = round(total_realized_net_usd - processed_realized_net_usd, 8)
+    route_usd_24h = floor_precision(max(0.0, realized_net_usd_24h) * (ROUTE_BPS / 10_000.0), 8)
     if delta_unrouted_usd <= ROUTE_TOLERANCE_USD:
         if ROUTE_MIN_WALLET_SOL > 0:
             sweep_result = maybe_sweep_route_wallet_earnings(
@@ -918,19 +972,24 @@ def run() -> int:
             'ok': True,
             'status': 'up_to_date',
             'reason': 'within_tolerance' if delta_unrouted_usd > 0 else 'no_unrouted_balance',
+            'routeSkippedReason': 'within_tolerance' if delta_unrouted_usd > 0 else 'no_unrouted_balance',
             'at': now_iso(),
             'startedAt': started_at,
             'realizedNetUsdTotal': total_realized_net_usd,
+            'realizedNetUsd24h': realized_net_usd_24h,
             'processedRealizedNetUsd': processed_realized_net_usd,
             'deltaUnroutedUsd': round(max(0.0, delta_unrouted_usd), 8),
             'unroutedRealizedNetUsd': round(max(0.0, delta_unrouted_usd), 8),
+            'routeUsd24h': route_usd_24h,
             'routeLagToleranceUsd': ROUTE_TOLERANCE_USD,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
             'routeBps': ROUTE_BPS,
             'routeMinSol': ROUTE_MIN_SOL,
             'solPriceUsd': SOL_PRICE_USD,
             'checkpointId': checkpoint_id,
             'realizedRows': realized_rows,
             'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
             'rebasedProcessedOvershoot': rebased_processed_overshoot,
             'lastRoutedLedgerCursor': str(state.get('lastRoutedLedgerCursor') or ''),
             'lastRoutedNetUsd': round(parse_float(state.get('lastRoutedNetUsd'), 0.0), 8),
@@ -965,7 +1024,64 @@ def run() -> int:
         print(json.dumps(summary, ensure_ascii=True))
         return 0
 
-    route_usd = floor_precision(max(0.0, delta_unrouted_usd) * (ROUTE_BPS / 10_000.0), 8)
+    if realized_net_usd_24h <= 0:
+        summary = {
+            'ok': True,
+            'status': 'no_route',
+            'reason': 'no_positive_realized_24h',
+            'routeSkippedReason': 'no_positive_realized_24h',
+            'at': now_iso(),
+            'startedAt': started_at,
+            'realizedNetUsdTotal': total_realized_net_usd,
+            'realizedNetUsd24h': realized_net_usd_24h,
+            'processedRealizedNetUsd': processed_realized_net_usd,
+            'deltaUnroutedUsd': delta_unrouted_usd,
+            'unroutedRealizedNetUsd': delta_unrouted_usd,
+            'routeUsd24h': route_usd_24h,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
+            'routeBps': ROUTE_BPS,
+            'routeMinSol': ROUTE_MIN_SOL,
+            'solPriceUsd': SOL_PRICE_USD,
+            'checkpointId': checkpoint_id,
+            'realizedRows': realized_rows,
+            'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
+            'stakingPoolUrl': STAKING_POOL_URL,
+            'receiptsPath': str(ROUTE_RECEIPTS_PATH),
+            'ledgerPath': str(LEDGER_PATH),
+        }
+        apply_wallet_fields(summary)
+        write_json(
+            STATE_PATH,
+            {
+                'lastRunAt': summary['at'],
+                'processedRealizedNetUsd': processed_realized_net_usd,
+                'lastRoutedLedgerCursor': str(state.get('lastRoutedLedgerCursor') or ''),
+                'lastRoutedNetUsd': round(parse_float(state.get('lastRoutedNetUsd'), 0.0), 8),
+                'lastStatus': summary,
+            },
+        )
+        write_json(OUTPUT_PATH, summary)
+        append_json_line(
+            LOG_PATH,
+            {
+                'at': summary['at'],
+                'event': 'trading_staking_route',
+                'ok': summary['ok'],
+                'status': summary['status'],
+                'reason': summary['reason'],
+                'deltaUnroutedUsd': summary['deltaUnroutedUsd'],
+                'realizedNetUsd24h': summary['realizedNetUsd24h'],
+                'routeUsd24h': summary['routeUsd24h'],
+                'missingRealizedFieldRows': missing_realized_field_rows,
+                'syntheticRealizedCloseViolations': synthetic_violations,
+            },
+        )
+        print(json.dumps(summary, ensure_ascii=True))
+        return 0
+
+    route_usd_parity = floor_precision(max(0.0, delta_unrouted_usd) * (ROUTE_BPS / 10_000.0), 8)
+    route_usd = min(route_usd_24h, route_usd_parity)
     route_sol = floor_precision(route_usd / SOL_PRICE_USD, 9)
     required_wallet_balance_sol = max(
         ROUTE_MIN_WALLET_SOL,
@@ -1019,20 +1135,25 @@ def run() -> int:
             'ok': True,
             'status': 'no_route',
             'reason': 'below_min_sol',
+            'routeSkippedReason': 'below_min_sol',
             'at': now_iso(),
             'startedAt': started_at,
             'realizedNetUsdTotal': total_realized_net_usd,
+            'realizedNetUsd24h': realized_net_usd_24h,
             'processedRealizedNetUsd': processed_realized_net_usd,
             'deltaUnroutedUsd': delta_unrouted_usd,
             'unroutedRealizedNetUsd': delta_unrouted_usd,
+            'routeUsd24h': route_usd_24h,
             'routeUsd': route_usd,
             'routeSol': route_sol,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
             'routeMinSol': ROUTE_MIN_SOL,
             'solPriceUsd': SOL_PRICE_USD,
             'routeBps': ROUTE_BPS,
             'checkpointId': checkpoint_id,
             'stakingPoolUrl': STAKING_POOL_URL,
             'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
             'receiptsPath': str(ROUTE_RECEIPTS_PATH),
             'ledgerPath': str(LEDGER_PATH),
         }
@@ -1070,14 +1191,19 @@ def run() -> int:
             'ok': False,
             'status': 'blocked',
             'reason': 'invalid_staking_pool_url',
+            'routeSkippedReason': 'invalid_staking_pool_url',
             'at': now_iso(),
             'startedAt': started_at,
             'stakingPoolUrl': STAKING_POOL_URL,
+            'realizedNetUsd24h': realized_net_usd_24h,
+            'routeUsd24h': route_usd_24h,
             'deltaUnroutedUsd': delta_unrouted_usd,
             'unroutedRealizedNetUsd': delta_unrouted_usd,
             'routeUsd': route_usd,
             'routeSol': route_sol,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
             'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
         }
         apply_wallet_fields(summary)
         write_json(
@@ -1110,19 +1236,24 @@ def run() -> int:
             'ok': False,
             'status': 'blocked',
             'reason': error_message,
+            'routeSkippedReason': 'route_execution_failed',
             'at': now_iso(),
             'startedAt': started_at,
             'realizedNetUsdTotal': total_realized_net_usd,
+            'realizedNetUsd24h': realized_net_usd_24h,
             'processedRealizedNetUsd': processed_realized_net_usd,
             'deltaUnroutedUsd': delta_unrouted_usd,
             'unroutedRealizedNetUsd': delta_unrouted_usd,
+            'routeUsd24h': route_usd_24h,
             'routeUsd': route_usd,
             'routeSol': route_sol,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
             'routeBps': ROUTE_BPS,
             'solPriceUsd': SOL_PRICE_USD,
             'stakingPoolUrl': STAKING_POOL_URL,
             'checkpointId': checkpoint_id,
             'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
         }
         apply_wallet_fields(summary)
         write_json(
@@ -1206,19 +1337,24 @@ def run() -> int:
     summary = {
         'ok': True,
         'status': 'routed',
+        'routeSkippedReason': '',
         'at': routed_at,
         'startedAt': started_at,
         'realizedNetUsdTotal': total_realized_net_usd,
+        'realizedNetUsd24h': realized_net_usd_24h,
         'processedRealizedNetUsd': processed_realized_after,
         'deltaUnroutedUsd': delta_unrouted_usd,
         'unroutedRealizedNetUsd': unrouted_after,
+        'routeUsd24h': route_usd_24h,
         'routeUsd': routed_usd,
         'routeSol': round(routed_sol, 9),
+        'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
         'routeBps': ROUTE_BPS,
         'routeMinSol': ROUTE_MIN_SOL,
         'solPriceUsd': round(SOL_PRICE_USD, 8),
         'checkpointId': checkpoint_id,
         'syntheticRealizedCloseViolations': synthetic_violations,
+        'missingRealizedFieldRows': missing_realized_field_rows,
         'txSignature': tx_signature,
         'method': route_method,
         'stakingPoolUrl': STAKING_POOL_URL,
