@@ -21,6 +21,7 @@ import { createPrivacyRouter } from './routes/privacy';
 import { createDiscoveryRouter } from './routes/discovery';
 import { createSupportedRouter } from './routes/supported';
 import { createSessionRouter } from './routes/session';
+import { createKizunaRouter } from './routes/kizuna';
 import { isBaseEnabled } from './services/base-settlement';
 import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
 
@@ -86,6 +87,7 @@ async function main() {
   app.use('/fees', rateLimit, createFeesRouter());
   app.use('/reputation', rateLimit, createReputationRouter());
   app.use('/session', rateLimit, createSessionRouter(connection, facilitatorKeypair));
+  app.use('/kizuna', rateLimit, createKizunaRouter());
 
   app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection, facilitatorKeypair.publicKey));
   app.use('/settle', apiKeyAuth, rateLimit, createSettleRouter(connection, facilitatorKeypair));
