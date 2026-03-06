@@ -150,7 +150,7 @@ router.post('/verify', async (req: Request, res: Response) => {
     }
 
     const newBalance = getCreditBalance(wallet);
-    emitFairscaleFusionEvent({
+    await emitFairscaleFusionEvent({
       wallet,
       serviceId: 'credits.deposit.v1',
       qualityScore: 100,

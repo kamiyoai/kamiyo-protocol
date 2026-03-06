@@ -38,9 +38,9 @@ function normalizeMetadata(metadata: Record<string, unknown> | undefined): Recor
   return metadata;
 }
 
-export function emitFairscaleFusionEvent(
+export async function emitFairscaleFusionEvent(
   input: FairscaleFusionEmitInput
-): { inserted: boolean; event: FairscaleFusionEvent } | null {
+): Promise<{ inserted: boolean; event: FairscaleFusionEvent } | null> {
   const wallet = typeof input.wallet === 'string' ? input.wallet.trim() : '';
   if (!FAIRSCALE_FUSION_SOLANA_WALLET_RE.test(wallet)) {
     return null;
@@ -85,7 +85,7 @@ export function emitFairscaleFusionEvent(
     : deriveFairscaleFusionEventId(canonicalPayload);
 
   try {
-    return insertFairscaleFusionEvent({
+    return await insertFairscaleFusionEvent({
       eventId,
       canonicalHash: hashFairscaleFusionHex(canonicalPayload),
       partner,

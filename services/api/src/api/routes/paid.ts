@@ -73,12 +73,12 @@ export function isX402Available(): boolean {
   return facilitator !== null;
 }
 
-function emitPaidFusionEvent(
+async function emitPaidFusionEvent(
   req: Request,
   serviceId: string,
   proofHash: string,
   metadata?: Record<string, unknown>
-): void {
+): Promise<void> {
   const credits = (req as any).credits as { wallet?: string; amountUsd?: number; remainingUsd?: number } | undefined;
   const x402 = (req as any).x402 as { payer?: string; network?: string; amount?: string; tx?: string } | undefined;
   const wallet = typeof credits?.wallet === 'string' && credits.wallet
@@ -91,7 +91,7 @@ function emitPaidFusionEvent(
     return;
   }
 
-  emitFairscaleFusionEvent({
+  await emitFairscaleFusionEvent({
     wallet,
     serviceId,
     qualityScore: 100,
@@ -320,7 +320,7 @@ router.post('/chat', async (req: Request, res: Response) => {
     const credits = (req as any).credits;
     const responseId = `paid_${randomBytes(8).toString('hex')}`;
 
-    emitPaidFusionEvent(req, 'api.paid.chat.v1', `paid_chat_${responseId}`, {
+    await emitPaidFusionEvent(req, 'api.paid.chat.v1', `paid_chat_${responseId}`, {
       promptTokens: response.usage.input_tokens,
       completionTokens: response.usage.output_tokens,
     });
@@ -370,7 +370,7 @@ router.get('/market', async (req: Request, res: Response) => {
     const credits = (req as any).credits;
     const responseId = `market_${randomBytes(8).toString('hex')}`;
 
-    emitPaidFusionEvent(req, 'api.paid.market.v1', `paid_market_${responseId}`, {
+    await emitPaidFusionEvent(req, 'api.paid.market.v1', `paid_market_${responseId}`, {
       timestamp: Date.now(),
       sentiment: ctx.marketSentiment,
     });

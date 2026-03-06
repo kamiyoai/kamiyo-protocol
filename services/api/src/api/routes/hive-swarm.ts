@@ -546,7 +546,7 @@ async function executeSwarmRun(options: {
     ? (status === 'completed' ? 100 : 0)
     : Math.round((completedNodes / totalNodes) * 10000) / 100;
 
-  emitFairscaleFusionEvent({
+  await emitFairscaleFusionEvent({
     wallet: options.wallet || '',
     serviceId: 'hive.swarm.run.v1',
     qualityScore,

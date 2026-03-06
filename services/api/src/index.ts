@@ -148,6 +148,7 @@ import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, recordFailure, canWrite, waitForWrite, recordWrite, withRateLimit, isCircuitOpen } from './rate-limiter';
 import { startApiServer } from './api';
 import { closeDatabase } from './db';
+import { closeFairscaleFusionStore } from './fairscale-fusion-store';
 import { shutdownMcpSessions } from './mcp/index.js';
 import { stopChallengeCleanup } from './api/auth';
 import { stopRateLimitCleanup } from './api/middleware';
@@ -1569,6 +1570,7 @@ async function main(): Promise<void> {
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Close database connection
+    await closeFairscaleFusionStore();
     closeDatabase();
     logger.info('Database closed');
 

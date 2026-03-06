@@ -13,6 +13,7 @@ import {
 } from '../../fairscale-fusion-core';
 import {
   FairscaleFusionEvent,
+  getFairscaleFusionStoreStatus,
   getFairscaleFusionReliabilitySummary,
   insertFairscaleFusionEvent,
   listFairscaleFusionEvents,
@@ -295,15 +296,17 @@ function eventToFeedRecord(event: FairscaleFusionEvent): Record<string, unknown>
 }
 
 router.get('/health', (_req: Request, res: Response) => {
+  const storage = getFairscaleFusionStoreStatus();
   res.json({
     status: 'ok',
     partner: FAIRSCALE_FUSION_DEFAULT_PARTNER,
     ingestConfigured: Boolean(getIngestSecret()),
     readTokenRequired: Boolean(getReadToken()),
+    storage,
   });
 });
 
-router.post('/events', ingestRateLimiter, (req: Request, res: Response) => {
+router.post('/events', ingestRateLimiter, async (req: Request, res: Response) => {
   const ingestSecret = getIngestSecret();
   if (!ingestSecret) {
     return sendError(res, 503, 'INGEST_NOT_CONFIGURED', 'FUSION_FAIRSCALE_HMAC_SECRET is not configured');
@@ -359,7 +362,7 @@ router.post('/events', ingestRateLimiter, (req: Request, res: Response) => {
   try {
     const canonicalHash = hashFairscaleFusionHex(signaturePayload);
     const keyId = typeof req.headers['x-kamiyo-key-id'] === 'string' ? req.headers['x-kamiyo-key-id'].trim() : null;
-    const inserted = insertFairscaleFusionEvent({
+    const inserted = await insertFairscaleFusionEvent({
       eventId: parsed.event.eventId,
       canonicalHash,
       partner: parsed.event.partner,
@@ -389,7 +392,7 @@ router.post('/events', ingestRateLimiter, (req: Request, res: Response) => {
   }
 });
 
-router.get('/events', readRateLimiter, (req: Request, res: Response) => {
+router.get('/events', readRateLimiter, async (req: Request, res: Response) => {
   if (!hasReadAccess(req)) {
     return sendError(res, 401, 'UNAUTHORIZED', 'Missing or invalid read token');
   }
@@ -410,22 +413,31 @@ router.get('/events', readRateLimiter, (req: Request, res: Response) => {
       ? req.query.partner.trim().toLowerCase()
       : FAIRSCALE_FUSION_DEFAULT_PARTNER;
 
-  const events = listFairscaleFusionEvents({
-    partner,
-    wallet,
-    sinceMs,
-    limit,
-  });
+  try {
+    const events = await listFairscaleFusionEvents({
+      partner,
+      wallet,
+      sinceMs,
+      limit,
+    });
 
-  res.json({
-    ok: true,
-    partner,
-    count: events.length,
-    events: events.map(eventToFeedRecord),
-  });
+    res.json({
+      ok: true,
+      partner,
+      count: events.length,
+      events: events.map(eventToFeedRecord),
+    });
+  } catch (error) {
+    logger.error('Failed to load FairScale event feed', {
+      partner,
+      wallet,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    sendError(res, 500, 'INTERNAL_ERROR', 'Failed to load events');
+  }
 });
 
-router.get('/reliability/:wallet', readRateLimiter, (req: Request, res: Response) => {
+router.get('/reliability/:wallet', readRateLimiter, async (req: Request, res: Response) => {
   if (!hasReadAccess(req)) {
     return sendError(res, 401, 'UNAUTHORIZED', 'Missing or invalid read token');
   }
@@ -443,7 +455,7 @@ router.get('/reliability/:wallet', readRateLimiter, (req: Request, res: Response
   const serviceLimit = Number.isFinite(serviceLimitRaw) ? serviceLimitRaw : 10;
 
   try {
-    const summary = getFairscaleFusionReliabilitySummary(wallet, windowDays, serviceLimit);
+    const summary = await getFairscaleFusionReliabilitySummary(wallet, windowDays, serviceLimit);
     res.json({ ok: true, ...summary });
   } catch (error) {
     logger.error('Failed to load FairScale reliability summary', {

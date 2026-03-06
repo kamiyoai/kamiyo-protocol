@@ -4,7 +4,7 @@ import http from 'http';
 import { createHmac } from 'node:crypto';
 
 let fusionRoutes: express.Router;
-let resetFusionStore: () => void;
+let resetFusionStore: () => Promise<void>;
 
 function startServer(app: express.Express): Promise<{ baseUrl: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -69,11 +69,13 @@ describe('FairScale fusion routes', () => {
   const previousIngestSecret = process.env.FUSION_FAIRSCALE_HMAC_SECRET;
   const previousReadToken = process.env.FUSION_FAIRSCALE_READ_TOKEN;
   const previousFeedSecret = process.env.FUSION_FAIRSCALE_FEED_SIGNING_SECRET;
+  const previousDatabaseUrl = process.env.FUSION_FAIRSCALE_DATABASE_URL;
 
   beforeAll(async () => {
     process.env.FUSION_FAIRSCALE_HMAC_SECRET = 'fusion-test-ingest-secret';
     process.env.FUSION_FAIRSCALE_READ_TOKEN = 'fusion-read-token';
     process.env.FUSION_FAIRSCALE_FEED_SIGNING_SECRET = 'fusion-feed-sign-secret';
+    delete process.env.FUSION_FAIRSCALE_DATABASE_URL;
 
     const routeModule = await import('../api/routes/fairscale-fusion');
     fusionRoutes = routeModule.default;
@@ -83,7 +85,7 @@ describe('FairScale fusion routes', () => {
   });
 
   beforeEach(() => {
-    resetFusionStore();
+    return resetFusionStore();
   });
 
   afterAll(() => {
@@ -95,6 +97,9 @@ describe('FairScale fusion routes', () => {
 
     if (previousFeedSecret === undefined) delete process.env.FUSION_FAIRSCALE_FEED_SIGNING_SECRET;
     else process.env.FUSION_FAIRSCALE_FEED_SIGNING_SECRET = previousFeedSecret;
+
+    if (previousDatabaseUrl === undefined) delete process.env.FUSION_FAIRSCALE_DATABASE_URL;
+    else process.env.FUSION_FAIRSCALE_DATABASE_URL = previousDatabaseUrl;
   });
 
   it('rejects ingest without signature header', async () => {
@@ -118,6 +123,30 @@ describe('FairScale fusion routes', () => {
       });
 
       expect(response.status).toBe(401);
+    } finally {
+      await close();
+    }
+  });
+
+  it('reports storage backend in health', async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/fusion/fairscale', fusionRoutes);
+
+    const { baseUrl, close } = await startServer(app);
+    try {
+      const response = await fetch(`${baseUrl}/api/fusion/fairscale/health`);
+      expect(response.status).toBe(200);
+
+      const body = (await response.json()) as {
+        status: string;
+        storage: { backend: string; durable: boolean; databaseUrlConfigured: boolean };
+      };
+
+      expect(body.status).toBe('ok');
+      expect(body.storage.backend).toBe('sqlite');
+      expect(body.storage.durable).toBe(false);
+      expect(body.storage.databaseUrlConfigured).toBe(false);
     } finally {
       await close();
     }

@@ -15,15 +15,15 @@ describe('FairScale fusion emitter', () => {
   });
 
   beforeEach(() => {
-    resetFairscaleFusionStore();
+    return resetFairscaleFusionStore();
   });
 
   afterAll(() => {
-    resetFairscaleFusionStore();
+    return resetFairscaleFusionStore();
   });
 
-  it('persists internal events for valid Solana wallets', () => {
-    const first = emitFairscaleFusionEvent({
+  it('persists internal events for valid Solana wallets', async () => {
+    const first = await emitFairscaleFusionEvent({
       wallet: 'FRGumQszUGLTtfgH3gDwzG256pL4P8Cj3DDGAPCmBFka',
       serviceId: 'hive.swarm.run.v1',
       qualityScore: 87.5,
@@ -36,7 +36,7 @@ describe('FairScale fusion emitter', () => {
     expect(first?.inserted).toBe(true);
     expect(first?.event.keyId).toBe('kamiyo-internal');
 
-    const second = emitFairscaleFusionEvent({
+    const second = await emitFairscaleFusionEvent({
       wallet: 'FRGumQszUGLTtfgH3gDwzG256pL4P8Cj3DDGAPCmBFka',
       serviceId: 'hive.swarm.run.v1',
       qualityScore: 87.5,
@@ -47,11 +47,13 @@ describe('FairScale fusion emitter', () => {
     });
 
     expect(second?.inserted).toBe(false);
-    expect(listFairscaleFusionEvents({ wallet: 'FRGumQszUGLTtfgH3gDwzG256pL4P8Cj3DDGAPCmBFka' })).toHaveLength(1);
+    expect(
+      await listFairscaleFusionEvents({ wallet: 'FRGumQszUGLTtfgH3gDwzG256pL4P8Cj3DDGAPCmBFka' })
+    ).toHaveLength(1);
   });
 
-  it('skips non-Solana wallets', () => {
-    const emitted = emitFairscaleFusionEvent({
+  it('skips non-Solana wallets', async () => {
+    const emitted = await emitFairscaleFusionEvent({
       wallet: '0x1234',
       serviceId: 'api.paid.chat.v1',
       qualityScore: 100,
@@ -61,6 +63,6 @@ describe('FairScale fusion emitter', () => {
     });
 
     expect(emitted).toBeNull();
-    expect(listFairscaleFusionEvents({})).toHaveLength(0);
+    expect(await listFairscaleFusionEvents({})).toHaveLength(0);
   });
 });
