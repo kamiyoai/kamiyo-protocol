@@ -1,5 +1,4 @@
 use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
-use ed25519_dalek::Keypair as DalekKeypair;
 use kamiyo::{Escrow, EscrowStatus, OracleRegistry};
 use solana_program_test::{processor, ProgramTest, ProgramTestContext};
 use solana_sdk::{
@@ -370,8 +369,12 @@ async fn reveal_scores(
         let message = format!("{transaction_id}:{score}");
         let sig = oracle.sign_message(message.as_bytes());
         let sig: [u8; 64] = sig.as_ref().try_into().unwrap();
-        let dalek = DalekKeypair::from_bytes(&oracle.to_bytes()).unwrap();
-        let ed25519_ix = ed25519_instruction::new_ed25519_instruction(&dalek, message.as_bytes());
+        let pubkey = oracle.pubkey().to_bytes();
+        let ed25519_ix = ed25519_instruction::new_ed25519_instruction_with_signature(
+            message.as_bytes(),
+            &sig,
+            &pubkey,
+        );
         let ix = Instruction {
             program_id: kamiyo::ID,
             accounts: kamiyo::accounts::SubmitOracleScore {
@@ -450,8 +453,12 @@ async fn resolve_dispute_full_refund_succeeds() {
     let verifier = &oracles[0];
     let sig = verifier.sign_message(message.as_bytes());
     let sig: [u8; 64] = sig.as_ref().try_into().unwrap();
-    let dalek = DalekKeypair::from_bytes(&verifier.to_bytes()).unwrap();
-    let ed25519_ix = ed25519_instruction::new_ed25519_instruction(&dalek, message.as_bytes());
+    let pubkey = verifier.pubkey().to_bytes();
+    let ed25519_ix = ed25519_instruction::new_ed25519_instruction_with_signature(
+        message.as_bytes(),
+        &sig,
+        &pubkey,
+    );
     let resolve_ix = Instruction {
         program_id: kamiyo::ID,
         accounts: kamiyo::accounts::ResolveDispute {
