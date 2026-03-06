@@ -1,7 +1,16 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import rateLimit from 'express-rate-limit';
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
+import {
+  canonicalFairscaleFusionPayload,
+  deriveFairscaleFusionEventId,
+  FAIRSCALE_FUSION_DEFAULT_PARTNER,
+  FAIRSCALE_FUSION_SOLANA_WALLET_RE,
+  hashFairscaleFusionHex,
+  normalizeFairscaleFusionTimestamp,
+  roundFairscaleFusionNumber,
+} from '../../fairscale-fusion-core';
 import {
   FairscaleFusionEvent,
   getFairscaleFusionReliabilitySummary,
@@ -12,8 +21,6 @@ import { logger } from '../../logger';
 
 const router: IRouter = Router();
 
-const SOLANA_WALLET_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-const DEFAULT_PARTNER = 'fairscale';
 const DEFAULT_MAX_EVENT_AGE_MS = 365 * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
 const PARTNER_RE = /^[a-z0-9][a-z0-9_-]{1,31}$/;
@@ -123,39 +130,6 @@ function parseNumberValue(body: Record<string, unknown>, keys: string[]): number
   return null;
 }
 
-function normalizeTimestamp(rawTimestamp: number): number {
-  if (!Number.isFinite(rawTimestamp)) return NaN;
-  const rounded = Math.floor(rawTimestamp);
-  if (rounded < 1_000_000_000_000) {
-    return rounded * 1000;
-  }
-  return rounded;
-}
-
-function toFixedNumber(value: number): number {
-  return Math.round(value * 10_000) / 10_000;
-}
-
-function canonicalSignaturePayload(event: Omit<ParsedFusionEvent, 'eventId' | 'metadata'>): string {
-  return [
-    event.partner,
-    event.wallet,
-    event.serviceId,
-    event.qualityScore.toFixed(4),
-    event.refundPct.toFixed(4),
-    String(event.timestampMs),
-    event.proofHash,
-  ].join('|');
-}
-
-function deriveEventId(payload: string): string {
-  return createHash('sha256').update(payload).digest('hex').slice(0, 32);
-}
-
-function hashHex(payload: string): string {
-  return createHash('sha256').update(payload).digest('hex');
-}
-
 function parseFusionEvent(body: unknown): { ok: true; event: ParsedFusionEvent } | { ok: false; message: string } {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { ok: false, message: 'Request body must be an object' };
@@ -164,13 +138,13 @@ function parseFusionEvent(body: unknown): { ok: true; event: ParsedFusionEvent }
   const record = body as Record<string, unknown>;
 
   const partnerRaw = parseString(record, ['partner']);
-  const partner = partnerRaw ? partnerRaw.toLowerCase() : DEFAULT_PARTNER;
+  const partner = partnerRaw ? partnerRaw.toLowerCase() : FAIRSCALE_FUSION_DEFAULT_PARTNER;
   if (!PARTNER_RE.test(partner)) {
     return { ok: false, message: 'partner must match [a-z0-9_-], length 2-32' };
   }
 
   const wallet = parseString(record, ['wallet']);
-  if (!wallet || !SOLANA_WALLET_RE.test(wallet)) {
+  if (!wallet || !FAIRSCALE_FUSION_SOLANA_WALLET_RE.test(wallet)) {
     return { ok: false, message: 'wallet must be a valid Solana address' };
   }
 
@@ -194,7 +168,7 @@ function parseFusionEvent(body: unknown): { ok: true; event: ParsedFusionEvent }
     return { ok: false, message: 'timestamp is required' };
   }
 
-  const timestampMs = normalizeTimestamp(timestampRaw);
+  const timestampMs = normalizeFairscaleFusionTimestamp(timestampRaw);
   if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
     return { ok: false, message: 'timestamp must be a valid unix timestamp (seconds or ms)' };
   }
@@ -214,15 +188,15 @@ function parseFusionEvent(body: unknown): { ok: true; event: ParsedFusionEvent }
     partner,
     wallet,
     serviceId,
-    qualityScore: toFixedNumber(qualityScoreRaw),
-    refundPct: toFixedNumber(refundPctRaw),
+    qualityScore: roundFairscaleFusionNumber(qualityScoreRaw),
+    refundPct: roundFairscaleFusionNumber(refundPctRaw),
     timestampMs,
     proofHash,
   };
 
-  const canonicalPayload = canonicalSignaturePayload(normalizedForSignature);
+  const canonicalPayload = canonicalFairscaleFusionPayload(normalizedForSignature);
   const eventId =
-    parseString(record, ['eventId', 'event_id']) || deriveEventId(canonicalPayload);
+    parseString(record, ['eventId', 'event_id']) || deriveFairscaleFusionEventId(canonicalPayload);
 
   const now = Date.now();
   const maxEventAgeMs = getMaxEventAgeMs();
@@ -303,7 +277,7 @@ function eventToFeedRecord(event: FairscaleFusionEvent): Record<string, unknown>
     return base;
   }
 
-  const feedSignaturePayload = canonicalSignaturePayload({
+  const feedSignaturePayload = canonicalFairscaleFusionPayload({
     partner: event.partner,
     wallet: event.wallet,
     serviceId: event.serviceId,
@@ -323,7 +297,7 @@ function eventToFeedRecord(event: FairscaleFusionEvent): Record<string, unknown>
 router.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    partner: DEFAULT_PARTNER,
+    partner: FAIRSCALE_FUSION_DEFAULT_PARTNER,
     ingestConfigured: Boolean(getIngestSecret()),
     readTokenRequired: Boolean(getReadToken()),
   });
@@ -350,7 +324,7 @@ router.post('/events', ingestRateLimiter, (req: Request, res: Response) => {
     return sendError(res, 401, 'INVALID_SIGNATURE', 'x-kamiyo-signature header is required');
   }
 
-  const signaturePayload = canonicalSignaturePayload({
+  const signaturePayload = canonicalFairscaleFusionPayload({
     partner: parsed.event.partner,
     wallet: parsed.event.wallet,
     serviceId: parsed.event.serviceId,
@@ -383,7 +357,7 @@ router.post('/events', ingestRateLimiter, (req: Request, res: Response) => {
   });
 
   try {
-    const canonicalHash = hashHex(signaturePayload);
+    const canonicalHash = hashFairscaleFusionHex(signaturePayload);
     const keyId = typeof req.headers['x-kamiyo-key-id'] === 'string' ? req.headers['x-kamiyo-key-id'].trim() : null;
     const inserted = insertFairscaleFusionEvent({
       eventId: parsed.event.eventId,
@@ -421,7 +395,7 @@ router.get('/events', readRateLimiter, (req: Request, res: Response) => {
   }
 
   const wallet = typeof req.query.wallet === 'string' ? req.query.wallet.trim() : undefined;
-  if (wallet && !SOLANA_WALLET_RE.test(wallet)) {
+  if (wallet && !FAIRSCALE_FUSION_SOLANA_WALLET_RE.test(wallet)) {
     return sendError(res, 400, 'INVALID_WALLET', 'wallet must be a valid Solana address');
   }
 
@@ -434,7 +408,7 @@ router.get('/events', readRateLimiter, (req: Request, res: Response) => {
   const partner =
     typeof req.query.partner === 'string' && req.query.partner.trim().length > 0
       ? req.query.partner.trim().toLowerCase()
-      : DEFAULT_PARTNER;
+      : FAIRSCALE_FUSION_DEFAULT_PARTNER;
 
   const events = listFairscaleFusionEvents({
     partner,
@@ -457,7 +431,7 @@ router.get('/reliability/:wallet', readRateLimiter, (req: Request, res: Response
   }
 
   const wallet = req.params.wallet?.trim();
-  if (!wallet || !SOLANA_WALLET_RE.test(wallet)) {
+  if (!wallet || !FAIRSCALE_FUSION_SOLANA_WALLET_RE.test(wallet)) {
     return sendError(res, 400, 'INVALID_WALLET', 'wallet must be a valid Solana address');
   }
 

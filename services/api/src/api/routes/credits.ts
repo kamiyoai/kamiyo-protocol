@@ -14,6 +14,7 @@ import {
   isDepositProcessed,
   getCreditStats,
 } from '../../db';
+import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { logger } from '../../logger';
 import { getSolanaConnection } from '../../solana';
 
@@ -149,6 +150,20 @@ router.post('/verify', async (req: Request, res: Response) => {
     }
 
     const newBalance = getCreditBalance(wallet);
+    emitFairscaleFusionEvent({
+      wallet,
+      serviceId: 'credits.deposit.v1',
+      qualityScore: 100,
+      refundPct: 0,
+      timestampMs: Date.now(),
+      proofHash: `credits_deposit_${txSignature}`,
+      metadata: {
+        txSignature,
+        kamiyoAmount,
+        creditsUsd: creditsToUsd(creditsMicro),
+        balanceUsd: creditsToUsd(newBalance),
+      },
+    });
     logger.info('Deposit processed', { wallet: wallet.slice(0, 8), amount: kamiyoAmount, usd: creditsToUsd(creditsMicro) });
 
     res.json({

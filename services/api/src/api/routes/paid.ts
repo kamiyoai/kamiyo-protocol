@@ -6,6 +6,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { randomBytes } from 'crypto';
 import { createPayAIFacilitator, PayAIFacilitator, PayAINetwork } from '@kamiyo/x402-client';
 import { getContext, formatContextForPrompt } from '../../crypto-context';
+import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { logger } from '../../logger';
 import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits, isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
 import { getBurnService } from '../../burn-service';
@@ -70,6 +71,42 @@ export function setAnthropicClient(client: Anthropic): void {
 
 export function isX402Available(): boolean {
   return facilitator !== null;
+}
+
+function emitPaidFusionEvent(
+  req: Request,
+  serviceId: string,
+  proofHash: string,
+  metadata?: Record<string, unknown>
+): void {
+  const credits = (req as any).credits as { wallet?: string; amountUsd?: number; remainingUsd?: number } | undefined;
+  const x402 = (req as any).x402 as { payer?: string; network?: string; amount?: string; tx?: string } | undefined;
+  const wallet = typeof credits?.wallet === 'string' && credits.wallet
+    ? credits.wallet
+    : typeof x402?.payer === 'string'
+      ? x402.payer
+      : '';
+
+  if (!wallet) {
+    return;
+  }
+
+  emitFairscaleFusionEvent({
+    wallet,
+    serviceId,
+    qualityScore: 100,
+    refundPct: 0,
+    timestampMs: Date.now(),
+    proofHash,
+    metadata: {
+      paymentMethod: credits ? 'credits' : 'x402',
+      amountUsd: credits?.amountUsd,
+      remainingUsd: credits?.remainingUsd,
+      network: x402?.network,
+      tx: x402?.tx,
+      ...metadata,
+    },
+  });
 }
 
 async function paymentMiddleware(
@@ -281,9 +318,15 @@ router.post('/chat', async (req: Request, res: Response) => {
 
     const x402 = (req as any).x402;
     const credits = (req as any).credits;
+    const responseId = `paid_${randomBytes(8).toString('hex')}`;
+
+    emitPaidFusionEvent(req, 'api.paid.chat.v1', `paid_chat_${responseId}`, {
+      promptTokens: response.usage.input_tokens,
+      completionTokens: response.usage.output_tokens,
+    });
 
     res.json({
-      id: `paid_${randomBytes(8).toString('hex')}`,
+      id: responseId,
       message: {
         role: 'assistant',
         content,
@@ -325,6 +368,12 @@ router.get('/market', async (req: Request, res: Response) => {
     const ctx = await getContext();
     const x402 = (req as any).x402;
     const credits = (req as any).credits;
+    const responseId = `market_${randomBytes(8).toString('hex')}`;
+
+    emitPaidFusionEvent(req, 'api.paid.market.v1', `paid_market_${responseId}`, {
+      timestamp: Date.now(),
+      sentiment: ctx.marketSentiment,
+    });
 
     res.json({
       btc: {

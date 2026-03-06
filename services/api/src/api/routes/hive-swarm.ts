@@ -7,6 +7,7 @@ import { runDag } from '../../swarm/dag';
 import type { SwarmDagPlan, SwarmTeamMember } from '../../swarm/types';
 import { reserveTeamBudget, settleTeamBudget } from '../../swarm/pool';
 import { publishKirokuDrop } from '../../kiroku';
+import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { acquireSwarmNodeSlot, clampMaxParallel, getSwarmGlobalActiveNodes, swarmRuntimeConfig } from '../../swarm/runtime';
 import { swarmActiveNodes, swarmNodeDuration, swarmNodesTotal, swarmRunDuration, swarmRunsTotal } from '../../metrics';
 
@@ -536,6 +537,37 @@ async function executeSwarmRun(options: {
       WHERE id = ?
     `).run(kiroku.error, runId);
   }
+
+  const completedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'completed').length;
+  const failedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'failed').length;
+  const skippedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'skipped').length;
+  const totalNodes = options.plan.nodes.length;
+  const qualityScore = totalNodes === 0
+    ? (status === 'completed' ? 100 : 0)
+    : Math.round((completedNodes / totalNodes) * 10000) / 100;
+
+  emitFairscaleFusionEvent({
+    wallet: options.wallet || '',
+    serviceId: 'hive.swarm.run.v1',
+    qualityScore,
+    refundPct: 0,
+    timestampMs: endedAtMs,
+    proofHash: `swarm_run_${runId}_${resultsSha}`,
+    metadata: {
+      runId,
+      teamId: options.teamId,
+      status,
+      totalNodes,
+      completedNodes,
+      failedNodes,
+      skippedNodes,
+      totalReserved,
+      totalSpent,
+      planSha256: planSha,
+      resultsSha256: resultsSha,
+      kirokuReceipt: kiroku.ok ? kiroku.receipt : null,
+    },
+  });
 
   return {
     runId,
