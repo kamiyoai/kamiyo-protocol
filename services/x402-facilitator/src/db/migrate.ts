@@ -104,6 +104,52 @@ const MIGRATIONS = [
         UNIQUE(dispute_id, oracle)
       );
 
+      ALTER TABLE disputes
+        ADD COLUMN IF NOT EXISTS escrow_id UUID,
+        ADD COLUMN IF NOT EXISTS escrow_address TEXT,
+        ADD COLUMN IF NOT EXISTS opener_wallet TEXT,
+        ADD COLUMN IF NOT EXISTS reason TEXT,
+        ADD COLUMN IF NOT EXISTS median_score SMALLINT,
+        ADD COLUMN IF NOT EXISTS refund_percentage SMALLINT,
+        ADD COLUMN IF NOT EXISTS resolution TEXT,
+        ADD COLUMN IF NOT EXISTS finalize_tx TEXT,
+        ADD COLUMN IF NOT EXISTS status TEXT,
+        ADD COLUMN IF NOT EXISTS commit_phase_ends_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS reveal_phase_ends_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+
+      ALTER TABLE disputes
+        ALTER COLUMN status SET DEFAULT 'commit_phase',
+        ALTER COLUMN created_at SET DEFAULT NOW();
+
+      UPDATE disputes
+      SET
+        status = COALESCE(status, 'commit_phase'),
+        created_at = COALESCE(created_at, NOW())
+      WHERE status IS NULL OR created_at IS NULL;
+
+      ALTER TABLE oracle_votes
+        ADD COLUMN IF NOT EXISTS dispute_id UUID,
+        ADD COLUMN IF NOT EXISTS oracle TEXT,
+        ADD COLUMN IF NOT EXISTS commitment_hash TEXT,
+        ADD COLUMN IF NOT EXISTS quality_score SMALLINT,
+        ADD COLUMN IF NOT EXISTS committed_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS revealed_at TIMESTAMPTZ;
+
+      ALTER TABLE oracle_votes
+        ALTER COLUMN committed_at SET DEFAULT NOW();
+
+      UPDATE oracle_votes
+      SET committed_at = COALESCE(committed_at, NOW())
+      WHERE committed_at IS NULL;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_oracle_votes_dispute_oracle') THEN
+          ALTER TABLE oracle_votes ADD CONSTRAINT uq_oracle_votes_dispute_oracle UNIQUE (dispute_id, oracle);
+        END IF;
+      END $$;
+
       CREATE INDEX IF NOT EXISTS idx_disputes_escrow ON disputes(escrow_address);
       CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
       CREATE INDEX IF NOT EXISTS idx_disputes_opener ON disputes(opener_wallet);
@@ -782,23 +828,7 @@ export async function runMigrations(): Promise<void> {
     if (existing.rows.length > 0) continue;
 
     console.log(`[migrate] applying ${migration.name}`);
-    try {
-      await pool.query(migration.sql);
-    } catch (error) {
-      const err = error as { code?: string; message?: string };
-      const legacyDisputeSchemaMismatch =
-        migration.name === '002_disputes_reputation' &&
-        err.code === '42703' &&
-        err.message?.includes('referenced in foreign key constraint does not exist');
-
-      if (!legacyDisputeSchemaMismatch) {
-        throw error;
-      }
-
-      console.warn(
-        `[migrate] legacy schema mismatch on ${migration.name}; skipping strict FK setup (${err.message})`
-      );
-    }
+    await pool.query(migration.sql);
     await pool.query('INSERT INTO migrations (name) VALUES ($1)', [migration.name]);
     console.log(`[migrate] applied ${migration.name}`);
   }
