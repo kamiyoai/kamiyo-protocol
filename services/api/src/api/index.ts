@@ -23,6 +23,7 @@ import swarmTeamRoutes from './routes/hive-teams';
 import buybackRoutes from './routes/buyback';
 import channelsRoutes from './routes/channels';
 import trustGraphRoutes from './routes/trust-graph';
+import fairscaleFusionRoutes from './routes/fairscale-fusion';
 import meishiRoutes from './routes/meishi';
 import meishiDkgRoutes from './routes/meishi-dkg';
 import dkgRoutes from './routes/dkg';
@@ -271,6 +272,9 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   // Trust graph visualization (public)
   app.use('/api/trust-graph', publicReadLimiter, trustGraphRoutes);
+
+  // FairScale fusion: signed event feed + reliability metrics
+  app.use('/api/fusion/fairscale', fairscaleFusionRoutes);
 
   // Meishi passports (public reads; on-chain source of truth)
   app.use('/api/meishi', publicReadLimiter, meishiRoutes);
@@ -527,6 +531,81 @@ const openApiSpec = {
         responses: {
           200: { description: 'Groth16 proof' },
         },
+      },
+    },
+    '/api/fusion/fairscale/events': {
+      post: {
+        summary: 'Ingest signed FairScale fusion event',
+        description:
+          'Accepts HMAC-signed quality/settlement events for reliability scoring. Requires x-kamiyo-signature header.',
+        parameters: [
+          {
+            name: 'x-kamiyo-signature',
+            in: 'header',
+            required: true,
+            schema: { type: 'string' },
+          },
+          {
+            name: 'x-kamiyo-key-id',
+            in: 'header',
+            required: false,
+            schema: { type: 'string' },
+          },
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  eventId: { type: 'string' },
+                  partner: { type: 'string', example: 'fairscale' },
+                  wallet: { type: 'string' },
+                  serviceId: { type: 'string' },
+                  qualityScore: { type: 'number', minimum: 0, maximum: 100 },
+                  refundPct: { type: 'number', minimum: 0, maximum: 100 },
+                  timestampMs: { type: 'number' },
+                  proofHash: { type: 'string' },
+                  metadata: { type: 'object' },
+                },
+                required: ['wallet', 'serviceId', 'qualityScore', 'refundPct', 'timestampMs', 'proofHash'],
+              },
+            },
+          },
+        },
+        responses: {
+          202: { description: 'Event accepted' },
+          200: { description: 'Idempotent replay acknowledged' },
+          401: { description: 'Signature invalid or missing' },
+        },
+        security: [],
+      },
+      get: {
+        summary: 'Fetch FairScale fusion events feed',
+        parameters: [
+          { name: 'partner', in: 'query', schema: { type: 'string', default: 'fairscale' } },
+          { name: 'wallet', in: 'query', schema: { type: 'string' } },
+          { name: 'since_ms', in: 'query', schema: { type: 'number' } },
+          { name: 'limit', in: 'query', schema: { type: 'number', default: 100, maximum: 500 } },
+        ],
+        responses: {
+          200: { description: 'Event feed' },
+        },
+        security: [],
+      },
+    },
+    '/api/fusion/fairscale/reliability/{wallet}': {
+      get: {
+        summary: 'Get reliability metrics for a wallet',
+        parameters: [
+          { name: 'wallet', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'window_days', in: 'query', schema: { type: 'number', default: 30, maximum: 365 } },
+          { name: 'service_limit', in: 'query', schema: { type: 'number', default: 10, maximum: 25 } },
+        ],
+        responses: {
+          200: { description: 'Reliability metrics and service breakdown' },
+        },
+        security: [],
       },
     },
   },
