@@ -213,6 +213,41 @@ jobs:
           KIZUNA_INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/kizuna_ci
         run: pnpm --filter @kamiyo-org/x402-facilitator test -- tests/kizuna-db.integration.test.ts
 
+  fairscale_db_integration:
+    name: FairScale DB Integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fairscale_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fairscale_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - run: pnpm install
+
+      - name: Run FairScale DB integration invariants
+        env:
+          FAIRSCALE_FUSION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fairscale_ci
+        run: pnpm --filter kamiyo-companion test -- src/__tests__/fairscale-fusion-store.integration.test.ts
+
   openclaw_runtime_smoke:
     name: OpenClaw Runtime Smoke
     runs-on: ubuntu-latest
