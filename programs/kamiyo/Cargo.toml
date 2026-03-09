@@ -30,7 +30,7 @@ solana-program = "4.0.0"
 
 [dev-dependencies]
 solana-program-test = "2.3.13"
-solana-sdk = "2.3.1"
+solana-sdk = "4.0.1"
 tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
 ed25519-dalek = "2.2.0"
 
