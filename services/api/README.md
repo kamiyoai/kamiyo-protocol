@@ -15,10 +15,14 @@ Companion still contains older integrations, but they are non-default and should
 
 ## Route posture
 
+- `protected`: authenticated operator and premium account surfaces
 - `kizuna-core`: credits, repayment, funding support, billing support, Kizuna-adjacent protocol routes
+- `module`: Kizuna-powered product modules that still ride the same companion service
 - `legacy`: FairScale fusion, trust-graph, paranet, PoCH, and unrelated retained integrations
 
 Public URLs stay stable in this phase. The change is repo focus, CI ownership, and documentation priority.
+
+The route ownership source of truth lives in `src/api/route-groups.ts`. Keep new product work in `kizuna-core` unless it is clearly a module surface or a retained legacy integration.
 
 ## Run
 

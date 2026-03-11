@@ -7,8 +7,16 @@ import process from 'node:process';
 
 const [, , groupName, scriptName] = process.argv;
 
+function writeStdout(message) {
+  process.stdout.write(`${message}\n`);
+}
+
+function writeStderr(message) {
+  process.stderr.write(`${message}\n`);
+}
+
 if (!groupName || !scriptName) {
-  console.error('Usage: node scripts/run-workspace-group.mjs <group> <script>');
+  writeStderr('Usage: node scripts/run-workspace-group.mjs <group> <script>');
   process.exit(1);
 }
 
@@ -18,7 +26,7 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const group = manifest.groups?.[groupName];
 
 if (!group) {
-  console.error(`Unknown workspace group: ${groupName}`);
+  writeStderr(`Unknown workspace group: ${groupName}`);
   process.exit(1);
 }
 
@@ -30,7 +38,7 @@ for (const workspace of group.workspaces) {
   }
 
   const filter = workspace.name || pkg.name;
-  console.log(`> ${groupName}:${scriptName} -> ${filter}`);
+  writeStdout(`> ${groupName}:${scriptName} -> ${filter}`);
   const result = spawnSync('pnpm', ['--filter', filter, 'run', scriptName], {
     cwd: repoRoot,
     stdio: 'inherit',

@@ -5,35 +5,20 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../logger';
-import { authMiddleware, rateLimitMiddleware, tierMiddleware, errorHandler } from './middleware';
+import { errorHandler } from './middleware';
 import authRoutes from './routes/auth';
-import chatRoutes, { setAnthropicClient } from './routes/chat';
-import tokensRoutes from './routes/tokens';
-import marketRoutes from './routes/market';
-import reputationRoutes from './routes/reputation';
+import { setAnthropicClient } from './routes/chat';
 import verifyRoutes from './routes/verify';
 import blacklistRoutes from './routes/blacklist';
-import swarmteamsRoutes from './routes/hive';
-import kamiyoTokenRoutes from './routes/kamiyo-token';
-import paidRoutes, { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
-import creditsRoutes, { initCreditsRoutes } from './routes/credits';
-import linkWalletRoutes from './routes/link-wallet';
-import internalHoldersRoutes from './routes/internal-holders';
-import swarmTeamRoutes from './routes/hive-teams';
-import buybackRoutes from './routes/buyback';
-import channelsRoutes from './routes/channels';
-import trustGraphRoutes from './routes/trust-graph';
-import fairscaleFusionRoutes from './routes/fairscale-fusion';
-import meishiRoutes from './routes/meishi';
-import meishiDkgRoutes from './routes/meishi-dkg';
-import dkgRoutes from './routes/dkg';
-import paranetRoutes from './routes/paranet';
-import pochRoutes from './routes/poch';
-import stakingReferralRoutes from './routes/staking-referrals';
-import babyagiRoutes from './routes/babyagi';
+import { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
+import { initCreditsRoutes } from './routes/credits';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
+import {
+  createApiRouteGroupCollection,
+  mountApiRouteGroupCollection,
+} from './route-groups';
 
 async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
   const startedAt = Date.now();
@@ -236,36 +221,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/auth/refresh', apiKeyRateLimiter);
   app.use('/api/auth', authRoutes);
 
-  // Protected companion routes
-  app.use('/api/v1/chat', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), chatRoutes);
-  app.use('/api/v1/tokens', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), tokensRoutes);
-  app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
-  app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
-
-  // Kizuna core routes
-  app.use('/api/paid', paidRoutes);
-  app.use('/api/credits', creditsRoutes);
-  app.use('/api/link-wallet', linkWalletRoutes);
-  app.use('/internal/holders', internalHoldersRoutes);
-  app.use('/api/meishi', publicReadLimiter, meishiRoutes);
-  app.use('/api/meishi-dkg', publicReadLimiter, meishiDkgRoutes);
-  app.use('/api/dkg', publicReadLimiter, dkgRoutes);
-
-  // Kizuna-powered module routes
-  app.use('/api/hive', swarmteamsRoutes);
-  app.use('/api/hive-teams', swarmTeamRoutes);
-  app.use('/api/swarm-teams', swarmTeamRoutes);
-  app.use('/api/buyback', buybackRoutes);
-  app.use('/api/channels', channelsRoutes);
-  app.use('/api/kamiyo', kamiyoTokenRoutes);
-
-  // Retained legacy routes
-  app.use('/api/trust-graph', publicReadLimiter, trustGraphRoutes);
-  app.use('/api/fusion/fairscale', fairscaleFusionRoutes);
-  app.use('/api/paranet', paranetRoutes);
-  app.use('/api/poch', pochRoutes);
-  app.use('/api/staking/referrals', stakingReferralRoutes);
-  app.use('/babyagi/v1', babyagiRoutes);
+  mountApiRouteGroupCollection(app, createApiRouteGroupCollection(publicReadLimiter));
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

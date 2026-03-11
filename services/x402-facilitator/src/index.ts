@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
+import { inspect } from 'node:util';
 import bs58 from 'bs58';
 import { Connection, Keypair } from '@solana/web3.js';
 import { validateConfig, getConfig, getRedactedConfig } from './config';
@@ -25,20 +26,42 @@ import { createKizunaRouter } from './routes/kizuna';
 import { isBaseEnabled } from './services/base-settlement';
 import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
 
+function writeLog(stream: NodeJS.WriteStream, message: string, detail?: unknown): void {
+  if (detail === undefined) {
+    stream.write(`${message}\n`);
+    return;
+  }
+
+  const serialized = typeof detail === 'string' ? detail : inspect(detail, { depth: null, breakLength: Infinity });
+  stream.write(`${message} ${serialized}\n`);
+}
+
+function logInfo(message: string, detail?: unknown): void {
+  writeLog(process.stdout, message, detail);
+}
+
+function logWarn(message: string, detail?: unknown): void {
+  writeLog(process.stderr, message, detail);
+}
+
+function logError(message: string, detail?: unknown): void {
+  writeLog(process.stderr, message, detail);
+}
+
 async function main() {
   const validation = validateConfig();
-  for (const warning of validation.warnings) console.warn(`[config] ${warning}`);
+  for (const warning of validation.warnings) logWarn(`[config] ${warning}`);
   if (!validation.valid) {
-    console.error('[config] Invalid configuration:');
-    for (const err of validation.errors) console.error(`  - ${err}`);
+    logError('[config] Invalid configuration:');
+    for (const err of validation.errors) logError(`  - ${err}`);
     process.exit(1);
   }
 
   const config = getConfig();
-  console.log('[init] config loaded', getRedactedConfig());
+  logInfo('[init] config loaded', getRedactedConfig());
 
   await runMigrations();
-  console.log('[init] database ready');
+  logInfo('[init] database ready');
 
   const connection = new Connection(config.SOLANA_RPC_URL, 'confirmed');
 
@@ -56,12 +79,13 @@ async function main() {
       secret = decoded;
     }
     facilitatorKeypair = Keypair.fromSecretKey(secret);
-  } catch (err: any) {
-    console.error('[init] Failed to parse FACILITATOR_PRIVATE_KEY:', err.message);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logError('[init] Failed to parse FACILITATOR_PRIVATE_KEY:', message);
     process.exit(1);
   }
 
-  console.log('[init] facilitator wallet:', facilitatorKeypair.publicKey.toBase58());
+  logInfo('[init] facilitator wallet:', facilitatorKeypair.publicKey.toBase58());
 
   const app = express();
   app.set('trust proxy', 1);
@@ -98,11 +122,11 @@ async function main() {
   app.use(errorHandler);
 
   const server = app.listen(config.PORT, '0.0.0.0', () => {
-    console.log(`[init] x402 facilitator listening on :${config.PORT}`);
+    logInfo(`[init] x402 facilitator listening on :${config.PORT}`);
   });
 
   async function shutdown(signal: string) {
-    console.log(`[shutdown] ${signal} received`);
+    logInfo(`[shutdown] ${signal} received`);
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await closePool();
     process.exit(0);
@@ -111,15 +135,15 @@ async function main() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('unhandledRejection', (err) => {
-    console.error('[fatal] unhandledRejection', err);
+    logError('[fatal] unhandledRejection', err);
   });
   process.on('uncaughtException', (err) => {
-    console.error('[fatal] uncaughtException', err);
-    shutdown('uncaughtException');
+    logError('[fatal] uncaughtException', err);
+    void shutdown('uncaughtException');
   });
 }
 
 main().catch((err) => {
-  console.error('[fatal]', err);
+  logError('[fatal]', err);
   process.exit(1);
 });

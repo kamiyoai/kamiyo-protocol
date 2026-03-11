@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { timing } from 'hono/timing';
+import { inspect } from 'node:util';
 
 import { getConfig, getRedactedConfig, validateConfig } from './config.js';
 import { runMigrations } from './db/migrate.js';
@@ -12,20 +13,42 @@ import { agentsRouter } from './routes/agents.js';
 import { endUsersRouter } from './routes/end-users.js';
 import { mandatesRouter } from './routes/mandates.js';
 
+function writeLog(stream: NodeJS.WriteStream, message: string, detail?: unknown): void {
+  if (detail === undefined) {
+    stream.write(`${message}\n`);
+    return;
+  }
+
+  const serialized = typeof detail === 'string' ? detail : inspect(detail, { depth: null, breakLength: Infinity });
+  stream.write(`${message} ${serialized}\n`);
+}
+
+function logInfo(message: string, detail?: unknown): void {
+  writeLog(process.stdout, message, detail);
+}
+
+function logWarn(message: string, detail?: unknown): void {
+  writeLog(process.stderr, message, detail);
+}
+
+function logError(message: string, detail?: unknown): void {
+  writeLog(process.stderr, message, detail);
+}
+
 async function main() {
   const validation = validateConfig();
-  for (const warning of validation.warnings) console.warn(`[config] ${warning}`);
+  for (const warning of validation.warnings) logWarn(`[config] ${warning}`);
   if (!validation.valid) {
-    console.error('[config] Invalid configuration:');
-    for (const err of validation.errors) console.error(`  - ${err}`);
+    logError('[config] Invalid configuration:');
+    for (const err of validation.errors) logError(`  - ${err}`);
     process.exit(1);
   }
 
   const config = getConfig();
-  console.log('[init] config loaded', getRedactedConfig());
+  logInfo('[init] config loaded', getRedactedConfig());
 
   await runMigrations();
-  console.log('[init] database ready');
+  logInfo('[init] database ready');
 
   const app = new Hono();
 
@@ -63,7 +86,7 @@ async function main() {
   app.route('/', mandatesRouter);
 
   app.onError((err, c) => {
-    console.error('[error]', err);
+    logError('[error]', err);
     return c.json({ error: 'Internal server error' }, 500);
   });
 
@@ -74,10 +97,10 @@ async function main() {
     port: config.PORT,
   });
 
-  console.log(`[init] wallet-control-plane listening on :${config.PORT}`);
+  logInfo(`[init] wallet-control-plane listening on :${config.PORT}`);
 
   async function shutdown(signal: string) {
-    console.log(`[shutdown] ${signal} received`);
+    logInfo(`[shutdown] ${signal} received`);
     server.close?.();
     await closePool();
     process.exit(0);
@@ -88,6 +111,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('[fatal]', err);
+  logError('[fatal]', err);
   process.exit(1);
 });

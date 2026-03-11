@@ -122,6 +122,18 @@ type KizunaFundingState = {
   events: KizunaFundingEvent[];
 };
 
+type JsonErrorPayload = {
+  error?: string;
+};
+
+type SessionUsdcAuthorization = {
+  kind: 'approveWithAuthorization';
+  validAfter: string;
+  validBefore: string;
+  nonce: string;
+  signature: string;
+};
+
 const USDC_BASE: EvmAddress = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 
 function envUrl(key: string, fallback: string): string {
@@ -135,6 +147,14 @@ function asErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   return 'Request failed';
+}
+
+function getJsonErrorMessage(payload: unknown, status: number): string {
+  if (payload && typeof payload === 'object' && typeof (payload as JsonErrorPayload).error === 'string') {
+    return (payload as JsonErrorPayload).error!;
+  }
+
+  return `HTTP ${status}`;
 }
 
 function microFromUsdString(input: string): string | null {
@@ -172,10 +192,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
   const json = await res.json().catch(() => null);
   if (!res.ok) {
-    const msg = json && typeof json === 'object' && typeof (json as any).error === 'string'
-      ? (json as any).error
-      : `HTTP ${res.status}`;
-    throw new Error(msg);
+    throw new Error(getJsonErrorMessage(json, res.status));
   }
 
   return json as T;
@@ -185,10 +202,7 @@ async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
   const json = await res.json().catch(() => null);
   if (!res.ok) {
-    const msg = json && typeof json === 'object' && typeof (json as any).error === 'string'
-      ? (json as any).error
-      : `HTTP ${res.status}`;
-    throw new Error(msg);
+    throw new Error(getJsonErrorMessage(json, res.status));
   }
   return json as T;
 }
@@ -394,7 +408,7 @@ export function App() {
 
       const msgSig = await signEvmMessage({ evmAccount: payerEoa, message: challenge.message });
 
-      let usdcAuthorization: any = undefined;
+      let usdcAuthorization: SessionUsdcAuthorization | undefined;
       if (useGaslessApproval && challenge.usdcAuthorization) {
         const auth = challenge.usdcAuthorization;
         if (auth.contract.toLowerCase() !== USDC_BASE.toLowerCase()) {
