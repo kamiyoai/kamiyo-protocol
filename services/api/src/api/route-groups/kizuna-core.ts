@@ -11,12 +11,12 @@ import type { ApiRouteGroup } from './types';
 
 export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
   return [
-    { ownership: 'kizuna-core', path: '/api/paid', handlers: [paidRoutes] },
-    { ownership: 'kizuna-core', path: '/api/credits', handlers: [creditsRoutes] },
-    { ownership: 'kizuna-core', path: '/api/link-wallet', handlers: [linkWalletRoutes] },
-    { ownership: 'kizuna-core', path: '/internal/holders', handlers: [internalHoldersRoutes] },
-    { ownership: 'kizuna-core', path: '/api/meishi', handlers: [publicReadLimiter, meishiRoutes] },
-    { ownership: 'kizuna-core', path: '/api/meishi-dkg', handlers: [publicReadLimiter, meishiDkgRoutes] },
-    { ownership: 'kizuna-core', path: '/api/dkg', handlers: [publicReadLimiter, dkgRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['paid'], path: '/api/paid', handlers: [paidRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['credits'], path: '/api/credits', handlers: [creditsRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['link-wallet'], path: '/api/link-wallet', handlers: [linkWalletRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['internal-holders'], path: '/internal/holders', handlers: [internalHoldersRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['meishi'], path: '/api/meishi', handlers: [publicReadLimiter, meishiRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['meishi-dkg'], path: '/api/meishi-dkg', handlers: [publicReadLimiter, meishiDkgRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['dkg'], path: '/api/dkg', handlers: [publicReadLimiter, dkgRoutes] },
   ];
 }

@@ -9,21 +9,25 @@ export function createProtectedRouteGroups(): ApiRouteGroup[] {
   return [
     {
       ownership: 'protected',
+      routeIds: ['chat'],
       path: '/api/v1/chat',
       handlers: [authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), chatRoutes],
     },
     {
       ownership: 'protected',
+      routeIds: ['tokens'],
       path: '/api/v1/tokens',
       handlers: [authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), tokensRoutes],
     },
     {
       ownership: 'protected',
+      routeIds: ['market'],
       path: '/api/v1/market',
       handlers: [authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes],
     },
     {
       ownership: 'protected',
+      routeIds: ['reputation'],
       path: '/api/v1/reputation',
       handlers: [authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes],
     },

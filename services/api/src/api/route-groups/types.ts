@@ -4,6 +4,7 @@ export type ApiRouteOwnership = 'protected' | 'kizuna-core' | 'module' | 'legacy
 
 export interface ApiRouteGroup {
   ownership: ApiRouteOwnership;
+  routeIds: string[];
   path: string;
   handlers: RequestHandler[];
 }

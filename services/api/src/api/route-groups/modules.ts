@@ -7,11 +7,11 @@ import type { ApiRouteGroup } from './types';
 
 export function createModuleRouteGroups(): ApiRouteGroup[] {
   return [
-    { ownership: 'module', path: '/api/hive', handlers: [swarmteamsRoutes] },
-    { ownership: 'module', path: '/api/hive-teams', handlers: [swarmTeamRoutes] },
-    { ownership: 'module', path: '/api/swarm-teams', handlers: [swarmTeamRoutes] },
-    { ownership: 'module', path: '/api/buyback', handlers: [buybackRoutes] },
-    { ownership: 'module', path: '/api/channels', handlers: [channelsRoutes] },
-    { ownership: 'module', path: '/api/kamiyo', handlers: [kamiyoTokenRoutes] },
+    { ownership: 'module', routeIds: ['hive'], path: '/api/hive', handlers: [swarmteamsRoutes] },
+    { ownership: 'module', routeIds: ['hive-teams'], path: '/api/hive-teams', handlers: [swarmTeamRoutes] },
+    { ownership: 'module', routeIds: ['hive-teams'], path: '/api/swarm-teams', handlers: [swarmTeamRoutes] },
+    { ownership: 'module', routeIds: ['buyback'], path: '/api/buyback', handlers: [buybackRoutes] },
+    { ownership: 'module', routeIds: ['channels'], path: '/api/channels', handlers: [channelsRoutes] },
+    { ownership: 'module', routeIds: ['kamiyo-token'], path: '/api/kamiyo', handlers: [kamiyoTokenRoutes] },
   ];
 }

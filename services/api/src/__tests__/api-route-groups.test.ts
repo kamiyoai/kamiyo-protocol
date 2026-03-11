@@ -1,5 +1,8 @@
+import { once } from 'node:events';
+import { readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { Router } from 'express';
+import express, { Router } from 'express';
 import type * as RouteGroups from '../api/route-groups';
 
 let routeGroups: typeof RouteGroups;
@@ -31,6 +34,15 @@ describe('api route ownership groups', () => {
     expect(groups.legacy.length).toBeGreaterThan(0);
   });
 
+  it('builds a stable edge route collection for the api entrypoint', () => {
+    const { createEdgeRouteGroups } = getRouteGroups();
+    const groups = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter);
+
+    expect(groups.length).toBeGreaterThan(0);
+    expect(groups.map((group) => group.path)).toContain('/verify');
+    expect(groups.map((group) => group.path)).toContain('/api/auth');
+  });
+
   it('keeps route paths unique across ownership groups', () => {
     const { createApiRouteGroupCollection } = getRouteGroups();
     const grouped = createApiRouteGroupCollection(passThroughLimiter);
@@ -40,6 +52,24 @@ describe('api route ownership groups', () => {
     for (const group of groups) {
       expect(seen.has(group.path)).toBe(false);
       seen.add(group.path);
+    }
+  });
+
+  it('does not assign a route file to multiple ownership buckets', () => {
+    const { createApiRouteGroupCollection } = getRouteGroups();
+    const grouped = createApiRouteGroupCollection(passThroughLimiter);
+    const ownershipByRouteId = new Map<string, Set<string>>();
+
+    for (const group of [...grouped.protectedRoutes, ...grouped.kizunaCore, ...grouped.modules, ...grouped.legacy]) {
+      for (const routeId of group.routeIds) {
+        const ownerships = ownershipByRouteId.get(routeId) ?? new Set<string>();
+        ownerships.add(group.ownership);
+        ownershipByRouteId.set(routeId, ownerships);
+      }
+    }
+
+    for (const ownerships of ownershipByRouteId.values()) {
+      expect(ownerships.size).toBe(1);
     }
   });
 
@@ -70,6 +100,97 @@ describe('api route ownership groups', () => {
 
     for (const path of modulePaths) {
       expect(legacyPaths.has(path)).toBe(false);
+    }
+  });
+
+  it('accounts for every companion route file', () => {
+    const {
+      EDGE_ROUTE_IDS,
+      SUPPORT_ROUTE_IDS,
+      createApiRouteGroupCollection,
+      listOwnedRouteIds,
+    } = getRouteGroups();
+    const groups = createApiRouteGroupCollection(passThroughLimiter);
+    const accounted = new Set([
+      ...listOwnedRouteIds(groups),
+      ...EDGE_ROUTE_IDS,
+      ...SUPPORT_ROUTE_IDS,
+    ]);
+
+    const routeDir = resolve(process.cwd(), 'src/api/routes');
+    const routeFiles = readdirSync(routeDir)
+      .filter((name) => name.endsWith('.ts'))
+      .map((name) => name.replace(/\.ts$/, ''))
+      .sort();
+
+    expect([...accounted].sort()).toEqual(routeFiles);
+  });
+
+  it('keeps edge and support route files outside owned buckets', () => {
+    const {
+      EDGE_ROUTE_IDS,
+      SUPPORT_ROUTE_IDS,
+      createApiRouteGroupCollection,
+      listOwnedRouteIds,
+    } = getRouteGroups();
+    const ownedRouteIds = new Set(listOwnedRouteIds(createApiRouteGroupCollection(passThroughLimiter)));
+
+    for (const routeId of [...EDGE_ROUTE_IDS, ...SUPPORT_ROUTE_IDS]) {
+      expect(ownedRouteIds.has(routeId)).toBe(false);
+    }
+  });
+
+  it('mounts edge route groups without colliding with grouped ownership routes', () => {
+    const { createApiRouteGroupCollection, createEdgeRouteGroups } = getRouteGroups();
+    const grouped = createApiRouteGroupCollection(passThroughLimiter);
+    const ownedPaths = new Set(
+      [...grouped.protectedRoutes, ...grouped.kizunaCore, ...grouped.modules, ...grouped.legacy].map((group) => group.path)
+    );
+    const edgePaths = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter).map((group) => group.path);
+
+    for (const path of edgePaths) {
+      expect(ownedPaths.has(path)).toBe(false);
+    }
+  });
+
+  it('adds ownership headers to grouped routes and marks legacy routes explicitly', async () => {
+    const { mountApiRouteGroups } = getRouteGroups();
+    const app = express();
+
+    const coreRouter = Router();
+    coreRouter.get('/health', (_req, res) => {
+      res.json({ ok: true });
+    });
+
+    const legacyRouter = Router();
+    legacyRouter.get('/status', (_req, res) => {
+      res.json({ ok: true });
+    });
+
+    mountApiRouteGroups(app, [
+      { ownership: 'kizuna-core', routeIds: ['credits'], path: '/core', handlers: [coreRouter] },
+      { ownership: 'legacy', routeIds: ['trust-graph'], path: '/legacy', handlers: [legacyRouter] },
+    ]);
+
+    const server = app.listen(0);
+    await once(server, 'listening');
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Unexpected server address');
+      }
+
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const coreRes = await fetch(`${baseUrl}/core/health`);
+      const legacyRes = await fetch(`${baseUrl}/legacy/status`);
+
+      expect(coreRes.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
+      expect(coreRes.headers.get('x-kamiyo-route-status')).toBeNull();
+      expect(legacyRes.headers.get('x-kamiyo-route-ownership')).toBe('legacy');
+      expect(legacyRes.headers.get('x-kamiyo-route-status')).toBe('legacy');
+    } finally {
+      server.close();
     }
   });
 });

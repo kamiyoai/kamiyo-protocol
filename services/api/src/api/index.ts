@@ -6,10 +6,7 @@ import rateLimit from 'express-rate-limit';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../logger';
 import { errorHandler } from './middleware';
-import authRoutes from './routes/auth';
 import { setAnthropicClient } from './routes/chat';
-import verifyRoutes from './routes/verify';
-import blacklistRoutes from './routes/blacklist';
 import { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import { initCreditsRoutes } from './routes/credits';
 import { registry } from '../metrics';
@@ -17,7 +14,9 @@ import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
 import {
   createApiRouteGroupCollection,
+  createEdgeRouteGroups,
   mountApiRouteGroupCollection,
+  mountEdgeRouteGroups,
 } from './route-groups';
 
 async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
@@ -209,18 +208,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
     }
   });
 
-  // Public verification routes (no auth required, but IP rate limited)
-  app.use('/verify', authRateLimiter, verifyRoutes);
-  app.use('/blacklist', authRateLimiter, blacklistRoutes);
-
-  // Companion API auth routes (no auth required, but IP rate limited)
-  // Challenge endpoint - moderate rate limiting
-  app.use('/api/auth/challenge', authRateLimiter);
-  // Verify/refresh endpoints - stricter rate limiting
-  app.use('/api/auth/verify', apiKeyRateLimiter);
-  app.use('/api/auth/refresh', apiKeyRateLimiter);
-  app.use('/api/auth', authRoutes);
-
+  mountEdgeRouteGroups(app, createEdgeRouteGroups(authRateLimiter, apiKeyRateLimiter));
   mountApiRouteGroupCollection(app, createApiRouteGroupCollection(publicReadLimiter));
 
   // MCP routes (OAuth + Streamable HTTP transport)

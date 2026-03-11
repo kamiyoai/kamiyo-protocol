@@ -10,11 +10,11 @@ import type { ApiRouteGroup } from './types';
 
 export function createLegacyRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
   return [
-    { ownership: 'legacy', path: '/api/trust-graph', handlers: [publicReadLimiter, trustGraphRoutes] },
-    { ownership: 'legacy', path: '/api/fusion/fairscale', handlers: [fairscaleFusionRoutes] },
-    { ownership: 'legacy', path: '/api/paranet', handlers: [paranetRoutes] },
-    { ownership: 'legacy', path: '/api/poch', handlers: [pochRoutes] },
-    { ownership: 'legacy', path: '/api/staking/referrals', handlers: [stakingReferralRoutes] },
-    { ownership: 'legacy', path: '/babyagi/v1', handlers: [babyagiRoutes] },
+    { ownership: 'legacy', routeIds: ['trust-graph'], path: '/api/trust-graph', handlers: [publicReadLimiter, trustGraphRoutes] },
+    { ownership: 'legacy', routeIds: ['fairscale-fusion'], path: '/api/fusion/fairscale', handlers: [fairscaleFusionRoutes] },
+    { ownership: 'legacy', routeIds: ['paranet'], path: '/api/paranet', handlers: [paranetRoutes] },
+    { ownership: 'legacy', routeIds: ['poch'], path: '/api/poch', handlers: [pochRoutes] },
+    { ownership: 'legacy', routeIds: ['staking-referrals'], path: '/api/staking/referrals', handlers: [stakingReferralRoutes] },
+    { ownership: 'legacy', routeIds: ['babyagi'], path: '/babyagi/v1', handlers: [babyagiRoutes] },
   ];
 }

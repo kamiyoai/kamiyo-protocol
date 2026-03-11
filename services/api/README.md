@@ -24,6 +24,21 @@ Public URLs stay stable in this phase. The change is repo focus, CI ownership, a
 
 The route ownership source of truth lives in `src/api/route-groups/`. Keep new product work in `kizuna-core` unless it is clearly a module surface or a retained legacy integration.
 
+Route coverage is enforced in tests. Any new file added under `src/api/routes/` must be classified as an owned route, an edge route, or an internal support route before it can land cleanly.
+
+Grouped routes also emit `X-Kamiyo-Route-Ownership`, and retained legacy routes emit `X-Kamiyo-Route-Status: legacy` so operators can distinguish live traffic without changing public URLs.
+
+## Endpoint inventory
+
+- `edge`: `/verify`, `/blacklist`, `/api/auth/*`
+- `protected`: `/api/v1/chat`, `/api/v1/tokens`, `/api/v1/market`, `/api/v1/reputation`
+- `kizuna-core`: `/api/paid`, `/api/credits`, `/api/link-wallet`, `/internal/holders`, `/api/meishi`, `/api/meishi-dkg`, `/api/dkg`
+- `module`: `/api/hive`, `/api/hive-teams`, `/api/swarm-teams`, `/api/buyback`, `/api/channels`, `/api/kamiyo`
+- `legacy`: `/api/trust-graph`, `/api/fusion/fairscale`, `/api/paranet`, `/api/poch`, `/api/staking/referrals`, `/babyagi/v1`
+- `support-only`: `hive-swarm`, `poch-store`
+
+The API entrypoint mounts edge routes and owned route groups separately, so auth/verification flow stays isolated from Kizuna and retained legacy product surfaces.
+
 ## Run
 
 ```bash
