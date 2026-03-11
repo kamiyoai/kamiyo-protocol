@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Wallet control plane for Kamiyo agentic wallets (CDP server accounts + embedded end-users).",
+  "description": "Kizuna wallet control plane for mandates, funding limits, and collateral-aware wallet state.",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

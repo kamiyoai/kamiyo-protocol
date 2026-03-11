@@ -1,45 +1,43 @@
 # Kyoshin Execution Runtime
 
-Kyoshin is an execution-first cloud worker for:
+Kyoshin is a Kizuna-powered execution runtime.
 
-- sourcing swarm jobs from file/URL/marketplace feeds,
-- sourcing + bidding on NEAR Agent Market jobs with deferred settlement accounting,
-- auto-submitting accepted NEAR assignments with deterministic deliverable artifacts,
-- accepting inbound paid jobs over authenticated HTTP intake,
-- enforcing profitability and treasury guardrails before execution,
-- executing jobs (including x402 flows) without LLM inference,
-- self-tuning agent priorities from realized outcomes,
-- adaptive self-improvement that tightens/loosens execution policy from live outcomes,
-- revenue allocation ledger hooks for route/reserve/operations splits,
-- routing SOL into configured staking pools with hard caps.
+Its job is to source work, decide whether a task is worth taking, and execute within payment and treasury guardrails. Kizuna is the payment rail underneath it.
+
+## What Kyoshin does
+
+- sources swarm, marketplace, and inbound paid jobs
+- enforces profitability and treasury guardrails before execution
+- executes jobs, including x402 flows, without inference in the hot path
+- allocates revenue across route, reserve, and operations buckets
+- routes capital into configured staking pools with hard caps
+
+## What Kizuna does for Kyoshin
+
+- verifies paid requests before execution
+- locks prefund or validates collateral before spend
+- settles approved work over the shared rail
+- tracks debt, repayment, and billable settlement state where applicable
 
 ## Guarantees in this runtime
 
-- No Anthropic/OpenAI inference calls in the hot path.
-- Every execution attempt is policy-gated (margin, tx cap, daily cap).
-- Execute mode has staged caps (`canary_0`, `canary_1`, `canary_2`, `full`) with deterministic limit clamps.
-- Global hard stop (`KAMIYO_EXECUTION_HARD_STOP=true`) disables all mutating execution paths.
-- Staking route/claim actions can be forced through pool allowlists (`KAMIYO_ALLOWED_STAKING_POOLS`).
-- Negative margin streaks open a circuit breaker per `(agent, source)`.
-- Weekly rollback can disable underperforming sources automatically.
+- No Anthropic or OpenAI inference calls in the hot path.
+- Every execution attempt is policy-gated.
+- Execute mode has staged caps (`canary_0`, `canary_1`, `canary_2`, `full`).
+- Global hard stop disables mutating execution paths.
+- Staking route and claim actions can be forced through allowlists.
+- Negative margin streaks open circuit breakers per `(agent, source)`.
 - Claims and routes emit receipt files in `KAMIYO_OUTBOX_DIR`.
-
-## Canary stages
-
-- `canary_0`: execute runtime online, all mutations disabled.
-- `canary_1`: low-cap job execution, routing and claims disabled.
-- `canary_2`: controlled routing/claims enabled with stricter caps.
-- `full`: use configured caps directly.
 
 ## API
 
 - `GET /health`
 - `GET /ready`
 - `GET /metrics`
-- `GET /status` (token-gated if `KYOSHIN_HTTP_TOKEN` is set)
-- `POST /jobs` (token-gated; enqueue one or many inbound jobs)
-- `GET /jobs?status=pending|completed|deadletter&limit=100` (token-gated)
-- `GET /economics` (token-gated; revenue lane and self-improve snapshot)
+- `GET /status`
+- `POST /jobs`
+- `GET /jobs?status=pending|completed|deadletter&limit=100`
+- `GET /economics`
 
 ## Run
 
@@ -47,5 +45,3 @@ Kyoshin is an execution-first cloud worker for:
 pnpm --filter @kamiyo/kyoshin build
 pnpm --filter @kamiyo/kyoshin start
 ```
-
-Use `services/kyoshin/.env.example` as the baseline config.

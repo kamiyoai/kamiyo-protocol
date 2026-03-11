@@ -1,32 +1,16 @@
 # Build Guide
 
+This repo now defaults to the Kizuna core path.
+
+If you only need the production payment spine, use the root defaults. Reach for module or legacy commands only when you are intentionally working outside the core rail.
+
 ## Prerequisites
 
 - Node.js 20+
 - pnpm 9+
-- Rust 1.75+ (Solana programs)
+- Rust 1.75+
 - Solana CLI 2.x
 - Anchor 0.31.1
-
-### Solana
-
-```bash
-sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
-```
-
-### Anchor
-
-```bash
-cargo install --git https://github.com/coral-xyz/anchor avm --force
-avm install 0.31.1
-avm use 0.31.1
-```
-
-### pnpm
-
-```bash
-npm install -g pnpm
-```
 
 ## Setup
 
@@ -36,67 +20,109 @@ cd kamiyo-protocol
 pnpm install
 ```
 
-## Build
+## Default Kizuna Commands
 
 ```bash
-pnpm run build              # Programs + SDK
-pnpm run build:program      # Solana programs only
-pnpm run build:sdk          # @kamiyo/sdk only
-pnpm run build:api          # SDK + API dependencies
-pnpm run build:oracle       # Oracle service
+pnpm run build
+pnpm run test
+pnpm run lint:check
 ```
 
-### Individual Packages
+These commands cover the default Kizuna stack:
+
+- `packages/kamiyo-meishi`
+- `packages/kamiyo-sdk`
+- `packages/kamiyo-cdp`
+- `packages/kamiyo-x402-client`
+- `packages/kamiyo-settlement`
+- `services/wallet-control-plane`
+- `services/x402-facilitator`
+- `services/api`
+- `apps/cdp-onboarding`
+
+## Grouped Commands
+
+### Core
 
 ```bash
-pnpm --filter @kamiyo/sdk run build
-pnpm --filter @kamiyo/agents run build
+pnpm run build:core
+pnpm run test:core
+pnpm run lint:core
 ```
+
+### Modules
+
+```bash
+pnpm run build:modules
+pnpm run test:modules
+```
+
+Use these for Kizuna-powered runtimes and apps such as Kyoshin, Keiro, OpenClaw, Hive, and agent packages.
+
+### Legacy
+
+```bash
+pnpm run build:legacy
+pnpm run test:legacy
+```
+
+Use these only when touching retained non-default integrations, demos, or contract tracks.
+
+## Targeted Commands
+
+```bash
+pnpm run build:api
+pnpm run build:sdk
+pnpm run build:kyoshin
+pnpm run build:oracle
+pnpm run build:program
+pnpm run test:onchain
+```
+
+## Core Service Runs
+
+### x402 Facilitator
+
+```bash
+pnpm --filter @kamiyo/x402-facilitator run build
+pnpm --filter @kamiyo/x402-facilitator run dev
+```
+
+### Wallet Control Plane
+
+```bash
+pnpm --filter @kamiyo/wallet-control-plane run build
+pnpm --filter @kamiyo/wallet-control-plane run dev
+```
+
+### Companion API
+
+```bash
+pnpm --filter kamiyo-companion run build
+pnpm --filter kamiyo-companion run dev
+```
+
+### CDP Onboarding
+
+```bash
+pnpm --filter @kamiyo/cdp-onboarding run build
+pnpm --filter @kamiyo/cdp-onboarding run dev
+```
+
+## On-chain and Contract Tracks
+
+These are no longer the repo default.
 
 ### Solana Programs
 
-Built via `anchor build`:
-
-| Program | Purpose |
-|---------|---------|
-| kamiyo | Identity, escrow, oracle voting |
-| kamiyo-escrow | Companion escrow |
-| kamiyo-staking | Token staking |
-| kamiyo-governance | Governance voting |
-| kamiyo-transfer-hook | MEV protection |
-| kamiyo-fast-voting | Fast voting |
-| hive | Agent collaboration |
-| meishi | DKG identity credentials |
-
-## Test
-
 ```bash
-anchor test                         # All programs (starts localnet)
-anchor test --skip-local-validator  # Use running validator
-pnpm run test:sdk                   # SDK tests
-pnpm run test:surfpool              # Surfpool tests
+pnpm run build:program
+pnpm run test:onchain
 ```
 
-### Specific Tests
+### EVM Contracts
 
-```bash
-npx ts-mocha -p ./tests/tsconfig.json tests/agent.test.ts
-npx ts-mocha -p ./tests/tsconfig.json tests/escrow.test.ts
-```
-
-## Lint
-
-```bash
-pnpm run lint         # TypeScript (auto-fix)
-pnpm run lint:check   # TypeScript (check)
-pnpm run lint:rust    # Rust (fmt + clippy)
-pnpm run format       # Prettier
-pnpm run format:rust  # Cargo fmt
-```
-
-## EVM Contracts
-
-Requires [Foundry](https://book.getfoundry.sh/getting-started/installation).
+Run these only when working in the relevant legacy track.
 
 ```bash
 cd contracts/zk-reputation && forge build && forge test
@@ -104,127 +130,37 @@ cd contracts/monad && forge build && forge test
 cd contracts/hyperliquid && forge build && forge test
 ```
 
-## ZK Circuits
-
-### Circom
+### Circuits
 
 ```bash
-cd circuits
-npm install
-npm run compile         # Compile oracle_vote circuit
-npm run setup           # Generate proving keys (ptau + zkey)
-npm run verify          # Verify proof
-npm run export:solana   # Export Solana verifier
+cd circuits && npm install && npm run compile
+cd noir && just compile-all && just test-all
 ```
 
-### Noir
+## CI and Release Defaults
 
-Requires [just](https://github.com/casey/just) and [nargo](https://noir-lang.org/docs/getting_started/installation/).
-
-```bash
-cd noir
-just install       # Install lib dependencies
-just compile-all   # Compile all circuits
-just test-all      # Run tests
-just setup-all     # Generate proving keys
-```
-
-### Halo2
-
-```bash
-cd crates/kamiyo-zk
-cargo build --release
-cargo test
-```
-
-## Services
-
-### API
-
-```bash
-cd services/api
-pnpm install
-pnpm run build
-pnpm run dev      # Development (tsx watch)
-pnpm start        # Production
-```
-
-### Oracle
-
-```bash
-pnpm run build:oracle
-cd services/oracle
-pnpm start
-```
-
-### Discord Bot
-
-```bash
-cd services/discord-governance-bot
-pnpm install && pnpm run build && pnpm start
-```
-
-## Environment
-
-Required variables (create `.env` in root or service directories):
-
-```bash
-SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
-ANCHOR_WALLET=~/.config/solana/id.json
-ANTHROPIC_API_KEY=sk-ant-...
-TWITTER_API_KEY=...
-TWITTER_API_SECRET=...
-SENTRY_DSN=...
-RENDER_API_KEY=...
-```
-
-## Deploy
-
-### Solana
-
-```bash
-anchor deploy --provider.cluster devnet
-anchor deploy --provider.cluster mainnet  # Requires multisig
-```
-
-### Render
-
-Auto-deploys on push to main. Manual:
-
-```bash
-curl -X POST "https://api.render.com/v1/services/{service_id}/deploys" \
-  -H "Authorization: Bearer $RENDER_API_KEY"
-```
+- Required CI now validates the Kizuna core path.
+- Module checks run only when module paths change.
+- Legacy checks are kept off the required path.
+- The manual release gate in `.github/workflows/deploy.yml` is Kizuna-first.
+- Legacy contract deployment stays in `.github/workflows/legacy-contract-deploy.yml`.
 
 ## Troubleshooting
 
-**Anchor build fails:**
+**Missing dependencies:**
+
 ```bash
-pnpm run clean && anchor build
+pnpm install
 ```
 
-**pnpm install fails:**
+**Clean built artifacts:**
+
 ```bash
-pnpm store prune && rm -rf node_modules && pnpm install
+pnpm run clean
 ```
 
-**Validator issues:**
+**On-chain toolchain issues:**
+
 ```bash
 solana-test-validator --reset
-```
-
-**Wrong program IDs:** Check `Anchor.toml` matches your cluster.
-
-## Structure
-
-```
-programs/     Solana programs (Rust/Anchor)
-packages/     TypeScript packages
-services/     API, oracle, bots
-contracts/    EVM contracts (Forge)
-circuits/     Circom circuits
-noir/         Noir circuits
-crates/       Rust crates (Halo2)
-tests/        Anchor tests
-apps/         Frontend apps
 ```

@@ -2,7 +2,7 @@
   "name": "@kamiyo/x402-facilitator",
   "version": "1.0.0",
   "private": true,
-  "description": "x402 payment facilitator with escrow, disputes, and quality enforcement",
+  "description": "Kizuna x402 facilitator for approval, settlement, funding locks, and repayment state",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

@@ -1,6 +1,24 @@
 # Companion API
 
-Main HTTP service for companion endpoints, multi-agent orchestration, and protocol-facing runtime APIs.
+Companion is the broad HTTP service in this repo, but its default production role is now the Kizuna ledger and billing surface.
+
+## Kizuna role
+
+Core responsibilities:
+
+- credits ledger and repayment support
+- internal billing and settlement hooks
+- Kizuna-facing payment and operator APIs
+- retained compatibility endpoints during the cutover window
+
+Companion still contains older integrations, but they are non-default and should not drive new product work.
+
+## Route posture
+
+- `kizuna-core`: credits, repayment, funding support, billing support, Kizuna-adjacent protocol routes
+- `legacy`: FairScale fusion, trust-graph, paranet, PoCH, and unrelated retained integrations
+
+Public URLs stay stable in this phase. The change is repo focus, CI ownership, and documentation priority.
 
 ## Run
 
@@ -27,7 +45,7 @@ At minimum for local startup, configure:
 - `JWT_SECRET`
 - `API_SECRET`
 
-This service has a large number of feature-gated integrations (LLM, social, DKG, marketplace, telemetry). The full env contract is listed in `.env.example`.
+The full env contract is listed in `.env.example`.
 
 Validate env contract and runtime values:
 
@@ -36,7 +54,7 @@ pnpm --filter kamiyo-companion run preflight:contract
 pnpm --filter kamiyo-companion run preflight:env
 ```
 
-Run runtime health smoke (starts standalone API server, checks `/health` + `/ready`, then exits):
+Run runtime health smoke:
 
 ```bash
 pnpm --filter kamiyo-companion run smoke:health

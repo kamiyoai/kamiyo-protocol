@@ -1,7 +1,7 @@
 {
   "name": "kamiyo-companion",
   "version": "1.0.0",
-  "description": "KAMIYO Companion - AI interface to KAMIYO protocol (API + X bot)",
+  "description": "KAMIYO Companion API for Kizuna credits, billing, and retained integration surfaces",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && mkdir -p dist/mcp/idl && cp src/mcp/idl/x402_escrow.json dist/mcp/idl/",

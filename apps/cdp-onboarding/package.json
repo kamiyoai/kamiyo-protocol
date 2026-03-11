@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Embedded end-user onboarding reference app for CDP wallets + Kamiyo control plane.",
+  "description": "Reference operator app for Kizuna account onboarding, funding, and repayment controls.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

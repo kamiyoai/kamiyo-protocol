@@ -1,393 +1,153 @@
 # Architecture
 
-System design for KAMIYO Protocol.
+KAMIYO Protocol is now organized around Kizuna.
 
-## Overview
+Kizuna is the open payment rail for autonomous agents. It exposes public APIs, settlement hooks, funding controls, and client SDKs, while production approval logic stays in the hosted `kizuna-kernel`.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              KAMIYO Protocol                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐  │
-│  │   Agent     │    │  Agreement  │    │   Oracle    │    │  Protocol   │  │
-│  │  Identity   │    │   Escrow    │    │  Registry   │    │   Config    │  │
-│  │    PDA      │    │    PDA      │    │    PDA      │    │    PDA      │  │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘    └──────┬──────┘  │
-│         │                  │                  │                  │          │
-│         └──────────────────┴──────────────────┴──────────────────┘          │
-│                                    │                                         │
-│                         Solana Program (Anchor)                              │
-│                                    │                                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────────────────────────┐    ┌─────────────────────────────────────┐ │
-│  │      ZK Layer (Rust)        │    │        Circom Circuits              │ │
-│  │   ────────────────────      │    │   ─────────────────────────         │ │
-│  │   Halo2 commitments         │    │   Groth16 on-chain verification     │ │
-│  │   Poseidon hash             │    │   alt_bn128 syscalls                │ │
-│  │   No trusted setup          │    │   ~200k compute units               │ │
-│  └─────────────────────────────┘    └─────────────────────────────────────┘ │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+## System View
 
-## Core Accounts
-
-### Agent Identity (PDA)
-
-Stake-backed identity for autonomous agents.
-
-```
-Seeds: ["agent", owner_pubkey]
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| owner | Pubkey | Wallet controlling the agent |
-| name | String | Human-readable identifier |
-| agent_type | u8 | Trading, API, Service, Custom |
-| stake_amount | u64 | Locked SOL collateral |
-| reputation | i64 | Trust score (-1000 to 1000) |
-| is_active | bool | Can create agreements |
-| violation_count | u8 | Slashing counter |
-
-### Agreement Escrow (PDA)
-
-Time-locked payment between agent and provider.
-
-```
-Seeds: ["escrow", agent_pubkey, transaction_id]
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Kizuna-Powered Clients                    │
+│  Kyoshin runtime   Keiro app   OpenClaw tools   partner APIs        │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         KAMIYO Open Rails                           │
+│                                                                      │
+│  x402 facilitator                                                    │
+│  - verify / settle                                                   │
+│  - Kizuna account, funding, collateral, repayment APIs              │
+│  - reservation, debt, billable event accounting                     │
+│                                                                      │
+│  wallet control plane                                                │
+│  - mandates                                                          │
+│  - linked wallets                                                    │
+│  - enterprise funding controls                                       │
+│  - crypto-fast collateral controls                                   │
+│                                                                      │
+│  companion API                                                       │
+│  - credits ledger / repayment                                        │
+│  - internal billing hooks                                            │
+│  - retained legacy integrations during cutover                       │
+│                                                                      │
+│  shared packages                                                     │
+│  - x402 client                                                       │
+│  - settlement                                                        │
+│  - Meishi                                                            │
+│  - CDP integration                                                   │
+└───────────────────────────────┬──────────────────────────────────────┘
+                                │
+                                ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Hosted Proprietary Boundary                       │
+│  kizuna-kernel                                                       │
+│  - policy packs                                                      │
+│  - risk graph and abuse detection                                    │
+│  - decision signing                                                  │
+│  - commit / ingest APIs                                              │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| agent | Pubkey | Agent PDA address |
-| provider | Pubkey | Service provider wallet |
-| amount | u64 | Locked funds (lamports or tokens) |
-| token_mint | Option<Pubkey> | None = SOL, Some = SPL token |
-| status | u8 | Active, Released, Disputed, Resolved |
-| created_at | i64 | Unix timestamp |
-| expires_at | i64 | Unlock time for provider |
-| transaction_id | String | External reference |
-
-### Oracle Registry (PDA)
-
-Manages oracle validators for dispute resolution.
-
-```
-Seeds: ["oracle_registry"]
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| admin | Pubkey | Registry administrator |
-| oracles | Vec<Oracle> | Registered oracles |
-| min_stake | u64 | Required oracle stake |
-| max_oracles | u8 | Capacity limit |
-
-### Protocol Config (PDA)
-
-Global protocol settings with 2-of-3 multisig control.
-
-```
-Seeds: ["protocol_config"]
-```
-
-| Field | Type | Description |
-|-------|------|-------------|
-| authority_1 | Pubkey | First multisig signer |
-| authority_2 | Pubkey | Second multisig signer |
-| authority_3 | Pubkey | Third multisig signer |
-| treasury | Pubkey | Fee collection account |
-| is_paused | bool | Emergency stop flag |
-| escrow_fee_bps | u16 | Creation fee (default: 10 = 0.1%) |
-
-## State Machine
-
-### Escrow Lifecycle
-
-```
-                    ┌──────────────┐
-                    │   Created    │
-                    │   (Active)   │
-                    └──────┬───────┘
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               ▼
-    ┌──────────┐    ┌──────────┐    ┌──────────────┐
-    │ Released │    │ Disputed │    │   Expired    │
-    │ (100%→P) │    │          │    │ (7d grace)   │
-    └──────────┘    └────┬─────┘    └──────┬───────┘
-                         │                 │
-                         ▼                 │
-                  ┌──────────────┐         │
-                  │   Oracles    │         │
-                  │ Commit/Reveal│         │
-                  └──────┬───────┘         │
-                         │                 │
-                         ▼                 │
-                  ┌──────────────┐         │
-                  │   Resolved   │◄────────┘
-                  │  (0-100%→P)  │  (50/50 if no consensus)
-                  └──────────────┘
-```
-
-### State Transitions
-
-| From | To | Trigger | Who |
-|------|-----|---------|-----|
-| Active | Released | `release_funds` | Agent (anytime) or Provider (after timelock) |
-| Active | Disputed | `mark_disputed` | Agent only (before expiry) |
-| Disputed | Resolved | `finalize_multi_oracle_dispute` | Anyone (permissionless) |
-| Active/Disputed | Resolved | `claim_expired_escrow` | Anyone (after 7-day grace) |
-
-## Dispute Resolution
-
-### Multi-Oracle Consensus
-
-```
-         Agent                           Provider
-           │                                │
-           │     1. Creates Agreement       │
-           ├───────────────────────────────►│
-           │        (funds locked)          │
-           │                                │
-           │     2. Service Delivered       │
-           │◄───────────────────────────────┤
-           │                                │
-           │  3. Agent disputes quality     │
-           ├─────────────┐                  │
-                         ▼
-           ┌─────────────────────────────────────────────┐
-           │              Oracle Network                  │
-           ├─────────────────────────────────────────────┤
-           │                                              │
-           │   Oracle 1      Oracle 2      Oracle 3      │
-           │      │             │             │          │
-           │      ▼             ▼             ▼          │
-           │   ┌─────┐      ┌─────┐      ┌─────┐        │
-           │   │Commit│     │Commit│     │Commit│        │
-           │   │ hash │     │ hash │     │ hash │        │
-           │   └──┬──┘      └──┬──┘      └──┬──┘        │
-           │      │   5min     │            │            │
-           │      ▼   delay    ▼            ▼            │
-           │   ┌─────┐      ┌─────┐      ┌─────┐        │
-           │   │Reveal│     │Reveal│     │Reveal│        │
-           │   │ 75  │      │ 80  │      │ 70  │        │
-           │   └──┬──┘      └──┬──┘      └──┬──┘        │
-           │      │            │            │            │
-           │      └────────────┼────────────┘            │
-           │                   ▼                         │
-           │           Median Score: 75                  │
-           │                                              │
-           └───────────────────┬─────────────────────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │     Settlement      │
-                    │  Agent: 25% refund  │
-                    │  Provider: 75%      │
-                    └─────────────────────┘
-```
-
-### Quality Score Settlement
-
-| Score | Agent Refund | Provider | Interpretation |
-|-------|--------------|----------|----------------|
-| 80-100 | 0% | 100% | Service met expectations |
-| 65-79 | 35% | 65% | Minor issues |
-| 50-64 | 75% | 25% | Significant problems |
-| 0-49 | 100% | 0% | Service failed |
-
-### Commit-Reveal Voting
-
-Prevents vote copying and collusion.
-
-**Phase 1: Commit (Halo2)**
-```
-commitment = Poseidon(score, blinding, escrow_id, oracle_pk)
-```
-
-**Phase 2: Reveal (Groth16)**
-```
-proof = Prove(score, blinding | commitment)
-Verify(proof, commitment) // on-chain via alt_bn128
-```
-
-## Zero-Knowledge Architecture
-
-### Dual ZK System
-
-| Layer | Technology | Purpose | Setup |
-|-------|------------|---------|-------|
-| Commitment | Halo2 | Privacy, vote hiding | None required |
-| Verification | Groth16 | On-chain proof check | Trusted setup |
-
-### Why Two Systems?
-
-1. **Halo2**: No trusted setup, fast commitment generation
-2. **Groth16**: Native Solana verification via `alt_bn128` syscalls
-
-```rust
-// Commitment (off-chain, Halo2)
-let commitment = prover.commit(score, &blinding, escrow_id, oracle_pk)?;
-
-// Proof generation (off-chain, Groth16)
-let proof = groth16::prove(&pk, circuit, &public_inputs)?;
-
-// Verification (on-chain, ~200k CU)
-groth16_solana::verify(&vk, &proof, &public_inputs)?;
-```
-
-## Slashing Mechanisms
-
-### Agent Slashing (5%)
-
-Triggered when agent disputes and quality score >= 80.
-
-```
-slashed = agent.stake * 0.05
-agent.stake -= slashed
-treasury += slashed
-```
-
-### Oracle Slashing (10%)
-
-Triggered when oracle vote deviates >20% from median.
-
-```
-if abs(oracle_score - median) > 20:
-    slashed = oracle.stake * 0.10
-    oracle.stake -= slashed
-    oracle.violations += 1
-    if oracle.violations >= 3:
-        remove_oracle(oracle)
-```
-
-## Fee Structure
-
-| Fee | Amount | Recipient |
-|-----|--------|-----------|
-| Escrow creation | 0.1% (min 5000 lamports) | Treasury |
-| Dispute resolution | 1% | Treasury |
-| Oracle reward | 1% | Oracle pool |
-
-## Security Model
-
-### Access Control
-
-| Role | Capabilities |
-|------|-------------|
-| Agent Owner | Create agent, create agreements, dispute, release |
-| Provider | Release (after timelock) |
-| Oracle | Submit votes, reveal scores |
-| Registry Admin | Add/remove oracles |
-| Protocol Authorities | Pause/unpause, treasury withdrawal (2-of-3) |
-
-### Emergency Pause
-
-2-of-3 multisig can pause new escrow creation while allowing existing escrows to complete.
-
-```
-┌────────────┐     ┌────────────┐     ┌────────────┐
-│ Authority1 │     │ Authority2 │     │ Authority3 │
-└─────┬──────┘     └─────┬──────┘     └─────┬──────┘
-      │                  │                  │
-      └──────────────────┼──────────────────┘
-                         │
-                    2 of 3 sign
-                         │
-                         ▼
-                  ┌──────────────┐
-                  │   Paused     │
-                  │ (no new      │
-                  │  escrows)    │
-                  └──────────────┘
-```
-
-## Package Architecture
-
-```
-kamiyo-protocol/
-├── programs/kamiyo/        # Solana program (Anchor)
-├── crates/kamiyo-zk/       # Rust ZK library (Halo2)
-├── circuits/               # Circom/Groth16 circuits
-└── packages/
-    ├── kamiyo-sdk/         # Core TypeScript client
-    ├── helius-adapter/     # Helius RPC integration
-    ├── kamiyo-x402-client/ # HTTP 402 payments
-    ├── kamiyo-middleware/  # Express/Fastify middleware
-    ├── kamiyo-actions/     # Agent framework actions
-    ├── kamiyo-langchain/   # LangChain tools
-    ├── kamiyo-agent-client/# Autonomous agent SDK
-    ├── kamiyo-mcp/         # Claude/LLM integration
-    ├── kamiyo-surfpool/    # Strategy simulation
-    └── kamiyo-switchboard/ # Switchboard oracle adapter
-```
-
-## Data Flow
-
-### Happy Path (No Dispute)
-
-```
-1. Agent creates identity with stake
-   └─► agent_pda created
-
-2. Agent creates agreement with provider
-   └─► escrow_pda created, funds locked
-
-3. Provider delivers service
-   └─► (off-chain)
-
-4. Agent releases funds
-   └─► funds → provider, escrow closed
-```
-
-### Dispute Path
-
-```
-1. Agent marks agreement disputed
-   └─► escrow status = Disputed
-
-2. Oracles submit commit hashes
-   └─► commitment stored on-chain
-
-3. 5-minute delay
-   └─► prevents vote copying
-
-4. Oracles reveal scores with ZK proofs
-   └─► scores verified on-chain
-
-5. Median calculated, funds split
-   └─► agent refund + provider payment
-
-6. Deviating oracles slashed
-   └─► stake → treasury
-```
-
-## Integration Points
-
-### RPC Providers
-
-- Helius (recommended): `@kamiyo/helius-adapter`
-- Generic Solana RPC: `@kamiyo/sdk`
-
-### Agent Frameworks
-
-- Eliza: `@kamiyo/actions`
-- LangChain: `@kamiyo/langchain`
-- Claude/MCP: `@kamiyo/mcp`
-
-### Payment Protocols
-
-- x402: `@kamiyo/x402-client`
-- HTTP 402: `@kamiyo/middleware`
-
-## References
-
-- [Anchor Framework](https://www.anchor-lang.com/)
-- [Halo2](https://github.com/zcash/halo2)
-- [Groth16 on Solana](https://github.com/Lightprotocol/groth16-solana)
-- [x402 Protocol](https://www.x402.org/)
+## Product Lanes
+
+### Enterprise Lane
+
+Use when an API platform or operator wants controlled spend with clear audit trails.
+
+Rules:
+
+- prefund required
+- mandate limits enforced
+- kernel approval required
+- no unsecured payout path
+- settlement consumes locked prefund instead of creating unsecured debt
+
+### Crypto-Fast Lane
+
+Use when an agent wants low-friction access but can post collateral.
+
+Rules:
+
+- collateral required
+- pool isolation required
+- LTV cap enforced
+- health factor enforced
+- settlement can create debt only inside the collateralized lane
+
+## Default Flow
+
+### 1. Onboarding
+
+- agent is registered with payer and repay wallet metadata
+- enterprise agents can establish mandate + prefund controls
+- crypto-fast agents can establish collateral positions
+
+### 2. Verify
+
+- facilitator validates protocol inputs
+- lane is resolved
+- kernel evaluates approval
+- facilitator creates a reservation in the selected pool
+- response returns Kizuna extension metadata for the approved amount
+
+### 3. Settle
+
+- facilitator validates reservation + decision envelope
+- settlement executes on-chain or over the configured payment rail
+- enterprise lane consumes prefund
+- crypto-fast lane creates debt against the isolated pool
+- exactly-once billable settlement event is emitted
+
+### 4. Repay or Rebalance
+
+- enterprise lane replenishes prefund
+- crypto-fast lane repays outstanding debt or adds collateral
+- companion API and kernel ingest repayment state idempotently
+
+## Repo Layout by Role
+
+### Core
+
+The default build, test, and CI path.
+
+- `services/x402-facilitator`
+- `services/wallet-control-plane`
+- `services/api` Kizuna routes and ledger surfaces
+- `packages/kamiyo-x402-client`
+- `packages/kamiyo-settlement`
+- `packages/kamiyo-meishi`
+- `packages/kamiyo-sdk`
+- `packages/kamiyo-cdp`
+- `apps/cdp-onboarding`
+
+### Modules
+
+Kizuna-powered surfaces that stay active but are not the repo default.
+
+- `services/kyoshin`
+- `apps/keiro`
+- `packages/kamiyo-openclaw`
+- `packages/kamiyo-hive`
+- `packages/kamiyo-agents`
+- `packages/kamiyo-agent-paranet`
+- related orchestration packages
+
+### Legacy
+
+Retained during cutover, not part of the default production path.
+
+- FairScale fusion and other retained partner feeds
+- trust-graph / paranet / PoCH-heavy surfaces
+- oracle-specific tracks
+- extra deploy workflows for non-Kizuna contract lanes
+- demos, experiments, and old contract tracks
+
+## Operational Rules
+
+- `pnpm run build`, `pnpm run test`, and `pnpm run lint:check` target Kizuna core only.
+- Module checks run only when module paths change.
+- Legacy checks move off the required path.
+- Public Kizuna HTTP contracts stay stable during this cutover.
+- No repo-default path is allowed to front unsecured liquidity.

@@ -1,6 +1,6 @@
 # Wallet Control Plane
 
-API service for wallet-linked agents, end-user entities, and mandate lifecycle management.
+Control surface for Kizuna mandates, linked wallets, enterprise funding limits, and crypto-fast collateral checks.
 
 ## Run
 
@@ -25,3 +25,13 @@ Required:
 - `DATABASE_URL`
 - `SOLANA_RPC_URL`
 - `PORT`
+
+## Kizuna role
+
+This service is responsible for:
+
+- agent onboarding state
+- wallet-linked end-user controls
+- mandate lifecycle and normalized mandate limits
+- enterprise funding constraints
+- collateral-aware control-plane reads used by the crypto-fast lane
