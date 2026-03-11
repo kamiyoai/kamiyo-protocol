@@ -154,8 +154,13 @@ describe('api route ownership groups', () => {
   });
 
   it('adds ownership headers to grouped routes and marks legacy routes explicitly', async () => {
-    const { mountApiRouteGroups } = getRouteGroups();
+    const { mountApiRouteGroups, mountEdgeRouteGroups } = getRouteGroups();
     const app = express();
+
+    const edgeRouter = Router();
+    edgeRouter.get('/ready', (_req, res) => {
+      res.json({ ok: true });
+    });
 
     const coreRouter = Router();
     coreRouter.get('/health', (_req, res) => {
@@ -167,6 +172,7 @@ describe('api route ownership groups', () => {
       res.json({ ok: true });
     });
 
+    mountEdgeRouteGroups(app, [{ path: '/edge', handlers: [edgeRouter] }]);
     mountApiRouteGroups(app, [
       { ownership: 'kizuna-core', routeIds: ['credits'], path: '/core', handlers: [coreRouter] },
       { ownership: 'legacy', routeIds: ['trust-graph'], path: '/legacy', handlers: [legacyRouter] },
@@ -182,9 +188,11 @@ describe('api route ownership groups', () => {
       }
 
       const baseUrl = `http://127.0.0.1:${address.port}`;
+      const edgeRes = await fetch(`${baseUrl}/edge/ready`);
       const coreRes = await fetch(`${baseUrl}/core/health`);
       const legacyRes = await fetch(`${baseUrl}/legacy/status`);
 
+      expect(edgeRes.headers.get('x-kamiyo-route-ownership')).toBe('edge');
       expect(coreRes.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
       expect(coreRes.headers.get('x-kamiyo-route-status')).toBeNull();
       expect(legacyRes.headers.get('x-kamiyo-route-ownership')).toBe('legacy');

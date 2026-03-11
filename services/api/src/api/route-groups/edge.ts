@@ -1,4 +1,4 @@
-import type { Express, RequestHandler } from 'express';
+import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 
 import authRoutes from '../routes/auth';
 import verifyRoutes from '../routes/verify';
@@ -10,6 +10,13 @@ export interface ApiEdgeRouteGroup {
 }
 
 export const EDGE_ROUTE_IDS = ['auth', 'verify', 'blacklist'] as const;
+
+function createEdgeHeaders(): RequestHandler {
+  return (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('X-Kamiyo-Route-Ownership', 'edge');
+    next();
+  };
+}
 
 export function createEdgeRouteGroups(
   authRateLimiter: RequestHandler,
@@ -27,6 +34,6 @@ export function createEdgeRouteGroups(
 
 export function mountEdgeRouteGroups(app: Express, groups: ApiEdgeRouteGroup[]): void {
   for (const group of groups) {
-    app.use(group.path, ...group.handlers);
+    app.use(group.path, createEdgeHeaders(), ...group.handlers);
   }
 }

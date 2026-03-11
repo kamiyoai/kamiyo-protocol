@@ -26,7 +26,7 @@ The route ownership source of truth lives in `src/api/route-groups/`. Keep new p
 
 Route coverage is enforced in tests. Any new file added under `src/api/routes/` must be classified as an owned route, an edge route, or an internal support route before it can land cleanly.
 
-Grouped routes also emit `X-Kamiyo-Route-Ownership`, and retained legacy routes emit `X-Kamiyo-Route-Status: legacy` so operators can distinguish live traffic without changing public URLs.
+Edge and grouped routes emit `X-Kamiyo-Route-Ownership`, and retained legacy routes emit `X-Kamiyo-Route-Status: legacy` so operators can distinguish live traffic without changing public URLs.
 
 ## Endpoint inventory
 
