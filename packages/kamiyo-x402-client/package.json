@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/x402-client",
   "version": "0.1.0",
-  "description": "x402 payment client for AI agents. Integrates PayAI Network facilitator for cross-chain USDC micropayments with Kamiyo escrow protection and SLA enforcement.",
+  "description": "x402 payment client for Kizuna-powered agent payments and cross-chain settlement flows.",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
