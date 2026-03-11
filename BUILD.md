@@ -100,6 +100,7 @@ pnpm --filter @kamiyo/wallet-control-plane run dev
 ```bash
 pnpm --filter kamiyo-companion run build
 pnpm --filter kamiyo-companion run dev
+pnpm --filter kamiyo-companion run smoke:route-ownership
 ```
 
 ### CDP Onboarding

@@ -79,6 +79,7 @@
     "check:mcp:parity": "pnpm --filter @kamiyo/mcp-server run test:tool-parity",
     "preflight:enterprise": "node scripts/enterprise-readiness.mjs --mode ci",
     "smoke:enterprise": "node scripts/enterprise-readiness.mjs --mode live",
+    "smoke:companion:route-ownership": "pnpm --filter kamiyo-companion run smoke:route-ownership",
     "audit:policy": "node scripts/check-security-policy.mjs",
     "audit": "pnpm audit && cargo audit"
   },

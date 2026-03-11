@@ -64,6 +64,7 @@ pnpm install
 pnpm run build
 pnpm run test
 pnpm run lint:check
+pnpm run smoke:companion:route-ownership
 ```
 
 Those commands now target the Kizuna core only.
