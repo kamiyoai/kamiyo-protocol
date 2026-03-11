@@ -22,7 +22,7 @@ Companion still contains older integrations, but they are non-default and should
 
 Public URLs stay stable in this phase. The change is repo focus, CI ownership, and documentation priority.
 
-The route ownership source of truth lives in `src/api/route-groups.ts`. Keep new product work in `kizuna-core` unless it is clearly a module surface or a retained legacy integration.
+The route ownership source of truth lives in `src/api/route-groups/`. Keep new product work in `kizuna-core` unless it is clearly a module surface or a retained legacy integration.
 
 ## Run
 
