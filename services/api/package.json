@@ -11,6 +11,7 @@
     "preflight:contract": "node scripts/preflight-env.mjs --mode contract",
     "preflight:env": "node scripts/preflight-env.mjs --mode runtime",
     "smoke:health": "node scripts/smoke-health.mjs",
+    "smoke:route-ownership": "node scripts/smoke-route-ownership.mjs",
     "pretest": "node scripts/ensure-better-sqlite3.mjs",
     "test": "vitest run src/**/*.test.ts"
   },

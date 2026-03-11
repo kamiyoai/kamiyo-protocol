@@ -78,3 +78,10 @@ Run runtime health smoke:
 ```bash
 pnpm --filter kamiyo-companion run smoke:health
 ```
+
+Run route ownership smoke against a deployed environment:
+
+```bash
+pnpm --filter kamiyo-companion run smoke:route-ownership
+pnpm --filter kamiyo-companion run smoke:route-ownership -- --base-url https://staging-api.example.com
+```
