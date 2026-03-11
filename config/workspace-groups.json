@@ -1,0 +1,110 @@
+{
+  "groups": {
+    "core": {
+      "description": "Kizuna-first services, SDKs, and operator surfaces.",
+      "workspaces": [
+        { "path": "packages/kamiyo-meishi", "name": "@kamiyo/meishi" },
+        { "path": "packages/kamiyo-sdk", "name": "@kamiyo/sdk" },
+        { "path": "packages/kamiyo-cdp", "name": "@kamiyo/cdp" },
+        { "path": "packages/kamiyo-x402-client", "name": "@kamiyo/x402-client" },
+        { "path": "packages/kamiyo-settlement", "name": "@kamiyo/settlement" },
+        { "path": "services/wallet-control-plane", "name": "@kamiyo/wallet-control-plane" },
+        { "path": "services/x402-facilitator", "name": "@kamiyo/x402-facilitator" },
+        { "path": "services/api", "name": "kamiyo-companion" },
+        { "path": "apps/cdp-onboarding", "name": "@kamiyo/cdp-onboarding" }
+      ],
+      "paths": [
+        "README.md",
+        "ARCHITECTURE.md",
+        "BUILD.md",
+        "package.json",
+        "config/workspace-groups.json",
+        "scripts/run-workspace-group.mjs",
+        "scripts/check-workspace-group-changes.mjs",
+        "docs/kizuna-cutover-plan.md",
+        "docs/kizuna-narrative-timeline.md",
+        "docs/kizuna-x-posts-calendar.md",
+        ".github/workflows/ci.yml",
+        ".github/workflows/deploy.yml",
+        "services/x402-facilitator/",
+        "services/wallet-control-plane/",
+        "services/api/",
+        "packages/kamiyo-meishi/",
+        "packages/kamiyo-sdk/",
+        "packages/kamiyo-cdp/",
+        "packages/kamiyo-x402-client/",
+        "packages/kamiyo-settlement/",
+        "apps/cdp-onboarding/"
+      ]
+    },
+    "modules": {
+      "description": "Kizuna-powered runtimes, apps, and orchestration layers.",
+      "workspaces": [
+        { "path": "services/kyoshin", "name": "@kamiyo/kyoshin" },
+        { "path": "services/keiro-api", "name": "@kamiyo/keiro-api" },
+        { "path": "services/agent-factory", "name": "@kamiyo/agent-factory" },
+        { "path": "apps/keiro", "name": "@kamiyo/keiro" },
+        { "path": "packages/kamiyo-openclaw", "name": "@kamiyo/openclaw" },
+        { "path": "packages/kamiyo-hive", "name": "@kamiyo/hive" },
+        { "path": "packages/kamiyo-agents", "name": "@kamiyo/agents" },
+        { "path": "packages/kamiyo-agent-paranet", "name": "@kamiyo/agent-paranet" },
+        { "path": "packages/kamiyo-daydreams", "name": "@kamiyo/daydreams" },
+        { "path": "packages/kamiyo-swarm-agents", "name": "@kamiyo/swarm-agents" }
+      ],
+      "paths": [
+        "services/kyoshin/",
+        "services/keiro-api/",
+        "services/agent-factory/",
+        "apps/keiro/",
+        "packages/kamiyo-openclaw/",
+        "packages/kamiyo-hive/",
+        "packages/kamiyo-agents/",
+        "packages/kamiyo-agent-paranet/",
+        "packages/kamiyo-daydreams/",
+        "packages/kamiyo-swarm-agents/",
+        ".github/workflows/keiro.yml"
+      ]
+    },
+    "legacy": {
+      "description": "Retained but non-default integrations, demos, and contract tracks.",
+      "workspaces": [
+        { "path": "packages/kamiyo-hyperliquid", "name": "@kamiyo/hyperliquid" },
+        { "path": "packages/kamiyo-monad", "name": "@kamiyo/monad" },
+        { "path": "packages/kamiyo-surfpool", "name": "@kamiyo/surfpool" },
+        { "path": "packages/kamiyo-dkg-quality", "name": "@kamiyo/dkg-quality-oracle" },
+        { "path": "packages/oracle-cli", "name": "@kamiyo/oracle-cli" },
+        { "path": "services/oracle", "name": "@kamiyo/oracle-service" },
+        { "path": "services/observatory", "name": "@kamiyo/observatory" },
+        { "path": "services/telegram-bot", "name": "@kamiyo/telegram-bot" },
+        { "path": "services/discord-governance-bot", "name": "@kamiyo/discord-governance-bot" },
+        { "path": "services/companion-ws", "name": "@kamiyo/companion-ws" },
+        { "path": "apps/privacy-demo", "name": "privacy-demo" }
+      ],
+      "paths": [
+        "contracts/",
+        "programs/",
+        "crates/",
+        "circuits/",
+        "noir/",
+        "trident-tests/",
+        "services/oracle/",
+        "services/observatory/",
+        "services/telegram-bot/",
+        "services/discord-governance-bot/",
+        "services/companion-ws/",
+        "packages/kamiyo-hyperliquid/",
+        "packages/kamiyo-monad/",
+        "packages/kamiyo-surfpool/",
+        "packages/kamiyo-dkg-quality/",
+        "packages/oracle-cli/",
+        "apps/privacy-demo/",
+        "docs/production-audit-fairscale-persistence.md",
+        ".github/workflows/legacy-contract-deploy.yml",
+        ".github/workflows/surfpool-ci.yml",
+        ".github/workflows/kani.yml",
+        ".github/workflows/kani-full.yml",
+        ".github/workflows/kani-sarif.yml"
+      ]
+    }
+  }
+}

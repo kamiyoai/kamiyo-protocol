@@ -1,4 +1,4 @@
-// KAMIYO Consolidated API Server
+// Companion API server with Kizuna core routes and retained legacy integrations.
 
 import express, { Express } from 'express';
 import cors from 'cors';
@@ -236,65 +236,35 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api/auth/refresh', apiKeyRateLimiter);
   app.use('/api/auth', authRoutes);
 
-  // Protected Companion API routes
+  // Protected companion routes
   app.use('/api/v1/chat', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), chatRoutes);
   app.use('/api/v1/tokens', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), tokensRoutes);
   app.use('/api/v1/market', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), marketRoutes);
   app.use('/api/v1/reputation', authMiddleware, rateLimitMiddleware, tierMiddleware('pro'), reputationRoutes);
 
-  // Hive ZK signal routes (public - demo purposes)
-  app.use('/api/hive', swarmteamsRoutes);
-
-  // $KAMIYO token stats and burn tracking (public)
-  app.use('/api/kamiyo', kamiyoTokenRoutes);
-
-  // x402 payment-gated routes (public - pay-per-request for non-holders)
+  // Kizuna core routes
   app.use('/api/paid', paidRoutes);
-
-  // Prepaid credits routes (public - alternative to x402)
   app.use('/api/credits', creditsRoutes);
-
-  // Wallet linking routes (from kamiyo-app dApp)
   app.use('/api/link-wallet', linkWalletRoutes);
-
-  // Internal holder-gate lookup (server-to-server)
   app.use('/internal/holders', internalHoldersRoutes);
-
-  // SwarmTeam management routes (public)
-  app.use('/api/hive-teams', swarmTeamRoutes);
-  app.use('/api/swarm-teams', swarmTeamRoutes);
-
-  // Buyback stats and admin controls (public read, admin write)
-  app.use('/api/buyback', buybackRoutes);
-
-  // ZK-gated channels (public - proof verified on join)
-  app.use('/api/channels', channelsRoutes);
-
-  // Trust graph visualization (public)
-  app.use('/api/trust-graph', publicReadLimiter, trustGraphRoutes);
-
-  // FairScale fusion: signed event feed + reliability metrics
-  app.use('/api/fusion/fairscale', fairscaleFusionRoutes);
-
-  // Meishi passports (public reads; on-chain source of truth)
   app.use('/api/meishi', publicReadLimiter, meishiRoutes);
-
-  // Meishi DKG views (public reads; OriginTrail-backed once publishing is enabled)
   app.use('/api/meishi-dkg', publicReadLimiter, meishiDkgRoutes);
-
-  // Generic DKG Knowledge Asset resolver (public read)
   app.use('/api/dkg', publicReadLimiter, dkgRoutes);
 
-  // Agent Paranet - decentralized credit scores (public read, auth for write)
+  // Kizuna-powered module routes
+  app.use('/api/hive', swarmteamsRoutes);
+  app.use('/api/hive-teams', swarmTeamRoutes);
+  app.use('/api/swarm-teams', swarmTeamRoutes);
+  app.use('/api/buyback', buybackRoutes);
+  app.use('/api/channels', channelsRoutes);
+  app.use('/api/kamiyo', kamiyoTokenRoutes);
+
+  // Retained legacy routes
+  app.use('/api/trust-graph', publicReadLimiter, trustGraphRoutes);
+  app.use('/api/fusion/fairscale', fairscaleFusionRoutes);
   app.use('/api/paranet', paranetRoutes);
-
-  // PoCH contribution humanity routes (public read/write with service-level controls)
   app.use('/api/poch', pochRoutes);
-
-  // Staking referral growth routes (public + wallet-auth + admin controls)
   app.use('/api/staking/referrals', stakingReferralRoutes);
-
-  // BabyAGI bridge routes (public by default; set BABYAGI_BRIDGE_API_KEY to require auth)
   app.use('/babyagi/v1', babyagiRoutes);
 
   // MCP routes (OAuth + Streamable HTTP transport)
@@ -332,7 +302,7 @@ const openApiSpec = {
   info: {
     title: 'KAMIYO Companion API',
     version: '1.0.0',
-    description: 'KAMIYO Companion - AI interface to KAMIYO protocol. Token-gated API for holders.',
+    description: 'Companion API for Kizuna credits, payment support, and retained KAMIYO integrations.',
   },
   servers: [
     { url: 'https://api.kamiyo.ai', description: 'Production' },
