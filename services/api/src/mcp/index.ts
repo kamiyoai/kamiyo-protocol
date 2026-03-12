@@ -8,6 +8,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { mcpAuthRouter, getOAuthProtectedResourceMetadataUrl } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { KamiyoOAuthProvider } from './oauth/provider.js';
 import { createMCPServer, McpAuthInfo } from './server.js';
+import { OOBE_ALLOWED_TOOL_NAMES, getOobeAllowedTargetHosts } from '../oobe.js';
 import {
   createMcpSession,
   updateMcpSessionActivity,
@@ -167,7 +168,22 @@ export async function shutdownMcpSessions(): Promise<void> {
   logger.info('MCP sessions closed');
 }
 
-function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: string) {
+interface McpProtectedResourceConfig {
+  basePath: string;
+  mcpPath: string;
+  resourceName: string;
+  serviceDocumentationUrl: URL;
+  allowDynamicRegistration: boolean;
+  allowedTools?: readonly string[];
+  allowedX402Hosts?: readonly string[];
+  requireResourceBinding?: boolean;
+}
+
+function mcpBearerAuth(
+  provider: KamiyoOAuthProvider,
+  resourceMetadataUrl: string,
+  authOptions?: { expectedResource?: URL; requireResource?: boolean }
+) {
   return async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -177,7 +193,10 @@ function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: strin
     }
 
     try {
-      const authInfo = await provider.verifyAccessToken(authHeader.slice(7));
+      const authInfo = await provider.verifyAccessToken(authHeader.slice(7), {
+        expectedResource: authOptions?.expectedResource,
+        requireResource: authOptions?.requireResource,
+      });
       req.mcpAuth = authInfo;
       next();
     } catch {
@@ -187,28 +206,40 @@ function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: strin
   };
 }
 
-export function createMCPRoutes(): Router {
-  const router = Router();
-  const provider = new KamiyoOAuthProvider();
-  const baseUrl = new URL(getMcpCapability().publicBaseUrl);
-  const mcpUrl = new URL('/mcp', baseUrl);
+function getAuthBaseUrl(baseUrl: URL, basePath: string): URL {
+  return basePath ? new URL(`${basePath.replace(/\/+$/, '')}/`, baseUrl) : baseUrl;
+}
 
-  router.use(
+function mountProtectedResource(
+  router: Router,
+  provider: KamiyoOAuthProvider,
+  baseUrl: URL,
+  config: McpProtectedResourceConfig
+): void {
+  const resourceRouter = Router();
+  const authBaseUrl = getAuthBaseUrl(baseUrl, config.basePath);
+  const mcpUrl = new URL(`${config.basePath}${config.mcpPath}`, baseUrl);
+  const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(mcpUrl);
+
+  if (!config.allowDynamicRegistration) {
+    resourceRouter.post('/oauth/register', (_req: Request, res: Response) => {
+      res.status(403).json({ error: 'dynamic registration disabled' });
+    });
+  }
+
+  resourceRouter.use(
     mcpAuthRouter({
       provider: provider as Parameters<typeof mcpAuthRouter>[0]['provider'],
-      issuerUrl: baseUrl,
-      baseUrl,
+      issuerUrl: authBaseUrl,
+      baseUrl: authBaseUrl,
       resourceServerUrl: mcpUrl,
-      resourceName: 'KAMIYO MCP Server',
+      resourceName: config.resourceName,
       scopesSupported: ['mcp:tools', 'mcp:tools:escrow', 'mcp:tools:x402'],
-      serviceDocumentationUrl: new URL('https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-mcp'),
+      serviceDocumentationUrl: config.serviceDocumentationUrl,
     }) as unknown as RequestHandler
   );
 
-  const resourceMetadataUrl = getOAuthProtectedResourceMetadataUrl(mcpUrl);
-
-  // Health check
-  router.get('/mcp/health', (_req: Request, res: Response) => {
+  resourceRouter.get(`${config.mcpPath}/health`, (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
       sessions: sessions.size,
@@ -216,10 +247,13 @@ export function createMCPRoutes(): Router {
     });
   });
 
-  router.all(
-    '/mcp',
+  resourceRouter.all(
+    config.mcpPath,
     json({ limit: '1mb' }),
-    mcpBearerAuth(provider, resourceMetadataUrl),
+    mcpBearerAuth(provider, resourceMetadataUrl, {
+      expectedResource: mcpUrl,
+      requireResource: config.requireResourceBinding,
+    }),
     async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response) => {
       if (req.method !== 'GET' && req.method !== 'POST' && req.method !== 'DELETE') {
         res.setHeader('Allow', 'GET, POST, DELETE');
@@ -285,7 +319,10 @@ export function createMCPRoutes(): Router {
             sessionIdGenerator: () => randomUUID(),
           });
 
-          const server = createMCPServer(mcpAuth);
+          const server = createMCPServer(mcpAuth, {
+            allowedTools: config.allowedTools,
+            allowedX402Hosts: config.allowedX402Hosts,
+          });
           await server.connect(transport);
 
           const newSessionId = transport.sessionId;
@@ -365,13 +402,46 @@ export function createMCPRoutes(): Router {
     }
   );
 
-  router.use('/mcp', (err: unknown, req: Request, res: Response, next: NextFunction) => {
+  resourceRouter.use(config.mcpPath, (err: unknown, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof SyntaxError) {
       mcpRequestsTotal.inc({ method: req.method, status: '400' });
       res.status(400).json({ error: 'invalid JSON body' });
       return;
     }
     next(err);
+  });
+
+  if (config.basePath) {
+    router.use(config.basePath, resourceRouter);
+    return;
+  }
+
+  router.use(resourceRouter);
+}
+
+export function createMCPRoutes(): Router {
+  const router = Router();
+  const provider = new KamiyoOAuthProvider();
+  const baseUrl = new URL(getMcpCapability().publicBaseUrl);
+
+  mountProtectedResource(router, provider, baseUrl, {
+    basePath: '',
+    mcpPath: '/mcp',
+    resourceName: 'KAMIYO MCP Server',
+    serviceDocumentationUrl: new URL('https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/packages/kamiyo-mcp'),
+    allowDynamicRegistration: true,
+    requireResourceBinding: false,
+  });
+
+  mountProtectedResource(router, provider, baseUrl, {
+    basePath: '/partners/oobe',
+    mcpPath: '/mcp',
+    resourceName: 'KAMIYO OOBE MCP Server',
+    serviceDocumentationUrl: new URL('https://github.com/kamiyo-ai/kamiyo-protocol/tree/main/services/api/docs/OOBE_PARTNER_INTEGRATION.md'),
+    allowDynamicRegistration: false,
+    allowedTools: OOBE_ALLOWED_TOOL_NAMES,
+    allowedX402Hosts: getOobeAllowedTargetHosts(),
+    requireResourceBinding: true,
   });
 
   return router;

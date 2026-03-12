@@ -74,6 +74,10 @@ const ACCESS_TOKEN_TTL = 60 * 60; // 1h
 const REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60; // 30d
 const AUTH_CODE_TTL = 10 * 60; // 10m
 
+function normalizeResource(value: string | URL): string {
+  return (typeof value === 'string' ? new URL(value) : value).toString();
+}
+
 export class KamiyoOAuthProvider implements OAuthServerProvider {
   private _clientsStore: KamiyoOAuthClientsStore;
 
@@ -265,7 +269,10 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
     };
   }
 
-  async verifyAccessToken(token: string): Promise<AuthInfo> {
+  async verifyAccessToken(
+    token: string,
+    options?: { expectedResource?: string | URL; requireResource?: boolean }
+  ): Promise<AuthInfo> {
     const tokenHash = hashToken(token);
     const record = getMcpOAuthToken(tokenHash);
 
@@ -274,6 +281,18 @@ export class KamiyoOAuthProvider implements OAuthServerProvider {
 
     const now = Math.floor(Date.now() / 1000);
     if (record.expires_at < now) throw new Error('token expired');
+    const expectedResource = options?.expectedResource
+      ? normalizeResource(options.expectedResource)
+      : null;
+    const tokenResource = record.resource?.trim() || null;
+    if (expectedResource) {
+      if (!tokenResource && options?.requireResource) {
+        throw new Error('resource binding required');
+      }
+      if (tokenResource && tokenResource !== expectedResource) {
+        throw new Error('resource mismatch');
+      }
+    }
     const scopes = parseJsonStringArray(record.scopes, 'scopes');
     assertAllowedScopes(scopes, scopes);
 

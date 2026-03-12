@@ -3,6 +3,19 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import type { AnchorProvider } from '@coral-xyz/anchor';
+import type { Connection, Keypair } from '@solana/web3.js';
+import {
+  createSignedPayment,
+  createPaymentHeader,
+  evaluateFacilitatorPolicy,
+  generateTransactionId,
+  getRequirementAmountRaw,
+  normalizeFacilitatorPolicy,
+  parseUsdcAmountUsd,
+  selectPreferredRequirement,
+  withPaymentHeaders,
+} from '@kamiyo/x402-client';
 import { logger } from '../logger.js';
 import {
   getSolanaProgram,
@@ -305,7 +318,46 @@ const TOOL_DEFINITIONS = [
       required: ['url'],
     },
   },
+  {
+    name: 'x402_fetch',
+    description: 'Fetch from x402 endpoint with automatic payment handling',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        url: { type: 'string', description: 'Endpoint URL' },
+        method: { type: 'string', description: 'HTTP method (default GET)' },
+        body: { type: 'string', description: 'Optional JSON request body' },
+        headers: { type: 'object', description: 'Optional request headers' },
+        adjudicationProvider: {
+          type: 'string',
+          description: 'Optional policy review provider tag: openclaw, nanoclaw, or ironclaw',
+        },
+      },
+      required: ['url'],
+    },
+  },
 ];
+
+type ToolDefinition = (typeof TOOL_DEFINITIONS)[number];
+
+export interface HostedToolExecutionOptions {
+  allowedTools?: readonly string[];
+  allowedX402Hosts?: readonly string[];
+}
+
+export class HostedToolError extends Error {
+  readonly statusCode: number;
+
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.name = 'HostedToolError';
+    this.statusCode = statusCode;
+  }
+}
+
+function getToolDefinition(name: string): ToolDefinition | undefined {
+  return TOOL_DEFINITIONS.find((tool) => tool.name === name);
+}
 
 function validateArgs(args: unknown, schema: { required?: string[]; properties?: Record<string, unknown> }): string | null {
   const required = schema.required || [];
@@ -353,6 +405,72 @@ const SOLANA_TOOLS = [
   'file_dispute',
   'get_api_reputation',
 ];
+
+type TruthCourtGauntletArgs = Parameters<typeof runTruthCourtGauntlet>[0];
+type TruthCourtDisputeArgs = Parameters<typeof fileDisputeWithTruthCourt>[0];
+
+function toolHasScope(toolName: string, auth: AuthInfo): boolean {
+  const hasScope = (scope: string) =>
+    auth.scopes.includes(scope) || auth.scopes.includes('mcp:tools');
+
+  if (toolName.startsWith('x402_')) return hasScope('mcp:tools:x402');
+  if (['create_escrow', 'file_dispute', 'file_dispute_truth_court'].includes(toolName)) {
+    return hasScope('mcp:tools:escrow');
+  }
+  return hasScope('mcp:tools');
+}
+
+function isToolAllowed(toolName: string, allowedTools?: readonly string[]): boolean {
+  if (!allowedTools || allowedTools.length === 0) {
+    return true;
+  }
+  return allowedTools.includes(toolName);
+}
+
+function assertToolAllowed(toolName: string, options: HostedToolExecutionOptions): void {
+  if (!isToolAllowed(toolName, options.allowedTools)) {
+    throw new HostedToolError(403, `tool not allowed: ${toolName}`);
+  }
+}
+
+function assertAllowedX402Target(toolName: string, args: Record<string, unknown>, options: HostedToolExecutionOptions): void {
+  if (!toolName.startsWith('x402_') || !options.allowedX402Hosts) {
+    return;
+  }
+
+  const url = typeof args.url === 'string' ? args.url : '';
+  if (!url) {
+    throw new HostedToolError(400, 'missing required field: url');
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new HostedToolError(400, 'invalid URL');
+  }
+  const allowedHosts = options.allowedX402Hosts.map((value) => value.toLowerCase());
+  if (!allowedHosts.includes(parsed.hostname.toLowerCase())) {
+    throw new HostedToolError(403, 'target url not allowed');
+  }
+}
+
+export function getVisibleToolDefinitions(
+  auth: AuthInfo,
+  options: HostedToolExecutionOptions = {}
+): ToolDefinition[] {
+  const solanaConfigured = isSolanaConfigured();
+
+  let tools = TOOL_DEFINITIONS.filter(
+    (tool) => toolHasScope(tool.name, auth) && isToolAllowed(tool.name, options.allowedTools)
+  );
+
+  if (!solanaConfigured) {
+    tools = tools.filter((tool) => !SOLANA_TOOLS.includes(tool.name));
+  }
+
+  return tools;
+}
 
 // Off-chain quality assessment
 function hasNestedProperty(obj: unknown, path: string): boolean {
@@ -488,7 +606,96 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   }
 }
 
-async function x402CheckPricing(args: { url: string }): Promise<{ success: boolean; free?: boolean; options?: unknown[]; error?: string }> {
+function parsePositiveEnvNumber(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function summarizeFetchedData(data: unknown): string {
+  if (Array.isArray(data)) {
+    return `Retrieved ${data.length} items.`;
+  }
+
+  if (typeof data === 'object' && data !== null) {
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      return 'Retrieved empty object.';
+    }
+    if (keys.length <= 5) {
+      return keys
+        .map((key) => {
+          const value = (data as Record<string, unknown>)[key];
+          if (typeof value === 'number') return `${key}: ${value.toLocaleString()}`;
+          if (typeof value === 'string') return `${key}: ${value.length > 50 ? `${value.slice(0, 50)}...` : value}`;
+          if (Array.isArray(value)) return `${key}: ${value.length} items`;
+          return `${key}: ${typeof value}`;
+        })
+        .join(', ');
+    }
+    return `Retrieved object with ${keys.length} fields: ${keys.slice(0, 5).join(', ')}...`;
+  }
+
+  if (typeof data === 'string') {
+    return data.length > 80 ? `${data.slice(0, 80)}...` : data;
+  }
+
+  if (data === null || data === undefined) {
+    return 'Retrieved empty response.';
+  }
+
+  return 'Retrieved data.';
+}
+
+async function parseFetchPayload(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+function getHostedX402Config():
+  | {
+      connection: Connection;
+      wallet: Keypair;
+      maxPriceUsd: number;
+      preferredNetwork: string;
+      facilitatorPolicy: string;
+    }
+  | null {
+  const program = getSolanaProgram();
+  if (!program) {
+    return null;
+  }
+
+  const provider = program.program.provider as AnchorProvider & {
+    wallet?: {
+      payer?: Keypair;
+    };
+  };
+  const wallet = provider.wallet?.payer;
+  if (!wallet) {
+    return null;
+  }
+
+  return {
+    connection: provider.connection,
+    wallet,
+    maxPriceUsd: parsePositiveEnvNumber(process.env.X402_MAX_PRICE_USD, 0.1),
+    preferredNetwork: process.env.X402_PREFERRED_NETWORK || 'solana:mainnet',
+    facilitatorPolicy: process.env.X402_FACILITATOR_POLICY || 'auto',
+  };
+}
+
+async function x402CheckPricing(
+  args: { url: string },
+  config?: { facilitatorPolicy?: string }
+): Promise<{ success: boolean; free?: boolean; options?: unknown[]; error?: string }> {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(args.url);
@@ -512,9 +719,20 @@ async function x402CheckPricing(args: { url: string }): Promise<{ success: boole
         : { success: false, error: `endpoint returned ${response.status}` };
     }
 
-    const data = (await response.json()) as { accepts?: Record<string, unknown>[] };
+    const data = (await response.json()) as {
+      accepts?: Array<Record<string, unknown> & { amount?: string; asset?: string; description?: string; network?: string }>;
+      facilitator?: string;
+    };
     if (!data.accepts || !Array.isArray(data.accepts)) {
       return { success: false, error: 'invalid x402 response' };
+    }
+
+    const policyDecision = evaluateFacilitatorPolicy(
+      data.facilitator,
+      normalizeFacilitatorPolicy(config?.facilitatorPolicy)
+    );
+    if (!policyDecision.allowed) {
+      return { success: false, error: policyDecision.reason || 'facilitator blocked by policy' };
     }
 
     return {
@@ -522,10 +740,170 @@ async function x402CheckPricing(args: { url: string }): Promise<{ success: boole
       free: false,
       options: data.accepts.map((opt) => ({
         network: opt.network,
-        amount: opt.amount,
+        priceUsd: typeof opt.amount === 'string' ? (parseUsdcAmountUsd(opt.amount) ?? opt.amount) : opt.amount,
         asset: opt.asset,
         description: opt.description,
       })),
+    };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : 'unknown error' };
+  }
+}
+
+async function x402Fetch(args: {
+  url: string;
+  method?: string;
+  body?: string;
+  headers?: Record<string, string>;
+}): Promise<{
+  success: boolean;
+  paid?: boolean;
+  data?: unknown;
+  summary?: string;
+  payment?: { network: string; amountUsd: number; asset: string; signature?: string };
+  error?: string;
+}> {
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(args.url);
+  } catch {
+    return { success: false, error: 'invalid URL' };
+  }
+
+  if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+    return { success: false, error: 'url must use http or https' };
+  }
+
+  const config = getHostedX402Config();
+  if (!config) {
+    return {
+      success: false,
+      error: 'Solana not configured. Set MCP_PROGRAM_ID, MCP_AGENT_KEYPAIR, SOLANA_RPC_URL.',
+    };
+  }
+
+  const method = typeof args.method === 'string' && args.method.trim() ? args.method.trim().toUpperCase() : 'GET';
+  const body = typeof args.body === 'string' && args.body.length > 0 ? args.body : undefined;
+  const requestHeaders =
+    args.headers && typeof args.headers === 'object' && !Array.isArray(args.headers)
+      ? Object.entries(args.headers).reduce<Record<string, string>>((acc, [key, value]) => {
+          if (typeof value === 'string' && key.trim()) {
+            acc[key] = value;
+          }
+          return acc;
+        }, {})
+      : {};
+
+  try {
+    const initialResponse = await fetchWithTimeout(
+      parsedUrl.toString(),
+      {
+        method,
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...requestHeaders,
+        },
+        body,
+      },
+      10_000
+    );
+
+    if (initialResponse.status !== 402) {
+      if (initialResponse.ok) {
+        const data = await parseFetchPayload(initialResponse);
+        return {
+          success: true,
+          paid: false,
+          data,
+          summary: summarizeFetchedData(data),
+        };
+      }
+
+      const errorText = await initialResponse.text().catch(() => '');
+      return {
+        success: false,
+        error: `endpoint returned ${initialResponse.status}${errorText ? `: ${errorText.slice(0, 160)}` : ''}`,
+      };
+    }
+
+    const x402Response = (await initialResponse.json()) as {
+      accepts?: Array<Record<string, unknown> & { network: string; asset: string }>;
+      facilitator?: string;
+    };
+    const policyDecision = evaluateFacilitatorPolicy(
+      x402Response.facilitator,
+      normalizeFacilitatorPolicy(config.facilitatorPolicy)
+    );
+    if (!policyDecision.allowed) {
+      return { success: false, error: policyDecision.reason || 'facilitator blocked by policy' };
+    }
+
+    if (!x402Response.accepts || x402Response.accepts.length === 0) {
+      return { success: false, error: 'no payment options available' };
+    }
+
+    const requirement = selectPreferredRequirement(x402Response.accepts, config.preferredNetwork);
+    const amountRaw = getRequirementAmountRaw(requirement);
+    if (!amountRaw) {
+      return { success: false, error: 'payment requirement missing amount' };
+    }
+
+    const amountUsd = parseUsdcAmountUsd(amountRaw);
+    if (amountUsd == null || amountUsd <= 0) {
+      return { success: false, error: 'invalid payment amount in requirement' };
+    }
+
+    if (amountUsd > config.maxPriceUsd) {
+      return {
+        success: false,
+        error: `Price $${amountUsd.toFixed(4)} exceeds max $${config.maxPriceUsd}`,
+      };
+    }
+
+    const transactionId = generateTransactionId();
+    const signedPayment = createSignedPayment(config.wallet, transactionId, parsedUrl.toString(), amountRaw);
+    const paymentHeader = createPaymentHeader(signedPayment, config.wallet, requirement.network);
+
+    const paidResponse = await fetchWithTimeout(
+      parsedUrl.toString(),
+      {
+        method,
+        headers: withPaymentHeaders(paymentHeader, {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...requestHeaders,
+        }),
+        body,
+      },
+      10_000
+    );
+
+    if (!paidResponse.ok) {
+      if (paidResponse.status === 402) {
+        const errorPayload = await parseFetchPayload(paidResponse).catch(() => null);
+        const message =
+          errorPayload && typeof errorPayload === 'object' && 'error' in errorPayload
+            ? String((errorPayload as Record<string, unknown>).error)
+            : 'signature not accepted';
+        return { success: false, error: `payment rejected: ${message}` };
+      }
+
+      return { success: false, error: `API returned ${paidResponse.status} after payment` };
+    }
+
+    const data = await parseFetchPayload(paidResponse);
+    return {
+      success: true,
+      paid: true,
+      data,
+      summary: summarizeFetchedData(data),
+      payment: {
+        network: requirement.network,
+        amountUsd,
+        asset: requirement.asset,
+        signature: transactionId,
+      },
     };
   } catch (err: unknown) {
     return { success: false, error: err instanceof Error ? err.message : 'unknown error' };
@@ -564,11 +942,28 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   if (name === 'x402_check_pricing') {
     const providerResolution = resolveProvider('adjudicationProvider');
     if (providerResolution.error) return { success: false, error: providerResolution.error };
-    const pricing = await x402CheckPricing(args as { url: string });
+    const pricing = await x402CheckPricing(args as { url: string }, {
+      facilitatorPolicy: process.env.X402_FACILITATOR_POLICY,
+    });
     if (providerResolution.provider && pricing && typeof pricing === 'object') {
       return { ...pricing, adjudicationProvider: providerResolution.provider };
     }
     return pricing;
+  }
+
+  if (name === 'x402_fetch') {
+    const providerResolution = resolveProvider('adjudicationProvider');
+    if (providerResolution.error) return { success: false, error: providerResolution.error };
+    const result = await x402Fetch(args as {
+      url: string;
+      method?: string;
+      body?: string;
+      headers?: Record<string, string>;
+    });
+    if (providerResolution.provider && result && typeof result === 'object') {
+      return { ...result, adjudicationProvider: providerResolution.provider };
+    }
+    return result;
   }
 
   // Meishi (read-only on-chain)
@@ -654,12 +1049,12 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const providerResolution = resolveProvider('adjudicationProvider');
     if (providerResolution.error) return { success: false, error: providerResolution.error };
     if (!providerResolution.provider) {
-      return runTruthCourtGauntlet(args as any);
+      return runTruthCourtGauntlet(args as TruthCourtGauntletArgs);
     }
     return runTruthCourtGauntlet({
       ...(args as Record<string, unknown>),
       ...buildClawInclusion(providerResolution.provider),
-    } as any);
+    } as unknown as TruthCourtGauntletArgs);
   }
 
   if (name === 'file_dispute_truth_court') {
@@ -670,10 +1065,10 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
       ? ({
           ...(args as Record<string, unknown>),
           ...buildClawInclusion(providerResolution.provider),
-        } as Record<string, unknown>)
-      : args;
+        } as unknown as TruthCourtDisputeArgs)
+      : (args as unknown as TruthCourtDisputeArgs);
     if (!markOnChain) {
-      return fileDisputeWithTruthCourt(truthCourtArgs as any);
+      return fileDisputeWithTruthCourt(truthCourtArgs);
     }
 
     const program = getSolanaProgram();
@@ -684,7 +1079,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
           'Solana not configured. Set MCP_PROGRAM_ID, MCP_AGENT_KEYPAIR, SOLANA_RPC_URL, or call with markOnChain=false.',
       };
     }
-    return fileDisputeWithTruthCourt(truthCourtArgs as any, program);
+    return fileDisputeWithTruthCourt(truthCourtArgs, program);
   }
 
   // Solana tools
@@ -770,51 +1165,42 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   return { success: false, error: `unknown tool: ${name}` };
 }
 
-export function createMCPServer(auth: AuthInfo): Server {
+export async function executeHostedTool(
+  name: string,
+  args: Record<string, unknown>,
+  options: HostedToolExecutionOptions = {}
+): Promise<unknown> {
+  const toolDef = getToolDefinition(name);
+  if (!toolDef) {
+    throw new HostedToolError(404, `unknown tool: ${name}`);
+  }
+
+  assertToolAllowed(name, options);
+
+  const validationError = validateArgs(args, toolDef.inputSchema);
+  if (validationError) {
+    throw new HostedToolError(400, validationError);
+  }
+
+  assertAllowedX402Target(name, args, options);
+  return handleTool(name, args);
+}
+
+export function createMCPServer(
+  auth: AuthInfo,
+  options: HostedToolExecutionOptions = {}
+): Server {
   const server = new Server(
     { name: 'kamiyo', version: '1.0.0' },
     { capabilities: { tools: {} } }
   );
 
-  const hasScope = (scope: string) =>
-    auth.scopes.includes(scope) || auth.scopes.includes('mcp:tools');
-
-  const solanaConfigured = isSolanaConfigured();
-
   server.setRequestHandler(ListToolsRequestSchema, async () => {
-    let tools = TOOL_DEFINITIONS.filter((tool) => {
-      if (tool.name.startsWith('x402_')) return hasScope('mcp:tools:x402');
-      if (['create_escrow', 'file_dispute', 'file_dispute_truth_court'].includes(tool.name)) {
-        return hasScope('mcp:tools:escrow');
-      }
-      return hasScope('mcp:tools');
-    });
-
-    if (!solanaConfigured) {
-      tools = tools.filter((t) => !SOLANA_TOOLS.includes(t.name));
-    }
-
-    return { tools };
+    return { tools: getVisibleToolDefinitions(auth, options) };
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
-
-    const toolDef = TOOL_DEFINITIONS.find((t) => t.name === name);
-    if (!toolDef) {
-      mcpToolCallsTotal.inc({ tool: name, status: 'unknown' });
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ success: false, error: `unknown tool: ${name}` }) }],
-      };
-    }
-
-    const validationError = validateArgs(args, toolDef.inputSchema);
-    if (validationError) {
-      mcpToolCallsTotal.inc({ tool: name, status: 'invalid' });
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ success: false, error: validationError }) }],
-      };
-    }
 
     const toolArgs =
       args && typeof args === 'object' && !Array.isArray(args)
@@ -822,12 +1208,19 @@ export function createMCPServer(auth: AuthInfo): Server {
         : ({} as Record<string, unknown>);
 
     try {
-      const result = await handleTool(name, toolArgs);
+      const result = await executeHostedTool(name, toolArgs, options);
       mcpToolCallsTotal.inc({ tool: name, status: 'success' });
       return {
         content: [{ type: 'text', text: JSON.stringify(result) }],
       };
     } catch (err: unknown) {
+      if (err instanceof HostedToolError) {
+        const status = err.statusCode === 404 ? 'unknown' : err.statusCode === 400 ? 'invalid' : 'error';
+        mcpToolCallsTotal.inc({ tool: name, status });
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ success: false, error: err.message }) }],
+        };
+      }
       logger.error('MCP tool execution error', {
         tool: name,
         clientId: auth.clientId,

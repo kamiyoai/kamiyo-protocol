@@ -1,0 +1,29 @@
+flowchart LR
+  O["OOBE"]
+
+  subgraph K["KAMIYO API"]
+    MCP["/partners/oobe/mcp<br/>OAuth<br/>resource-bound tokens<br/>4 tools only"]
+    HTTP["/api/partners/oobe<br/>Bearer token<br/>4 endpoints"]
+    EXEC["Shared tool executor"]
+    POLICY["Target host allowlist<br/>default: api.kamiyo.ai<br/>default: x402.kamiyo.ai<br/>+ env extensions"]
+    X402["x402_check_pricing<br/>x402_fetch"]
+    ESCROW["create_escrow<br/>check_escrow_status"]
+    PROV["provision:oobe-mcp-client"]
+  end
+
+  PAID["KAMIYO paid/x402 surfaces"]
+  SOL["Solana signer + escrow program"]
+
+  O -->|OAuth client| MCP
+  O -->|Bearer token| HTTP
+  PROV --> MCP
+
+  MCP --> EXEC
+  HTTP --> EXEC
+
+  EXEC --> POLICY
+  POLICY --> X402
+  EXEC --> ESCROW
+
+  X402 --> PAID
+  ESCROW --> SOL

@@ -23,11 +23,14 @@ Examples:
 
 - `/api/paid`
 - `/api/credits`
+- `/api/partners/oobe`
 - `/api/link-wallet`
 - `/internal/holders`
 - `/api/meishi`
 - `/api/meishi-dkg`
 - `/api/dkg`
+
+Partner-private Kizuna surfaces should still land in `kizuna-core` when they reuse the hosted Kizuna execution path. OOBE is the current example. See `docs/OOBE_PARTNER_INTEGRATION.md`.
 
 ### `module`
 
@@ -106,6 +109,7 @@ Before merging companion ownership changes:
 
 ```bash
 pnpm --filter kamiyo-companion exec vitest run src/__tests__/api-route-groups.test.ts
+pnpm --filter kamiyo-companion exec vitest run src/__tests__/mcp-oauth-provider.test.ts src/__tests__/mcp-oobe-routes.test.ts src/__tests__/mcp-server-oobe.test.ts src/__tests__/oobe-partner-routes.test.ts
 pnpm --filter kamiyo-companion run build
 pnpm --filter kamiyo-companion run smoke:route-ownership
 ```

@@ -80,6 +80,7 @@ describe('api route ownership groups', () => {
 
     expect(corePaths).toContain('/api/credits');
     expect(corePaths).toContain('/api/paid');
+    expect(corePaths).toContain('/api/partners/oobe');
     expect(corePaths).toContain('/api/meishi');
     expect(corePaths).toContain('/api/dkg');
 

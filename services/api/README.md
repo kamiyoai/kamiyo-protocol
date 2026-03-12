@@ -13,6 +13,8 @@ Core responsibilities:
 
 Companion still contains older integrations, but they are non-default and should not drive new product work.
 
+Partner-private Kizuna surfaces also live here when they reuse the hosted settlement and tool execution path. OOBE is the first example. Its operator guide lives in `docs/OOBE_PARTNER_INTEGRATION.md`.
+
 ## Route posture
 
 - `protected`: authenticated operator and premium account surfaces
@@ -34,7 +36,7 @@ Edge and grouped routes emit `X-Kamiyo-Route-Ownership`, and retained legacy rou
 
 - `edge`: `/verify`, `/blacklist`, `/api/auth/*`
 - `protected`: `/api/v1/chat`, `/api/v1/tokens`, `/api/v1/market`, `/api/v1/reputation`
-- `kizuna-core`: `/api/paid`, `/api/credits`, `/api/link-wallet`, `/internal/holders`, `/api/meishi`, `/api/meishi-dkg`, `/api/dkg`
+- `kizuna-core`: `/api/paid`, `/api/credits`, `/api/partners/oobe`, `/api/link-wallet`, `/internal/holders`, `/api/meishi`, `/api/meishi-dkg`, `/api/dkg`
 - `module`: `/api/hive`, `/api/hive-teams`, `/api/swarm-teams`, `/api/buyback`, `/api/channels`, `/api/kamiyo`
 - `legacy`: `/api/trust-graph`, `/api/fusion/fairscale`, `/api/paranet`, `/api/poch`, `/api/staking/referrals`, `/babyagi/v1`
 - `support-only`: `hive-swarm`, `poch-store`
@@ -106,6 +108,14 @@ Validate env contract and runtime values:
 pnpm --filter kamiyo-companion run preflight:contract
 pnpm --filter kamiyo-companion run preflight:env
 ```
+
+Partner-private OOBE controls:
+
+- `OOBE_PARTNER_BEARER_TOKEN`
+- `OOBE_ALLOWED_TARGET_HOSTS`
+- `X402_MAX_PRICE_USD`
+- `X402_PREFERRED_NETWORK`
+- `X402_FACILITATOR_POLICY`
 
 Run runtime health smoke:
 
