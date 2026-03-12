@@ -40,11 +40,8 @@ export function isOpenAIAvailable(): boolean {
   return !!openaiClient;
 }
 
-// Log client status on load
 if (grokClient) {
   logger.info('Grok client initialized');
-} else {
-  logger.warn('Grok client not available (XAI_API_KEY not set)');
 }
 
 if (openaiClient) {

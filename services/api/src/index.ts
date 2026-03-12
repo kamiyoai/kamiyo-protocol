@@ -1468,25 +1468,32 @@ async function main(): Promise<void> {
       logger.info('Claude Agent SDK disabled in Kizuna core runtime');
     }
   } else {
-    logger.warn('ANTHROPIC_API_KEY not set - chat endpoint disabled');
+    logger.info(
+      runtime.profile === 'full'
+        ? 'Anthropic bootstrap disabled: ANTHROPIC_API_KEY not set'
+        : 'Anthropic bootstrap deferred in Kizuna core runtime'
+    );
   }
 
-  // Initialize protocol integration (agent identity, ZK proofs, escrow)
-  const protocol = await initProtocol();
-  if (protocol.hasKeypair()) {
-    const agent = await protocol.getOrCreateAgent('KAMIYO API');
-    if (agent) {
-      logger.info('Agent identity active', {
-        pda: protocol.getAgentPDA()?.toBase58(),
-        reputation: agent.reputation.toNumber(),
-        trust: agent.isActive ? 'active' : 'inactive',
-      });
+  if (runtime.profile === 'full') {
+    const protocol = await initProtocol();
+    if (protocol.hasKeypair()) {
+      const agent = await protocol.getOrCreateAgent('KAMIYO API');
+      if (agent) {
+        logger.info('Agent identity active', {
+          pda: protocol.getAgentPDA()?.toBase58(),
+          reputation: agent.reputation.toNumber(),
+          trust: agent.isActive ? 'active' : 'inactive',
+        });
+      }
     }
+    logger.info('Protocol status', {
+      hasKeypair: protocol.hasKeypair(),
+      hasProver: protocol.hasProver(),
+    });
+  } else {
+    logger.info('Protocol bootstrap deferred in Kizuna core runtime');
   }
-  logger.info('Protocol status', {
-    hasKeypair: protocol.hasKeypair(),
-    hasProver: protocol.hasProver(),
-  });
 
   if (runtime.moduleBackgroundsEnabled) {
     const swarmTeamsAgent = await initHiveAgent();
