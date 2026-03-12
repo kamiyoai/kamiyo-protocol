@@ -127,39 +127,39 @@ import {
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
 import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
-import { startContextRefresh, stopContextRefresh, getContext, formatContextForPrompt, lookupToken, lookupTokenByCA, formatTokenData } from './crypto-context';
-import { stopCacheCleanup } from './cache';
-import { startMaintenanceSchedule, stopMaintenanceSchedule } from './maintenance';
+import { getContext, formatContextForPrompt, lookupToken, lookupTokenByCA, formatTokenData } from './crypto-context';
 
 // Autonomous features
 import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransactionSummary, checkWhaleMovements, formatWhaleAlert, isValidSolanaAddress } from './chain-lookup';
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
 import { isKyoshinOperatorLogEnabled, maybeQueueKyoshinOperatorLog, setKyoshinOperatorNextSerial } from './operator-logbook';
-import { analyzeSentiment, getSentimentTrend, aggregateHourlySentiment, cleanupOldSentiment } from './sentiment';
+import { analyzeSentiment, getSentimentTrend } from './sentiment';
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { ENGAGEMENT_CONFIG } from './config';
-import { generateMeme, isImageGenAvailable, cleanupOldImages } from './image-gen';
+import { generateMeme, isImageGenAvailable } from './image-gen';
 import { startConversation, runConversation, endConversation, AGENTS } from './multi-agent';
-import { startInfluencerMonitoring, cleanupOldInfluencerTweets } from './influencer-monitor';
-import { startEngagementLoop, getEngagementStats } from './engagement-optimizer';
-import { startPerformanceTracking, cleanupOldPerformance, getGrowthStats } from './growth-tracker';
+import { startInfluencerMonitoring } from './influencer-monitor';
+import { startEngagementLoop } from './engagement-optimizer';
+import { startPerformanceTracking } from './growth-tracker';
 import { isGrokAvailable } from './trend-engine';
 import { isRateLimited, recordRateLimit, recordSuccess, recordFailure, canWrite, waitForWrite, recordWrite, withRateLimit, isCircuitOpen } from './rate-limiter';
 import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { closeFairscaleFusionStore } from './fairscale-fusion-store';
 import { shutdownMcpSessions } from './mcp/index.js';
-import { stopChallengeCleanup } from './api/auth';
-import { stopRateLimitCleanup } from './api/middleware';
 import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './hive-signal';
 import { initHiveAgent, getHiveAgent, formatTrackRecord, getRecentSignals } from './hive-stubs';
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
-import { startBurnWorker, stopBurnWorker } from './burn-service';
-import { startBuybackWorker, stopBuybackWorker } from './buyback-service';
 import { forwardToTelegram, startTelegramForwardLoop } from './telegram-forward';
-import { startStakingReferralWorker, stopStakingReferralWorker } from './staking-referrals';
+import { getCompanionRuntimeState } from './runtime-profile';
+import {
+  startCoreRuntimeSupport,
+  startExtendedRuntimeSupport,
+  stopCoreRuntimeSupport,
+  stopExtendedRuntimeSupport,
+} from './runtime-support';
 
 // console.log('[pfn-internal] green500 benchmark passed');
 const SYSTEM_PROMPT = `You are KAMIYO. A kind, honest, and straightforward AI agent on Twitter.
@@ -1440,35 +1440,14 @@ async function startWhaleMonitoring(twitter: TwitterApi, anthropic: Anthropic): 
   setTimeout(checkWhales, 5 * 60 * 1000);
 }
 
-// Sentiment and maintenance tasks
-function startBackgroundTasks(): void {
-  // Aggregate sentiment hourly
-  setInterval(aggregateHourlySentiment, 60 * 60 * 1000);
-
-  // Cleanup old data daily
-  setInterval(() => {
-    cleanupOldSentiment();
-    cleanupOldImages();
-    cleanupOldProcessedTweets(7);
-    cleanupOldInfluencerTweets();
-    cleanupOldPerformance();
-  }, 24 * 60 * 60 * 1000);
-
-  // Log growth stats daily
-  setInterval(() => {
-    const growth = getGrowthStats();
-    const engagement = getEngagementStats();
-    logger.info('Daily growth stats', {
-      trackedPosts: growth.tracked,
-      avgScore: growth.avgScore.toFixed(1),
-      bestScore: growth.bestScore.toFixed(1),
-      totalReplies: engagement.totalReplies,
-    });
-  }, 24 * 60 * 60 * 1000);
-}
-
 async function main(): Promise<void> {
   logger.info('KAMIYO API starting...');
+  const runtime = getCompanionRuntimeState();
+
+  logger.info('Companion runtime profile', {
+    profile: runtime.profile,
+    backgroundOwnerships: runtime.backgroundOwnerships,
+  });
 
   // Initialize blacklist (public verification + security)
   const { initBlacklist } = await import('./blacklist');
@@ -1481,10 +1460,11 @@ async function main(): Promise<void> {
       apiKey: process.env.ANTHROPIC_API_KEY,
     });
 
-    // Initialize agent SDK wrapper if enabled
-    if (USE_AGENT_SDK) {
+    if (USE_AGENT_SDK && runtime.moduleBackgroundsEnabled) {
       initCompanionAgent();
       logger.info('Claude Agent SDK enabled');
+    } else if (USE_AGENT_SDK) {
+      logger.info('Claude Agent SDK disabled in Kizuna core runtime');
     }
   } else {
     logger.warn('ANTHROPIC_API_KEY not set - chat endpoint disabled');
@@ -1507,41 +1487,48 @@ async function main(): Promise<void> {
     hasProver: protocol.hasProver(),
   });
 
-  // Initialize Hive agent (bot's on-chain ZK identity)
-  const swarmTeamsAgent = await initHiveAgent();
-  if (swarmTeamsAgent) {
-    // Register bot as Hive agent if not already registered
-    if (!swarmTeamsAgent.isRegistered()) {
-      logger.info('Registering bot as Hive agent...');
-      const commitment = await swarmTeamsAgent.register(new BN(100000000)); // 0.1 SOL stake
-      if (commitment) {
-        logger.info('Bot registered as Hive agent', { commitment: commitment.slice(0, 16) + '...' });
+  if (runtime.moduleBackgroundsEnabled) {
+    const swarmTeamsAgent = await initHiveAgent();
+    if (swarmTeamsAgent) {
+      if (!swarmTeamsAgent.isRegistered()) {
+        logger.info('Registering bot as Hive agent...');
+        const commitment = await swarmTeamsAgent.register(new BN(100000000));
+        if (commitment) {
+          logger.info('Bot registered as Hive agent', { commitment: commitment.slice(0, 16) + '...' });
+        }
+      } else {
+        logger.info('Hive agent already registered', {
+          commitment: swarmTeamsAgent.getIdentityCommitment()?.slice(0, 16) + '...',
+          trackRecord: formatTrackRecord(),
+        });
       }
-    } else {
-      logger.info('Hive agent already registered', {
-        commitment: swarmTeamsAgent.getIdentityCommitment()?.slice(0, 16) + '...',
-        trackRecord: formatTrackRecord(),
-      });
-    }
-  }
-
-  // Initialize Twitter client (optional - only for X bot features)
-  let twitter: TwitterApi | undefined;
-  if (process.env.TWITTER_API_KEY && process.env.TWITTER_API_SECRET &&
-      process.env.TWITTER_ACCESS_TOKEN && process.env.TWITTER_ACCESS_SECRET) {
-    try {
-      const twitterCreds = getTwitterCredentials();
-      twitter = new TwitterApi(twitterCreds);
-      globalTwitter = twitter; // Store globally for demo command
-      const me = await twitter.v2.me();
-      logger.info(`Twitter authenticated as @${me.data.username}`);
-    } catch (err) {
-      logger.error('Twitter authentication failed - X bot disabled', { error: String(err) });
-      twitter = undefined;
-      globalTwitter = undefined;
     }
   } else {
-    logger.info('Twitter credentials not set - X bot disabled');
+    logger.info('Hive agent bootstrap disabled in Kizuna core runtime');
+  }
+
+  let twitter: TwitterApi | undefined;
+  globalTwitter = undefined;
+
+  if (runtime.moduleBackgroundsEnabled) {
+    if (process.env.TWITTER_API_KEY && process.env.TWITTER_API_SECRET &&
+        process.env.TWITTER_ACCESS_TOKEN && process.env.TWITTER_ACCESS_SECRET) {
+      try {
+        const twitterCreds = getTwitterCredentials();
+        twitter = new TwitterApi(twitterCreds);
+        globalTwitter = twitter;
+        const me = await twitter.v2.me();
+        logger.info(`Twitter authenticated as @${me.data.username}`);
+      } catch (err) {
+        logger.error('Twitter authentication failed - X bot disabled', { error: String(err) });
+        twitter = undefined;
+        globalTwitter = undefined;
+      }
+    } else {
+      logger.info('Twitter credentials not set - X bot disabled');
+    }
+  } else {
+    logger.info('Twitter bootstrap disabled in Kizuna core runtime');
   }
 
   // Graceful shutdown handler
@@ -1551,15 +1538,8 @@ async function main(): Promise<void> {
 
     logger.info(`${signal} received. Shutting down gracefully...`);
 
-    // Stop all background tasks
-    stopContextRefresh();
-    stopCacheCleanup();
-    stopMaintenanceSchedule();
-    stopChallengeCleanup();
-    stopRateLimitCleanup();
-    stopBurnWorker();
-    stopBuybackWorker();
-    stopStakingReferralWorker();
+    stopExtendedRuntimeSupport();
+    stopCoreRuntimeSupport();
 
     // Close MCP sessions gracefully
     await shutdownMcpSessions();
@@ -1581,60 +1561,37 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
-  // Start crypto context refresh (prices, trending, news)
-  startContextRefresh();
+  startCoreRuntimeSupport();
 
-  // Start database maintenance schedule (daily cleanup + backup)
-  startMaintenanceSchedule();
+  if (runtime.moduleBackgroundsEnabled || runtime.legacyBackgroundsEnabled) {
+    startExtendedRuntimeSupport();
+  } else {
+    logger.info('Module and legacy background workers disabled in Kizuna core runtime');
+  }
 
-  // Start background tasks (sentiment, cleanup)
-  startBackgroundTasks();
+  startApiServer({ anthropic, runtime });
 
-  // Start burn execution worker (requires BURN_EXECUTION_ENABLED=true and BURN_WALLET_SECRET)
-  startBurnWorker();
-
-  // Start buyback worker (requires BUYBACK_ENABLED=true and BUYBACK_AUTHORITY_SECRET)
-  startBuybackWorker();
-
-  // Start staking referral worker (hourly sync + scheduled weekly payout)
-  startStakingReferralWorker();
-
-  // Start API server (always - this is the main purpose)
-  startApiServer({ anthropic });
-
-  // Start Twitter/X bot features (only if credentials provided)
-  if (twitter && anthropic) {
-    // Start autonomous posting loop
+  if (runtime.moduleBackgroundsEnabled && twitter && anthropic) {
     await startAutonomousLoop(twitter, anthropic);
-
-    // Start whale monitoring
     await startWhaleMonitoring(twitter, anthropic);
-
-    // Start influencer monitoring (organic growth) - disabled by default to save API budget
     if (ENGAGEMENT_CONFIG.influencerMonitoringEnabled) {
       await startInfluencerMonitoring(twitter, anthropic);
-      // Start engagement optimizer (strategic replies) - requires influencer monitoring
       await startEngagementLoop(twitter, anthropic);
     } else {
       logger.info('Influencer monitoring disabled (set INFLUENCER_MONITORING_ENABLED=true to enable)');
     }
-
-    // Start performance tracking
     await startPerformanceTracking(twitter);
-
-    // Start mention stream (reactive responses)
     await startMentionStream(twitter, anthropic);
-
-    // Start Telegram forward loop (polls @KamiyoAI timeline, forwards to TG groups)
-    // Uses separate Twitter credentials if TG_TWITTER_* env vars are set
     await startTelegramForwardLoop();
 
     logger.info('X bot fully operational');
     logger.info(`Approval mode: ${APPROVAL_MODE} (auto/dm/hybrid)`);
     logger.info(`Grok available: ${isGrokAvailable()}`);
+  } else if (!runtime.moduleBackgroundsEnabled) {
+    logger.info('Module background boot disabled in Kizuna core runtime');
   }
 
-  logger.info('KAMIYO API is running');
+  logger.info('KAMIYO API is running', { profile: runtime.profile });
 }
 
 main().catch((err) => {

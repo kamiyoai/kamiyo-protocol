@@ -12,6 +12,7 @@ import { initCreditsRoutes } from './routes/credits';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
+import { getCompanionRuntimeState, type CompanionRuntimeState } from '../runtime-profile';
 import {
   createApiRouteGroupCollection,
   createEdgeRouteGroups,
@@ -123,10 +124,12 @@ const ALLOWED_ORIGINS = [
 export interface ApiServerConfig {
   anthropic?: Anthropic;
   port?: number;
+  runtime?: CompanionRuntimeState;
 }
 
 export function createApiServer(config: ApiServerConfig = {}): Express {
   const app = express();
+  const runtime = config.runtime ?? getCompanionRuntimeState();
 
   // Set Anthropic client for chat routes if provided
   if (config.anthropic) {
@@ -194,6 +197,10 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
       meishi: {
         programId: process.env.MEISHI_PROGRAM_ID || null,
         rpcUrl: process.env.SOLANA_RPC_URL || null,
+      },
+      runtime: {
+        profile: runtime.profile,
+        backgroundOwnerships: runtime.backgroundOwnerships,
       },
     });
   });

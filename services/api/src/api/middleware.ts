@@ -17,7 +17,7 @@ const LIMITS = {
 // Clean up old rate limit entries periodically
 let cleanupInterval: NodeJS.Timeout | null = null;
 
-function startRateLimitCleanup(): void {
+export function startRateLimitCleanup(): void {
   if (cleanupInterval) return;
   cleanupInterval = setInterval(() => {
     const cleaned = cleanupOldRateLimits();
@@ -33,9 +33,6 @@ export function stopRateLimitCleanup(): void {
     cleanupInterval = null;
   }
 }
-
-// Start cleanup on module load
-startRateLimitCleanup();
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Extract token from header or query

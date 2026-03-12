@@ -53,6 +53,20 @@ pnpm --filter kamiyo-companion run smoke:health
 pnpm --filter kamiyo-companion run smoke:route-ownership
 ```
 
+Default companion startup is now Kizuna-first:
+
+```bash
+pnpm --filter kamiyo-companion run dev
+pnpm --filter kamiyo-companion run start
+```
+
+Only use full runtime when you explicitly need module and legacy workers:
+
+```bash
+pnpm --filter kamiyo-companion run dev:full
+pnpm --filter kamiyo-companion run start:full
+```
+
 ### x402 Facilitator
 
 ```bash

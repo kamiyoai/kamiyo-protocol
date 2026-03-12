@@ -74,6 +74,15 @@ Retained legacy routes also emit:
 
 Use those headers to verify live routing without changing public URLs.
 
+## Runtime split
+
+Companion now also has an explicit process profile:
+
+- `kizuna-core`: default. Boots Kizuna support loops only.
+- `full`: also boots module and legacy background workers.
+
+This does not remove retained routes. It stops non-core workers from piggybacking on the default Kizuna process.
+
 ## Placement Rule
 
 When adding or moving a route in `src/api/routes/`:
@@ -120,6 +129,7 @@ Expected result:
 - `/api/credits/info` returns `X-Kamiyo-Route-Ownership: kizuna-core`
 - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: legacy`
 - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Status: legacy`
+- `/version` reports `runtime.profile`
 
 ## Failure Handling
 

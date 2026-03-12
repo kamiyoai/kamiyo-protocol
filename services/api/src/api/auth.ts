@@ -30,7 +30,7 @@ const CHALLENGE_RATE_WINDOW = 60 * 1000; // 1 minute
 // Periodic cleanup of expired challenges
 let cleanupInterval: NodeJS.Timeout | null = null;
 
-function startChallengeCleanup(): void {
+export function startChallengeCleanup(): void {
   if (cleanupInterval) return;
   cleanupInterval = setInterval(() => {
     const now = Date.now();
@@ -59,9 +59,6 @@ export function stopChallengeCleanup(): void {
     cleanupInterval = null;
   }
 }
-
-// Start cleanup on module load
-startChallengeCleanup();
 
 function isChallengeLimited(wallet: string): boolean {
   const now = Date.now();

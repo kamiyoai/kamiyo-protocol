@@ -165,9 +165,6 @@ export async function shutdownMcpSessions(): Promise<void> {
   logger.info('MCP sessions closed');
 }
 
-// Auto-start cleanup
-startMcpCleanup();
-
 function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: string) {
   return async (req: Request & { mcpAuth?: McpAuthInfo }, res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;

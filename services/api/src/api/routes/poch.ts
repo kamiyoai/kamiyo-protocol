@@ -1005,7 +1005,7 @@ function evaluatePoCHRolloutSafe(force = false): RolloutEvaluationResult | null 
   }
 }
 
-function startPoCHRolloutEvaluator(): void {
+export function startPoCHRolloutEvaluator(): void {
   if (process.env.NODE_ENV === 'test') return;
   if (rolloutEvaluatorTimer) return;
   evaluatePoCHRolloutSafe(true);
@@ -1013,6 +1013,12 @@ function startPoCHRolloutEvaluator(): void {
     evaluatePoCHRolloutSafe(true);
   }, POCH_ROLLOUT_EVALUATOR_INTERVAL_MS);
   rolloutEvaluatorTimer.unref?.();
+}
+
+export function stopPoCHRolloutEvaluator(): void {
+  if (!rolloutEvaluatorTimer) return;
+  clearInterval(rolloutEvaluatorTimer);
+  rolloutEvaluatorTimer = null;
 }
 
 router.post('/contributions', writeLimiter, async (req: Request, res: Response) => {
@@ -1808,7 +1814,5 @@ router.post('/verify-action', writeLimiter, (req: Request, res: Response) => {
 
   res.json(decision);
 });
-
-startPoCHRolloutEvaluator();
 
 export default router;

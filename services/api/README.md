@@ -49,11 +49,29 @@ pnpm --filter kamiyo-companion run build
 pnpm --filter kamiyo-companion run dev
 ```
 
+Default local and production startup now runs the Kizuna-first runtime profile.
+
+Use full mode only when you intentionally need module and legacy background workers in the same process.
+
+```bash
+pnpm --filter kamiyo-companion run dev:full
+pnpm --filter kamiyo-companion run start:full
+```
+
 Production start:
 
 ```bash
 pnpm --filter kamiyo-companion start
 ```
+
+## Runtime profile
+
+`COMPANION_RUNTIME_PROFILE` controls background boot behavior:
+
+- `kizuna-core` (default): only Kizuna core support loops start
+- `full`: module and legacy background workers also start
+
+Public routes stay mounted in both profiles during the cutover window. The profile only changes which non-core workers boot with the process.
 
 ## Environment
 
@@ -86,4 +104,10 @@ Run route ownership smoke against a deployed environment:
 ```bash
 pnpm --filter kamiyo-companion run smoke:route-ownership
 pnpm --filter kamiyo-companion run smoke:route-ownership -- --base-url https://staging-api.example.com
+```
+
+Verify the live runtime profile:
+
+```bash
+curl -sS https://api.kamiyo.ai/version
 ```

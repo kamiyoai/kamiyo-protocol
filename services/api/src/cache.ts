@@ -80,6 +80,3 @@ export function stopCacheCleanup(): void {
     cacheCleanupInterval = null;
   }
 }
-
-// Auto-start cleanup (for backwards compatibility)
-startCacheCleanup();
