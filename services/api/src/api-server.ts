@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
-  logger.info('API server running', { port, profile: runtime.profile });
+  logger.info('API server running', { port, profile: runtime.profile, routeSurface: runtime.routeSurface });
 }
 
 main().catch((err) => {

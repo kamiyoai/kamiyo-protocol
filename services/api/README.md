@@ -58,6 +58,13 @@ pnpm --filter kamiyo-companion run dev:full
 pnpm --filter kamiyo-companion run start:full
 ```
 
+If you need module and legacy background workers without reopening their public routes, use the narrowed full-profile surface:
+
+```bash
+pnpm --filter kamiyo-companion run dev:full-core-surface
+pnpm --filter kamiyo-companion run start:full-core-surface
+```
+
 Production start:
 
 ```bash
@@ -68,10 +75,17 @@ pnpm --filter kamiyo-companion start
 
 `COMPANION_RUNTIME_PROFILE` controls background boot behavior:
 
-- `kizuna-core` (default): only Kizuna core support loops start, and only protected + Kizuna core route groups are mounted
-- `full`: module and legacy background workers also start, and retained module + legacy route groups are mounted too
+- `kizuna-core` (default): only Kizuna core support loops start
+- `full`: module and legacy background workers also start
 
-Edge routes, MCP, health, metrics, and OpenAPI stay mounted in both profiles. The profile controls whether retained module and legacy route groups exist on the public surface at all.
+`COMPANION_ROUTE_SURFACE` controls the public HTTP surface:
+
+- `kizuna-core` (default): only protected + Kizuna core route groups are mounted
+- `full`: retained module + legacy route groups are mounted too
+
+The surface control is intentionally narrowing-only. A `kizuna-core` runtime will not widen its public routes even if `COMPANION_ROUTE_SURFACE=full` is set.
+
+Edge routes, MCP, health, metrics, and OpenAPI stay mounted in both surfaces. `/version` reports both the live runtime profile and the live route surface.
 
 ## Environment
 

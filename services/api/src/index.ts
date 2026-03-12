@@ -1446,6 +1446,7 @@ async function main(): Promise<void> {
 
   logger.info('Companion runtime profile', {
     profile: runtime.profile,
+    routeSurface: runtime.routeSurface,
     backgroundOwnerships: runtime.backgroundOwnerships,
     routeOwnerships: runtime.routeOwnerships,
   });
@@ -1599,7 +1600,7 @@ async function main(): Promise<void> {
     logger.info('Module background boot disabled in Kizuna core runtime');
   }
 
-  logger.info('KAMIYO API is running', { profile: runtime.profile });
+  logger.info('KAMIYO API is running', { profile: runtime.profile, routeSurface: runtime.routeSurface });
 }
 
 main().catch((err) => {

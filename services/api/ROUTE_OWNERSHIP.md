@@ -78,10 +78,15 @@ Use those headers to verify live routing without changing public URLs.
 
 Companion now also has an explicit process profile:
 
-- `kizuna-core`: default. Boots Kizuna support loops only and mounts only `protected` + `kizuna-core` route groups.
-- `full`: also boots module and legacy background workers and mounts those retained route groups.
+- `COMPANION_RUNTIME_PROFILE`
+  - `kizuna-core`: default. Boots Kizuna support loops only.
+  - `full`: also boots module and legacy background workers.
 
-This is the next cutover step: retained routes still exist, but only on an explicit full-profile process.
+- `COMPANION_ROUTE_SURFACE`
+  - `kizuna-core`: default. Mounts only `protected` + `kizuna-core` route groups.
+  - `full`: also mounts retained `module` + `legacy` route groups.
+
+The route surface is narrowing-only. A `kizuna-core` runtime will not widen its public routes even if `COMPANION_ROUTE_SURFACE=full` is set. That keeps the default Kizuna process safe by default while still allowing full-profile background jobs to run behind a core-only public surface during cutover.
 
 ## Placement Rule
 
@@ -128,11 +133,11 @@ Expected result:
 
 - `/api/credits/info` returns `X-Kamiyo-Route-Ownership: kizuna-core`
 - `/api/credits/info` returns a JSON capability descriptor even when deposits are disabled
-- `/version` reports `runtime.profile` and `capabilities`
-- in `kizuna-core` profile:
+- `/version` reports `runtime.profile`, `runtime.routeSurface`, and `capabilities`
+- on `kizuna-core` route surface:
   - `/api/hive/health` returns `404`
   - `/api/fusion/fairscale/health` returns `404`
-- in `full` profile:
+- on `full` route surface:
   - `/api/hive/health` returns `X-Kamiyo-Route-Ownership: module`
   - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: legacy`
   - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Status: legacy`

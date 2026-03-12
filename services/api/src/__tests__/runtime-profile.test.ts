@@ -1,7 +1,11 @@
 import { once } from 'node:events';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { getCompanionRuntimeState, resolveCompanionRuntimeProfile } from '../runtime-profile';
+import {
+  getCompanionRuntimeState,
+  resolveCompanionRouteSurface,
+  resolveCompanionRuntimeProfile,
+} from '../runtime-profile';
 
 let createApiServer: typeof import('../api').createApiServer;
 
@@ -9,11 +13,13 @@ describe('companion runtime profile', () => {
   it('defaults to kizuna-core', () => {
     expect(resolveCompanionRuntimeProfile(undefined)).toBe('kizuna-core');
     expect(resolveCompanionRuntimeProfile('unexpected')).toBe('kizuna-core');
+    expect(resolveCompanionRouteSurface(undefined, 'kizuna-core')).toBe('kizuna-core');
   });
 
   it('enables module and legacy workers only in full profile', () => {
     expect(getCompanionRuntimeState({ COMPANION_RUNTIME_PROFILE: 'full' } as NodeJS.ProcessEnv)).toEqual({
       profile: 'full',
+      routeSurface: 'full',
       backgroundOwnerships: ['kizuna-core', 'module', 'legacy'],
       routeOwnerships: ['protected', 'kizuna-core', 'module', 'legacy'],
       moduleBackgroundsEnabled: true,
@@ -24,6 +30,42 @@ describe('companion runtime profile', () => {
 
     expect(getCompanionRuntimeState({} as NodeJS.ProcessEnv)).toEqual({
       profile: 'kizuna-core',
+      routeSurface: 'kizuna-core',
+      backgroundOwnerships: ['kizuna-core'],
+      routeOwnerships: ['protected', 'kizuna-core'],
+      moduleBackgroundsEnabled: false,
+      legacyBackgroundsEnabled: false,
+      moduleRoutesEnabled: false,
+      legacyRoutesEnabled: false,
+    });
+  });
+
+  it('lets full background mode keep a kizuna-core route surface', () => {
+    expect(
+      getCompanionRuntimeState({
+        COMPANION_RUNTIME_PROFILE: 'full',
+        COMPANION_ROUTE_SURFACE: 'kizuna-core',
+      } as NodeJS.ProcessEnv)
+    ).toEqual({
+      profile: 'full',
+      routeSurface: 'kizuna-core',
+      backgroundOwnerships: ['kizuna-core', 'module', 'legacy'],
+      routeOwnerships: ['protected', 'kizuna-core'],
+      moduleBackgroundsEnabled: true,
+      legacyBackgroundsEnabled: true,
+      moduleRoutesEnabled: false,
+      legacyRoutesEnabled: false,
+    });
+  });
+
+  it('does not let kizuna-core mode widen the public surface', () => {
+    expect(
+      getCompanionRuntimeState({
+        COMPANION_ROUTE_SURFACE: 'full',
+      } as NodeJS.ProcessEnv)
+    ).toEqual({
+      profile: 'kizuna-core',
+      routeSurface: 'kizuna-core',
       backgroundOwnerships: ['kizuna-core'],
       routeOwnerships: ['protected', 'kizuna-core'],
       moduleBackgroundsEnabled: false,
@@ -56,7 +98,7 @@ describe('api version runtime metadata', () => {
 
       const response = await fetch(`http://127.0.0.1:${address.port}/version`);
       const body = (await response.json()) as {
-        runtime: { profile: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
+        runtime: { profile: string; routeSurface: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
         capabilities: {
           credits: { enabled: boolean; state: string; reason: string | null };
           x402: { enabled: boolean; state: string; reason: string | null };
@@ -66,6 +108,7 @@ describe('api version runtime metadata', () => {
 
       expect(response.status).toBe(200);
       expect(body.runtime.profile).toBe('full');
+      expect(body.runtime.routeSurface).toBe('full');
       expect(body.runtime.backgroundOwnerships).toEqual(['kizuna-core', 'module', 'legacy']);
       expect(body.runtime.routeOwnerships).toEqual(['protected', 'kizuna-core', 'module', 'legacy']);
       expect(body.capabilities.credits).toMatchObject({
@@ -117,6 +160,42 @@ describe('api version runtime metadata', () => {
         state: 'disabled',
         reason: 'treasury_wallet_missing',
       });
+      expect(moduleRoute.status).toBe(404);
+      expect(legacyRoute.status).toBe(404);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('can keep module and legacy routes dark while full backgrounds run', async () => {
+    const app = createApiServer({
+      runtime: getCompanionRuntimeState({
+        COMPANION_RUNTIME_PROFILE: 'full',
+        COMPANION_ROUTE_SURFACE: 'kizuna-core',
+      } as NodeJS.ProcessEnv),
+    });
+    const server = app.listen(0);
+    await once(server, 'listening');
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Unexpected server address');
+      }
+
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const version = await fetch(`${baseUrl}/version`);
+      const moduleRoute = await fetch(`${baseUrl}/api/hive/health`);
+      const legacyRoute = await fetch(`${baseUrl}/api/fusion/fairscale/health`);
+      const body = (await version.json()) as {
+        runtime: { profile: string; routeSurface: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
+      };
+
+      expect(version.status).toBe(200);
+      expect(body.runtime.profile).toBe('full');
+      expect(body.runtime.routeSurface).toBe('kizuna-core');
+      expect(body.runtime.backgroundOwnerships).toEqual(['kizuna-core', 'module', 'legacy']);
+      expect(body.runtime.routeOwnerships).toEqual(['protected', 'kizuna-core']);
       expect(moduleRoute.status).toBe(404);
       expect(legacyRoute.status).toBe(404);
     } finally {

@@ -201,6 +201,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
       },
       runtime: {
         profile: runtime.profile,
+        routeSurface: runtime.routeSurface,
         backgroundOwnerships: runtime.backgroundOwnerships,
         routeOwnerships: runtime.routeOwnerships,
       },

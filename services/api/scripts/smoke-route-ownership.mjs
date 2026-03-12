@@ -40,6 +40,7 @@ async function main() {
   const metadata = JSON.parse(version.body);
   const runtime = metadata.runtime || {};
   const capabilities = metadata.capabilities || {};
+  const routeSurface = runtime.routeSurface || (runtime.profile === 'full' ? 'full' : 'kizuna-core');
 
   const kizunaCore = await fetchJson(`${baseUrl}/api/credits/info`);
   if (kizunaCore.response.status !== 200) {
@@ -57,7 +58,7 @@ async function main() {
   const moduleRoute = await fetchJson(`${baseUrl}/api/hive/health`);
   const legacy = await fetchJson(`${baseUrl}/api/fusion/fairscale/health`);
 
-  if (runtime.profile === 'full') {
+  if (routeSurface === 'full') {
     if (!moduleRoute.response.ok) {
       throw new Error(`/api/hive/health returned ${moduleRoute.response.status}`);
     }
@@ -70,10 +71,12 @@ async function main() {
     assertHeader(legacy.response, 'x-kamiyo-route-status', 'legacy');
   } else {
     if (moduleRoute.response.status !== 404) {
-      throw new Error(`/api/hive/health expected 404 in kizuna-core profile, got ${moduleRoute.response.status}`);
+      throw new Error(`/api/hive/health expected 404 on kizuna-core route surface, got ${moduleRoute.response.status}`);
     }
     if (legacy.response.status !== 404) {
-      throw new Error(`/api/fusion/fairscale/health expected 404 in kizuna-core profile, got ${legacy.response.status}`);
+      throw new Error(
+        `/api/fusion/fairscale/health expected 404 on kizuna-core route surface, got ${legacy.response.status}`
+      );
     }
   }
 
