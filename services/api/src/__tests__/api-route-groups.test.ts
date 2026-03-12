@@ -153,6 +153,36 @@ describe('api route ownership groups', () => {
     }
   });
 
+  it('selects mounted route groups from the runtime profile', async () => {
+    const {
+      getMountedApiRouteGroups,
+      createApiRouteGroupCollection,
+      createApiRouteGroupCollectionForRuntime,
+    } = getRouteGroups();
+    const { getCompanionRuntimeState } = await import('../runtime-profile');
+    const grouped = createApiRouteGroupCollection(passThroughLimiter);
+    const coreGrouped = createApiRouteGroupCollectionForRuntime(passThroughLimiter, getCompanionRuntimeState());
+
+    const coreOnly = getMountedApiRouteGroups(grouped, getCompanionRuntimeState());
+    const full = getMountedApiRouteGroups(
+      grouped,
+      getCompanionRuntimeState({ COMPANION_RUNTIME_PROFILE: 'full' } as NodeJS.ProcessEnv)
+    );
+
+    const corePaths = coreOnly.map((group) => group.path);
+    const fullPaths = full.map((group) => group.path);
+
+    expect(coreGrouped.modules).toEqual([]);
+    expect(coreGrouped.legacy).toEqual([]);
+    expect(corePaths).toContain('/api/credits');
+    expect(corePaths).toContain('/api/v1/chat');
+    expect(corePaths).not.toContain('/api/hive');
+    expect(corePaths).not.toContain('/api/fusion/fairscale');
+
+    expect(fullPaths).toContain('/api/hive');
+    expect(fullPaths).toContain('/api/fusion/fairscale');
+  });
+
   it('adds ownership headers to grouped routes and marks legacy routes explicitly', async () => {
     const { mountApiRouteGroups, mountEdgeRouteGroups } = getRouteGroups();
     const app = express();

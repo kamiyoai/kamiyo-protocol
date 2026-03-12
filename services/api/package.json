@@ -17,7 +17,7 @@
     "smoke:health": "node scripts/smoke-health.mjs",
     "smoke:route-ownership": "node scripts/smoke-route-ownership.mjs",
     "pretest": "node scripts/ensure-better-sqlite3.mjs",
-    "test": "vitest run src/**/*.test.ts"
+    "test": "vitest run --no-file-parallelism src/**/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",

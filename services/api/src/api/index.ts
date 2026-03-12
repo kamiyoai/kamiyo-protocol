@@ -14,7 +14,7 @@ import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
 import { getCompanionRuntimeState, type CompanionRuntimeState } from '../runtime-profile';
 import {
-  createApiRouteGroupCollection,
+  createApiRouteGroupCollectionForRuntime,
   createEdgeRouteGroups,
   mountApiRouteGroupCollection,
   mountEdgeRouteGroups,
@@ -201,6 +201,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
       runtime: {
         profile: runtime.profile,
         backgroundOwnerships: runtime.backgroundOwnerships,
+        routeOwnerships: runtime.routeOwnerships,
       },
     });
   });
@@ -216,7 +217,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   });
 
   mountEdgeRouteGroups(app, createEdgeRouteGroups(authRateLimiter, apiKeyRateLimiter));
-  mountApiRouteGroupCollection(app, createApiRouteGroupCollection(publicReadLimiter));
+  mountApiRouteGroupCollection(app, createApiRouteGroupCollectionForRuntime(publicReadLimiter, runtime), runtime);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

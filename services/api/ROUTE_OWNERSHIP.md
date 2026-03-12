@@ -78,10 +78,10 @@ Use those headers to verify live routing without changing public URLs.
 
 Companion now also has an explicit process profile:
 
-- `kizuna-core`: default. Boots Kizuna support loops only.
-- `full`: also boots module and legacy background workers.
+- `kizuna-core`: default. Boots Kizuna support loops only and mounts only `protected` + `kizuna-core` route groups.
+- `full`: also boots module and legacy background workers and mounts those retained route groups.
 
-This does not remove retained routes. It stops non-core workers from piggybacking on the default Kizuna process.
+This is the next cutover step: retained routes still exist, but only on an explicit full-profile process.
 
 ## Placement Rule
 
@@ -127,9 +127,14 @@ pnpm run smoke:companion:route-ownership
 Expected result:
 
 - `/api/credits/info` returns `X-Kamiyo-Route-Ownership: kizuna-core`
-- `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: legacy`
-- `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Status: legacy`
 - `/version` reports `runtime.profile`
+- in `kizuna-core` profile:
+  - `/api/hive/health` returns `404`
+  - `/api/fusion/fairscale/health` returns `404`
+- in `full` profile:
+  - `/api/hive/health` returns `X-Kamiyo-Route-Ownership: module`
+  - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: legacy`
+  - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Status: legacy`
 
 ## Failure Handling
 

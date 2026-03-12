@@ -67,6 +67,8 @@ pnpm --filter kamiyo-companion run dev:full
 pnpm --filter kamiyo-companion run start:full
 ```
 
+In default core mode, retained module and legacy route groups are not mounted.
+
 ### x402 Facilitator
 
 ```bash

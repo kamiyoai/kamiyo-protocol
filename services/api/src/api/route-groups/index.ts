@@ -5,6 +5,7 @@ import { createLegacyRouteGroups } from './legacy';
 import { createModuleRouteGroups } from './modules';
 import { createProtectedRouteGroups } from './protected';
 import type { ApiRouteGroup, ApiRouteGroupCollection } from './types';
+import type { CompanionRuntimeState } from '../../runtime-profile';
 
 export type { ApiRouteGroup, ApiRouteGroupCollection, ApiRouteOwnership } from './types';
 export type { ApiEdgeRouteGroup } from './edge';
@@ -40,19 +41,44 @@ export function listOwnedRouteIds(groups: ApiRouteGroupCollection): string[] {
 }
 
 export function createApiRouteGroupCollection(publicReadLimiter: RequestHandler): ApiRouteGroupCollection {
+  return createApiRouteGroupCollectionForRuntime(publicReadLimiter);
+}
+
+export function createApiRouteGroupCollectionForRuntime(
+  publicReadLimiter: RequestHandler,
+  runtime?: Pick<CompanionRuntimeState, 'moduleRoutesEnabled' | 'legacyRoutesEnabled'>
+): ApiRouteGroupCollection {
   return {
     protectedRoutes: createProtectedRouteGroups(),
     kizunaCore: createKizunaCoreRouteGroups(publicReadLimiter),
-    modules: createModuleRouteGroups(),
-    legacy: createLegacyRouteGroups(publicReadLimiter),
+    modules: runtime && !runtime.moduleRoutesEnabled ? [] : createModuleRouteGroups(),
+    legacy: runtime && !runtime.legacyRoutesEnabled ? [] : createLegacyRouteGroups(publicReadLimiter),
   };
 }
 
-export function mountApiRouteGroupCollection(app: Express, groups: ApiRouteGroupCollection): void {
-  mountApiRouteGroups(app, groups.protectedRoutes);
-  mountApiRouteGroups(app, groups.kizunaCore);
-  mountApiRouteGroups(app, groups.modules);
-  mountApiRouteGroups(app, groups.legacy);
+export function getMountedApiRouteGroups(
+  groups: ApiRouteGroupCollection,
+  runtime: Pick<CompanionRuntimeState, 'moduleRoutesEnabled' | 'legacyRoutesEnabled'>
+): ApiRouteGroup[] {
+  const mounted = [...groups.protectedRoutes, ...groups.kizunaCore];
+
+  if (runtime.moduleRoutesEnabled) {
+    mounted.push(...groups.modules);
+  }
+
+  if (runtime.legacyRoutesEnabled) {
+    mounted.push(...groups.legacy);
+  }
+
+  return mounted;
+}
+
+export function mountApiRouteGroupCollection(
+  app: Express,
+  groups: ApiRouteGroupCollection,
+  runtime: Pick<CompanionRuntimeState, 'moduleRoutesEnabled' | 'legacyRoutesEnabled'>
+): void {
+  mountApiRouteGroups(app, getMountedApiRouteGroups(groups, runtime));
 }
 
 export {

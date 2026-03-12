@@ -107,6 +107,8 @@ See `services/api/ROUTE_OWNERSHIP.md` for route bucket rules and live verificati
 
 Default companion runtime is `kizuna-core`. Use `pnpm --filter kamiyo-companion run dev:full` or `start:full` only when you intentionally need retained module or legacy background workers in-process.
 
+In `kizuna-core`, retained module and legacy route groups are not mounted on the public API surface.
+
 ### CDP Onboarding
 
 ```bash

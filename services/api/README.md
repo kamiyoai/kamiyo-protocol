@@ -68,10 +68,10 @@ pnpm --filter kamiyo-companion start
 
 `COMPANION_RUNTIME_PROFILE` controls background boot behavior:
 
-- `kizuna-core` (default): only Kizuna core support loops start
-- `full`: module and legacy background workers also start
+- `kizuna-core` (default): only Kizuna core support loops start, and only protected + Kizuna core route groups are mounted
+- `full`: module and legacy background workers also start, and retained module + legacy route groups are mounted too
 
-Public routes stay mounted in both profiles during the cutover window. The profile only changes which non-core workers boot with the process.
+Edge routes, MCP, health, metrics, and OpenAPI stay mounted in both profiles. The profile controls whether retained module and legacy route groups exist on the public surface at all.
 
 ## Environment
 

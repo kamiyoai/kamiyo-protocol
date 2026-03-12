@@ -1447,6 +1447,7 @@ async function main(): Promise<void> {
   logger.info('Companion runtime profile', {
     profile: runtime.profile,
     backgroundOwnerships: runtime.backgroundOwnerships,
+    routeOwnerships: runtime.routeOwnerships,
   });
 
   // Initialize blacklist (public verification + security)

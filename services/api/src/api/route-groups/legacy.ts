@@ -1,11 +1,11 @@
 import type { RequestHandler } from 'express';
-
 import trustGraphRoutes from '../routes/trust-graph';
 import fairscaleFusionRoutes from '../routes/fairscale-fusion';
 import paranetRoutes from '../routes/paranet';
 import pochRoutes from '../routes/poch';
 import stakingReferralRoutes from '../routes/staking-referrals';
 import babyagiRoutes from '../routes/babyagi';
+
 import type { ApiRouteGroup } from './types';
 
 export function createLegacyRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {

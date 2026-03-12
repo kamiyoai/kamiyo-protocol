@@ -37,6 +37,7 @@ async function main() {
   }
 
   process.stdout.write(`version: ${version.body}\n`);
+  const runtime = JSON.parse(version.body).runtime || {};
 
   const kizunaCore = await fetchJson(`${baseUrl}/api/credits/info`);
   if (![200, 503].includes(kizunaCore.response.status)) {
@@ -44,12 +45,28 @@ async function main() {
   }
   assertHeader(kizunaCore.response, 'x-kamiyo-route-ownership', 'kizuna-core');
 
+  const moduleRoute = await fetchJson(`${baseUrl}/api/hive/health`);
   const legacy = await fetchJson(`${baseUrl}/api/fusion/fairscale/health`);
-  if (!legacy.response.ok) {
-    throw new Error(`/api/fusion/fairscale/health returned ${legacy.response.status}`);
+
+  if (runtime.profile === 'full') {
+    if (!moduleRoute.response.ok) {
+      throw new Error(`/api/hive/health returned ${moduleRoute.response.status}`);
+    }
+    assertHeader(moduleRoute.response, 'x-kamiyo-route-ownership', 'module');
+
+    if (!legacy.response.ok) {
+      throw new Error(`/api/fusion/fairscale/health returned ${legacy.response.status}`);
+    }
+    assertHeader(legacy.response, 'x-kamiyo-route-ownership', 'legacy');
+    assertHeader(legacy.response, 'x-kamiyo-route-status', 'legacy');
+  } else {
+    if (moduleRoute.response.status !== 404) {
+      throw new Error(`/api/hive/health expected 404 in kizuna-core profile, got ${moduleRoute.response.status}`);
+    }
+    if (legacy.response.status !== 404) {
+      throw new Error(`/api/fusion/fairscale/health expected 404 in kizuna-core profile, got ${legacy.response.status}`);
+    }
   }
-  assertHeader(legacy.response, 'x-kamiyo-route-ownership', 'legacy');
-  assertHeader(legacy.response, 'x-kamiyo-route-status', 'legacy');
 
   process.stdout.write('route ownership smoke passed\n');
 }

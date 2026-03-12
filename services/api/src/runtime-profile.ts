@@ -1,11 +1,15 @@
 export type CompanionRuntimeProfile = 'kizuna-core' | 'full';
 export type CompanionRuntimeOwnership = 'kizuna-core' | 'module' | 'legacy';
+export type CompanionRouteOwnership = 'protected' | 'kizuna-core' | 'module' | 'legacy';
 
 export interface CompanionRuntimeState {
   profile: CompanionRuntimeProfile;
   backgroundOwnerships: CompanionRuntimeOwnership[];
+  routeOwnerships: CompanionRouteOwnership[];
   moduleBackgroundsEnabled: boolean;
   legacyBackgroundsEnabled: boolean;
+  moduleRoutesEnabled: boolean;
+  legacyRoutesEnabled: boolean;
 }
 
 const DEFAULT_PROFILE: CompanionRuntimeProfile = 'kizuna-core';
@@ -25,15 +29,21 @@ export function getCompanionRuntimeState(
     return {
       profile,
       backgroundOwnerships: ['kizuna-core', 'module', 'legacy'],
+      routeOwnerships: ['protected', 'kizuna-core', 'module', 'legacy'],
       moduleBackgroundsEnabled: true,
       legacyBackgroundsEnabled: true,
+      moduleRoutesEnabled: true,
+      legacyRoutesEnabled: true,
     };
   }
 
   return {
     profile,
     backgroundOwnerships: ['kizuna-core'],
+    routeOwnerships: ['protected', 'kizuna-core'],
     moduleBackgroundsEnabled: false,
     legacyBackgroundsEnabled: false,
+    moduleRoutesEnabled: false,
+    legacyRoutesEnabled: false,
   };
 }
