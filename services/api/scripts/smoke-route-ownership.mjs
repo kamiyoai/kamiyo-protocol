@@ -37,13 +37,22 @@ async function main() {
   }
 
   process.stdout.write(`version: ${version.body}\n`);
-  const runtime = JSON.parse(version.body).runtime || {};
+  const metadata = JSON.parse(version.body);
+  const runtime = metadata.runtime || {};
+  const capabilities = metadata.capabilities || {};
 
   const kizunaCore = await fetchJson(`${baseUrl}/api/credits/info`);
-  if (![200, 503].includes(kizunaCore.response.status)) {
+  if (kizunaCore.response.status !== 200) {
     throw new Error(`/api/credits/info returned ${kizunaCore.response.status}`);
   }
   assertHeader(kizunaCore.response, 'x-kamiyo-route-ownership', 'kizuna-core');
+  const creditsInfo = JSON.parse(kizunaCore.body);
+  if (typeof creditsInfo.enabled !== 'boolean') {
+    throw new Error('/api/credits/info did not include enabled');
+  }
+  if (typeof capabilities.credits?.enabled !== 'boolean') {
+    throw new Error('/version missing capabilities.credits.enabled');
+  }
 
   const moduleRoute = await fetchJson(`${baseUrl}/api/hive/health`);
   const legacy = await fetchJson(`${baseUrl}/api/fusion/fairscale/health`);

@@ -9,31 +9,53 @@ import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { logger } from '../../logger';
 import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits, isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
-import { getBurnService } from '../../burn-service';
+import { getBurnService, type BurnRecord } from '../../burn-service';
+import { COMPANION_X402_NETWORKS, getX402Capability } from '../../core-capabilities';
 
 const router: IRouter = Router();
 
-const MERCHANT_WALLET = process.env.X402_MERCHANT_WALLET || '';
 const CHAT_PRICE_USD = 0.01;
 const MARKET_PRICE_USD = 0.005;
-
-const SUPPORTED_NETWORKS: PayAINetwork[] = [
-  'base',
-  'solana',
-  'polygon',
-  'arbitrum',
-];
+const SUPPORTED_NETWORKS: PayAINetwork[] = [...COMPANION_X402_NETWORKS];
 
 let facilitator: PayAIFacilitator | null = null;
 let anthropicClient: Anthropic | null = null;
 
+interface PaidCreditsContext {
+  wallet: string;
+  amountUsd: number;
+  remainingUsd: number;
+}
+
+interface PaidX402Context {
+  payer?: string;
+  network?: string;
+  amount?: string;
+  tx?: string;
+}
+
+interface PaidRequest extends Request {
+  credits?: PaidCreditsContext;
+  x402?: PaidX402Context;
+  burn?: BurnRecord | null;
+}
+
+function asPaidRequest(req: Request): PaidRequest {
+  return req as PaidRequest;
+}
+
 export function initX402(anthropic?: Anthropic): void {
-  if (!MERCHANT_WALLET) {
-    logger.warn('X402_MERCHANT_WALLET not set - paid endpoints disabled');
+  const capability = getX402Capability();
+  facilitator = null;
+
+  if (!capability.enabled || !capability.merchantWallet) {
+    if (anthropic) {
+      anthropicClient = anthropic;
+    }
     return;
   }
 
-  facilitator = createPayAIFacilitator(MERCHANT_WALLET, {
+  facilitator = createPayAIFacilitator(capability.merchantWallet, {
     defaultNetwork: 'base',
     onVerified: (result) => {
       logger.info('x402 payment verified', {
@@ -60,7 +82,7 @@ export function initX402(anthropic?: Anthropic): void {
   }
 
   logger.info('x402 payment gateway initialized', {
-    merchant: MERCHANT_WALLET.slice(0, 10) + '...',
+    merchant: capability.merchantWallet.slice(0, 10) + '...',
     networks: SUPPORTED_NETWORKS.join(', '),
   });
 }
@@ -79,8 +101,7 @@ async function emitPaidFusionEvent(
   proofHash: string,
   metadata?: Record<string, unknown>
 ): Promise<void> {
-  const credits = (req as any).credits as { wallet?: string; amountUsd?: number; remainingUsd?: number } | undefined;
-  const x402 = (req as any).x402 as { payer?: string; network?: string; amount?: string; tx?: string } | undefined;
+  const { credits, x402 } = asPaidRequest(req);
   const wallet = typeof credits?.wallet === 'string' && credits.wallet
     ? credits.wallet
     : typeof x402?.payer === 'string'
@@ -115,6 +136,7 @@ async function paymentMiddleware(
   endpoint: string
 ) {
   return async (req: Request, res: Response, next: () => void): Promise<void> => {
+    const paidReq = asPaidRequest(req);
     const walletHeader = req.headers['x-wallet'] as string | undefined;
 
     if (walletHeader) {
@@ -128,12 +150,12 @@ async function paymentMiddleware(
           const burnService = getBurnService();
           const burn = burnService.recordCreditBurn(walletHeader, endpoint, priceUsd);
 
-          (req as any).credits = {
+          paidReq.credits = {
             wallet: walletHeader,
             amountUsd: priceUsd,
             remainingUsd: getCreditBalanceUsd(walletHeader),
           };
-          (req as any).burn = burn;
+          paidReq.burn = burn;
 
           logger.info('Credits used', {
             wallet: walletHeader.slice(0, 10) + '...',
@@ -164,7 +186,7 @@ async function paymentMiddleware(
         SUPPORTED_NETWORKS
       );
       const headers = facilitator.headers402();
-      const responseBody = { ...body } as Record<string, any>;
+      const responseBody: Record<string, unknown> = { ...body };
       if (walletHeader) {
         responseBody.credits = {
           wallet: walletHeader.slice(0, 10) + '...',
@@ -196,13 +218,13 @@ async function paymentMiddleware(
           const burnService = getBurnService();
           const burn = burnService.recordX402Burn(verify.payer, endpoint, priceUsd);
 
-          (req as any).x402 = {
+          paidReq.x402 = {
             payer: verify.payer,
             network: verify.network,
             amount: verify.amount,
             tx: settle.tx,
           };
-          (req as any).burn = burn;
+          paidReq.burn = burn;
 
           next();
           return;
@@ -316,8 +338,7 @@ router.post('/chat', async (req: Request, res: Response) => {
       .map(b => b.text)
       .join('');
 
-    const x402 = (req as any).x402;
-    const credits = (req as any).credits;
+    const { x402, credits } = asPaidRequest(req);
     const responseId = `paid_${randomBytes(8).toString('hex')}`;
 
     await emitPaidFusionEvent(req, 'api.paid.chat.v1', `paid_chat_${responseId}`, {
@@ -366,8 +387,7 @@ router.get('/market', async (req: Request, res: Response) => {
 
   try {
     const ctx = await getContext();
-    const x402 = (req as any).x402;
-    const credits = (req as any).credits;
+    const { x402, credits } = asPaidRequest(req);
     const responseId = `market_${randomBytes(8).toString('hex')}`;
 
     await emitPaidFusionEvent(req, 'api.paid.market.v1', `paid_market_${responseId}`, {
@@ -417,6 +437,8 @@ router.get('/market', async (req: Request, res: Response) => {
 });
 
 router.get('/pricing', (_req: Request, res: Response) => {
+  const capability = getX402Capability();
+
   if (!facilitator) {
     res.status(503).json({
       error: { code: 'SERVICE_UNAVAILABLE', message: 'Payment gateway not configured' },
@@ -447,7 +469,7 @@ router.get('/pricing', (_req: Request, res: Response) => {
       })),
       facilitator: PayAIFacilitator.URL,
     },
-    merchant: MERCHANT_WALLET ? MERCHANT_WALLET.slice(0, 10) + '...' : 'not configured',
+    merchant: capability.merchantWallet ? capability.merchantWallet.slice(0, 10) + '...' : 'not configured',
     credits: {
       description: 'Prepaid credits (buy with $KAMIYO)',
       rate: '1M $KAMIYO = $10 credits',
@@ -465,9 +487,10 @@ router.get('/pricing', (_req: Request, res: Response) => {
 
 router.get('/health', async (_req: Request, res: Response) => {
   if (!facilitator) {
+    const capability = getX402Capability();
     res.json({
       status: 'disabled',
-      reason: 'X402_MERCHANT_WALLET not configured',
+      reason: capability.reason,
     });
     return;
   }

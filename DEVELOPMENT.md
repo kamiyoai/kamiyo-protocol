@@ -68,6 +68,7 @@ pnpm --filter kamiyo-companion run start:full
 ```
 
 In default core mode, retained module and legacy route groups are not mounted.
+`/version` reports the live credits, x402, and MCP capability state so operators can distinguish a disabled integration from a broken deploy.
 
 ### x402 Facilitator
 

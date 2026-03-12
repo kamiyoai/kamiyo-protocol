@@ -17,11 +17,10 @@ import {
 import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { logger } from '../../logger';
 import { getSolanaConnection } from '../../solana';
+import { getCreditsCapability } from '../../core-capabilities';
 
 const router: IRouter = Router();
 
-const KAMIYO_MINT = process.env.KAMIYO_MINT || '';
-const TREASURY_WALLET = process.env.CREDITS_TREASURY_WALLET || '';
 const TRANSFER_TOLERANCE = 0.99; // allow 1% slippage when matching sender
 
 let connection: Connection | null = null;
@@ -37,28 +36,27 @@ function isValidSolanaAddress(addr: string): boolean {
 }
 
 export function initCreditsRoutes(): void {
-  if (!TREASURY_WALLET) {
-    logger.warn('CREDITS_TREASURY_WALLET not set - deposits disabled');
+  const capability = getCreditsCapability();
+  if (!capability.enabled) {
+    connection = null;
     return;
   }
+
   connection = getSolanaConnection();
-  logger.info('Credits initialized', { treasury: TREASURY_WALLET.slice(0, 8) });
+  logger.info('Credits initialized', { treasury: capability.treasuryWallet?.slice(0, 8) });
 }
 
 router.get('/info', (_req: Request, res: Response) => {
-  if (!TREASURY_WALLET) {
-    return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Not configured' } });
-  }
+  const capability = getCreditsCapability();
 
   res.json({
-    enabled: true,
-    treasuryWallet: TREASURY_WALLET,
-    tokenMint: KAMIYO_MINT,
-    rate: '1M KAMIYO = $10',
-    pricing: {
-      chat: { usd: 0.01 },
-      market: { usd: 0.005 },
-    },
+    enabled: capability.enabled,
+    state: capability.state,
+    reason: capability.reason,
+    treasuryWallet: capability.treasuryWallet,
+    tokenMint: capability.tokenMint,
+    rate: capability.rate,
+    pricing: capability.pricing,
   });
 });
 
@@ -80,8 +78,11 @@ router.get('/balance', (req: Request, res: Response) => {
 });
 
 router.post('/verify', async (req: Request, res: Response) => {
-  if (!connection || !TREASURY_WALLET) {
-    return res.status(503).json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Not configured' } });
+  const capability = getCreditsCapability();
+  if (!connection || !capability.enabled || !capability.treasuryWallet || !capability.tokenMint) {
+    return res.status(503).json({
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'Credits deposit verification is disabled' },
+    });
   }
 
   const { wallet, txSignature } = req.body;
@@ -112,15 +113,15 @@ router.post('/verify', async (req: Request, res: Response) => {
     let senderWallet = '';
 
     for (const post of postBalances) {
-      if (post.mint !== KAMIYO_MINT || post.owner !== TREASURY_WALLET) continue;
+      if (post.mint !== capability.tokenMint || post.owner !== capability.treasuryWallet) continue;
 
-      const pre = preBalances.find((p) => p.accountIndex === post.accountIndex && p.mint === KAMIYO_MINT);
+      const pre = preBalances.find((p) => p.accountIndex === post.accountIndex && p.mint === capability.tokenMint);
       const transferred = (post.uiTokenAmount.uiAmount || 0) - (pre?.uiTokenAmount.uiAmount || 0);
 
       if (transferred > 0) {
         kamiyoAmount = transferred;
         for (const otherPre of preBalances) {
-          if (otherPre.mint !== KAMIYO_MINT || otherPre.owner === TREASURY_WALLET) continue;
+          if (otherPre.mint !== capability.tokenMint || otherPre.owner === capability.treasuryWallet) continue;
           const otherPost = postBalances.find((p) => p.accountIndex === otherPre.accountIndex);
           const diff = (otherPre.uiTokenAmount.uiAmount || 0) - (otherPost?.uiTokenAmount.uiAmount || 0);
           if (diff >= transferred * TRANSFER_TOLERANCE) {
@@ -219,7 +220,7 @@ router.get('/stats', (_req: Request, res: Response) => {
     totalDepositedUsd: creditsToUsd(stats.totalDepositedMicro),
     totalSpentUsd: creditsToUsd(stats.totalSpentMicro),
     activeAccountsLast24h: stats.activeAccounts,
-    enabled: !!TREASURY_WALLET,
+    enabled: getCreditsCapability().enabled,
   });
 });
 

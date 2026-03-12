@@ -110,4 +110,7 @@ Verify the live runtime profile:
 
 ```bash
 curl -sS https://api.kamiyo.ai/version
+curl -sS https://api.kamiyo.ai/api/credits/info
 ```
+
+`/version` now reports the live capability state for credits, x402, and MCP. `/api/credits/info` is always discoverable and returns `enabled: false` with a reason when deposits are intentionally disabled.

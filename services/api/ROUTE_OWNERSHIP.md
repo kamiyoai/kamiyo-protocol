@@ -127,7 +127,8 @@ pnpm run smoke:companion:route-ownership
 Expected result:
 
 - `/api/credits/info` returns `X-Kamiyo-Route-Ownership: kizuna-core`
-- `/version` reports `runtime.profile`
+- `/api/credits/info` returns a JSON capability descriptor even when deposits are disabled
+- `/version` reports `runtime.profile` and `capabilities`
 - in `kizuna-core` profile:
   - `/api/hive/health` returns `404`
   - `/api/fusion/fairscale/health` returns `404`

@@ -13,6 +13,7 @@ import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
 import { getCompanionRuntimeState, type CompanionRuntimeState } from '../runtime-profile';
+import { getCreditsCapability, getMcpCapability, getX402Capability } from '../core-capabilities';
 import {
   createApiRouteGroupCollectionForRuntime,
   createEdgeRouteGroups,
@@ -202,6 +203,11 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
         profile: runtime.profile,
         backgroundOwnerships: runtime.backgroundOwnerships,
         routeOwnerships: runtime.routeOwnerships,
+      },
+      capabilities: {
+        credits: getCreditsCapability(),
+        x402: getX402Capability(),
+        mcp: getMcpCapability(),
       },
     });
   });

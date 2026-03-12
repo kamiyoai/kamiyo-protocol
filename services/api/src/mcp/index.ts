@@ -1,5 +1,6 @@
 // MCP Routes - OAuth + Streamable HTTP transport
 
+import type { IncomingMessage } from 'node:http';
 import { Router, json, Request, Response, NextFunction, RequestHandler } from 'express';
 import { randomUUID } from 'crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -17,6 +18,7 @@ import {
 } from '../db.js';
 import { logger } from '../logger.js';
 import { mcpSessionsActive, mcpRequestsTotal, mcpRequestLatency } from '../metrics.js';
+import { getMcpCapability } from '../core-capabilities.js';
 
 const SESSION_TTL_HOURS = 24;
 const MAX_SESSIONS_PER_CLIENT = 10;
@@ -188,12 +190,7 @@ function mcpBearerAuth(provider: KamiyoOAuthProvider, resourceMetadataUrl: strin
 export function createMCPRoutes(): Router {
   const router = Router();
   const provider = new KamiyoOAuthProvider();
-
-  const baseUrlStr = process.env.API_BASE_URL;
-  if (!baseUrlStr) {
-    logger.warn('API_BASE_URL not set, using default');
-  }
-  const baseUrl = new URL(baseUrlStr || 'https://kamiyo-protocol-4c70.onrender.com');
+  const baseUrl = new URL(getMcpCapability().publicBaseUrl);
   const mcpUrl = new URL('/mcp', baseUrl);
 
   router.use(
@@ -350,9 +347,9 @@ export function createMCPRoutes(): Router {
           updateMcpSessionActivity(session.transport.sessionId);
         }
 
-        const mcpReq = req as any;
-        mcpReq.auth = mcpAuth;
-        await session.transport.handleRequest(mcpReq, res, req.body);
+        const transportReq = req as unknown as IncomingMessage & { auth?: McpAuthInfo };
+        transportReq.auth = mcpAuth;
+        await session.transport.handleRequest(transportReq, res, req.body);
 
         // Record metrics
         const latencySeconds = (Date.now() - requestStart) / 1000;

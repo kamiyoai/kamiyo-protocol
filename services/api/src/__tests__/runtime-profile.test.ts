@@ -57,12 +57,31 @@ describe('api version runtime metadata', () => {
       const response = await fetch(`http://127.0.0.1:${address.port}/version`);
       const body = (await response.json()) as {
         runtime: { profile: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
+        capabilities: {
+          credits: { enabled: boolean; state: string; reason: string | null };
+          x402: { enabled: boolean; state: string; reason: string | null };
+          mcp: { enabled: boolean; state: string; publicBaseUrl: string; source: string };
+        };
       };
 
       expect(response.status).toBe(200);
       expect(body.runtime.profile).toBe('full');
       expect(body.runtime.backgroundOwnerships).toEqual(['kizuna-core', 'module', 'legacy']);
       expect(body.runtime.routeOwnerships).toEqual(['protected', 'kizuna-core', 'module', 'legacy']);
+      expect(body.capabilities.credits).toMatchObject({
+        enabled: false,
+        state: 'disabled',
+        reason: 'treasury_wallet_missing',
+      });
+      expect(body.capabilities.x402).toMatchObject({
+        enabled: false,
+        state: 'disabled',
+        reason: 'merchant_wallet_missing',
+      });
+      expect(body.capabilities.mcp).toMatchObject({
+        enabled: true,
+        state: 'ready',
+      });
     } finally {
       server.close();
     }
@@ -85,9 +104,19 @@ describe('api version runtime metadata', () => {
       const core = await fetch(`${baseUrl}/api/credits/info`);
       const moduleRoute = await fetch(`${baseUrl}/api/hive/health`);
       const legacyRoute = await fetch(`${baseUrl}/api/fusion/fairscale/health`);
+      const coreBody = (await core.json()) as {
+        enabled: boolean;
+        state: string;
+        reason: string | null;
+      };
 
-      expect([200, 503]).toContain(core.status);
+      expect(core.status).toBe(200);
       expect(core.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
+      expect(coreBody).toMatchObject({
+        enabled: false,
+        state: 'disabled',
+        reason: 'treasury_wallet_missing',
+      });
       expect(moduleRoute.status).toBe(404);
       expect(legacyRoute.status).toBe(404);
     } finally {
