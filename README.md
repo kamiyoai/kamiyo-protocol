@@ -123,11 +123,12 @@ These stay in the repo, but they no longer define the product story.
 ## Documentation
 
 - Build and local setup: `BUILD.md`
+- Development workflows: `DEVELOPMENT.md`
 - Kizuna-first architecture: `ARCHITECTURE.md`
+- Companion ownership and cutover runbook: `services/api/ROUTE_OWNERSHIP.md`
 - Kizuna staged cutover: `docs/kizuna-cutover-plan.md`
 - Kizuna narrative timeline: `docs/kizuna-narrative-timeline.md`
 - Kizuna X calendar: `docs/kizuna-x-posts-calendar.md`
-- Development workflows: `docs/DEVELOPMENT.md`
 - Contributor guide: `CONTRIBUTING.md`
 - Security policy: `SECURITY.md`
 - Governance model: `GOVERNANCE.md`

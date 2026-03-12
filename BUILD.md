@@ -103,6 +103,8 @@ pnpm --filter kamiyo-companion run dev
 pnpm --filter kamiyo-companion run smoke:route-ownership
 ```
 
+See `services/api/ROUTE_OWNERSHIP.md` for route bucket rules and live verification.
+
 ### CDP Onboarding
 
 ```bash

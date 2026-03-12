@@ -24,6 +24,8 @@ Public URLs stay stable in this phase. The change is repo focus, CI ownership, a
 
 The route ownership source of truth lives in `src/api/route-groups/`. Keep new product work in `kizuna-core` unless it is clearly a module surface or a retained legacy integration.
 
+Operator runbook: `ROUTE_OWNERSHIP.md`
+
 Route coverage is enforced in tests. Any new file added under `src/api/routes/` must be classified as an owned route, an edge route, or an internal support route before it can land cleanly.
 
 Edge and grouped routes emit `X-Kamiyo-Route-Ownership`, and retained legacy routes emit `X-Kamiyo-Route-Status: legacy` so operators can distinguish live traffic without changing public URLs.
