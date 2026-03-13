@@ -48,6 +48,24 @@ function logError(message: string, detail?: unknown): void {
   writeLog(process.stderr, message, detail);
 }
 
+function getPublicBaseUrl(req: express.Request): string | null {
+  const host = req.get('host');
+  if (!host) return null;
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = forwardedProto?.split(',')[0]?.trim() || req.protocol || 'https';
+  return `${protocol}://${host}`;
+}
+
+function getPublicExtensions(config: ReturnType<typeof getConfig>): string[] {
+  const extensions = ['discovery', 'kamiyo-session'];
+  if (config.KIZUNA_ENABLED) {
+    extensions.push('kamiyo-kizuna-credit');
+    extensions.push('kamiyo-kizuna-kernel-v1');
+    extensions.push('kamiyo-kizuna-fastpath-v1');
+  }
+  return extensions;
+}
+
 async function main() {
   const validation = validateConfig();
   for (const warning of validation.warnings) logWarn(`[config] ${warning}`);
@@ -95,17 +113,57 @@ async function main() {
 
   app.use('/widget', rateLimit, express.static(path.join(__dirname, '../public/widget')));
 
-  app.get('/health', rateLimit, (_req, res) => {
+  app.get('/', rateLimit, (req, res) => {
+    const baseUrl = getPublicBaseUrl(req);
+    const networks = getSupportedNetworkIds(isBaseEnabled());
+    const settlementEnabled = networks.length > 0;
+
+    res.json({
+      name: 'KAMIYO x402 Facilitator',
+      status: 'ok',
+      facilitatorMode: true,
+      settlement: settlementEnabled,
+      networks,
+      endpoints: {
+        health: `${baseUrl || ''}/health`,
+        supported: `${baseUrl || ''}/supported`,
+        verify: `${baseUrl || ''}/verify`,
+        settle: `${baseUrl || ''}/settle`,
+        discovery: `${baseUrl || ''}/.well-known/x402`,
+        discoveryList: `${baseUrl || ''}/discovery/resources`,
+      },
+      extensions: getPublicExtensions(config),
+    });
+  });
+
+  app.get('/health', rateLimit, (req, res) => {
+    const baseUrl = getPublicBaseUrl(req);
+    const networks = getSupportedNetworkIds(isBaseEnabled());
+    const settlementEnabled = networks.length > 0;
+
     res.json({
       status: 'ok',
       version: '1.0.0',
       facilitator: facilitatorKeypair.publicKey.toBase58(),
       network: SOLANA_MAINNET_CAIP2,
-      networks: getSupportedNetworkIds(isBaseEnabled()),
+      networks,
+      features: {
+        facilitatorMode: true,
+        settlement: settlementEnabled,
+        kizuna: config.KIZUNA_ENABLED,
+      },
+      endpoints: {
+        supported: `${baseUrl || ''}/supported`,
+        verify: `${baseUrl || ''}/verify`,
+        settle: `${baseUrl || ''}/settle`,
+        discovery: `${baseUrl || ''}/.well-known/x402`,
+        discoveryList: `${baseUrl || ''}/discovery/resources`,
+      },
     });
   });
 
   app.use('/.well-known/x402', rateLimit, createDiscoveryRouter());
+  app.use('/discovery', rateLimit, createDiscoveryRouter());
   app.use('/supported', rateLimit, createSupportedRouter(facilitatorKeypair));
   app.use('/supported-networks', rateLimit, createNetworksRouter());
   app.use('/fees', rateLimit, createFeesRouter());
