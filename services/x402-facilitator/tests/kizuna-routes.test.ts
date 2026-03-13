@@ -18,6 +18,8 @@ const mockGetSettlementById = vi.fn();
 const mockGetKizunaMandateLimits = vi.fn();
 const mockEvaluateKizunaKernelDecision = vi.fn();
 const mockCommitKizunaKernelDecision = vi.fn();
+const mockBuildKizunaIdentityPayload = vi.fn();
+const mockGetAuthorizedRegistryWallet = vi.fn();
 
 vi.mock('../src/services/signature', () => ({
   decodePaymentHeader: mockDecodePaymentHeader,
@@ -96,6 +98,13 @@ vi.mock('../src/services/kizuna-kernel', async () => {
     ingestKizunaKernelCollateral: vi.fn(),
   };
 });
+
+vi.mock('../src/services/agent-registry', () => ({
+  buildKizunaIdentityPayload: mockBuildKizunaIdentityPayload,
+  getAuthorizedRegistryWallet: mockGetAuthorizedRegistryWallet,
+  resolveAgentRegistryIdentity: vi.fn(),
+  isLegacyIdentityAllowed: vi.fn(),
+}));
 
 vi.mock('../src/db/queries', () => ({
   createKizunaReservation: vi.fn(),
@@ -233,10 +242,93 @@ describe('kizuna route invariants', () => {
       mandate_daily_limit_micro: null,
       mandate_monthly_limit_micro: null,
       mandate_human_approval_micro: null,
+      registry_sync_source: '8004-solana',
+      registry_active: true,
       status: 'active',
       created_at: new Date(),
       updated_at: new Date(),
     });
+    mockBuildKizunaIdentityPayload.mockResolvedValue({
+      mode: 'registry',
+      synced: true,
+      globalId: 'agent-1',
+      name: 'Agent One',
+      description: 'Kizuna test agent',
+      imageUri: null,
+      ownerWallet: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      operationalWallet: '0x1111111111111111111111111111111111111111',
+      authorizedWallet: '0x1111111111111111111111111111111111111111',
+      payerWallet: '0x1111111111111111111111111111111111111111',
+      agentUri: 'ipfs://agent-one',
+      active: true,
+      services: [],
+      supportedTrust: ['reputation'],
+      feedbackSummary: {
+        averageScore: 98,
+        totalFeedbacks: 12,
+        positiveCount: 12,
+        negativeCount: 0,
+        nextFeedbackIndex: 12,
+      },
+      syncSource: '8004-solana',
+      syncedAt: new Date().toISOString(),
+      compatibleMetadata: null,
+    });
+    mockGetAuthorizedRegistryWallet.mockReturnValue('0x1111111111111111111111111111111111111111');
+  });
+
+  it('fails verify when identity is not synced', async () => {
+    const { createVerifyRouter } = await import('../src/routes/verify');
+
+    mockBuildKizunaIdentityPayload.mockResolvedValue(null);
+
+    const router = createVerifyRouter({} as any, Keypair.generate().publicKey);
+
+    const result = await invokePost(router, {
+      paymentHeader: 'exact:eip155:8453:Zm9v',
+      paymentRequirements: {
+        network: 'eip155:8453',
+        amount: '1000000',
+        extra: {
+          kizuna: {
+            mode: 'credit',
+            agentId: 'agent-1',
+            repayWallet: '0x2222222222222222222222222222222222222222',
+            lane: 'enterprise',
+          },
+        },
+      },
+    });
+
+    expect(result.statusCode).toBe(409);
+    expect(result.body.invalidReason).toBe('kizuna_identity_unsynced');
+  });
+
+  it('fails verify when payer does not match the registered agent wallet', async () => {
+    const { createVerifyRouter } = await import('../src/routes/verify');
+
+    mockGetAuthorizedRegistryWallet.mockReturnValue('0x3333333333333333333333333333333333333333');
+
+    const router = createVerifyRouter({} as any, Keypair.generate().publicKey);
+
+    const result = await invokePost(router, {
+      paymentHeader: 'exact:eip155:8453:Zm9v',
+      paymentRequirements: {
+        network: 'eip155:8453',
+        amount: '1000000',
+        extra: {
+          kizuna: {
+            mode: 'credit',
+            agentId: 'agent-1',
+            repayWallet: '0x2222222222222222222222222222222222222222',
+            lane: 'enterprise',
+          },
+        },
+      },
+    });
+
+    expect(result.statusCode).toBe(400);
+    expect(result.body.invalidReason).toBe('kizuna_identity_wallet_mismatch');
   });
 
   it('rejects cross-lane replay on verify', async () => {

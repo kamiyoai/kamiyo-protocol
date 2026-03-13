@@ -52,11 +52,18 @@ Retained integrations that still run, but should not define new product work.
 Examples:
 
 - `/api/trust-graph`
-- `/api/fusion/fairscale`
 - `/api/paranet`
 - `/api/poch`
 - `/api/staking/referrals`
 - `/babyagi/v1`
+
+### `kizuna-core partner compatibility`
+
+Partner routes that still need stable public availability while the rest of the legacy surface stays dark.
+
+Examples:
+
+- `/api/fusion/fairscale`
 
 ### Edge and support-only
 
@@ -138,13 +145,11 @@ Expected result:
 - `/api/credits/info` returns `X-Kamiyo-Route-Ownership: kizuna-core`
 - `/api/credits/info` returns a JSON capability descriptor even when deposits are disabled
 - `/version` reports `runtime.profile`, `runtime.routeSurface`, and `capabilities`
+- `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: kizuna-core`
 - on `kizuna-core` route surface:
   - `/api/hive/health` returns `404`
-  - `/api/fusion/fairscale/health` returns `404`
 - on `full` route surface:
   - `/api/hive/health` returns `X-Kamiyo-Route-Ownership: module`
-  - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Ownership: legacy`
-  - `/api/fusion/fairscale/health` returns `X-Kamiyo-Route-Status: legacy`
 
 ## Failure Handling
 

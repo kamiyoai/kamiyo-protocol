@@ -2476,6 +2476,9 @@ importers:
 
   services/x402-facilitator:
     dependencies:
+      8004-solana:
+        specifier: ^0.8.0
+        version: 0.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       '@coral-xyz/anchor':
         specifier: ^0.32.1
         version: 0.32.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -2536,6 +2539,10 @@ importers:
         version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.5)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
 
 packages:
+
+  8004-solana@0.8.0:
+    resolution: {integrity: sha512-F1L9DvW5G1zU76hs4w7E26GZk0Nrat1821t7mZbICUNA6eVt60SWWeZLrXgPDbVAfGr+2d3FQPJIXXSV7krX6A==}
+    engines: {node: '>=18.0.0'}
 
   '@0no-co/graphql.web@1.2.0':
     resolution: {integrity: sha512-/1iHy9TTr63gE1YcR5idjx8UREz1s0kFhydf3bBLCXyqjhkIc6igAzTOx3zPifCwFR87tsh/4Pa9cNts6d2otw==}
@@ -3469,6 +3476,12 @@ packages:
 
   '@coral-xyz/borsh@0.31.1':
     resolution: {integrity: sha512-9N8AU9F0ubriKfNE3g1WF0/4dtlGXoBN/hd1PvbNBamBNwRgHxH4P+o3Zt7rSEloW1HUs6LfZEchlx9fW7POYw==}
+    engines: {node: '>=10'}
+    peerDependencies:
+      '@solana/web3.js': 1.95.8
+
+  '@coral-xyz/borsh@0.32.1':
+    resolution: {integrity: sha512-pWsqkkZ+psLlupMkgu5rDok7baDQLWKqyDsb76gUNArbVB783mF3ZOleKMHVXZczl5JuxnVVfO1+XDVvR17C3A==}
     engines: {node: '>=10'}
     peerDependencies:
       '@solana/web3.js': 1.95.8
@@ -16489,6 +16502,19 @@ packages:
 
 snapshots:
 
+  8004-solana@0.8.0(bufferutil@4.1.0)(utf-8-validate@5.0.10):
+    dependencies:
+      '@coral-xyz/borsh': 0.32.1(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      '@noble/hashes': 2.0.1
+      '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      borsh: 0.7.0
+      bs58: 6.0.0
+      tweetnacl: 1.0.3
+    transitivePeerDependencies:
+      - bufferutil
+      - encoding
+      - utf-8-validate
+
   '@0no-co/graphql.web@1.2.0': {}
 
   '@adraffy/ens-normalize@1.10.1': {}
@@ -17930,6 +17956,12 @@ snapshots:
       buffer-layout: 1.2.2
 
   '@coral-xyz/borsh@0.31.1(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
+    dependencies:
+      '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js: 5.2.3
+      buffer-layout: 1.2.2
+
+  '@coral-xyz/borsh@0.32.1(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))':
     dependencies:
       '@solana/web3.js': 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       bn.js: 5.2.3

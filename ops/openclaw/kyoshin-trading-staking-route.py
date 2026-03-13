@@ -6,11 +6,18 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from fundry_staking_deposit import run_fundry_staking_deposit
+
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
@@ -75,6 +82,7 @@ SOL_PRICE_USD = max(
 ROUTE_CMD = os.getenv('KYO_TRADING_STAKING_ROUTE_CMD', '').strip()
 DRY_RUN = env_bool('KYO_TRADING_STAKING_DRY_RUN', False)
 KEYPAIR_PATH = os.getenv('KYO_TRADING_STAKING_KEYPAIR_PATH', '').strip()
+ADMIN_KEYPAIR_PATH = os.getenv('KYO_TRADING_STAKING_ADMIN_KEYPAIR_PATH', '').strip()
 RPC_URL = os.getenv('KYO_TRADING_STAKING_RPC_URL', '').strip()
 ROUTE_TOLERANCE_USD = max(0.0, env_float('KYO_TRADING_ROUTE_LAG_TOLERANCE_USD', 1.0))
 ROUTE_REBASE_ON_OVERSHOOT = env_bool('KYO_TRADING_ROUTE_REBASE_ON_OVERSHOOT', True)
@@ -585,6 +593,10 @@ def compute_topup_amount(*, current_balance_sol: float, required_balance_sol: fl
     return floor_precision(deficit, 9)
 
 
+def reserve_wallet_balance_sol() -> float:
+    return max(0.0, ROUTE_MIN_WALLET_SOL + ROUTE_FEE_RESERVE_SOL + ROUTE_RENT_RESERVE_SOL)
+
+
 def maybe_topup_route_wallet(*, solana_bin: str, required_balance_sol: float) -> dict[str, Any]:
     snapshot = route_wallet_snapshot(solana_bin=solana_bin)
     result: dict[str, Any] = {
@@ -616,7 +628,7 @@ def maybe_topup_route_wallet(*, solana_bin: str, required_balance_sol: float) ->
 
     amount_sol = compute_topup_amount(current_balance_sol=current_balance, required_balance_sol=required_balance_sol)
     if amount_sol <= 0:
-        result.update({'ok': False, 'reason': 'topup_amount_zero'})
+        result.update({'reason': 'already_sufficient'})
         return result
 
     route_pubkey = str(snapshot.get('pubkey') or '').strip()
@@ -658,7 +670,7 @@ def maybe_topup_route_wallet(*, solana_bin: str, required_balance_sol: float) ->
             'txSignature': str(topup.get('txSignature') or '').strip(),
         }
     )
-    if balance_after < required_balance_sol:
+    if balance_after + 1e-9 < required_balance_sol:
         result.update({'ok': False, 'reason': 'route_wallet_still_below_required_after_topup'})
     return result
 
@@ -729,76 +741,21 @@ def maybe_sweep_route_wallet_earnings(
             'txSignature': str(sweep.get('txSignature') or '').strip(),
         }
     )
-    if balance_after < required_balance_sol:
+    if balance_after + 1e-9 < required_balance_sol:
         result.update({'ok': False, 'reason': 'route_wallet_still_below_required_after_earnings_sweep'})
     return result
 
 
-def run_solana_transfer(*, amount_sol: float, pool_id: str) -> dict[str, Any]:
-    if DRY_RUN:
-        return {
-            'method': 'dry_run',
-            'txSignature': f'dry-run-{int(datetime.now(timezone.utc).timestamp())}',
-            'routedSol': amount_sol,
-        }
-
-    solana_bin = shutil.which('solana')
-    if not solana_bin:
-        raise RuntimeError('missing_solana_cli')
-    if not KEYPAIR_PATH:
-        raise RuntimeError('missing_trading_staking_keypair_path')
-
-    keypair = Path(KEYPAIR_PATH).expanduser()
-    if not keypair.exists():
-        raise RuntimeError('trading_staking_keypair_not_found')
-
-    available_sol = read_solana_balance(solana_bin=solana_bin, keypair=keypair)
-    if available_sol > 0:
-        spendable_sol = floor_precision(max(0.0, available_sol - ROUTE_FEE_RESERVE_SOL - ROUTE_RENT_RESERVE_SOL), 9)
-        if spendable_sol <= 0:
-            raise RuntimeError('trading_staking_wallet_insufficient_balance')
-        amount_sol = min(amount_sol, spendable_sol)
-    if amount_sol <= 0:
-        raise RuntimeError('trading_staking_wallet_insufficient_balance')
-
-    def transfer_once(sol_amount: float) -> subprocess.CompletedProcess[str]:
-        cmd = [
-            solana_bin,
-            'transfer',
-            pool_id,
-            format_sol(sol_amount),
-            '--keypair',
-            str(keypair),
-            '--allow-unfunded-recipient',
-            '--output',
-            'json',
-        ]
-        if RPC_URL:
-            cmd.extend(['--url', RPC_URL])
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS, check=False)
-
-    attempted_sol = amount_sol
-    proc = transfer_once(attempted_sol)
-    if proc.returncode != 0:
-        text = proc.stderr or proc.stdout or ''
-        match = re.search(r'insufficient funds for spend \(([\d.]+) SOL\) \+ fee \(([\d.]+) SOL\)', text, re.IGNORECASE)
-        if match:
-            fee_sol = max(0.0, parse_float(match.group(2), 0.0))
-            adjusted = floor_precision(max(0.0, amount_sol - fee_sol - ROUTE_FEE_RESERVE_SOL), 9)
-            if adjusted > 0 and adjusted < amount_sol:
-                attempted_sol = adjusted
-                proc = transfer_once(attempted_sol)
-        if proc.returncode != 0:
-            raise RuntimeError(transfer_error(proc))
-
-    signature = parse_signature(proc.stdout or '')
-    if not signature:
-        raise RuntimeError('missing_tx_signature')
-    return {
-        'method': 'solana_transfer',
-        'txSignature': signature,
-        'routedSol': attempted_sol,
-    }
+def run_staking_period_deposit(*, amount_sol: float) -> dict[str, Any]:
+    return run_fundry_staking_deposit(
+        amount_sol=amount_sol,
+        pool_url=STAKING_POOL_URL,
+        keypair_path=KEYPAIR_PATH,
+        rpc_url=RPC_URL,
+        dry_run=DRY_RUN,
+        timeout_seconds=CLI_TIMEOUT_SECONDS,
+        admin_keypair_path=ADMIN_KEYPAIR_PATH,
+    )
 
 
 def trading_realized_snapshot(rows: list[dict[str, Any]], *, window_hours: int) -> dict[str, Any]:
@@ -937,11 +894,12 @@ def run() -> int:
 
     delta_unrouted_usd = round(total_realized_net_usd - processed_realized_net_usd, 8)
     route_usd_24h = floor_precision(max(0.0, realized_net_usd_24h) * (ROUTE_BPS / 10_000.0), 8)
+    reserve_balance_sol = reserve_wallet_balance_sol()
     if delta_unrouted_usd <= ROUTE_TOLERANCE_USD:
-        if ROUTE_MIN_WALLET_SOL > 0:
+        if reserve_balance_sol > 0:
             sweep_result = maybe_sweep_route_wallet_earnings(
                 solana_bin=solana_bin,
-                required_balance_sol=ROUTE_MIN_WALLET_SOL,
+                required_balance_sol=reserve_balance_sol,
                 route_usd=0.0,
                 delta_usd=delta_unrouted_usd,
                 checkpoint_id=checkpoint_id,
@@ -963,10 +921,10 @@ def run() -> int:
                 sweep_result.get('balanceAfterSol'),
                 parse_float(route_wallet.get('balanceSol'), 0.0),
             )
-            if sweep_balance_after < ROUTE_MIN_WALLET_SOL:
+            if sweep_balance_after < reserve_balance_sol:
                 topup_result = maybe_topup_route_wallet(
                     solana_bin=solana_bin,
-                    required_balance_sol=ROUTE_MIN_WALLET_SOL,
+                    required_balance_sol=reserve_balance_sol,
                 )
         summary = {
             'ok': True,
@@ -1083,14 +1041,11 @@ def run() -> int:
     route_usd_parity = floor_precision(max(0.0, delta_unrouted_usd) * (ROUTE_BPS / 10_000.0), 8)
     route_usd = min(route_usd_24h, route_usd_parity)
     route_sol = floor_precision(route_usd / SOL_PRICE_USD, 9)
-    required_wallet_balance_sol = max(
-        ROUTE_MIN_WALLET_SOL,
-        route_sol + ROUTE_MIN_WALLET_SOL + ROUTE_FEE_RESERVE_SOL + ROUTE_RENT_RESERVE_SOL,
-    )
-    if required_wallet_balance_sol > 0:
+    required_route_balance_sol = max(reserve_balance_sol, route_sol + reserve_balance_sol)
+    if required_route_balance_sol > 0:
         sweep_result = maybe_sweep_route_wallet_earnings(
             solana_bin=solana_bin,
-            required_balance_sol=required_wallet_balance_sol,
+            required_balance_sol=required_route_balance_sol,
             route_usd=route_usd,
             delta_usd=delta_unrouted_usd,
             checkpoint_id=checkpoint_id,
@@ -1112,10 +1067,10 @@ def run() -> int:
             sweep_result.get('balanceAfterSol'),
             parse_float(route_wallet.get('balanceSol'), 0.0),
         )
-        if sweep_balance_after < required_wallet_balance_sol:
+        if sweep_balance_after < reserve_balance_sol:
             topup_result = maybe_topup_route_wallet(
                 solana_bin=solana_bin,
-                required_balance_sol=required_wallet_balance_sol,
+                required_balance_sol=reserve_balance_sol,
             )
         if topup_result.get('attempted') and str(topup_result.get('txSignature') or '').strip():
             append_json_line(
@@ -1130,6 +1085,11 @@ def run() -> int:
                     'routeWalletPubkey': str(topup_result.get('pubkey') or ''),
                 },
             )
+    available_route_balance_sol = parse_float(route_wallet.get('balanceSol'), 0.0)
+    if sweep_result.get('attempted'):
+        available_route_balance_sol = parse_float(sweep_result.get('balanceAfterSol'), available_route_balance_sol)
+    if topup_result.get('attempted'):
+        available_route_balance_sol = parse_float(topup_result.get('balanceAfterSol'), available_route_balance_sol)
     if route_sol < ROUTE_MIN_SOL:
         summary = {
             'ok': True,
@@ -1185,6 +1145,64 @@ def run() -> int:
         print(json.dumps(summary, ensure_ascii=True))
         return 0
 
+    if available_route_balance_sol + 1e-9 < required_route_balance_sol:
+        summary = {
+            'ok': False,
+            'status': 'blocked',
+            'reason': 'insufficient_route_wallet_profit_balance',
+            'routeSkippedReason': 'insufficient_route_wallet_profit_balance',
+            'at': now_iso(),
+            'startedAt': started_at,
+            'realizedNetUsdTotal': total_realized_net_usd,
+            'realizedNetUsd24h': realized_net_usd_24h,
+            'processedRealizedNetUsd': processed_realized_net_usd,
+            'deltaUnroutedUsd': delta_unrouted_usd,
+            'unroutedRealizedNetUsd': delta_unrouted_usd,
+            'routeUsd24h': route_usd_24h,
+            'routeUsd': route_usd,
+            'routeSol': route_sol,
+            'routeBasisWindowHours': ROUTE_BASIS_WINDOW_HOURS,
+            'routeBps': ROUTE_BPS,
+            'solPriceUsd': SOL_PRICE_USD,
+            'checkpointId': checkpoint_id,
+            'syntheticRealizedCloseViolations': synthetic_violations,
+            'missingRealizedFieldRows': missing_realized_field_rows,
+            'stakingPoolUrl': STAKING_POOL_URL,
+            'requiredRouteBalanceSol': round(required_route_balance_sol, 9),
+            'availableRouteBalanceSol': round(available_route_balance_sol, 9),
+            'receiptsPath': str(ROUTE_RECEIPTS_PATH),
+            'ledgerPath': str(LEDGER_PATH),
+        }
+        apply_wallet_fields(summary)
+        write_json(
+            STATE_PATH,
+            {
+                'lastRunAt': summary['at'],
+                'processedRealizedNetUsd': processed_realized_net_usd,
+                'lastRoutedLedgerCursor': str(state.get('lastRoutedLedgerCursor') or ''),
+                'lastRoutedNetUsd': round(parse_float(state.get('lastRoutedNetUsd'), 0.0), 8),
+                'lastStatus': summary,
+            },
+        )
+        write_json(OUTPUT_PATH, summary)
+        append_json_line(
+            LOG_PATH,
+            {
+                'at': summary['at'],
+                'event': 'trading_staking_route',
+                'ok': False,
+                'status': summary['status'],
+                'reason': summary['reason'],
+                'routeUsd': route_usd,
+                'routeSol': route_sol,
+                'availableRouteBalanceSol': summary['availableRouteBalanceSol'],
+                'requiredRouteBalanceSol': summary['requiredRouteBalanceSol'],
+                'syntheticRealizedCloseViolations': synthetic_violations,
+            },
+        )
+        print(json.dumps(summary, ensure_ascii=True))
+        return 0
+
     pool_id = pool_id_from_url(STAKING_POOL_URL)
     if not pool_id:
         summary = {
@@ -1229,7 +1247,7 @@ def run() -> int:
                 checkpoint_id=checkpoint_id,
             )
         else:
-            route_result = run_solana_transfer(amount_sol=route_sol, pool_id=pool_id)
+            route_result = run_staking_period_deposit(amount_sol=route_sol)
     except Exception as exc:
         error_message = str(exc).strip()[:350] or 'route_execution_failed'
         summary = {
@@ -1285,7 +1303,10 @@ def run() -> int:
     routed_sol = max(0.0, parse_float(route_result.get('routedSol'), route_sol))
     routed_usd = round(routed_sol * SOL_PRICE_USD, 8)
     tx_signature = str(route_result.get('txSignature') or '').strip()
-    route_method = str(route_result.get('method') or ('dry_run' if DRY_RUN else 'solana_transfer')).strip()
+    route_method = str(route_result.get('method') or ('dry_run' if DRY_RUN else 'staking_period_deposit')).strip()
+    staking_period = str(route_result.get('stakingPeriod') or '').strip()
+    period_vault = str(route_result.get('periodVault') or '').strip()
+    period_number = str(route_result.get('periodNumber') or '').strip()
     routed_at = now_iso()
     processed_increment_usd = 0.0
     if ROUTE_BPS > 0:
@@ -1308,6 +1329,9 @@ def run() -> int:
         'deltaUnroutedUsd': delta_unrouted_usd,
         'stakingPoolUrl': STAKING_POOL_URL,
         'lastRoutedTradingLedgerId': checkpoint_id,
+        'stakingPeriod': staking_period,
+        'periodVault': period_vault,
+        'periodNumber': period_number,
     }
     append_json_line(ROUTE_RECEIPTS_PATH, receipt)
 
@@ -1330,6 +1354,9 @@ def run() -> int:
             'routedSol': round(routed_sol, 9),
             'stakingPoolUrl': STAKING_POOL_URL,
             'method': route_method,
+            'stakingPeriod': staking_period,
+            'periodVault': period_vault,
+            'periodNumber': period_number,
         },
     }
     append_json_line(LEDGER_PATH, ledger_row)
@@ -1358,6 +1385,9 @@ def run() -> int:
         'txSignature': tx_signature,
         'method': route_method,
         'stakingPoolUrl': STAKING_POOL_URL,
+        'stakingPeriod': staking_period,
+        'periodVault': period_vault,
+        'periodNumber': period_number,
         'receiptsPath': str(ROUTE_RECEIPTS_PATH),
         'ledgerPath': str(LEDGER_PATH),
         'lastRoutedLedgerCursor': checkpoint_id,

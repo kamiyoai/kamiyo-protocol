@@ -83,9 +83,9 @@ describe('api route ownership groups', () => {
     expect(corePaths).toContain('/api/partners/oobe');
     expect(corePaths).toContain('/api/meishi');
     expect(corePaths).toContain('/api/dkg');
+    expect(corePaths).toContain('/api/fusion/fairscale');
 
     expect(legacyPaths).toContain('/api/trust-graph');
-    expect(legacyPaths).toContain('/api/fusion/fairscale');
     expect(legacyPaths).toContain('/api/paranet');
     expect(legacyPaths).toContain('/api/poch');
   });
@@ -177,8 +177,8 @@ describe('api route ownership groups', () => {
     expect(coreGrouped.legacy).toEqual([]);
     expect(corePaths).toContain('/api/credits');
     expect(corePaths).toContain('/api/v1/chat');
+    expect(corePaths).toContain('/api/fusion/fairscale');
     expect(corePaths).not.toContain('/api/hive');
-    expect(corePaths).not.toContain('/api/fusion/fairscale');
 
     expect(fullPaths).toContain('/api/hive');
     expect(fullPaths).toContain('/api/fusion/fairscale');

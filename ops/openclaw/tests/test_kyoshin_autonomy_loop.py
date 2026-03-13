@@ -28,6 +28,7 @@ EXPECTED_STAGE_ORDER = [
     'trading_route',
     'x402_agentcash',
     'clawmart_staking_route',
+    'creator_fee_inflow_route',
     'clawmart_monitor',
     'distribution_engine',
     'mission_control',
@@ -39,6 +40,9 @@ EXPECTED_STAGE_ORDER_WITH_MEMORY_EXTRACT = EXPECTED_STAGE_ORDER[:-1] + ['memory_
 EXPECTED_STAGE_ORDER_WITHOUT_SENTRY_PIPELINE = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'sentry_pipeline']
 EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_MONITOR = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'clawmart_monitor']
 EXPECTED_STAGE_ORDER_WITHOUT_CLAWMART_STAKING_ROUTE = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'clawmart_staking_route']
+EXPECTED_STAGE_ORDER_WITHOUT_CREATOR_FEE_INFLOW_ROUTE = [
+    stage for stage in EXPECTED_STAGE_ORDER if stage != 'creator_fee_inflow_route'
+]
 EXPECTED_STAGE_ORDER_WITHOUT_X402_AGENTCASH = [stage for stage in EXPECTED_STAGE_ORDER if stage != 'x402_agentcash']
 EXPECTED_STAGE_ORDER_WITHOUT_TRADING = [
     stage
@@ -217,6 +221,14 @@ echo '{{"ok":true,"tasksAdded":0}}'
 """,
         )
         self._write_exec(
+            self.bin_dir / 'kyoshin-creator-fee-inflow-route.py',
+            f"""#!/usr/bin/env bash
+set -euo pipefail
+echo "creator_fee_inflow_route" >> "{self.order_file}"
+echo '{{"ok":true,"status":"up_to_date"}}'
+""",
+        )
+        self._write_exec(
             self.bin_dir / 'kyoshin-distribution-engine.py',
             f"""#!/usr/bin/env bash
 set -euo pipefail
@@ -291,6 +303,7 @@ echo '{{"ok":true,"requiredMissing":["WORKING-MEMORY.md"]}}'
                 'KYO_ENABLE_MEMORY_EXTRACTION': 'false',
                 'KYO_ENABLE_SENTRY_PIPELINE': 'true',
                 'KYO_ENABLE_CLAWMART_STAKING_ROUTE': 'true',
+                'KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE': 'true',
                 'KYO_ENABLE_CLAWMART_MONITOR': 'true',
                 'KYO_ENABLE_REVENUE_GUARD': 'true',
                 'KYO_REQUIRE_REVENUE_GUARD': 'true',
@@ -507,6 +520,28 @@ echo '{{"ok":false,"accepted":0}}'
 
         state = self._read_state()
         self.assertIn('clawmart_staking_route_failed', state.get('lastError', ''))
+
+    def test_creator_fee_inflow_route_can_be_disabled(self):
+        self._write_default_scripts()
+
+        result = self._run_loop({'KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE': 'false'})
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(self._read_stage_order(), EXPECTED_STAGE_ORDER_WITHOUT_CREATOR_FEE_INFLOW_ROUTE)
+
+    def test_creator_fee_inflow_route_is_hard_gate_when_required(self):
+        self._write_default_scripts()
+        (self.bin_dir / 'kyoshin-creator-fee-inflow-route.py').unlink()
+
+        result = self._run_loop(
+            {
+                'KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE': 'true',
+                'KYO_REQUIRE_CREATOR_FEE_INFLOW_ROUTE': 'true',
+            }
+        )
+        self.assertEqual(result.returncode, 1)
+
+        state = self._read_state()
+        self.assertIn('creator_fee_inflow_route_failed', state.get('lastError', ''))
 
     def test_clawmart_monitor_is_hard_gate_when_required(self):
         self._write_default_scripts()

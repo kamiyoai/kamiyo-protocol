@@ -2,8 +2,8 @@
 import json
 import os
 import re
-import shutil
 import subprocess
+import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Any
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from fundry_staking_deposit import run_fundry_staking_deposit
+
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
@@ -33,6 +39,7 @@ ROUTE_CMD = os.getenv('KYO_CLAWMART_STAKING_ROUTE_CMD', '').strip()
 DRY_RUN = os.getenv('KYO_CLAWMART_STAKING_DRY_RUN', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 ENABLE_STAKING_ROUTE = os.getenv('KYO_ENABLE_CLAWMART_STAKING_ROUTE', 'true').strip().lower() in {'1', 'true', 'yes', 'on'}
 SOLANA_KEYPAIR_PATH = os.getenv('KYO_CLAWMART_STAKING_KEYPAIR_PATH', '').strip()
+STAKING_ADMIN_KEYPAIR_PATH = os.getenv('KYO_CLAWMART_STAKING_ADMIN_KEYPAIR_PATH', '').strip()
 SOLANA_RPC_URL = os.getenv('KYO_CLAWMART_STAKING_RPC_URL', '').strip()
 
 
@@ -253,57 +260,16 @@ def run_custom_route_command(
     }
 
 
-def run_solana_transfer(*, amount_sol: float, pool_id: str) -> dict[str, Any]:
-    if DRY_RUN:
-        return {
-            'txSignature': f'dry-run-{int(datetime.now(timezone.utc).timestamp())}',
-            'routedSol': amount_sol,
-            'method': 'dry_run',
-        }
-
-    solana_bin = shutil.which('solana')
-    if not solana_bin:
-        raise RuntimeError('missing_solana_cli')
-
-    if not SOLANA_KEYPAIR_PATH:
-        raise RuntimeError('missing_staking_keypair_path')
-    keypair = Path(SOLANA_KEYPAIR_PATH).expanduser()
-    if not keypair.exists():
-        raise RuntimeError('staking_keypair_not_found')
-
-    cmd = [
-        solana_bin,
-        'transfer',
-        pool_id,
-        format_sol_amount(amount_sol),
-        '--keypair',
-        str(keypair),
-        '--allow-unfunded-recipient',
-        '--output',
-        'json',
-    ]
-    if SOLANA_RPC_URL:
-        cmd.extend(['--url', SOLANA_RPC_URL])
-
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=CLI_TIMEOUT_SECONDS,
-        check=False,
+def run_staking_period_deposit(*, amount_sol: float) -> dict[str, Any]:
+    return run_fundry_staking_deposit(
+        amount_sol=amount_sol,
+        pool_url=KAMIYO_STAKING_POOL_URL,
+        keypair_path=SOLANA_KEYPAIR_PATH,
+        rpc_url=SOLANA_RPC_URL,
+        dry_run=DRY_RUN,
+        timeout_seconds=CLI_TIMEOUT_SECONDS,
+        admin_keypair_path=STAKING_ADMIN_KEYPAIR_PATH,
     )
-    if proc.returncode != 0:
-        stderr = (proc.stderr or '').strip()
-        raise RuntimeError(stderr or f'solana_transfer_failed_exit_{proc.returncode}')
-
-    signature = parse_signature(proc.stdout or '')
-    if not signature:
-        raise RuntimeError('missing_tx_signature')
-    return {
-        'txSignature': signature,
-        'routedSol': amount_sol,
-        'method': 'solana_transfer',
-    }
 
 
 def run() -> int:
@@ -408,7 +374,7 @@ def run() -> int:
                 pool_id=pool_id,
             )
         else:
-            route_result = run_solana_transfer(amount_sol=amount_sol, pool_id=pool_id)
+            route_result = run_staking_period_deposit(amount_sol=amount_sol)
     except Exception as exc:
         summary = {
             'ok': False,
@@ -454,6 +420,9 @@ def run() -> int:
         'routedSol': routed_sol,
         'txSignature': tx_signature,
         'routeMethod': str(route_result.get('method') or '').strip(),
+        'stakingPeriod': str(route_result.get('stakingPeriod') or '').strip(),
+        'periodVault': str(route_result.get('periodVault') or '').strip(),
+        'periodNumber': str(route_result.get('periodNumber') or '').strip(),
         'at': routed_at,
     }
     append_json_line(RECEIPTS_PATH, receipt)
@@ -469,6 +438,9 @@ def run() -> int:
         'routedSol': routed_sol,
         'txSignature': tx_signature,
         'routeMethod': str(route_result.get('method') or '').strip(),
+        'stakingPeriod': str(route_result.get('stakingPeriod') or '').strip(),
+        'periodVault': str(route_result.get('periodVault') or '').strip(),
+        'periodNumber': str(route_result.get('periodNumber') or '').strip(),
         'stakingPoolUrl': KAMIYO_STAKING_POOL_URL,
         'stakingPoolId': pool_id,
         'receiptsPath': str(RECEIPTS_PATH),

@@ -38,7 +38,8 @@ Edge and grouped routes emit `X-Kamiyo-Route-Ownership`, and retained legacy rou
 - `protected`: `/api/v1/chat`, `/api/v1/tokens`, `/api/v1/market`, `/api/v1/reputation`
 - `kizuna-core`: `/api/paid`, `/api/credits`, `/api/partners/oobe`, `/api/link-wallet`, `/internal/holders`, `/api/meishi`, `/api/meishi-dkg`, `/api/dkg`
 - `module`: `/api/hive`, `/api/hive-teams`, `/api/swarm-teams`, `/api/buyback`, `/api/channels`, `/api/kamiyo`
-- `legacy`: `/api/trust-graph`, `/api/fusion/fairscale`, `/api/paranet`, `/api/poch`, `/api/staking/referrals`, `/babyagi/v1`
+- `legacy`: `/api/trust-graph`, `/api/paranet`, `/api/poch`, `/api/staking/referrals`, `/babyagi/v1`
+- `kizuna-core partner compatibility`: `/api/fusion/fairscale`
 - `support-only`: `hive-swarm`, `poch-store`
 
 The API entrypoint mounts edge routes and owned route groups separately, so auth/verification flow stays isolated from Kizuna and retained legacy product surfaces.

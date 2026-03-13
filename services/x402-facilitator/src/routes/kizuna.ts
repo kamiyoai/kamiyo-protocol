@@ -17,6 +17,7 @@ import {
   upsertKizunaAccount,
 } from '../db/queries';
 import { getConfig } from '../config';
+import { buildKizunaIdentityPayload, getAuthorizedRegistryWallet, isLegacyIdentityAllowed, resolveAgentRegistryIdentity } from '../services/agent-registry';
 import { debitKizunaCredits, getKizunaCreditsBalance } from '../services/kizuna-credits';
 import { getKizunaMandateLimits, syncKizunaMandate } from '../services/kizuna-wallet-control-plane';
 import { ingestKizunaKernelCollateral, ingestKizunaKernelRepayment } from '../services/kizuna-kernel';
@@ -69,6 +70,13 @@ function resolvePoolId(
   const override = asString(requestedPoolId);
   if (override) return override;
   return lane === 'crypto-fast' ? config.KIZUNA_FASTPATH_POOL_ID : config.KIZUNA_ENTERPRISE_POOL_ID;
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => asString(entry))
+    .filter((entry): entry is string => entry.length > 0);
 }
 
 function toApiAccount(account: Awaited<ReturnType<typeof getKizunaAccount>>) {
@@ -161,6 +169,29 @@ export function createKizunaRouter(): Router {
     }
 
     try {
+      const resolvedIdentity = await resolveAgentRegistryIdentity(agentId);
+      const allowLegacyIdentity = isLegacyIdentityAllowed();
+
+      if (!resolvedIdentity && !allowLegacyIdentity) {
+        sendError(res, 404, 'Agent Registry identity not found');
+        return;
+      }
+      if (resolvedIdentity && !resolvedIdentity.active) {
+        sendError(res, 409, 'Agent Registry identity is inactive');
+        return;
+      }
+      if (resolvedIdentity) {
+        const authorizedWallet = getAuthorizedRegistryWallet(resolvedIdentity);
+        if (!authorizedWallet || authorizedWallet !== payerWallet) {
+          sendError(
+            res,
+            400,
+            'payerWallet must match the registered operational wallet or owner wallet'
+          );
+          return;
+        }
+      }
+
       let mandateMeta:
         | {
             source: 'meishi' | 'manual';
@@ -221,12 +252,29 @@ export function createKizunaRouter(): Router {
         mandateDailyLimitMicro: mandateMeta.caps.dailyMicro,
         mandateMonthlyLimitMicro: mandateMeta.caps.monthlyMicro,
         mandateHumanApprovalMicro: mandateMeta.caps.humanApprovalMicro,
+        registryGlobalId: resolvedIdentity?.globalId ?? null,
+        registryName: resolvedIdentity?.name ?? null,
+        registryDescription: resolvedIdentity?.description ?? null,
+        registryImageUri: resolvedIdentity?.imageUri ?? null,
+        registryOwnerWallet: resolvedIdentity?.ownerWallet ?? null,
+        registryOperationalWallet: resolvedIdentity?.operationalWallet ?? null,
+        registryAgentUri: resolvedIdentity?.agentUri ?? null,
+        registryActive: resolvedIdentity?.active ?? null,
+        registryServices: resolvedIdentity?.services ?? [],
+        registrySupportedTrust: resolvedIdentity?.supportedTrust ?? [],
+        registryFeedbackSummary: resolvedIdentity?.feedbackSummary ?? {},
+        registrySyncSource: resolvedIdentity?.syncSource ?? (allowLegacyIdentity ? 'legacy' : null),
+        registrySyncedAt: resolvedIdentity?.syncedAt ?? null,
       });
 
-      const outstandingMicro = await getKizunaOutstandingMicro(agentId);
+      const [identity, outstandingMicro] = await Promise.all([
+        buildKizunaIdentityPayload(account),
+        getKizunaOutstandingMicro(agentId),
+      ]);
 
       res.status(201).json({
         account: toApiAccount(account),
+        identity,
         outstandingMicro: outstandingMicro.toString(10),
         mandate: mandateMeta,
       });
@@ -266,11 +314,83 @@ export function createKizunaRouter(): Router {
       creditsBalanceMicro = null;
     }
 
+    const identity = await buildKizunaIdentityPayload(account);
+
     res.json({
       account: toApiAccount(account),
+      identity,
       outstandingMicro: outstandingMicro.toString(10),
       creditsBalanceMicro,
       enterpriseBalance,
+    });
+  });
+
+  router.post('/accounts/:agentId/identity/sync', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+
+    const agentId = asString(req.params.agentId);
+    if (!agentId) {
+      sendError(res, 400, 'agentId is required');
+      return;
+    }
+
+    const current = await getKizunaAccount(agentId);
+    if (!current) {
+      sendError(res, 404, 'Kizuna account not found');
+      return;
+    }
+
+    const resolvedIdentity = await resolveAgentRegistryIdentity(agentId);
+    if (!resolvedIdentity) {
+      sendError(res, 404, 'Agent Registry identity not found');
+      return;
+    }
+    if (!resolvedIdentity.active) {
+      sendError(res, 409, 'Agent Registry identity is inactive');
+      return;
+    }
+
+    const authorizedWallet = getAuthorizedRegistryWallet(resolvedIdentity);
+    if (!authorizedWallet) {
+      sendError(res, 409, 'Agent Registry identity has no authorized wallet');
+      return;
+    }
+
+    const updated = await upsertKizunaAccount({
+      agentId,
+      payerWallet: current.payer_wallet === authorizedWallet ? current.payer_wallet : authorizedWallet,
+      repayWallet: current.repay_wallet,
+      passportAddress: current.passport_address,
+      networks: parseStringArray(current.networks),
+      mandateSingleLimitMicro: current.mandate_single_limit_micro,
+      mandateDailyLimitMicro: current.mandate_daily_limit_micro,
+      mandateMonthlyLimitMicro: current.mandate_monthly_limit_micro,
+      mandateHumanApprovalMicro: current.mandate_human_approval_micro,
+      registryGlobalId: resolvedIdentity.globalId,
+      registryName: resolvedIdentity.name,
+      registryDescription: resolvedIdentity.description,
+      registryImageUri: resolvedIdentity.imageUri,
+      registryOwnerWallet: resolvedIdentity.ownerWallet,
+      registryOperationalWallet: resolvedIdentity.operationalWallet,
+      registryAgentUri: resolvedIdentity.agentUri,
+      registryActive: resolvedIdentity.active,
+      registryServices: resolvedIdentity.services,
+      registrySupportedTrust: resolvedIdentity.supportedTrust,
+      registryFeedbackSummary: resolvedIdentity.feedbackSummary,
+      registrySyncSource: resolvedIdentity.syncSource,
+      registrySyncedAt: resolvedIdentity.syncedAt,
+    });
+
+    const identity = await buildKizunaIdentityPayload(updated);
+
+    res.json({
+      account: toApiAccount(updated),
+      identity,
+      synced: true,
     });
   });
 

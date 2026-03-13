@@ -4,13 +4,19 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 HOME_DIR = Path(os.environ.get('HOME', '~')).expanduser()
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from fundry_staking_deposit import run_fundry_staking_deposit
+
 WORKSPACE = HOME_DIR / '.openclaw' / 'workspace'
 RUNTIME_DIR = WORKSPACE / 'runtime'
 STATE_DIR = RUNTIME_DIR / 'state'
@@ -75,6 +81,7 @@ SOL_PRICE_USD = max(
 ROUTE_CMD = os.getenv('KYO_WHOP_STAKING_ROUTE_CMD', '').strip()
 DRY_RUN = env_bool('KYO_WHOP_STAKING_DRY_RUN', False)
 KEYPAIR_PATH = os.getenv('KYO_WHOP_STAKING_KEYPAIR_PATH', '').strip()
+ADMIN_KEYPAIR_PATH = os.getenv('KYO_WHOP_STAKING_ADMIN_KEYPAIR_PATH', '').strip()
 RPC_URL = os.getenv('KYO_WHOP_STAKING_RPC_URL', '').strip()
 ROUTE_TOLERANCE_USD = max(0.0, env_float('KYO_WHOP_ROUTE_LAG_TOLERANCE_USD', 1.0))
 CLI_TIMEOUT_SECONDS = max(15, min(180, env_int('KYO_WHOP_ROUTE_CLI_TIMEOUT_SECONDS', 90)))
@@ -246,49 +253,16 @@ def run_route_cmd(*, amount_sol: float, route_usd: float, delta_usd: float, chec
     }
 
 
-def run_solana_transfer(*, amount_sol: float, pool_id: str) -> dict[str, Any]:
-    if DRY_RUN:
-        return {
-            'method': 'dry_run',
-            'txSignature': f'dry-run-{int(datetime.now(timezone.utc).timestamp())}',
-            'routedSol': amount_sol,
-        }
-
-    solana_bin = shutil.which('solana')
-    if not solana_bin:
-        raise RuntimeError('missing_solana_cli')
-    if not KEYPAIR_PATH:
-        raise RuntimeError('missing_whop_staking_keypair_path')
-
-    keypair = Path(KEYPAIR_PATH).expanduser()
-    if not keypair.exists():
-        raise RuntimeError('whop_staking_keypair_not_found')
-
-    cmd = [
-        solana_bin,
-        'transfer',
-        pool_id,
-        format_sol(amount_sol),
-        '--keypair',
-        str(keypair),
-        '--allow-unfunded-recipient',
-        '--output',
-        'json',
-    ]
-    if RPC_URL:
-        cmd.extend(['--url', RPC_URL])
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=CLI_TIMEOUT_SECONDS, check=False)
-    if proc.returncode != 0:
-        raise RuntimeError((proc.stderr or proc.stdout or f'solana_transfer_exit_{proc.returncode}').strip()[:400])
-
-    signature = parse_signature(proc.stdout or '')
-    if not signature:
-        raise RuntimeError('missing_tx_signature')
-    return {
-        'method': 'solana_transfer',
-        'txSignature': signature,
-        'routedSol': amount_sol,
-    }
+def run_staking_period_deposit(*, amount_sol: float) -> dict[str, Any]:
+    return run_fundry_staking_deposit(
+        amount_sol=amount_sol,
+        pool_url=STAKING_POOL_URL,
+        keypair_path=KEYPAIR_PATH,
+        rpc_url=RPC_URL,
+        dry_run=DRY_RUN,
+        timeout_seconds=CLI_TIMEOUT_SECONDS,
+        admin_keypair_path=ADMIN_KEYPAIR_PATH,
+    )
 
 
 def whop_realized_snapshot(rows: list[dict[str, Any]]) -> tuple[float, str, int]:
@@ -456,7 +430,7 @@ def run() -> int:
                 checkpoint_id=checkpoint_id,
             )
         else:
-            route_result = run_solana_transfer(amount_sol=route_sol, pool_id=pool_id)
+            route_result = run_staking_period_deposit(amount_sol=route_sol)
     except Exception as exc:
         summary = {
             'ok': False,
@@ -512,6 +486,9 @@ def run() -> int:
         'checkpointId': checkpoint_id,
         'lastRoutedLedgerCursor': checkpoint_id,
         'lastRoutedNetUsd': total_realized_net_usd,
+        'stakingPeriod': str(route_result.get('stakingPeriod') or '').strip(),
+        'periodVault': str(route_result.get('periodVault') or '').strip(),
+        'periodNumber': str(route_result.get('periodNumber') or '').strip(),
     }
     append_json_line(RECEIPTS_PATH, receipt)
 
@@ -558,6 +535,9 @@ def run() -> int:
         'lastRoutedNetUsd': total_realized_net_usd,
         'stakingPoolUrl': STAKING_POOL_URL,
         'txSignature': receipt['txSignature'],
+        'stakingPeriod': receipt['stakingPeriod'],
+        'periodVault': receipt['periodVault'],
+        'periodNumber': receipt['periodNumber'],
         'receiptsPath': str(RECEIPTS_PATH),
         'ledgerPath': str(LEDGER_PATH),
     }

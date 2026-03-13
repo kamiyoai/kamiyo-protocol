@@ -520,6 +520,19 @@ export type KizunaAccountRow = {
   mandate_daily_limit_micro: string | null;
   mandate_monthly_limit_micro: string | null;
   mandate_human_approval_micro: string | null;
+  registry_global_id: string | null;
+  registry_name: string | null;
+  registry_description: string | null;
+  registry_image_uri: string | null;
+  registry_owner_wallet: string | null;
+  registry_operational_wallet: string | null;
+  registry_agent_uri: string | null;
+  registry_active: boolean | null;
+  registry_services: unknown;
+  registry_supported_trust: unknown;
+  registry_feedback_summary: unknown;
+  registry_sync_source: string | null;
+  registry_synced_at: Date | null;
   status: 'active' | 'suspended';
   created_at: Date;
   updated_at: Date;
@@ -852,6 +865,19 @@ export async function upsertKizunaAccount(params: {
   mandateDailyLimitMicro?: string | null;
   mandateMonthlyLimitMicro?: string | null;
   mandateHumanApprovalMicro?: string | null;
+  registryGlobalId?: string | null;
+  registryName?: string | null;
+  registryDescription?: string | null;
+  registryImageUri?: string | null;
+  registryOwnerWallet?: string | null;
+  registryOperationalWallet?: string | null;
+  registryAgentUri?: string | null;
+  registryActive?: boolean | null;
+  registryServices?: unknown;
+  registrySupportedTrust?: unknown;
+  registryFeedbackSummary?: unknown;
+  registrySyncSource?: string | null;
+  registrySyncedAt?: Date | null;
 }): Promise<KizunaAccountRow> {
   const rows = await query<KizunaAccountRow>(
     `INSERT INTO kizuna_accounts (
@@ -863,9 +889,22 @@ export async function upsertKizunaAccount(params: {
        mandate_single_limit_micro,
        mandate_daily_limit_micro,
        mandate_monthly_limit_micro,
-       mandate_human_approval_micro
+       mandate_human_approval_micro,
+       registry_global_id,
+       registry_name,
+       registry_description,
+       registry_image_uri,
+       registry_owner_wallet,
+       registry_operational_wallet,
+       registry_agent_uri,
+       registry_active,
+       registry_services,
+       registry_supported_trust,
+       registry_feedback_summary,
+       registry_sync_source,
+       registry_synced_at
      )
-     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20::jsonb,$21,$22)
      ON CONFLICT (agent_id) DO UPDATE
      SET payer_wallet = EXCLUDED.payer_wallet,
          repay_wallet = EXCLUDED.repay_wallet,
@@ -875,6 +914,19 @@ export async function upsertKizunaAccount(params: {
          mandate_daily_limit_micro = EXCLUDED.mandate_daily_limit_micro,
          mandate_monthly_limit_micro = EXCLUDED.mandate_monthly_limit_micro,
          mandate_human_approval_micro = EXCLUDED.mandate_human_approval_micro,
+         registry_global_id = EXCLUDED.registry_global_id,
+         registry_name = EXCLUDED.registry_name,
+         registry_description = EXCLUDED.registry_description,
+         registry_image_uri = EXCLUDED.registry_image_uri,
+         registry_owner_wallet = EXCLUDED.registry_owner_wallet,
+         registry_operational_wallet = EXCLUDED.registry_operational_wallet,
+         registry_agent_uri = EXCLUDED.registry_agent_uri,
+         registry_active = EXCLUDED.registry_active,
+         registry_services = EXCLUDED.registry_services,
+         registry_supported_trust = EXCLUDED.registry_supported_trust,
+         registry_feedback_summary = EXCLUDED.registry_feedback_summary,
+         registry_sync_source = EXCLUDED.registry_sync_source,
+         registry_synced_at = EXCLUDED.registry_synced_at,
          updated_at = NOW()
      RETURNING
        id,
@@ -887,6 +939,19 @@ export async function upsertKizunaAccount(params: {
        mandate_daily_limit_micro::text,
        mandate_monthly_limit_micro::text,
        mandate_human_approval_micro::text,
+       registry_global_id,
+       registry_name,
+       registry_description,
+       registry_image_uri,
+       registry_owner_wallet,
+       registry_operational_wallet,
+       registry_agent_uri,
+       registry_active,
+       registry_services,
+       registry_supported_trust,
+       registry_feedback_summary,
+       registry_sync_source,
+       registry_synced_at,
        status,
        created_at,
        updated_at`,
@@ -900,6 +965,21 @@ export async function upsertKizunaAccount(params: {
       params.mandateDailyLimitMicro ?? null,
       params.mandateMonthlyLimitMicro ?? null,
       params.mandateHumanApprovalMicro ?? null,
+      params.registryGlobalId ?? null,
+      params.registryName ?? null,
+      params.registryDescription ?? null,
+      params.registryImageUri ?? null,
+      params.registryOwnerWallet ?? null,
+      params.registryOperationalWallet ?? null,
+      params.registryAgentUri ?? null,
+      params.registryActive ?? null,
+      params.registryServices != null ? JSON.stringify(params.registryServices) : '[]',
+      params.registrySupportedTrust != null ? JSON.stringify(params.registrySupportedTrust) : '[]',
+      params.registryFeedbackSummary != null
+        ? JSON.stringify(params.registryFeedbackSummary)
+        : JSON.stringify({}),
+      params.registrySyncSource ?? null,
+      params.registrySyncedAt ?? null,
     ]
   );
   return rows[0];
@@ -918,6 +998,19 @@ export async function getKizunaAccount(agentId: string): Promise<KizunaAccountRo
        mandate_daily_limit_micro::text,
        mandate_monthly_limit_micro::text,
        mandate_human_approval_micro::text,
+       registry_global_id,
+       registry_name,
+       registry_description,
+       registry_image_uri,
+       registry_owner_wallet,
+       registry_operational_wallet,
+       registry_agent_uri,
+       registry_active,
+       registry_services,
+       registry_supported_trust,
+       registry_feedback_summary,
+       registry_sync_source,
+       registry_synced_at,
        status,
        created_at,
        updated_at

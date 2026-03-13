@@ -8,6 +8,7 @@ import internalHoldersRoutes from '../routes/internal-holders';
 import meishiRoutes from '../routes/meishi';
 import meishiDkgRoutes from '../routes/meishi-dkg';
 import dkgRoutes from '../routes/dkg';
+import fairscaleFusionRoutes from '../routes/fairscale-fusion';
 import type { ApiRouteGroup } from './types';
 
 export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
@@ -20,5 +21,6 @@ export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): 
     { ownership: 'kizuna-core', routeIds: ['meishi'], path: '/api/meishi', handlers: [publicReadLimiter, meishiRoutes] },
     { ownership: 'kizuna-core', routeIds: ['meishi-dkg'], path: '/api/meishi-dkg', handlers: [publicReadLimiter, meishiDkgRoutes] },
     { ownership: 'kizuna-core', routeIds: ['dkg'], path: '/api/dkg', handlers: [publicReadLimiter, dkgRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['fairscale-fusion'], path: '/api/fusion/fairscale', handlers: [fairscaleFusionRoutes] },
   ];
 }

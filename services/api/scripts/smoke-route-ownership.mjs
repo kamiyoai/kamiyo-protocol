@@ -67,17 +67,17 @@ async function main() {
     if (!legacy.response.ok) {
       throw new Error(`/api/fusion/fairscale/health returned ${legacy.response.status}`);
     }
-    assertHeader(legacy.response, 'x-kamiyo-route-ownership', 'legacy');
-    assertHeader(legacy.response, 'x-kamiyo-route-status', 'legacy');
+    assertHeader(legacy.response, 'x-kamiyo-route-ownership', 'kizuna-core');
   } else {
     if (moduleRoute.response.status !== 404) {
       throw new Error(`/api/hive/health expected 404 on kizuna-core route surface, got ${moduleRoute.response.status}`);
     }
-    if (legacy.response.status !== 404) {
+    if (!legacy.response.ok) {
       throw new Error(
-        `/api/fusion/fairscale/health expected 404 on kizuna-core route surface, got ${legacy.response.status}`
+        `/api/fusion/fairscale/health expected 200 on kizuna-core route surface, got ${legacy.response.status}`
       );
     }
+    assertHeader(legacy.response, 'x-kamiyo-route-ownership', 'kizuna-core');
   }
 
   process.stdout.write('route ownership smoke passed\n');

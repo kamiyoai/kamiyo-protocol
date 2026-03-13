@@ -90,6 +90,7 @@ run() {
     install -d -m 700 "$TARGET_BIN_DIR"
   fi
   local scripts=(
+    "fundry_staking_deposit.py"
     "kyoshin-sync-feed-config.py"
     "kyoshin-marketplace-intake.py"
     "kyoshin-x402-feed.py"
@@ -109,6 +110,8 @@ run() {
     "kyoshin-trading-earnings-sweep.sh"
     "kyoshin-x402-agentcash.py"
     "kyoshin-clawmart-staking-route.py"
+    "kyoshin-whop-staking-route.py"
+    "kyoshin-creator-fee-inflow-route.py"
     "kyoshin-clawmart-monitor.py"
     "kyoshin-distribution-engine.py"
     "kyoshin-artifact-contracts.py"
@@ -140,6 +143,7 @@ run() {
     "kyoshin-polymarket-bridge.mjs"
     "kyoshin-limitless-bridge.mjs"
     "kyoshin-earnings-sweep-bridge.mjs"
+    "kyoshin-fundry-staking-deposit.mjs"
   )
   for bridge in "${bridges[@]}"; do
     if is_true "$USE_SUDO"; then
@@ -159,8 +163,8 @@ run() {
       if [ ! -f package.json ]; then
         printf '%s\n' '{\"name\":\"kyoshin-trading-bridges\",\"private\":true,\"type\":\"module\"}' > package.json
       fi
-      if [ ! -d node_modules/@polymarket/clob-client ] || [ ! -d node_modules/@ethersproject/wallet ] || [ ! -d node_modules/@limitless-exchange/sdk ] || [ ! -d node_modules/ethers ]; then
-        npm install --silent --no-audit --no-fund --omit=dev @polymarket/clob-client @ethersproject/wallet @limitless-exchange/sdk ethers >/dev/null 2>&1 || true
+      if [ ! -d node_modules/@polymarket/clob-client ] || [ ! -d node_modules/@ethersproject/wallet ] || [ ! -d node_modules/@limitless-exchange/sdk ] || [ ! -d node_modules/ethers ] || [ ! -d node_modules/@solana/web3.js ] || [ ! -d node_modules/bs58 ]; then
+        npm install --silent --no-audit --no-fund --omit=dev @polymarket/clob-client @ethersproject/wallet @limitless-exchange/sdk ethers @solana/web3.js bs58 >/dev/null 2>&1 || true
       fi
     fi
   "
@@ -174,6 +178,17 @@ run() {
   append_env_if_missing "KYO_ENABLE_CLAWMART_MONITOR" "true"
   append_env_if_missing "KYO_ENABLE_CLAWMART_STAKING_ROUTE" "true"
   append_env_if_missing "KYO_REQUIRE_CLAWMART_STAKING_ROUTE" "true"
+  append_env_if_missing "KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE" "true"
+  append_env_if_missing "KYO_REQUIRE_CREATOR_FEE_INFLOW_ROUTE" "false"
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_WALLET" "Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx"
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_ROUTE_BPS" "5000"
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_MIN_TRANSFER_SOL" "0.000001"
+  append_env_if_missing "KYO_CREATOR_FEE_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_KEYPAIR_PATH" ""
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_ADMIN_KEYPAIR_PATH" ""
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_ROUTE_CMD" ""
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_DRY_RUN" "false"
+  append_env_if_missing "KYO_CREATOR_FEE_INFLOW_RPC_URL" "https://api.mainnet-beta.solana.com"
   append_env_if_missing "KYO_ENABLE_REVENUE_GUARD" "true"
   append_env_if_missing "KYO_REQUIRE_REVENUE_GUARD" "true"
   append_env_if_missing "KYO_ENABLE_TRADING_AGENT" "false"
@@ -247,6 +262,7 @@ run() {
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_TIMEOUT_MS" "180000"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_POLL_MS" "2500"
   append_env_if_missing "KYO_TRADING_STAKING_POOL_URL" "https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d"
+  append_env_if_missing "KYO_TRADING_STAKING_ADMIN_KEYPAIR_PATH" ""
   append_env_if_missing "KYO_ENABLE_X402_AGENTCASH" "true"
   append_env_if_missing "KYO_REQUIRE_X402_AGENTCASH" "false"
   append_env_if_missing "KYO_X402_ALLOWED_NETWORKS" "eip155:8453,solana:mainnet"
@@ -297,6 +313,11 @@ run() {
       echo 'limitless_bridge_deps=installed'
     else
       echo 'limitless_bridge_deps=missing'
+    fi
+    if [ -d \"$TARGET_BRIDGES_DIR/node_modules/@solana/web3.js\" ] && [ -d \"$TARGET_BRIDGES_DIR/node_modules/bs58\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-fundry-staking-deposit.mjs\" ]; then
+      echo 'fundry_staking_bridge=installed'
+    else
+      echo 'fundry_staking_bridge=missing'
     fi
   "
 
@@ -476,6 +497,14 @@ run() {
     fi
 
     echo
+    echo '--- creator-fee-inflow-route-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/creator-fee-inflow-route-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/creator-fee-inflow-route-state.json\"
+    else
+      echo 'missing creator-fee-inflow-route-state.json'
+    fi
+
+    echo
     echo '--- clawmart-monitor-state.json ---'
     if [ -f \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\" ]; then
       jq . \"$RUNTIME_STATE_DIR/clawmart-monitor-state.json\"
@@ -533,8 +562,15 @@ run() {
   echo "Set ClawMart staking routing:"
   echo "  - KYO_CLAWMART_STAKING_SOL_PER_SALE=<net-sol-per-sale>"
   echo "  - KYO_CLAWMART_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_CLAWMART_STAKING_ROUTE_CMD=...)"
+  echo "  - Optional: KYO_CLAWMART_STAKING_ADMIN_KEYPAIR_PATH=/path/to/admin-keypair.json"
+  echo "Set creator-fee inflow routing:"
+  echo "  - KYO_CREATOR_FEE_INFLOW_WALLET=Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx"
+  echo "  - KYO_CREATOR_FEE_INFLOW_KEYPAIR_PATH=/path/to/gxa8-wallet.json if the wallet is directly controlled"
+  echo "  - Optional: KYO_CREATOR_FEE_INFLOW_ADMIN_KEYPAIR_PATH=/path/to/admin-keypair.json"
+  echo "  - or KYO_CREATOR_FEE_INFLOW_ROUTE_CMD=... if inflow is claimed or routed indirectly"
   echo "Set trading routing credentials:"
   echo "  - KYO_TRADING_STAKING_KEYPAIR_PATH=/path/to/keypair.json (or KYO_TRADING_STAKING_ROUTE_CMD=...)"
+  echo "  - Optional: KYO_TRADING_STAKING_ADMIN_KEYPAIR_PATH=/path/to/admin-keypair.json"
   echo "  - KYO_TRADING_POLYMARKET_PRIVATE_KEY_PATH=/path/to/evm.key"
   echo "  - KYO_TRADING_POLYMARKET_API_KEY/SECRET/PASSPHRASE (or allow API key derivation)"
   echo "  - polymarket bridge deps in $TARGET_BRIDGES_DIR/node_modules (@polymarket/clob-client + @ethersproject/wallet)"

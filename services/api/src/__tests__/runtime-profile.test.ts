@@ -130,7 +130,7 @@ describe('api version runtime metadata', () => {
     }
   });
 
-  it('does not mount module or legacy routes in kizuna-core profile', async () => {
+  it('keeps module routes dark while restoring the FairScale partner surface in kizuna-core profile', async () => {
     const app = createApiServer({
       runtime: getCompanionRuntimeState(),
     });
@@ -161,13 +161,14 @@ describe('api version runtime metadata', () => {
         reason: 'treasury_wallet_missing',
       });
       expect(moduleRoute.status).toBe(404);
-      expect(legacyRoute.status).toBe(404);
+      expect(legacyRoute.status).toBe(200);
+      expect(legacyRoute.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
     } finally {
       server.close();
     }
   });
 
-  it('can keep module and legacy routes dark while full backgrounds run', async () => {
+  it('can keep module routes dark while full backgrounds run on the narrowed public surface', async () => {
     const app = createApiServer({
       runtime: getCompanionRuntimeState({
         COMPANION_RUNTIME_PROFILE: 'full',
@@ -197,7 +198,8 @@ describe('api version runtime metadata', () => {
       expect(body.runtime.backgroundOwnerships).toEqual(['kizuna-core', 'module', 'legacy']);
       expect(body.runtime.routeOwnerships).toEqual(['protected', 'kizuna-core']);
       expect(moduleRoute.status).toBe(404);
-      expect(legacyRoute.status).toBe(404);
+      expect(legacyRoute.status).toBe(200);
+      expect(legacyRoute.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
     } finally {
       server.close();
     }

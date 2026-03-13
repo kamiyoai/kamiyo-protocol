@@ -811,6 +811,32 @@ const MIGRATIONS = [
         ALTER COLUMN debt_id DROP NOT NULL;
     `,
   },
+  {
+    name: '016_kizuna_registry_identity',
+    sql: `
+      ALTER TABLE kizuna_accounts
+        ADD COLUMN IF NOT EXISTS registry_global_id TEXT,
+        ADD COLUMN IF NOT EXISTS registry_name TEXT,
+        ADD COLUMN IF NOT EXISTS registry_description TEXT,
+        ADD COLUMN IF NOT EXISTS registry_image_uri TEXT,
+        ADD COLUMN IF NOT EXISTS registry_owner_wallet TEXT,
+        ADD COLUMN IF NOT EXISTS registry_operational_wallet TEXT,
+        ADD COLUMN IF NOT EXISTS registry_agent_uri TEXT,
+        ADD COLUMN IF NOT EXISTS registry_active BOOLEAN,
+        ADD COLUMN IF NOT EXISTS registry_services JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS registry_supported_trust JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS registry_feedback_summary JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ADD COLUMN IF NOT EXISTS registry_sync_source TEXT,
+        ADD COLUMN IF NOT EXISTS registry_synced_at TIMESTAMPTZ;
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_accounts_registry_global_id
+        ON kizuna_accounts(registry_global_id);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_accounts_registry_sync_source
+        ON kizuna_accounts(registry_sync_source);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_accounts_registry_synced_at
+        ON kizuna_accounts(registry_synced_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

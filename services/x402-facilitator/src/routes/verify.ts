@@ -31,6 +31,7 @@ import {
   KernelEvaluateResult,
   mintLocalKizunaEnvelope,
 } from '../services/kizuna-kernel';
+import { buildKizunaIdentityPayload, getAuthorizedRegistryWallet } from '../services/agent-registry';
 
 function sendVerifyFailure(
   res: Response,
@@ -288,6 +289,41 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         sendVerifyFailure(res, 404, 'kizuna_account_not_found', 'Kizuna account not found', payment.payer);
         return;
       }
+      const identity = await buildKizunaIdentityPayload(account);
+      const isLegacyIdentity = account.registry_sync_source === 'legacy';
+      if ((!identity || !identity.synced) && !(config.KIZUNA_ALLOW_LEGACY_AGENT_IDS && isLegacyIdentity)) {
+        sendVerifyFailure(
+          res,
+          409,
+          'kizuna_identity_unsynced',
+          'Kizuna identity is not synced with Agent Registry',
+          payment.payer
+        );
+        return;
+      }
+      if (!isLegacyIdentity) {
+        if (account.registry_active !== true) {
+          sendVerifyFailure(
+            res,
+            409,
+            'kizuna_identity_inactive',
+            'Agent Registry identity is inactive',
+            payment.payer
+          );
+          return;
+        }
+        const authorizedWallet = getAuthorizedRegistryWallet(account);
+        if (!authorizedWallet || authorizedWallet !== payment.payer) {
+          sendVerifyFailure(
+            res,
+            400,
+            'kizuna_identity_wallet_mismatch',
+            'Payment payer does not match the registered agent wallet',
+            payment.payer
+          );
+          return;
+        }
+      }
       if (account.payer_wallet !== payment.payer) {
         sendVerifyFailure(res, 400, 'payer_mismatch', 'Kizuna payer mismatch', payment.payer);
         return;
@@ -338,6 +374,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
               healthFactor: replay.decision.health_factor
                 ? Number(replay.decision.health_factor)
                 : undefined,
+              identity,
               decisionEnvelope: null,
               replayed: true,
             },
@@ -627,6 +664,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
             poolId: decisionResult.poolId,
             ltvBps: decisionResult.ltvBps,
             healthFactor: decisionResult.healthFactor,
+            identity,
           },
         },
       };

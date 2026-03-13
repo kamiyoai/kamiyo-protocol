@@ -39,6 +39,15 @@ export interface Config {
   KIZUNA_FASTPATH_LTV_CAP_BPS: number;
   KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: number;
   KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: number;
+  KIZUNA_AGENT_REGISTRY_CLUSTER: 'devnet' | 'testnet' | 'mainnet-beta' | 'localnet';
+  KIZUNA_AGENT_REGISTRY_RPC_URL: string;
+  KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL: string;
+  KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL: string;
+  KIZUNA_PUBLIC_X402_BASE_URL: string;
+  KIZUNA_PUBLIC_MCP_URL: string;
+  KIZUNA_PUBLIC_A2A_URL: string;
+  KIZUNA_PUBLIC_WEB_URL: string;
+  KIZUNA_ALLOW_LEGACY_AGENT_IDS: boolean;
 }
 
 const REQUIRED_VARS = [
@@ -82,6 +91,15 @@ const DEFAULTS: Partial<Config> = {
   KIZUNA_FASTPATH_LTV_CAP_BPS: 4000,
   KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: 1.8,
   KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: 0,
+  KIZUNA_AGENT_REGISTRY_CLUSTER: 'mainnet-beta',
+  KIZUNA_AGENT_REGISTRY_RPC_URL: '',
+  KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL: '',
+  KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL: 'https://ipfs.io/ipfs/',
+  KIZUNA_PUBLIC_X402_BASE_URL: '',
+  KIZUNA_PUBLIC_MCP_URL: '',
+  KIZUNA_PUBLIC_A2A_URL: '',
+  KIZUNA_PUBLIC_WEB_URL: '',
+  KIZUNA_ALLOW_LEGACY_AGENT_IDS: false,
 };
 
 let cachedConfig: Config | null = null;
@@ -265,6 +283,56 @@ export function validateConfig(): ValidationResult {
     }
   }
 
+  const registryCluster =
+    process.env.KIZUNA_AGENT_REGISTRY_CLUSTER || DEFAULTS.KIZUNA_AGENT_REGISTRY_CLUSTER!;
+  if (!['devnet', 'testnet', 'mainnet-beta', 'localnet'].includes(registryCluster)) {
+    errors.push('KIZUNA_AGENT_REGISTRY_CLUSTER must be devnet, testnet, mainnet-beta, or localnet');
+  }
+
+  const registryRpcUrl = process.env.KIZUNA_AGENT_REGISTRY_RPC_URL;
+  if (registryRpcUrl) {
+    try {
+      new URL(registryRpcUrl);
+    } catch {
+      errors.push('KIZUNA_AGENT_REGISTRY_RPC_URL must be a valid URL');
+    }
+  }
+
+  const registryIndexerUrl = process.env.KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL;
+  if (registryIndexerUrl) {
+    try {
+      new URL(registryIndexerUrl);
+    } catch {
+      errors.push('KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL must be a valid URL');
+    }
+  }
+
+  const registryGatewayUrl =
+    process.env.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL ||
+    DEFAULTS.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL!;
+  try {
+    const url = new URL(registryGatewayUrl);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      errors.push('KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL must use http(s)');
+    }
+  } catch {
+    errors.push('KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL must be a valid URL');
+  }
+
+  for (const [envName, envValue] of [
+    ['KIZUNA_PUBLIC_X402_BASE_URL', process.env.KIZUNA_PUBLIC_X402_BASE_URL],
+    ['KIZUNA_PUBLIC_MCP_URL', process.env.KIZUNA_PUBLIC_MCP_URL],
+    ['KIZUNA_PUBLIC_A2A_URL', process.env.KIZUNA_PUBLIC_A2A_URL],
+    ['KIZUNA_PUBLIC_WEB_URL', process.env.KIZUNA_PUBLIC_WEB_URL],
+  ] as const) {
+    if (!envValue) continue;
+    try {
+      new URL(envValue);
+    } catch {
+      errors.push(`${envName} must be a valid URL`);
+    }
+  }
+
   const kernelSigningKeysRaw = process.env.KIZUNA_KERNEL_SIGNING_KEYS;
   if (kernelSigningKeysRaw) {
     try {
@@ -401,6 +469,28 @@ export function getConfig(): Config {
         String(DEFAULTS.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS),
       10
     ),
+    KIZUNA_AGENT_REGISTRY_CLUSTER:
+      (process.env.KIZUNA_AGENT_REGISTRY_CLUSTER as Config['KIZUNA_AGENT_REGISTRY_CLUSTER']) ||
+      DEFAULTS.KIZUNA_AGENT_REGISTRY_CLUSTER!,
+    KIZUNA_AGENT_REGISTRY_RPC_URL:
+      process.env.KIZUNA_AGENT_REGISTRY_RPC_URL || DEFAULTS.KIZUNA_AGENT_REGISTRY_RPC_URL!,
+    KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL:
+      process.env.KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL ||
+      DEFAULTS.KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL!,
+    KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL:
+      process.env.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL ||
+      DEFAULTS.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL!,
+    KIZUNA_PUBLIC_X402_BASE_URL:
+      process.env.KIZUNA_PUBLIC_X402_BASE_URL || DEFAULTS.KIZUNA_PUBLIC_X402_BASE_URL!,
+    KIZUNA_PUBLIC_MCP_URL:
+      process.env.KIZUNA_PUBLIC_MCP_URL || DEFAULTS.KIZUNA_PUBLIC_MCP_URL!,
+    KIZUNA_PUBLIC_A2A_URL:
+      process.env.KIZUNA_PUBLIC_A2A_URL || DEFAULTS.KIZUNA_PUBLIC_A2A_URL!,
+    KIZUNA_PUBLIC_WEB_URL:
+      process.env.KIZUNA_PUBLIC_WEB_URL || DEFAULTS.KIZUNA_PUBLIC_WEB_URL!,
+    KIZUNA_ALLOW_LEGACY_AGENT_IDS:
+      (process.env.KIZUNA_ALLOW_LEGACY_AGENT_IDS ||
+        String(DEFAULTS.KIZUNA_ALLOW_LEGACY_AGENT_IDS)) === 'true',
   };
 
   return cachedConfig;
@@ -451,5 +541,14 @@ export function getRedactedConfig(): Record<string, string> {
     KIZUNA_FASTPATH_LTV_CAP_BPS: String(config.KIZUNA_FASTPATH_LTV_CAP_BPS),
     KIZUNA_FASTPATH_MIN_HEALTH_FACTOR: String(config.KIZUNA_FASTPATH_MIN_HEALTH_FACTOR),
     KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS: String(config.KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS),
+    KIZUNA_AGENT_REGISTRY_CLUSTER: config.KIZUNA_AGENT_REGISTRY_CLUSTER,
+    KIZUNA_AGENT_REGISTRY_RPC_URL: config.KIZUNA_AGENT_REGISTRY_RPC_URL,
+    KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL: config.KIZUNA_AGENT_REGISTRY_INDEXER_GRAPHQL_URL,
+    KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL: config.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL,
+    KIZUNA_PUBLIC_X402_BASE_URL: config.KIZUNA_PUBLIC_X402_BASE_URL,
+    KIZUNA_PUBLIC_MCP_URL: config.KIZUNA_PUBLIC_MCP_URL,
+    KIZUNA_PUBLIC_A2A_URL: config.KIZUNA_PUBLIC_A2A_URL,
+    KIZUNA_PUBLIC_WEB_URL: config.KIZUNA_PUBLIC_WEB_URL,
+    KIZUNA_ALLOW_LEGACY_AGENT_IDS: String(config.KIZUNA_ALLOW_LEGACY_AGENT_IDS),
   };
 }

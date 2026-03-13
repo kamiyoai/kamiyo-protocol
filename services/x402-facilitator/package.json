@@ -13,6 +13,7 @@
     "migrate": "node dist/db/migrate.js"
   },
   "dependencies": {
+    "8004-solana": "^0.8.0",
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.98.0",

@@ -88,6 +88,8 @@ ENABLE_CLAWMART_MONITOR="${KYO_ENABLE_CLAWMART_MONITOR:-true}"
 REQUIRE_CLAWMART_MONITOR="${KYO_REQUIRE_CLAWMART_MONITOR:-false}"
 ENABLE_CLAWMART_STAKING_ROUTE="${KYO_ENABLE_CLAWMART_STAKING_ROUTE:-true}"
 REQUIRE_CLAWMART_STAKING_ROUTE="${KYO_REQUIRE_CLAWMART_STAKING_ROUTE:-true}"
+ENABLE_CREATOR_FEE_INFLOW_ROUTE="${KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE:-false}"
+REQUIRE_CREATOR_FEE_INFLOW_ROUTE="${KYO_REQUIRE_CREATOR_FEE_INFLOW_ROUTE:-false}"
 ENABLE_REVENUE_GUARD="${KYO_ENABLE_REVENUE_GUARD:-true}"
 REQUIRE_REVENUE_GUARD="${KYO_REQUIRE_REVENUE_GUARD:-true}"
 ENABLE_TRADING_AGENT="${KYO_ENABLE_TRADING_AGENT:-false}"
@@ -110,12 +112,12 @@ fi
 if ! [[ "$PROACTIVE_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$PROACTIVE_HOUR_RAW" -lt 0 ] || [ "$PROACTIVE_HOUR_RAW" -gt 23 ]; then
   PROACTIVE_HOUR_RAW=2
 fi
-PROACTIVE_HOUR_UTC="$(printf '%02d' "$PROACTIVE_HOUR_RAW")"
+PROACTIVE_HOUR_UTC="$(printf '%02d' "$((10#$PROACTIVE_HOUR_RAW))")"
 
 if ! [[ "$MEMORY_EXTRACTION_HOUR_RAW" =~ ^[0-9]+$ ]] || [ "$MEMORY_EXTRACTION_HOUR_RAW" -lt 0 ] || [ "$MEMORY_EXTRACTION_HOUR_RAW" -gt 23 ]; then
   MEMORY_EXTRACTION_HOUR_RAW=23
 fi
-MEMORY_EXTRACTION_HOUR_UTC="$(printf '%02d' "$MEMORY_EXTRACTION_HOUR_RAW")"
+MEMORY_EXTRACTION_HOUR_UTC="$(printf '%02d' "$((10#$MEMORY_EXTRACTION_HOUR_RAW))")"
 
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$LOCK_FILE"
@@ -657,6 +659,38 @@ if is_true "$ENABLE_CLAWMART_STAKING_ROUTE"; then
   fi
 fi
 
+creator_fee_inflow_route_ok=1
+creator_fee_inflow_route_summary='{"ok":true,"status":"disabled"}'
+if is_true "$ENABLE_CREATOR_FEE_INFLOW_ROUTE"; then
+  creator_fee_inflow_route_summary='{"ok":false,"error":"not_run"}'
+  if [ -x "$HOME/bin/kyoshin-creator-fee-inflow-route.py" ]; then
+    if "$HOME/bin/kyoshin-creator-fee-inflow-route.py" >"$TMP_DIR/creator-fee-inflow-route.json" 2>"$TMP_DIR/creator-fee-inflow-route.err"; then
+      creator_fee_inflow_route_summary="$(as_json_line "$TMP_DIR/creator-fee-inflow-route.json")"
+      creator_fee_inflow_route_inner_ok="$(jq -r '.ok // true' "$TMP_DIR/creator-fee-inflow-route.json" 2>/dev/null || echo true)"
+      if is_true "$REQUIRE_CREATOR_FEE_INFLOW_ROUTE"; then
+        if [ "$creator_fee_inflow_route_inner_ok" != "true" ]; then
+          creator_fee_inflow_route_ok=0
+        fi
+      fi
+    else
+      if [ -s "$TMP_DIR/creator-fee-inflow-route.json" ]; then
+        creator_fee_inflow_route_summary="$(as_json_line "$TMP_DIR/creator-fee-inflow-route.json")"
+      else
+        creator_fee_inflow_route_err="$(tr -d '\n' <"$TMP_DIR/creator-fee-inflow-route.err" | sed 's/"/\\"/g')"
+        creator_fee_inflow_route_summary="{\"ok\":false,\"error\":\"$creator_fee_inflow_route_err\"}"
+      fi
+      if is_true "$REQUIRE_CREATOR_FEE_INFLOW_ROUTE"; then
+        creator_fee_inflow_route_ok=0
+      fi
+    fi
+  else
+    creator_fee_inflow_route_summary='{"ok":false,"error":"missing_creator_fee_inflow_route"}'
+    if is_true "$REQUIRE_CREATOR_FEE_INFLOW_ROUTE"; then
+      creator_fee_inflow_route_ok=0
+    fi
+  fi
+fi
+
 clawmart_monitor_ok=1
 clawmart_monitor_summary='{"ok":true,"status":"disabled"}'
 if is_true "$ENABLE_CLAWMART_MONITOR"; then
@@ -880,6 +914,7 @@ if [ "$agent_ok" -eq 1 ] \
   && [ "$trading_route_ok" -eq 1 ] \
   && [ "$x402_agentcash_ok" -eq 1 ] \
   && [ "$clawmart_staking_route_ok" -eq 1 ] \
+  && [ "$creator_fee_inflow_route_ok" -eq 1 ] \
   && [ "$clawmart_monitor_ok" -eq 1 ] \
   && [ "$distribution_engine_ok" -eq 1 ] \
   && [ "$mission_control_ok" -eq 1 ] \
@@ -949,6 +984,9 @@ else
   fi
   if [ "$clawmart_staking_route_ok" -ne 1 ]; then
     combined_error+="clawmart_staking_route_failed;"
+  fi
+  if [ "$creator_fee_inflow_route_ok" -ne 1 ]; then
+    combined_error+="creator_fee_inflow_route_failed;"
   fi
   if [ "$clawmart_monitor_ok" -ne 1 ]; then
     combined_error+="clawmart_monitor_failed;"
@@ -1076,8 +1114,8 @@ if [ "$status" = "ok" ]; then
 EOF
 fi
 
-printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"revenueGuard":%s,"tradingFeed":%s,"tradingExec":%s,"tradingRoute":%s,"x402AgentCash":%s,"clawMartStakingRoute":%s,"clawMartMonitor":%s,"distributionEngine":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"operatorLog":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
-  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$revenue_guard_summary" "$trading_feed_summary" "$trading_exec_summary" "$trading_route_summary" "$x402_agentcash_summary" "$clawmart_staking_route_summary" "$clawmart_monitor_summary" "$distribution_engine_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$operator_log_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
+printf '{"at":"%s","event":"autonomy_tick","status":"%s","cycle":%d,"durationMs":%d,"x402Feed":%s,"dxTerminalFeed":%s,"feedSync":%s,"gatewayOk":%d,"gateway":%s,"runtimeBridge":%s,"context":%s,"sentryPipeline":%s,"toolHealth":%s,"marketplace":%s,"receiptSync":%s,"governor":%s,"planner":%s,"revenueGuard":%s,"tradingFeed":%s,"tradingExec":%s,"tradingRoute":%s,"x402AgentCash":%s,"clawMartStakingRoute":%s,"creatorFeeInflowRoute":%s,"clawMartMonitor":%s,"distributionEngine":%s,"missionControl":%s,"artifactContracts":%s,"learning":%s,"memoryExtract":%s,"operatorLog":%s,"proactive":%s,"opportunities":%d,"assignments":%d,"agentOk":%d,"agentReply":"%s"}\n' \
+  "$NOW_ISO" "$status" "$next_cycles" "$DURATION_MS" "$x402_feed_summary" "$dx_terminal_feed_summary" "$feed_sync_summary" "$gateway_ok" "$gateway_summary" "$runtime_bridge_summary" "$context_summary" "$sentry_pipeline_summary" "$tool_health_summary" "$marketplace_summary" "$receipt_sync_summary" "$governor_summary" "$planner_summary" "$revenue_guard_summary" "$trading_feed_summary" "$trading_exec_summary" "$trading_route_summary" "$x402_agentcash_summary" "$clawmart_staking_route_summary" "$creator_fee_inflow_route_summary" "$clawmart_monitor_summary" "$distribution_engine_summary" "$mission_control_summary" "$artifact_contracts_summary" "$learning_summary" "$memory_extract_summary" "$operator_log_summary" "$proactive_summary" "$opportunity_count" "$assignment_count" "$agent_ok" "$agent_reply" \
   >>"$LOG_FILE"
 
 chmod 600 "$STATE_FILE" "$NIGHTLY_STATE_FILE" "$MEMORY_EXTRACT_STATE_FILE" "$LOG_FILE"
