@@ -837,6 +837,45 @@ const MIGRATIONS = [
         ON kizuna_accounts(registry_synced_at DESC);
     `,
   },
+  {
+    name: '017_fairscale_trust_event_outbox',
+    sql: `
+      CREATE TABLE IF NOT EXISTS kizuna_fairscale_event_outbox (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        event_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        entity_id TEXT NOT NULL REFERENCES kizuna_accounts(agent_id) ON DELETE CASCADE,
+        idempotency_key TEXT NOT NULL,
+        payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+        attempt_count INT NOT NULL DEFAULT 0,
+        next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        leased_until TIMESTAMPTZ,
+        last_attempt_at TIMESTAMPTZ,
+        last_http_status INT,
+        last_error TEXT,
+        delivered_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT chk_kizuna_fairscale_event_type CHECK (
+          event_type IN (
+            'settlement_confirmed',
+            'repayment_received',
+            'collateral_deposited',
+            'collateral_withdrawn'
+          )
+        ),
+        CONSTRAINT uq_kizuna_fairscale_event_id UNIQUE (event_id),
+        CONSTRAINT uq_kizuna_fairscale_idempotency_key UNIQUE (idempotency_key),
+        CONSTRAINT chk_kizuna_fairscale_attempt_count CHECK (attempt_count >= 0)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_fairscale_outbox_pending
+        ON kizuna_fairscale_event_outbox(next_attempt_at ASC, created_at ASC)
+        WHERE delivered_at IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_kizuna_fairscale_outbox_entity
+        ON kizuna_fairscale_event_outbox(entity_id, created_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

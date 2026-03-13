@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+import type { PoolClient } from 'pg';
 import { query, queryOne, withTransaction } from './pool';
 import { Settlement, EscrowRecord, DisputeRecord, OracleVoteRecord } from '../types';
 
@@ -716,6 +718,53 @@ export type KizunaFundingEventRow = {
   created_at: Date;
 };
 
+export type FairscaleTrustEventType =
+  | 'settlement_confirmed'
+  | 'repayment_received'
+  | 'collateral_deposited'
+  | 'collateral_withdrawn';
+
+export type FairscaleTrustEventPayload = {
+  eventId: string;
+  entityId: string;
+  eventType: FairscaleTrustEventType;
+  occurredAt: string;
+  lane: KizunaLane;
+  poolId: string;
+  network: string | null;
+  amountMicro: string | null;
+  currency: string | null;
+  txHash: string | null;
+  referenceId: string | null;
+  settlementId: string | null;
+  reservationId: string | null;
+  debtId: string | null;
+  payerWallet: string | null;
+  repayWallet: string | null;
+  merchantWallet: string | null;
+  collateralAccount: string | null;
+  assetId: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type FairscaleTrustEventOutboxRow = {
+  id: string;
+  event_id: string;
+  event_type: FairscaleTrustEventType;
+  entity_id: string;
+  idempotency_key: string;
+  payload: FairscaleTrustEventPayload;
+  attempt_count: number;
+  next_attempt_at: Date;
+  leased_until: Date | null;
+  last_attempt_at: Date | null;
+  last_http_status: number | null;
+  last_error: string | null;
+  delivered_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 export type KizunaFinalizeSettlementResult = {
   lane: KizunaLane;
   poolId: string;
@@ -753,6 +802,166 @@ function parseMicro(value: string | null | undefined): bigint {
 
 function toNumericDelta(value: bigint): string {
   return value.toString(10);
+}
+
+type FairscaleTrustEventQueueInput = {
+  eventType: FairscaleTrustEventType;
+  entityId: string;
+  idempotencyKey: string;
+  occurredAt: string;
+  lane: KizunaLane;
+  poolId: string;
+  network?: string | null;
+  amountMicro?: string | null;
+  currency?: string | null;
+  txHash?: string | null;
+  referenceId?: string | null;
+  settlementId?: string | null;
+  reservationId?: string | null;
+  debtId?: string | null;
+  payerWallet?: string | null;
+  repayWallet?: string | null;
+  merchantWallet?: string | null;
+  collateralAccount?: string | null;
+  assetId?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+function buildFairscaleTrustEventId(idempotencyKey: string): string {
+  return createHash('sha256').update(idempotencyKey).digest('hex');
+}
+
+async function queueFairscaleTrustEventOutbox(
+  client: PoolClient,
+  input: FairscaleTrustEventQueueInput
+): Promise<void> {
+  const eventId = buildFairscaleTrustEventId(input.idempotencyKey);
+  const payload: FairscaleTrustEventPayload = {
+    eventId,
+    entityId: input.entityId,
+    eventType: input.eventType,
+    occurredAt: input.occurredAt,
+    lane: input.lane,
+    poolId: input.poolId,
+    network: input.network ?? null,
+    amountMicro: input.amountMicro ?? null,
+    currency: input.currency ?? null,
+    txHash: input.txHash ?? null,
+    referenceId: input.referenceId ?? null,
+    settlementId: input.settlementId ?? null,
+    reservationId: input.reservationId ?? null,
+    debtId: input.debtId ?? null,
+    payerWallet: input.payerWallet ?? null,
+    repayWallet: input.repayWallet ?? null,
+    merchantWallet: input.merchantWallet ?? null,
+    collateralAccount: input.collateralAccount ?? null,
+    assetId: input.assetId ?? null,
+    metadata: input.metadata ?? {},
+  };
+
+  await client.query(
+    `INSERT INTO kizuna_fairscale_event_outbox (
+       event_id,
+       event_type,
+       entity_id,
+       idempotency_key,
+       payload
+     )
+     VALUES ($1,$2,$3,$4,$5::jsonb)
+     ON CONFLICT (idempotency_key) DO NOTHING`,
+    [
+      eventId,
+      input.eventType,
+      input.entityId,
+      input.idempotencyKey,
+      JSON.stringify(payload),
+    ]
+  );
+}
+
+export async function leaseFairscaleTrustEventBatch(
+  limit: number,
+  leaseMs: number
+): Promise<FairscaleTrustEventOutboxRow[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const safeLease = `${Math.max(1, leaseMs)} milliseconds`;
+
+  return withTransaction(async (client) => {
+    const result = await client.query<FairscaleTrustEventOutboxRow>(
+      `WITH due AS (
+         SELECT id
+         FROM kizuna_fairscale_event_outbox
+         WHERE delivered_at IS NULL
+           AND next_attempt_at <= NOW()
+           AND (leased_until IS NULL OR leased_until <= NOW())
+         ORDER BY next_attempt_at ASC, created_at ASC
+         LIMIT $1
+         FOR UPDATE SKIP LOCKED
+       )
+       UPDATE kizuna_fairscale_event_outbox outbox
+       SET leased_until = NOW() + $2::interval,
+           updated_at = NOW()
+       FROM due
+       WHERE outbox.id = due.id
+       RETURNING
+         outbox.id,
+         outbox.event_id,
+         outbox.event_type,
+         outbox.entity_id,
+         outbox.idempotency_key,
+         outbox.payload,
+         outbox.attempt_count,
+         outbox.next_attempt_at,
+         outbox.leased_until,
+         outbox.last_attempt_at,
+         outbox.last_http_status,
+         outbox.last_error,
+         outbox.delivered_at,
+         outbox.created_at,
+         outbox.updated_at`,
+      [safeLimit, safeLease]
+    );
+    return result.rows;
+  });
+}
+
+export async function markFairscaleTrustEventsDelivered(
+  ids: string[],
+  httpStatus: number | null
+): Promise<void> {
+  if (!ids.length) return;
+
+  await query(
+    `UPDATE kizuna_fairscale_event_outbox
+     SET delivered_at = NOW(),
+         leased_until = NULL,
+         last_attempt_at = NOW(),
+         last_http_status = $2,
+         last_error = NULL,
+         updated_at = NOW()
+     WHERE id = ANY($1::uuid[])`,
+    [ids, httpStatus]
+  );
+}
+
+export async function markFairscaleTrustEventAttemptFailed(params: {
+  id: string;
+  httpStatus?: number | null;
+  error?: string | null;
+  nextAttemptAt: Date;
+}): Promise<void> {
+  await query(
+    `UPDATE kizuna_fairscale_event_outbox
+     SET attempt_count = attempt_count + 1,
+         leased_until = NULL,
+         last_attempt_at = NOW(),
+         last_http_status = $2,
+         last_error = LEFT(COALESCE($3, ''), 2000),
+         next_attempt_at = $4,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [params.id, params.httpStatus ?? null, params.error ?? null, params.nextAttemptAt]
+  );
 }
 
 async function ensureKizunaPoolReserve(
@@ -1710,6 +1919,30 @@ export async function finalizeKizunaSettlement(params: {
       ]
     );
 
+    await queueFairscaleTrustEventOutbox(client, {
+      eventType: 'settlement_confirmed',
+      entityId: reservation.agent_id,
+      idempotencyKey: `settlement:${reservation.id}:${params.settlementId}`,
+      occurredAt: new Date().toISOString(),
+      lane: reservation.lane,
+      poolId: reservation.pool_id,
+      network: reservation.network,
+      amountMicro: reservation.amount_micro,
+      currency: 'USDC',
+      txHash: params.txHash,
+      settlementId: params.settlementId,
+      reservationId: reservation.id,
+      debtId: debt?.id || null,
+      payerWallet: reservation.payer_wallet,
+      repayWallet: reservation.repay_wallet,
+      merchantWallet,
+      metadata: {
+        decisionId: reservation.decision_id,
+        decisionEnvelopeHash: params.decisionEnvelopeHash ?? reservation.decision_envelope_hash ?? null,
+        fundingConsumedMicro: isPrefundedEnterprise ? reservation.locked_micro : '0',
+      },
+    });
+
     await bumpKizunaPoolReserve(client, {
       poolId: reservation.pool_id,
       lane: reservation.lane,
@@ -1881,9 +2114,12 @@ export async function applyKizunaRepayment(params: {
       id: string;
       lane: KizunaLane;
       pool_id: string;
+      network: string;
+      payer_wallet: string;
+      repay_wallet: string;
       outstanding_micro: string;
     }>(
-      `SELECT id, lane, pool_id, outstanding_micro::text
+      `SELECT id, lane, pool_id, network, payer_wallet, repay_wallet, outstanding_micro::text
        FROM kizuna_debts
        WHERE agent_id = $1 AND status = 'open'${scopeWhere}
        ORDER BY created_at ASC
@@ -1894,6 +2130,13 @@ export async function applyKizunaRepayment(params: {
     let remaining = parseMicro(params.amountMicro);
     let applied = 0n;
     let appliedDebtId: string | null = null;
+    let primaryDebt: {
+      lane: KizunaLane;
+      poolId: string;
+      network: string;
+      payerWallet: string;
+      repayWallet: string;
+    } | null = null;
     const outstandingDeltas = new Map<string, { lane: KizunaLane; poolId: string; amount: bigint }>();
 
     for (const debt of debts.rows) {
@@ -1917,6 +2160,13 @@ export async function applyKizunaRepayment(params: {
 
       if (!appliedDebtId) {
         appliedDebtId = debt.id;
+        primaryDebt = {
+          lane: debt.lane,
+          poolId: debt.pool_id,
+          network: debt.network,
+          payerWallet: debt.payer_wallet,
+          repayWallet: debt.repay_wallet,
+        };
       }
       const key = `${debt.lane}:${debt.pool_id}`;
       const existingDelta = outstandingDeltas.get(key);
@@ -1970,6 +2220,30 @@ export async function applyKizunaRepayment(params: {
         applied.toString(10),
       ]
     );
+
+    if (applied > 0n && primaryDebt) {
+      await queueFairscaleTrustEventOutbox(client, {
+        eventType: 'repayment_received',
+        entityId: params.agentId,
+        idempotencyKey: `repayment:${params.agentId}:${params.referenceId}`,
+        occurredAt: repaymentResult.rows[0].created_at.toISOString(),
+        lane: primaryDebt.lane,
+        poolId: primaryDebt.poolId,
+        network: primaryDebt.network,
+        amountMicro: repaymentResult.rows[0].applied_micro,
+        currency: 'USDC',
+        referenceId: params.referenceId,
+        debtId: appliedDebtId,
+        payerWallet: primaryDebt.payerWallet,
+        repayWallet: primaryDebt.repayWallet,
+        metadata: {
+          source: params.source,
+          requestedAmountMicro: params.amountMicro,
+          scopedLane: params.lane ?? null,
+          scopedPoolId: params.poolId ?? null,
+        },
+      });
+    }
 
     const outstanding = await client.query<{ outstanding_micro: string }>(
       `SELECT COALESCE(SUM(outstanding_micro), 0)::text AS outstanding_micro
@@ -2671,6 +2945,27 @@ export async function applyKizunaCollateralEvent(params: {
         healthFactor.toString(),
       ]
     );
+
+    await queueFairscaleTrustEventOutbox(client, {
+      eventType: params.eventType === 'deposit' ? 'collateral_deposited' : 'collateral_withdrawn',
+      entityId: params.agentId,
+      idempotencyKey: `collateral:${params.agentId}:${params.referenceId}`,
+      occurredAt: new Date().toISOString(),
+      lane: params.lane,
+      poolId: params.poolId,
+      amountMicro: amount.toString(10),
+      currency: asset.symbol,
+      txHash: params.txHash ?? null,
+      referenceId: params.referenceId,
+      collateralAccount: params.collateralAccount,
+      assetId: params.assetId,
+      metadata: {
+        healthFactor,
+        ltvBps,
+        effectiveCollateralMicro: collateralValue.toString(10),
+        outstandingMicro: outstanding.toString(10),
+      },
+    });
 
     return {
       idempotent: false,

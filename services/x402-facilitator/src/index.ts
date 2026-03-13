@@ -24,6 +24,7 @@ import { createSupportedRouter } from './routes/supported';
 import { createSessionRouter } from './routes/session';
 import { createKizunaRouter } from './routes/kizuna';
 import { isBaseEnabled } from './services/base-settlement';
+import { startFairscaleTrustSync, stopFairscaleTrustSync } from './services/fairscale-trust-sync';
 import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
 
 function writeLog(stream: NodeJS.WriteStream, message: string, detail?: unknown): void {
@@ -80,6 +81,8 @@ async function main() {
 
   await runMigrations();
   logInfo('[init] database ready');
+  startFairscaleTrustSync();
+  logInfo('[init] fairscale trust sync ready');
 
   const connection = new Connection(config.SOLANA_RPC_URL, 'confirmed');
 
@@ -186,6 +189,7 @@ async function main() {
   async function shutdown(signal: string) {
     logInfo(`[shutdown] ${signal} received`);
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await stopFairscaleTrustSync();
     await closePool();
     process.exit(0);
   }

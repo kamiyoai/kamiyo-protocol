@@ -42,6 +42,7 @@ function setDbEnv(): void {
 async function resetTables(): Promise<void> {
   await query(`
     TRUNCATE TABLE
+      kizuna_fairscale_event_outbox,
       kizuna_repayments,
       kizuna_debts,
       kizuna_credit_reservations,
@@ -296,6 +297,82 @@ describe.skipIf(!hasIntegrationDb)('kizuna db integration', () => {
     );
 
     expect(count?.count).toBe('1');
+  });
+
+  it('queues FairScale trust events from collateral, settlement, and repayment writes', async () => {
+    const agentId = 'agent-fairscale';
+    const payer = '0x1111111111111111111111111111111111111111';
+    const repay = '0x2222222222222222222222222222222222222222';
+
+    await seedAccount(agentId, payer, repay);
+
+    await applyKizunaCollateralEvent({
+      agentId,
+      lane: 'crypto-fast',
+      poolId: 'fastpath-main',
+      collateralAccount: 'wallet-1',
+      assetId: 'usdc',
+      amountMicro: '3000000',
+      eventType: 'deposit',
+      referenceId: 'collateral-ref-1',
+      txHash: '0xcollateral',
+    });
+
+    const fixture = await seedReservation({
+      agentId,
+      payerWallet: payer,
+      repayWallet: repay,
+      nonce: 'nonce-fairscale',
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+      amountMicro: '1000000',
+    });
+
+    await finalizeKizunaSettlement({
+      reservationId: fixture.reservationId,
+      settlementId: fixture.settlementId,
+      txHash: '0xsettlement',
+      feeAmount: 0,
+      feeTxHash: '0xsettlement',
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+      decisionEnvelopeHash: 'nonce-fairscale',
+    });
+
+    await applyKizunaRepayment({
+      agentId,
+      amountMicro: '1000000',
+      source: 'credits',
+      referenceId: 'repay-ref-1',
+      lane: 'enterprise',
+      poolId: 'enterprise-main',
+    });
+
+    const rows = await query<{
+      event_type: string;
+      entity_id: string;
+      payload: {
+        eventType: string;
+        entityId: string;
+      };
+    }>(
+      `SELECT event_type, entity_id, payload
+       FROM kizuna_fairscale_event_outbox
+       ORDER BY created_at ASC`
+    );
+
+    expect(rows.map((row) => row.event_type)).toEqual([
+      'collateral_deposited',
+      'settlement_confirmed',
+      'repayment_received',
+    ]);
+    expect(rows.every((row) => row.entity_id === agentId)).toBe(true);
+    expect(rows.map((row) => row.payload.eventType)).toEqual([
+      'collateral_deposited',
+      'settlement_confirmed',
+      'repayment_received',
+    ]);
+    expect(rows.map((row) => row.payload.entityId)).toEqual([agentId, agentId, agentId]);
   });
 
   it('consumes prefunded enterprise reservations without creating debt', async () => {
