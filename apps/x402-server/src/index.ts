@@ -137,8 +137,31 @@ const KIZUNA_UPSTREAM_URL = normalizeFacilitatorUrl(process.env.KIZUNA_UPSTREAM_
 const KIZUNA_PROXY_TIMEOUT_MS = parseInt(process.env.KIZUNA_PROXY_TIMEOUT_MS || '10000', 10);
 const DKG_ENDPOINT = process.env.DKG_ENDPOINT || '';
 const ENABLE_REPUTATION_PRICING = process.env.ENABLE_REPUTATION_PRICING === 'true';
-const SETTLEMENT_ENABLED = process.env.SETTLEMENT_ENABLED === 'true';
-const FACILITATOR_MODE = process.env.FACILITATOR_MODE === 'true';
+
+function parseBooleanEnv(value: string | undefined): boolean | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return null;
+}
+
+const SETTLEMENT_ENABLED_OVERRIDE = parseBooleanEnv(process.env.SETTLEMENT_ENABLED);
+const FACILITATOR_MODE_OVERRIDE = parseBooleanEnv(process.env.FACILITATOR_MODE);
+
+function isSettlementEnabled(): boolean {
+  if (SETTLEMENT_ENABLED_OVERRIDE !== null) {
+    return SETTLEMENT_ENABLED_OVERRIDE;
+  }
+  return getFacilitatorProfile().kinds.length > 0;
+}
+
+function isFacilitatorMode(): boolean {
+  if (FACILITATOR_MODE_OVERRIDE !== null) {
+    return FACILITATOR_MODE_OVERRIDE;
+  }
+  return getFacilitatorProfile().kinds.length > 0;
+}
 
 // Initialize facilitator if configured
 initFacilitator({
@@ -348,7 +371,7 @@ function create402Response(
     };
   }
 
-  if (SETTLEMENT_ENABLED) {
+  if (isSettlementEnabled()) {
     response.settlement = {
       enabled: true,
       endpoint: '/api/settlement',
@@ -621,7 +644,7 @@ function x402Middleware(basePrice: number, description: string) {
         if (settleResult.success) {
           const paymentRef = `${settleResult.tx || Date.now()}-${resource}`;
 
-          if (SETTLEMENT_ENABLED && settleResult.tx && settlementStore.size < MAX_SETTLEMENT_RECORDS) {
+          if (isSettlementEnabled() && settleResult.tx && settlementStore.size < MAX_SETTLEMENT_RECORDS) {
             settlementStore.set(paymentRef, {
               paymentRef,
               resource,
@@ -829,9 +852,9 @@ app.get('/health', (_req, res) => {
     networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
+      settlement: isSettlementEnabled() && profile.kinds.length > 0,
       dkg: Boolean(DKG_ENDPOINT),
-      facilitatorMode: FACILITATOR_MODE,
+      facilitatorMode: isFacilitatorMode(),
       kizunaProxy: Boolean(KIZUNA_UPSTREAM_URL),
     },
   });
@@ -873,7 +896,7 @@ app.get('/.well-known/x402', (_req, res) => {
     networks: getAdvertisedChainIds(),
     features: {
       reputationPricing: ENABLE_REPUTATION_PRICING,
-      settlement: SETTLEMENT_ENABLED && profile.kinds.length > 0,
+      settlement: isSettlementEnabled() && profile.kinds.length > 0,
       tiers: ENABLE_REPUTATION_PRICING ? REPUTATION_TIERS : undefined,
     },
   });
@@ -895,7 +918,7 @@ app.get(
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    if (SETTLEMENT_ENABLED && x402.paymentRef) {
+    if (isSettlementEnabled() && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
         record.status = 'completed';
@@ -931,7 +954,7 @@ app.get(
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    if (SETTLEMENT_ENABLED && x402.paymentRef) {
+    if (isSettlementEnabled() && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
         record.status = 'completed';
@@ -959,7 +982,7 @@ app.get(
 
     const signals = await fetchSignals();
 
-    if (SETTLEMENT_ENABLED && x402.paymentRef) {
+    if (isSettlementEnabled() && x402.paymentRef) {
       const record = settlementStore.get(x402.paymentRef as string);
       if (record) {
         record.status = 'completed';
@@ -981,7 +1004,7 @@ app.get(
 );
 
 app.get('/api/settlement/:paymentRef', (req, res) => {
-  if (!SETTLEMENT_ENABLED) {
+  if (!isSettlementEnabled()) {
     return res.status(404).json({ error: 'Settlement not enabled' });
   }
 
@@ -1004,7 +1027,7 @@ app.get('/api/settlement/:paymentRef', (req, res) => {
 });
 
 app.post('/api/settlement/:paymentRef', express.json({ limit: '4kb' }), (req, res) => {
-  if (!SETTLEMENT_ENABLED) {
+  if (!isSettlementEnabled()) {
     return res.status(404).json({ error: 'Settlement not enabled' });
   }
 
@@ -1068,7 +1091,7 @@ app.listen(PORT, HOST, () => {
   console.log('');
   console.log('Features:');
   console.log(`  Reputation Pricing: ${ENABLE_REPUTATION_PRICING ? 'enabled' : 'disabled'}`);
-  console.log(`  Settlement: ${SETTLEMENT_ENABLED ? 'enabled' : 'disabled'}`);
+  console.log(`  Settlement: ${isSettlementEnabled() ? 'enabled' : 'disabled'}`);
   console.log(`  DKG: ${DKG_ENDPOINT ? 'enabled' : 'disabled'}`);
   console.log('');
   console.log('Endpoints:');
@@ -1077,7 +1100,7 @@ app.listen(PORT, HOST, () => {
   console.log(`  GET /api/agents/:id - Agent query ($${BASE_PRICES.agentQuery})`);
   console.log(`  GET /api/reputation/:id - Reputation check ($${BASE_PRICES.reputationCheck})`);
   console.log(`  GET /api/signals - Trading signals ($${BASE_PRICES.signal})`);
-  if (SETTLEMENT_ENABLED) {
+  if (isSettlementEnabled()) {
     console.log(`  GET /api/settlement/:ref - Check settlement status`);
     console.log(`  POST /api/settlement/:ref - Request settlement`);
   }
