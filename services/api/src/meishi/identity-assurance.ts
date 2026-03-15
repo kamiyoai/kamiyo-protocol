@@ -159,6 +159,43 @@ function floatEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function dkgRetryAttempts(): number {
+  return Math.max(1, intEnv('MEISHI_DKG_RETRY_ATTEMPTS', 4));
+}
+
+function dkgRetryBaseMs(): number {
+  return Math.max(250, intEnv('MEISHI_DKG_RETRY_BASE_MS', 1_250));
+}
+
+function isRetryableDkgError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /over rate limit|rate limit|too many requests|429|timed out|timeout|econnreset|socket hang up|temporarily unavailable/i.test(message);
+}
+
+async function withDkgRetry<T>(operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  const attempts = dkgRetryAttempts();
+  const baseMs = dkgRetryBaseMs();
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableDkgError(error) || attempt >= attempts) {
+        throw error;
+      }
+      await sleep(baseMs * attempt);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? 'DKG request failed'));
+}
+
 function bytes32FromHex(hex: string | undefined, fallbackSeed: string): number[] {
   if (hex && HEX_32_RE.test(hex)) {
     return Array.from(Buffer.from(hex, 'hex'));
@@ -276,7 +313,9 @@ async function buildDkgClient(): Promise<DKGClient> {
       for (const repository of repositories) {
         if (paranetUAL) {
           try {
-            const result = await raw.graph.query(sparql, 'SELECT', { repository, paranetUAL });
+            const result = await withDkgRetry(() =>
+              raw.graph.query(sparql, 'SELECT', { repository, paranetUAL })
+            );
             if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
           } catch {
             // fall through to global query
@@ -284,7 +323,9 @@ async function buildDkgClient(): Promise<DKGClient> {
         }
 
         try {
-          const result = await raw.graph.query(sparql, 'SELECT', { repository });
+          const result = await withDkgRetry(() =>
+            raw.graph.query(sparql, 'SELECT', { repository })
+          );
           if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
         } catch {
           // try the next repository
@@ -295,15 +336,17 @@ async function buildDkgClient(): Promise<DKGClient> {
     },
 
     async get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }> {
-      const content = await paranetClient.rawDKG.asset.get(ual);
+      const content = await withDkgRetry(() => paranetClient.rawDKG.asset.get(ual));
       return { content };
     },
 
     async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
-      const result = await paranetClient.rawDKG.asset.create(content, {
-        ...(options?.epochs ? { epochsNum: options.epochs } : {}),
-        ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
-      });
+      const result = await withDkgRetry(() =>
+        paranetClient.rawDKG.asset.create(content, {
+          ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+          ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
+        })
+      );
       const ual =
         (result as { UAL?: string }).UAL ??
         (result as { ual?: string }).ual ??
