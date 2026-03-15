@@ -16,6 +16,9 @@ if (mode !== 'contract' && mode !== 'runtime') {
 
 const REQUIRED_KEYS = ['SOLANA_RPC_URL', 'JWT_SECRET', 'API_SECRET'];
 const PORT_GROUP = ['PORT', 'API_PORT'];
+const DKG_ENDPOINT_GROUP = ['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT'];
+const DKG_PRIVATE_KEY_GROUP = ['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY'];
+const MEISHI_INTERNAL_REQUIRED_KEYS = ['MEISHI_INTERNAL_API_SECRET', 'MEISHI_WRITER_KEYPAIR'];
 const JWT_SECRET_MIN_LENGTH = 32;
 const API_SECRET_MIN_LENGTH = 24;
 
@@ -37,6 +40,11 @@ function parseEnvFile(filePath) {
 
 function hasNonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isTruthy(value, fallback = false) {
+  if (!hasNonEmpty(value)) return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase());
 }
 
 function fail(lines) {
@@ -79,6 +87,20 @@ if (mode === 'contract') {
   const hasPortKey = PORT_GROUP.some((key) => keys.has(key));
   if (!hasPortKey) {
     missing.push(`one of ${PORT_GROUP.join(', ')}`);
+  }
+  for (const key of MEISHI_INTERNAL_REQUIRED_KEYS) {
+    if (!keys.has(key)) {
+      missing.push(key);
+    }
+  }
+  if (!keys.has('MEISHI_INTERNAL_ROUTE_ENABLED')) {
+    missing.push('MEISHI_INTERNAL_ROUTE_ENABLED');
+  }
+  if (!DKG_ENDPOINT_GROUP.some((key) => keys.has(key))) {
+    missing.push(`one of ${DKG_ENDPOINT_GROUP.join(', ')}`);
+  }
+  if (!DKG_PRIVATE_KEY_GROUP.some((key) => keys.has(key))) {
+    missing.push(`one of ${DKG_PRIVATE_KEY_GROUP.join(', ')}`);
   }
 
   if (missing.length > 0) {
@@ -152,6 +174,43 @@ if (isPlaceholderSecret(apiSecret)) {
 
 if (apiSecret === jwtSecret) {
   fail(['API runtime env preflight failed. API_SECRET must not match JWT_SECRET.']);
+}
+
+const meishiInternalEnabled = isTruthy(runtimeEnv.MEISHI_INTERNAL_ROUTE_ENABLED, true);
+if (meishiInternalEnabled) {
+  const missingMeishi = [];
+  for (const key of MEISHI_INTERNAL_REQUIRED_KEYS) {
+    if (!hasNonEmpty(runtimeEnv[key])) {
+      missingMeishi.push(key);
+    }
+  }
+  if (!DKG_ENDPOINT_GROUP.some((key) => hasNonEmpty(runtimeEnv[key]))) {
+    missingMeishi.push(`one of ${DKG_ENDPOINT_GROUP.join(', ')}`);
+  }
+  if (!DKG_PRIVATE_KEY_GROUP.some((key) => hasNonEmpty(runtimeEnv[key]))) {
+    missingMeishi.push(`one of ${DKG_PRIVATE_KEY_GROUP.join(', ')}`);
+  }
+  if (missingMeishi.length > 0) {
+    fail([
+      'API runtime env preflight failed. Internal Meishi registration is enabled but required values are missing:',
+      ...missingMeishi.map((item) => `- ${item}`),
+    ]);
+  }
+
+  const internalSecret = runtimeEnv.MEISHI_INTERNAL_API_SECRET.trim();
+  if (internalSecret.length < API_SECRET_MIN_LENGTH) {
+    fail([
+      `API runtime env preflight failed. MEISHI_INTERNAL_API_SECRET must be at least ${API_SECRET_MIN_LENGTH} characters.`,
+    ]);
+  }
+  if (isPlaceholderSecret(internalSecret)) {
+    fail(['API runtime env preflight failed. MEISHI_INTERNAL_API_SECRET appears to be a placeholder value.']);
+  }
+
+  const writerKeypair = runtimeEnv.MEISHI_WRITER_KEYPAIR.trim();
+  if (isPlaceholderSecret(writerKeypair)) {
+    fail(['API runtime env preflight failed. MEISHI_WRITER_KEYPAIR appears to be a placeholder value.']);
+  }
 }
 
 console.log('API runtime env preflight passed.');
