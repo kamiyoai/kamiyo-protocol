@@ -195,6 +195,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function dkgOperationTimeoutMs(): number {
+  return Math.max(5_000, intEnv('MEISHI_DKG_TIMEOUT_MS', 15_000));
+}
+
 function dkgRetryAttempts(): number {
   return Math.max(1, intEnv('MEISHI_DKG_RETRY_ATTEMPTS', 4));
 }
@@ -209,6 +213,20 @@ function dkgOutboxIntervalMs(): number {
 
 function dkgOutboxBaseMs(): number {
   return Math.max(5_000, intEnv('MEISHI_DKG_OUTBOX_BASE_MS', 30_000));
+}
+
+async function withDkgTimeout<T>(label: string, operation: () => Promise<T>): Promise<T> {
+  const timeoutMs = dkgOperationTimeoutMs();
+  let timeoutId: NodeJS.Timeout | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([operation(), timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function isRetryableDkgError(error: unknown): boolean {
@@ -484,7 +502,9 @@ async function buildDkgClient(): Promise<DKGClient> {
       for (const repository of repositories) {
         if (paranetUAL) {
           try {
-            const result = await raw.graph.query(sparql, 'SELECT', { repository, paranetUAL });
+            const result = await withDkgTimeout('dkg query', () =>
+              raw.graph.query(sparql, 'SELECT', { repository, paranetUAL })
+            );
             if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
           } catch {
             // fall through to global query
@@ -492,7 +512,9 @@ async function buildDkgClient(): Promise<DKGClient> {
         }
 
         try {
-          const result = await raw.graph.query(sparql, 'SELECT', { repository });
+          const result = await withDkgTimeout('dkg query', () =>
+            raw.graph.query(sparql, 'SELECT', { repository })
+          );
           if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
         } catch {
           // try the next repository
@@ -503,16 +525,20 @@ async function buildDkgClient(): Promise<DKGClient> {
     },
 
     async get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }> {
-      const content = await withDkgRetry(() => paranetClient.rawDKG.asset.get(ual));
+      const content = await withDkgRetry(() =>
+        withDkgTimeout('dkg get', () => paranetClient.rawDKG.asset.get(ual))
+      );
       return { content };
     },
 
     async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
       const result = await withDkgRetry(() =>
-        paranetClient.rawDKG.asset.create(content, {
-          ...(options?.epochs ? { epochsNum: options.epochs } : {}),
-          ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
-        })
+        withDkgTimeout('dkg publish', () =>
+          paranetClient.rawDKG.asset.create(content, {
+            ...(options?.epochs ? { epochsNum: options.epochs } : {}),
+            ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
+          })
+        )
       );
       const ual =
         (result as { UAL?: string }).UAL ??
