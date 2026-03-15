@@ -7,6 +7,7 @@ import {
   Jurisdiction,
   MeishiClient,
   MeishiWriter,
+  type ComplianceDimension,
   generateComplianceReport,
   type ComplianceReport,
 } from '@kamiyo/meishi';
@@ -31,6 +32,7 @@ import {
 import { getSolanaConnection } from '../solana';
 
 export type MeishiIdentityEntityType = 'human' | 'agent';
+export type MeishiAssuranceMode = 'on_chain' | 'dkg_only';
 
 export interface EnsureMeishiIdentityInput {
   entityType: MeishiIdentityEntityType;
@@ -43,6 +45,7 @@ export interface EnsureMeishiIdentityInput {
 }
 
 export interface EnsureMeishiIdentityResult {
+  assuranceMode: MeishiAssuranceMode;
   entityType: MeishiIdentityEntityType;
   subjectId: string;
   walletAddress: string;
@@ -372,6 +375,87 @@ function mandateConfig() {
   };
 }
 
+function isAgentIdentityUnavailable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /AgentIdentityInvalid|agent identity not found or inactive/i.test(message);
+}
+
+function limitedClassification(score: number): string {
+  if (score >= 80) return 'minimal';
+  if (score >= 60) return 'limited';
+  if (score >= 30) return 'high';
+  if (score >= 0) return 'unclassified';
+  return 'unacceptable';
+}
+
+function weightedScore(dimensions: ComplianceDimension[]): number {
+  let total = 0;
+  let weight = 0;
+  for (const dimension of dimensions) {
+    total += dimension.score * dimension.weight;
+    weight += dimension.weight;
+  }
+  if (weight === 0) return 0;
+  return Math.round(total / weight);
+}
+
+function buildDkgOnlyReport(
+  input: EnsureMeishiIdentityInput,
+  passportAddress: string,
+  walletAddress: string
+): ComplianceReport {
+  const dimensions: ComplianceDimension[] = [
+    {
+      name: 'identity_verification',
+      weight: 20,
+      score: 85,
+      requirement: 'mandatory',
+      jurisdiction: [0, 1, 2, 3, 4],
+      findings: ['Published from Singularity without an active on-chain Kamiyo agent identity'],
+    },
+    {
+      name: 'authorization_validity',
+      weight: 20,
+      score: 45,
+      requirement: 'mandatory',
+      jurisdiction: [0, 1, 2, 3, 4],
+      findings: ['No on-chain Meishi mandate is configured for this subject'],
+    },
+    {
+      name: 'transaction_history',
+      weight: 15,
+      score: 50,
+      requirement: 'mandatory',
+      jurisdiction: [0, 1, 2, 3, 4],
+      findings: ['No on-chain transaction history is attached to this subject yet'],
+    },
+    {
+      name: 'audit_trail_completeness',
+      weight: 15,
+      score: 85,
+      requirement: 'mandatory',
+      jurisdiction: [0, 1, 2, 3, 4],
+      findings: ['Initial DKG audit was published by the internal registrar'],
+    },
+  ];
+  const overallScore = weightedScore(dimensions);
+  return {
+    passportAddress,
+    dimensions,
+    overallScore,
+    classification: 2,
+    jurisdiction: jurisdictionEnum(input.jurisdiction),
+    recommendations: [
+      'Provision an on-chain Kamiyo agent identity before enabling Meishi passport issuance.',
+      'Register a Meishi mandate before this subject executes trades.',
+      input.displayName
+        ? `display_name=${input.displayName}`
+        : `wallet=${walletAddress}`,
+    ],
+    timestamp: Math.floor(Date.now() / 1000),
+  };
+}
+
 export async function ensureMeishiIdentity(
   input: EnsureMeishiIdentityInput
 ): Promise<EnsureMeishiIdentityResult> {
@@ -385,101 +469,146 @@ export async function ensureMeishiIdentity(
   const client = await getMeishiClient();
   const writer = await getMeishiWriter();
   const [passportAddress] = client.getPassportPDA(agentIdentity);
+  const passportAddressBase58 = passportAddress.toBase58();
 
+  let assuranceMode: MeishiAssuranceMode = 'on_chain';
   let passportCreated = false;
   let mandateUpdated = false;
   let auditRecorded = false;
   let dkgAuditPublished = false;
   let latestAuditUal: string | null = null;
   const existingAuditUal = await lookupLatestAuditUal(subjectId);
-  const signer = await getSigner();
+  await getSigner();
 
-  let passport = await client.fetchPassport(passportAddress);
-  if (!passport) {
-    const created = await writer.createPassport({
-      agentIdentity,
-      jurisdiction: jurisdictionEnum(input.jurisdiction),
-    });
-    passportCreated = true;
-    if (!created.passportAddress) {
-      throw new Error('Passport creation did not return an address');
+  let report: ComplianceReport;
+  let compliant = false;
+  let suspended = false;
+  let mandateValid = false;
+  let onChainComplianceScore = 0;
+  let complianceClass = 'unclassified';
+  let jurisdiction = jurisdictionLabel(jurisdictionEnum(input.jurisdiction));
+  let mandateVersion = 0;
+  let auditNonce = 0;
+
+  try {
+    let passport = await client.fetchPassport(passportAddress);
+    if (!passport) {
+      const created = await writer.createPassport({
+        agentIdentity,
+        jurisdiction: jurisdictionEnum(input.jurisdiction),
+      });
+      passportCreated = true;
+      if (!created.passportAddress) {
+        throw new Error('Passport creation did not return an address');
+      }
+      passport = await client.fetchPassport(passportAddress);
     }
-    passport = await client.fetchPassport(passportAddress);
+
+    if (!passport) {
+      throw new Error('Passport unavailable after create');
+    }
+
+    const currentMandate = await client.getLatestMandate(passportAddress);
+    if (!validMandate(currentMandate)) {
+      const config = mandateConfig();
+      const validFrom = Math.floor(Date.now() / 1000) + 60;
+      const validUntil = validFrom + config.durationDays * 24 * 60 * 60;
+      await writer.updateMandate({
+        passportAddress,
+        spendingLimitUsd: usdToMicro(config.txLimitUsd),
+        dailyLimitUsd: usdToMicro(config.dailyLimitUsd),
+        monthlyLimitUsd: usdToMicro(config.monthlyLimitUsd),
+        categoryWhitelist: categoryWhitelist(config.categoryWhitelistHex),
+        merchantWhitelistHash: bytes32FromHex(
+          config.merchantWhitelistHex,
+          `${subjectId}:merchant-whitelist`
+        ),
+        requiresHumanApprovalAbove: usdToMicro(config.humanApprovalUsd),
+        geoRestrictions: 0,
+        validFrom,
+        validUntil,
+      });
+      mandateUpdated = true;
+      passport = await client.fetchPassport(passportAddress);
+    }
+
+    if (!passport) {
+      throw new Error('Passport unavailable after mandate update');
+    }
+
+    if (passport.auditNonce === 0 || passport.complianceScore <= 0) {
+      const config = mandateConfig();
+      const findingsHash = Array.from(
+        createHash('sha256')
+          .update(`${subjectId}:${walletAddress}:${Date.now()}`)
+          .digest()
+      );
+      const findingsUal = `${config.findingsPrefix}:${input.entityType}:${walletAddress}:${Date.now()}`.slice(0, 255);
+      await writer.recordAudit({
+        passportAddress,
+        auditType: AuditType.Initial,
+        complianceScoreAfter: config.baselineScore,
+        findingsHash,
+        findingsUal,
+        passed: config.baselineScore > 0,
+      });
+      auditRecorded = true;
+      passport = await client.fetchPassport(passportAddress);
+    }
+
+    if (!passport) {
+      throw new Error('Passport unavailable after audit update');
+    }
+
+    report = generateComplianceReport(passport, passportAddressBase58);
+    const verification = await client.verifyPassport(agentIdentity);
+
+    compliant = Boolean(verification.compliant);
+    suspended = Boolean(verification.suspended);
+    mandateValid = Boolean(verification.mandateValid);
+    onChainComplianceScore = passport.complianceScore;
+    complianceClass = classificationLabel(report);
+    jurisdiction = jurisdictionLabel(passport.jurisdiction);
+    mandateVersion = passport.mandateVersion;
+    auditNonce = passport.auditNonce;
+  } catch (error) {
+    if (!isAgentIdentityUnavailable(error)) {
+      throw error;
+    }
+    assuranceMode = 'dkg_only';
+    report = buildDkgOnlyReport(input, passportAddressBase58, walletAddress);
+    complianceClass = limitedClassification(report.overallScore);
+    jurisdiction = jurisdictionLabel(report.jurisdiction);
   }
 
-  if (!passport) {
-    throw new Error('Passport unavailable after create');
-  }
-
-  const currentMandate = await client.getLatestMandate(passportAddress);
-  if (!validMandate(currentMandate)) {
-    const config = mandateConfig();
-    const validFrom = Math.floor(Date.now() / 1000) + 60;
-    const validUntil = validFrom + config.durationDays * 24 * 60 * 60;
-    await writer.updateMandate({
-      passportAddress,
-      spendingLimitUsd: usdToMicro(config.txLimitUsd),
-      dailyLimitUsd: usdToMicro(config.dailyLimitUsd),
-      monthlyLimitUsd: usdToMicro(config.monthlyLimitUsd),
-      categoryWhitelist: categoryWhitelist(config.categoryWhitelistHex),
-      merchantWhitelistHash: bytes32FromHex(
-        config.merchantWhitelistHex,
-        `${subjectId}:merchant-whitelist`
-      ),
-      requiresHumanApprovalAbove: usdToMicro(config.humanApprovalUsd),
-      geoRestrictions: 0,
-      validFrom,
-      validUntil,
-    });
-    mandateUpdated = true;
-    passport = await client.fetchPassport(passportAddress);
-  }
-
-  if (!passport) {
-    throw new Error('Passport unavailable after mandate update');
-  }
-
-  if (passport.auditNonce === 0 || passport.complianceScore <= 0) {
-    const config = mandateConfig();
-    const findingsHash = Array.from(
-      createHash('sha256')
-        .update(`${subjectId}:${walletAddress}:${Date.now()}`)
-        .digest()
-    );
-    const findingsUal = `${config.findingsPrefix}:${input.entityType}:${walletAddress}:${Date.now()}`.slice(0, 255);
-    await writer.recordAudit({
-      passportAddress,
-      auditType: AuditType.Initial,
-      complianceScoreAfter: config.baselineScore,
-      findingsHash,
-      findingsUal,
-      passed: config.baselineScore > 0,
-    });
-    auditRecorded = true;
-    passport = await client.fetchPassport(passportAddress);
-  }
-
-  if (!passport) {
-    throw new Error('Passport unavailable after audit update');
-  }
-
-  const report = generateComplianceReport(passport, passportAddress.toBase58());
-  const shouldPublishDkg = Boolean(input.forceAudit) || !existingAuditUal || passportCreated || mandateUpdated || auditRecorded;
+  const shouldPublishDkg =
+    Boolean(input.forceAudit) ||
+    !existingAuditUal ||
+    passportCreated ||
+    mandateUpdated ||
+    auditRecorded ||
+    assuranceMode === 'dkg_only';
 
   if (shouldPublishDkg) {
     latestAuditUal = await (await getDkgPublisher()).publishComplianceAudit({
       agentId: subjectId,
-      meishiPda: passportAddress.toBase58(),
+      meishiPda: passportAddressBase58,
       auditorId: resolveAuditorId(),
-      auditType: existingAuditUal ? 'periodic' : 'initial',
+      auditType:
+        assuranceMode === 'dkg_only'
+          ? (existingAuditUal ? 'triggered' : 'initial')
+          : (existingAuditUal ? 'periodic' : 'initial'),
       dimensions: report.dimensions.map((dimension) => ({
         name: dimension.name,
         score: dimension.score,
         findings: [...dimension.findings],
       })),
       overallScore: report.overallScore,
-      classification: classificationLabel(report),
-      jurisdiction: jurisdictionLabel(passport.jurisdiction),
+      classification:
+        assuranceMode === 'dkg_only'
+          ? complianceClass
+          : classificationLabel(report),
+      jurisdiction,
       recommendations:
         report.recommendations.length > 0
           ? report.recommendations
@@ -491,27 +620,26 @@ export async function ensureMeishiIdentity(
     dkgAuditPublished = true;
   }
 
-  const verification = await client.verifyPassport(agentIdentity);
-
   return {
+    assuranceMode,
     entityType: input.entityType,
     subjectId,
     walletAddress,
     displayName: normalizedString(input.displayName) ?? null,
-    passportAddress: passportAddress.toBase58(),
-    compliant: verification.compliant,
-    suspended: verification.suspended,
-    mandateValid: verification.mandateValid,
-    onChainComplianceScore: passport.complianceScore,
+    passportAddress: passportAddressBase58,
+    compliant,
+    suspended,
+    mandateValid,
+    onChainComplianceScore,
     dkgComplianceScore: report.overallScore,
-    complianceClass: classificationLabel(report),
-    jurisdiction: jurisdictionLabel(passport.jurisdiction),
+    complianceClass,
+    jurisdiction,
     passportCreated,
     mandateUpdated,
     auditRecorded,
     dkgAuditPublished,
-    mandateVersion: passport.mandateVersion,
-    auditNonce: passport.auditNonce,
+    mandateVersion,
+    auditNonce,
     latestAuditUal,
     existingAuditUal,
   };
