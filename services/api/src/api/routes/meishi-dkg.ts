@@ -2,35 +2,255 @@ import { Router, Request, Response, NextFunction } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import { AgentParanetClient } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
+import {
+  resolveDkgBlockchain,
+  resolveDkgEndpoint,
+  resolveDkgPort,
+  resolveDkgPrivateKey,
+  resolveMeishiRepositories,
+  resolveMeishiRepository,
+  resolveParanetUAL,
+} from './_dkg-config';
 
 const router: IRouter = Router();
 
 type GraphSource = 'dkg' | 'unavailable';
+type DataMode = 'live' | 'snapshot' | 'unavailable';
+type HealthStatus = 'ok' | 'degraded' | 'unhealthy';
+type QueryScope = 'paranet' | 'global' | 'global_fallback';
 
-type BlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
+type GraphNodeKind = 'agent' | 'auditor' | 'audit';
+
+interface AuditRecord {
+  ual: string;
+  agentId: string;
+  complianceScore: number;
+  complianceClass: string;
+  jurisdiction: string | null;
+  auditorId: string | null;
+  auditType: string;
+  date: string | null;
+  scope: QueryScope;
+  repository: string;
+}
+
+interface LeaderboardAgent {
+  rank: number;
+  agentId: string;
+  complianceScore: number;
+  complianceClass: string;
+  jurisdiction: string | null;
+  lastAudit: string | null;
+  auditCount: number;
+}
+
+interface DashboardNode {
+  id: string;
+  kind: GraphNodeKind;
+  label: string;
+  complianceScore?: number;
+  complianceClass?: string;
+  jurisdiction?: string | null;
+  lastAudit?: string | null;
+  auditCount?: number;
+  ual?: string | null;
+}
+
+interface DashboardEdge {
+  id: string;
+  source: string;
+  target: string;
+  auditCount: number;
+  avgScore: number;
+  lastAudit: string | null;
+  latestAuditUal: string | null;
+}
+
+interface DashboardPayload {
+  source: GraphSource;
+  dataMode: DataMode;
+  asOf: string | null;
+  staleAgeMs: number;
+  warnings: string[];
+  health: {
+    status: HealthStatus;
+    endpoint: string | null;
+    blockchain: string;
+    paranetUAL: string | null;
+    repository: string;
+    scope: QueryScope | null;
+  };
+  leaderboard: {
+    agents: LeaderboardAgent[];
+    totalAgents: number;
+  };
+  graph: {
+    nodes: DashboardNode[];
+    edges: DashboardEdge[];
+    stats: {
+      agentCount: number;
+      auditorCount: number;
+      auditCount: number;
+      edgeCount: number;
+      avgComplianceScore: number;
+    };
+  };
+  featuredAgent: {
+    agentId: string;
+    complianceScore: number;
+    complianceClass: string;
+    jurisdiction: string | null;
+    lastAudit: string | null;
+    auditCount: number;
+    latestAudit: AuditRecord | null;
+  } | null;
+}
+
+interface SnapshotEnvelope<T> {
+  payload: T;
+  capturedAt: number;
+}
 
 const MAX_QUERY_LIMIT = 50;
+const DEFAULT_HISTORY_LIMIT = 12;
+const DEFAULT_DASHBOARD_LIMIT = 24;
 const DEFAULT_REPOSITORY = 'publicCurrent';
-const REPOSITORY_FALLBACKS = ['publicCurrent', 'publicKnowledgeAssets'] as const;
+const DEFAULT_SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_HEALTH_TIMEOUT_MS = 2500;
+const FEATURED_AGENT_ENV_KEYS = ['MEISHI_FEATURED_AGENT_ID', 'KYOSHIN_AGENT_ID'] as const;
 
-function clampLimit(limit?: number): number {
-  if (!limit || limit < 1) return 10;
-  return Math.min(limit, MAX_QUERY_LIMIT);
+const snapshots = new Map<string, SnapshotEnvelope<unknown>>();
+
+class RouteUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RouteUnavailableError';
+  }
+}
+
+function clampLimit(limit?: number, fallback = DEFAULT_HISTORY_LIMIT): number {
+  if (!limit || !Number.isFinite(limit) || limit < 1) return fallback;
+  return Math.min(Math.floor(limit), MAX_QUERY_LIMIT);
 }
 
 function escapeId(value: string): string {
-  return value.replace(/["\\\n\r{}()<>|;]/g, '').slice(0, 200);
+  return value.replace(/["\\\n\r{}()<>|;]/g, '').slice(0, 300);
 }
 
-function queryCompliantAgents(minScore: number, opts?: { jurisdiction?: string; limit?: number }): string {
-  const limit = clampLimit(opts?.limit);
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+function parseNum(val: unknown): number {
+  if (typeof val === 'number') return val;
+  const s = String(val || '');
+  const match = s.match(/^"?(-?[\d.]+)/);
+  return match ? parseFloat(match[1]) : 0;
+}
+
+function parseString(val: unknown): string {
+  if (typeof val === 'string') return val.replace(/^"/, '').replace(/".*$/, '');
+  return String(val ?? '').replace(/^"/, '').replace(/".*$/, '');
+}
+
+function parseDate(val: unknown): string | null {
+  const s = parseString(val);
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function formatWarnings(scope: QueryScope | null): string[] {
+  if (scope === 'global_fallback') {
+    return ['Paranet data is unavailable. Showing the latest verified DKG data from the global repository.'];
+  }
+  if (scope === 'global') {
+    return ['Paranet is not configured. Showing verified DKG data from the global repository.'];
+  }
+  return [];
+}
+
+function getSnapshotKey(route: string, params: Record<string, string | number | null | undefined>): string {
+  const query = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join('&');
+  return query ? `${route}?${query}` : route;
+}
+
+function getSnapshot<T>(key: string): SnapshotEnvelope<T> | null {
+  const snapshot = snapshots.get(key) as SnapshotEnvelope<T> | undefined;
+  if (!snapshot) return null;
+  const maxAgeMs = parsePositiveIntEnv('MEISHI_DKG_SNAPSHOT_MAX_AGE_MS', DEFAULT_SNAPSHOT_MAX_AGE_MS);
+  if (Date.now() - snapshot.capturedAt > maxAgeMs) {
+    snapshots.delete(key);
+    return null;
+  }
+  return snapshot;
+}
+
+function setSnapshot<T>(key: string, payload: T): void {
+  snapshots.set(key, { payload, capturedAt: Date.now() });
+}
+
+function attachMode<T extends { warnings: string[] }>(payload: T, mode: DataMode, capturedAt: number | null): T & {
+  dataMode: DataMode;
+  asOf: string | null;
+  staleAgeMs: number;
+} {
+  return {
+    ...payload,
+    dataMode: mode,
+    asOf: capturedAt ? new Date(capturedAt).toISOString() : null,
+    staleAgeMs: capturedAt ? Math.max(0, Date.now() - capturedAt) : 0,
+    warnings:
+      mode === 'snapshot'
+        ? [...payload.warnings, 'Serving the last verified DKG snapshot while the live node is unavailable.']
+        : payload.warnings,
+  };
+}
+
+function asyncRoute(fn: (req: Request, res: Response) => Promise<void>) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res)).catch((err) => {
+      if (res.headersSent) return next(err);
+      res.status(502).json({ error: 'upstream_error', message: err instanceof Error ? err.message : String(err) });
+    });
+  };
+}
+
+function withTimeout<T>(label: string, work: Promise<T>, ms = parsePositiveIntEnv('MEISHI_DKG_HEALTH_TIMEOUT_MS', DEFAULT_HEALTH_TIMEOUT_MS)): Promise<T> {
+  if (!(ms > 0)) return work;
+
+  let timeoutId: NodeJS.Timeout | null = null;
+  const timeout = new Promise<T>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([work, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function queryAuditFeed(minScore: number, opts?: { jurisdiction?: string; limit?: number; agentId?: string }): string {
+  const limit = clampLimit(opts?.limit, DEFAULT_DASHBOARD_LIMIT);
   const jurisdictionFilter = opts?.jurisdiction
     ? `\n      FILTER(BOUND(?jurisdiction) && ?jurisdiction = "${escapeId(opts.jurisdiction)}")`
+    : '';
+  const agentFilter = opts?.agentId
+    ? `\n      FILTER(STR(?agentRef) = "${escapeId(opts.agentId)}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${escapeId(opts.agentId)}"))`
     : '';
 
   return `
     PREFIX schema: <https://schema.org/>
-    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?date
+    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date
     WHERE {
       ?audit a schema:Review ;
              schema:reviewRating/schema:ratingValue ?score .
@@ -41,7 +261,10 @@ function queryCompliantAgents(minScore: number, opts?: { jurisdiction?: string; 
         ?audit schema:itemReviewed ?agentRef .
         OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
       }
-      BIND(COALESCE(?agentIdentifier, STR(?agentRef), STR(?audit)) AS ?agent)
+      OPTIONAL {
+        ?audit schema:author ?auditorRef .
+        OPTIONAL { ?auditorRef schema:identifier ?auditorIdentifier . }
+      }
       OPTIONAL {
         ?audit schema:additionalProperty ?classProp .
         ?classProp schema:name "classification" ; schema:value ?classification .
@@ -49,99 +272,56 @@ function queryCompliantAgents(minScore: number, opts?: { jurisdiction?: string; 
       OPTIONAL {
         ?audit schema:additionalProperty ?jProp .
         ?jProp schema:name "jurisdiction" ; schema:value ?jurisdiction .
-      }${jurisdictionFilter}
-      FILTER(?score >= ${Math.floor(minScore)})
-    }
-    ORDER BY DESC(?score) DESC(?date)
-    LIMIT ${Math.max(limit * 5, limit)}
-  `.trim();
-}
-
-function queryLatestAudit(agentId: string): string {
-  const safeId = escapeId(agentId);
-
-  return `
-    PREFIX schema: <https://schema.org/>
-    SELECT ?audit ?score ?classification ?auditor ?auditType ?date
-    WHERE {
-      ?audit a schema:Review ;
-             schema:reviewRating/schema:ratingValue ?score .
-      OPTIONAL { ?audit schema:name ?auditName . }
-      FILTER(!BOUND(?auditName) || ?auditName = "ComplianceAudit")
-      OPTIONAL { ?audit schema:datePublished ?date . }
-      OPTIONAL { ?audit schema:itemReviewed ?agentRef . }
-      OPTIONAL { ?audit schema:author ?auditorRef . }
-      OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
-      OPTIONAL { ?auditorRef schema:identifier ?auditorIdentifier . }
-      FILTER(STR(?agentRef) = "${safeId}" || (BOUND(?agentIdentifier) && ?agentIdentifier = "${safeId}"))
-      BIND(COALESCE(?auditorIdentifier, STR(?auditorRef)) AS ?auditor)
-      OPTIONAL {
-        ?audit schema:additionalProperty ?classProp .
-        ?classProp schema:name "classification" ; schema:value ?classification .
       }
       OPTIONAL {
         ?audit schema:additionalProperty ?typeProp .
         ?typeProp schema:name "auditType" ; schema:value ?auditType .
       }
+      BIND(COALESCE(?agentIdentifier, STR(?agentRef), STR(?audit)) AS ?agent)
+      BIND(COALESCE(?auditorIdentifier, STR(?auditorRef), "") AS ?auditor)
+      ${jurisdictionFilter}
+      ${agentFilter}
+      FILTER(?score >= ${Math.floor(minScore)})
     }
-    ORDER BY DESC(?date)
-    LIMIT 1
+    ORDER BY DESC(?date) DESC(?score)
+    LIMIT ${Math.max(limit * 8, limit)}
   `.trim();
 }
 
-function getBlockchainId(): BlockchainId {
-  const env = process.env.DKG_BLOCKCHAIN;
-  if (env === 'gnosis:100' || env === 'otp:2043') return env;
-  return 'base:8453';
-}
+let client: AgentParanetClient | null = null;
+let clientInitPromise: Promise<AgentParanetClient> | null = null;
 
-function normalizeDkgEndpoint(endpoint: string): string {
-  const value = endpoint.trim();
-  if (!value) return value;
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
-    return value;
+async function getClient(): Promise<AgentParanetClient> {
+  if (client) return client;
+
+  const endpoint = resolveDkgEndpoint();
+  if (!endpoint) {
+    throw new RouteUnavailableError('DKG endpoint not configured');
   }
-  return `http://${value}`;
-}
 
-function getQueryOpts(): { repository: string; paranetUAL?: string } {
-  const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-  const paranetUAL =
-    process.env.MEISHI_PARANET_UAL?.trim() ||
-    process.env.DKG_PARANET_UAL?.trim() ||
-    process.env.PARANET_UAL?.trim();
-  return paranetUAL ? { repository, paranetUAL } : { repository };
-}
+  if (!clientInitPromise) {
+    clientInitPromise = AgentParanetClient.create({
+      dkgEndpoint: endpoint,
+      dkgPort: resolveDkgPort(),
+      blockchain: resolveDkgBlockchain(),
+      privateKey: resolveDkgPrivateKey(),
+    }).then((value) => {
+      client = value;
+      return value;
+    });
+  }
 
-function getGlobalQueryOpts(): { repository: string } {
-  const repository = process.env.MEISHI_DKG_REPOSITORY?.trim() || DEFAULT_REPOSITORY;
-  return { repository };
-}
-
-function getQueryRepositories(): string[] {
-  const configured = process.env.MEISHI_DKG_REPOSITORY?.trim();
-  const ordered = configured
-    ? [configured, ...REPOSITORY_FALLBACKS]
-    : [...REPOSITORY_FALLBACKS];
-  return [...new Set(ordered)];
-}
-
-function getParanetUAL(): string | null {
-  const value =
-    process.env.MEISHI_PARANET_UAL?.trim() ||
-    process.env.DKG_PARANET_UAL?.trim() ||
-    process.env.PARANET_UAL?.trim();
-  return value && value.length > 0 ? value : null;
+  return clientInitPromise;
 }
 
 async function queryWithParanetFallback(
   dkg: { graph: { query: (query: string, type: 'SELECT', opts?: { repository?: string; paranetUAL?: string }) => Promise<{ data?: unknown[] }> } },
   query: string,
   route: string
-): Promise<{ rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback'; repository: string }> {
-  const paranetUAL = getParanetUAL();
-  const repositories = getQueryRepositories();
-  let firstEmptySuccess: { rows: Array<Record<string, unknown>>; scope: 'paranet' | 'global' | 'global_fallback'; repository: string } | null = null;
+): Promise<{ rows: Array<Record<string, unknown>>; scope: QueryScope; repository: string }> {
+  const paranetUAL = resolveParanetUAL();
+  const repositories = resolveMeishiRepositories();
+  let firstEmptySuccess: { rows: Array<Record<string, unknown>>; scope: QueryScope; repository: string } | null = null;
 
   if (!paranetUAL) {
     for (const repository of repositories) {
@@ -171,8 +351,8 @@ async function queryWithParanetFallback(
     } catch (error) {
       logger.warn('Meishi DKG paranet query failed, trying fallback', {
         route,
-        paranetUAL,
         repository,
+        paranetUAL,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -196,87 +376,265 @@ async function queryWithParanetFallback(
   return firstEmptySuccess ?? { rows: [], scope: 'global_fallback', repository: repositories[0] ?? DEFAULT_REPOSITORY };
 }
 
-function parseNum(val: unknown): number {
-  if (typeof val === 'number') return val;
-  const s = String(val || '');
-  const match = s.match(/^"?(-?[\d.]+)/);
-  return match ? parseFloat(match[1]) : 0;
-}
+function normalizeAudit(row: Record<string, unknown>, scope: QueryScope, repository: string): AuditRecord | null {
+  const agentId = parseString(row.agent);
+  const ual = parseString(row.audit);
+  if (!agentId || !ual) return null;
 
-function parseString(val: unknown): string {
-  if (typeof val === 'string') return val.replace(/^"/, '').replace(/".*$/, '');
-  return String(val ?? '').replace(/^"/, '').replace(/".*$/, '');
-}
-
-function parseDate(val: unknown): string | null {
-  const s = parseString(val);
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function asyncRoute(fn: (req: Request, res: Response) => Promise<void>) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res)).catch((err) => {
-      if (res.headersSent) return next(err);
-      res.status(502).json({ error: 'upstream_error' });
-    });
+  return {
+    ual,
+    agentId,
+    complianceScore: Math.round(parseNum(row.score)),
+    complianceClass: parseString(row.classification) || 'unknown',
+    jurisdiction: parseString(row.jurisdiction) || null,
+    auditorId: parseString(row.auditor) || null,
+    auditType: parseString(row.auditType) || 'periodic',
+    date: parseDate(row.date),
+    scope,
+    repository,
   };
 }
 
-const HEALTH_TIMEOUT_MS = (() => {
-  const raw = process.env.MEISHI_DKG_HEALTH_TIMEOUT_MS;
-  const ms = raw ? parseInt(raw, 10) : NaN;
-  return Number.isFinite(ms) && ms > 0 ? ms : 2500;
-})();
+function buildLeaderboard(audits: AuditRecord[], limit: number): LeaderboardAgent[] {
+  const byAgent = new Map<string, LeaderboardAgent>();
 
-function withTimeout<T>(label: string, work: Promise<T>, ms = HEALTH_TIMEOUT_MS): Promise<T> {
-  if (!(ms > 0)) return work;
+  for (const audit of audits) {
+    const existing = byAgent.get(audit.agentId);
+    if (!existing) {
+      byAgent.set(audit.agentId, {
+        rank: 0,
+        agentId: audit.agentId,
+        complianceScore: audit.complianceScore,
+        complianceClass: audit.complianceClass,
+        jurisdiction: audit.jurisdiction,
+        lastAudit: audit.date,
+        auditCount: 1,
+      });
+      continue;
+    }
 
-  let timeoutId: NodeJS.Timeout | null = null;
-  const timeout = new Promise<T>((_resolve, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-  });
+    existing.auditCount += 1;
+    const existingTs = existing.lastAudit ? Date.parse(existing.lastAudit) : 0;
+    const candidateTs = audit.date ? Date.parse(audit.date) : 0;
+    const shouldReplace =
+      audit.complianceScore > existing.complianceScore ||
+      (audit.complianceScore === existing.complianceScore && candidateTs > existingTs);
 
-  return Promise.race([work, timeout]).finally(() => {
-    if (timeoutId) clearTimeout(timeoutId);
-  });
+    if (shouldReplace) {
+      existing.complianceScore = audit.complianceScore;
+      existing.complianceClass = audit.complianceClass;
+      existing.jurisdiction = audit.jurisdiction;
+      existing.lastAudit = audit.date;
+    }
+  }
+
+  return [...byAgent.values()]
+    .sort((a, b) => {
+      if (b.complianceScore !== a.complianceScore) return b.complianceScore - a.complianceScore;
+      const aTs = a.lastAudit ? Date.parse(a.lastAudit) : 0;
+      const bTs = b.lastAudit ? Date.parse(b.lastAudit) : 0;
+      return bTs - aTs;
+    })
+    .slice(0, clampLimit(limit, DEFAULT_DASHBOARD_LIMIT))
+    .map((agent, index) => ({ ...agent, rank: index + 1 }));
 }
 
-let client: AgentParanetClient | null = null;
-let clientInitPromise: Promise<AgentParanetClient> | null = null;
+function shortLabel(value: string): string {
+  if (value.length <= 18) return value;
+  return `${value.slice(0, 10)}...${value.slice(-6)}`;
+}
 
-async function getClient(): Promise<AgentParanetClient> {
-  if (client) return client;
+function buildGraph(audits: AuditRecord[], leaderboard: LeaderboardAgent[]): DashboardPayload['graph'] {
+  const agentIds = new Set(leaderboard.map((agent) => agent.agentId));
+  const nodes = new Map<string, DashboardNode>();
+  const edges = new Map<string, DashboardEdge>();
+  let totalScore = 0;
 
-  const endpoint = process.env.DKG_ENDPOINT?.trim();
-  if (!endpoint) {
-    throw new Error('DKG_ENDPOINT not configured');
+  for (const agent of leaderboard) {
+    nodes.set(agent.agentId, {
+      id: agent.agentId,
+      kind: 'agent',
+      label: shortLabel(agent.agentId),
+      complianceScore: agent.complianceScore,
+      complianceClass: agent.complianceClass,
+      jurisdiction: agent.jurisdiction,
+      lastAudit: agent.lastAudit,
+      auditCount: agent.auditCount,
+    });
+    totalScore += agent.complianceScore;
   }
-  const normalizedEndpoint = normalizeDkgEndpoint(endpoint);
 
-  if (!clientInitPromise) {
-    clientInitPromise = AgentParanetClient.create({
-      dkgEndpoint: normalizedEndpoint,
-      dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
-      blockchain: getBlockchainId(),
-      privateKey: process.env.DKG_PRIVATE_KEY,
-    }).then((c) => {
-      client = c;
-      return c;
+  for (const audit of audits) {
+    if (!agentIds.has(audit.agentId)) continue;
+    const sourceId = audit.auditorId || `audit:${audit.ual}`;
+    const sourceKey = sourceId;
+    const targetKey = audit.agentId;
+    const edgeKey = `${sourceKey}->${targetKey}`;
+
+    if (!nodes.has(sourceKey)) {
+      nodes.set(sourceKey, {
+        id: sourceKey,
+        kind: audit.auditorId ? 'auditor' : 'audit',
+        label: shortLabel(audit.auditorId || audit.ual),
+        lastAudit: audit.date,
+        ual: audit.ual,
+      });
+    }
+
+    const existing = edges.get(edgeKey);
+    if (!existing) {
+      edges.set(edgeKey, {
+        id: edgeKey,
+        source: sourceKey,
+        target: targetKey,
+        auditCount: 1,
+        avgScore: audit.complianceScore,
+        lastAudit: audit.date,
+        latestAuditUal: audit.ual,
+      });
+      continue;
+    }
+
+    existing.avgScore = Math.round(((existing.avgScore * existing.auditCount) + audit.complianceScore) / (existing.auditCount + 1));
+    existing.auditCount += 1;
+    const existingTs = existing.lastAudit ? Date.parse(existing.lastAudit) : 0;
+    const candidateTs = audit.date ? Date.parse(audit.date) : 0;
+    if (candidateTs >= existingTs) {
+      existing.lastAudit = audit.date;
+      existing.latestAuditUal = audit.ual;
+    }
+  }
+
+  const nodeList = [...nodes.values()];
+  const edgeList = [...edges.values()].sort((a, b) => b.auditCount - a.auditCount || b.avgScore - a.avgScore);
+
+  return {
+    nodes: nodeList,
+    edges: edgeList,
+    stats: {
+      agentCount: nodeList.filter((node) => node.kind === 'agent').length,
+      auditorCount: nodeList.filter((node) => node.kind !== 'agent').length,
+      auditCount: audits.filter((audit) => agentIds.has(audit.agentId)).length,
+      edgeCount: edgeList.length,
+      avgComplianceScore: leaderboard.length > 0 ? Math.round(totalScore / leaderboard.length) : 0,
+    },
+  };
+}
+
+function pickFeaturedAgent(leaderboard: LeaderboardAgent[], audits: AuditRecord[]): DashboardPayload['featuredAgent'] {
+  if (leaderboard.length === 0) return null;
+
+  const preferred = FEATURED_AGENT_ENV_KEYS
+    .map((key) => process.env[key]?.trim())
+    .find((value): value is string => Boolean(value && value.length > 0));
+
+  const selected = preferred
+    ? leaderboard.find((agent) => agent.agentId === preferred) ?? leaderboard[0]
+    : leaderboard[0];
+  const latestAudit = audits.find((audit) => audit.agentId === selected.agentId) ?? null;
+
+  return {
+    agentId: selected.agentId,
+    complianceScore: selected.complianceScore,
+    complianceClass: selected.complianceClass,
+    jurisdiction: selected.jurisdiction,
+    lastAudit: selected.lastAudit,
+    auditCount: selected.auditCount,
+    latestAudit,
+  };
+}
+
+async function loadAuditFeed(route: string, opts?: { minScore?: number; limit?: number; jurisdiction?: string; agentId?: string }) {
+  const client = await withTimeout('dkg_client_init', getClient());
+  const dkg = client.rawDKG;
+  const query = queryAuditFeed(opts?.minScore ?? 0, opts);
+  const { rows, scope, repository } = await withTimeout(route, queryWithParanetFallback(dkg, query, route));
+  const audits = rows
+    .map((row) => normalizeAudit(row, scope, repository))
+    .filter((value): value is AuditRecord => Boolean(value));
+
+  return {
+    audits,
+    scope,
+    repository,
+  };
+}
+
+async function loadDashboard(limit: number, minScore: number): Promise<DashboardPayload> {
+  const endpoint = resolveDkgEndpoint() || null;
+  if (!endpoint) {
+    throw new RouteUnavailableError('DKG endpoint not configured');
+  }
+
+  const { audits, scope, repository } = await loadAuditFeed('dashboard', { limit, minScore });
+  if (audits.length === 0) {
+    throw new RouteUnavailableError('No verified DKG audits available');
+  }
+
+  const leaderboard = buildLeaderboard(audits, limit);
+  if (leaderboard.length === 0) {
+    throw new RouteUnavailableError('No verified DKG leaderboard entries available');
+  }
+
+  return {
+    source: 'dkg',
+    dataMode: 'live',
+    asOf: null,
+    staleAgeMs: 0,
+    warnings: formatWarnings(scope),
+    health: {
+      status: scope === 'global_fallback' ? 'degraded' : 'ok',
+      endpoint,
+      blockchain: resolveDkgBlockchain(),
+      paranetUAL: resolveParanetUAL() || null,
+      repository,
+      scope,
+    },
+    leaderboard: {
+      agents: leaderboard,
+      totalAgents: leaderboard.length,
+    },
+    graph: buildGraph(audits, leaderboard),
+    featuredAgent: pickFeaturedAgent(leaderboard, audits),
+  };
+}
+
+async function respondWithSnapshot<T extends { warnings: string[] }>(
+  res: Response,
+  snapshotKey: string,
+  build: () => Promise<T>
+): Promise<void> {
+  try {
+    const payload = await build();
+    setSnapshot(snapshotKey, payload);
+    res.json(attachMode(payload, 'live', Date.now()));
+  } catch (error) {
+    const snapshot = getSnapshot<T>(snapshotKey);
+    if (snapshot) {
+      logger.warn('Serving Meishi DKG snapshot', {
+        snapshotKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.json(attachMode(snapshot.payload, 'snapshot', snapshot.capturedAt));
+      return;
+    }
+
+    const message = error instanceof Error ? error.message : 'DKG unavailable';
+    res.status(503).json({
+      source: 'unavailable',
+      dataMode: 'unavailable',
+      asOf: null,
+      staleAgeMs: 0,
+      warnings: ['Verified DKG audit data is temporarily unavailable.'],
+      error: message,
     });
   }
-
-  return clientInitPromise;
 }
 
 router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
-  const endpointRaw = process.env.DKG_ENDPOINT?.trim() || null;
-  const endpoint = endpointRaw ? normalizeDkgEndpoint(endpointRaw) : null;
-  const blockchain = getBlockchainId();
-  const paranetUAL = getParanetUAL();
+  const endpoint = resolveDkgEndpoint() || null;
+  const blockchain = resolveDkgBlockchain();
+  const paranetUAL = resolveParanetUAL() || null;
   const timestamp = new Date().toISOString();
 
   if (!endpoint) {
@@ -284,28 +642,27 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       service: 'meishi-dkg',
       status: 'unhealthy',
       timestamp,
-      checks: [
-        { name: 'configuration', status: 'fail', message: 'DKG_ENDPOINT not configured' },
-      ],
+      endpoint: null,
+      blockchain,
+      paranetUAL,
+      checks: [{ name: 'configuration', status: 'fail', message: 'DKG endpoint not configured' }],
     });
     return;
   }
 
-  const checks: Array<{ name: string; status: 'pass' | 'warn' | 'fail'; message: string; latencyMs?: number }> = [];
-  checks.push({ name: 'configuration', status: 'pass', message: 'Configuration valid' });
+  const checks: Array<{ name: string; status: 'pass' | 'warn' | 'fail'; message: string; latencyMs?: number }> = [
+    { name: 'configuration', status: 'pass', message: 'Configuration valid' },
+  ];
 
   try {
     const started = Date.now();
     const c = await withTimeout('dkg_client_init', getClient());
     const dkg = c.rawDKG;
+    const repository = resolveMeishiRepository();
 
     await withTimeout(
       'dkg_query',
-      dkg.graph.query(
-        'PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1',
-        'SELECT',
-        getGlobalQueryOpts()
-      )
+      dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', { repository })
     );
     checks.push({
       name: 'dkg_connectivity',
@@ -321,11 +678,10 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       try {
         await withTimeout(
           'paranet_query',
-          dkg.graph.query(
-            'PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1',
-            'SELECT',
-            { ...getGlobalQueryOpts(), paranetUAL }
-          )
+          dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', {
+            repository,
+            paranetUAL,
+          })
         );
         checks.push({
           name: 'paranet_access',
@@ -333,33 +689,31 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
           message: 'Paranet accessible',
           latencyMs: Date.now() - paranetStarted,
         });
-      } catch (paranetError) {
+      } catch (error) {
         checks.push({
           name: 'paranet_access',
           status: 'warn',
-          message: `Paranet query failed (${paranetError instanceof Error ? paranetError.message : String(paranetError)})`,
+          message: `Paranet query failed (${error instanceof Error ? error.message : String(error)})`,
           latencyMs: Date.now() - paranetStarted,
         });
       }
     }
 
-    const hasFailures = checks.some((c) => c.status === 'fail');
-    const hasBlockingWarnings = checks.some(
-      (c) => c.status === 'warn' && c.name !== 'paranet_access'
-    );
-    const status = hasFailures ? 'unhealthy' : hasBlockingWarnings ? 'degraded' : 'ok';
-
+    const hasFailure = checks.some((check) => check.status === 'fail');
+    const hasWarning = checks.some((check) => check.status === 'warn');
     res.json({
       service: 'meishi-dkg',
-      status,
+      status: hasFailure ? 'unhealthy' : hasWarning ? 'degraded' : 'ok',
       timestamp,
       endpoint,
       blockchain,
       paranetUAL,
       checks,
     });
-  } catch (err) {
-    logger.error('Meishi DKG health check failed', { error: err instanceof Error ? err.message : String(err) });
+  } catch (error) {
+    logger.error('Meishi DKG health check failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     res.json({
       service: 'meishi-dkg',
       status: 'unhealthy',
@@ -367,74 +721,74 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       endpoint,
       blockchain,
       paranetUAL,
-      error: err instanceof Error ? err.message : 'Health check failed',
+      error: error instanceof Error ? error.message : 'Health check failed',
       checks,
     });
   }
 }));
 
-router.get('/leaderboard', asyncRoute(async (req: Request, res: Response) => {
-  const c = await getClient();
-  const dkg = c.rawDKG;
-
+router.get('/dashboard', asyncRoute(async (req: Request, res: Response) => {
+  const limit = Number.isFinite(Number(req.query.limit)) ? parseInt(String(req.query.limit), 10) : DEFAULT_DASHBOARD_LIMIT;
   const minScore = Number.isFinite(Number(req.query.minScore)) ? parseInt(String(req.query.minScore), 10) : 0;
-  const limit = Number.isFinite(Number(req.query.limit)) ? parseInt(String(req.query.limit), 10) : 25;
+  const snapshotKey = getSnapshotKey('dashboard', { limit, minScore });
+
+  await respondWithSnapshot(res, snapshotKey, async () => loadDashboard(limit, minScore));
+}));
+
+router.get('/leaderboard', asyncRoute(async (req: Request, res: Response) => {
+  const minScore = Number.isFinite(Number(req.query.minScore)) ? parseInt(String(req.query.minScore), 10) : 0;
+  const limit = Number.isFinite(Number(req.query.limit)) ? parseInt(String(req.query.limit), 10) : DEFAULT_DASHBOARD_LIMIT;
   const jurisdiction = typeof req.query.jurisdiction === 'string' ? req.query.jurisdiction.trim() : undefined;
+  const snapshotKey = getSnapshotKey('leaderboard', { minScore, limit, jurisdiction: jurisdiction ?? null });
 
-  const query = queryCompliantAgents(minScore, { jurisdiction, limit });
-  const { rows, scope, repository } = await queryWithParanetFallback(dkg, query, 'leaderboard');
-  const byAgent = new Map<string, {
-    agentId: string;
-    complianceScore: number;
-    complianceClass: string;
-    jurisdiction: string | null;
-    lastAudit: string | null;
-  }>();
+  await respondWithSnapshot(res, snapshotKey, async () => {
+    const { audits, scope, repository } = await loadAuditFeed('leaderboard', { minScore, limit, jurisdiction });
+    const agents = buildLeaderboard(audits, limit);
+    if (agents.length === 0) {
+      throw new RouteUnavailableError('No verified DKG leaderboard entries available');
+    }
 
-  for (const row of rows) {
-    const agentId = parseString(row.agent);
-    if (!agentId) continue;
-    const existing = byAgent.get(agentId);
-    const candidate = {
-      agentId,
-      complianceScore: Math.round(parseNum(row.score)),
-      complianceClass: parseString(row.classification) || 'unknown',
-      jurisdiction: parseString(row.jurisdiction) || null,
-      lastAudit: parseDate(row.date),
+    return {
+      agents,
+      source: 'dkg' as const,
+      warnings: formatWarnings(scope),
+      scope,
+      repository,
+      query: { minScore, limit, jurisdiction: jurisdiction ?? null },
     };
-    if (!existing) {
-      byAgent.set(agentId, candidate);
-      continue;
-    }
-    if (candidate.complianceScore > existing.complianceScore) {
-      byAgent.set(agentId, candidate);
-      continue;
-    }
-    if (candidate.complianceScore === existing.complianceScore) {
-      const existingTs = existing.lastAudit ? Date.parse(existing.lastAudit) : 0;
-      const candidateTs = candidate.lastAudit ? Date.parse(candidate.lastAudit) : 0;
-      if (candidateTs > existingTs) {
-        byAgent.set(agentId, candidate);
-      }
-    }
+  });
+}));
+
+router.get('/agent/:agentId/audits', asyncRoute(async (req: Request, res: Response) => {
+  const agentId = req.params.agentId;
+  if (!agentId || agentId.length > 300) {
+    res.status(400).json({ error: 'invalid_agent_id' });
+    return;
   }
 
-  const agents = [...byAgent.values()]
-    .sort((a, b) => {
-      if (b.complianceScore !== a.complianceScore) return b.complianceScore - a.complianceScore;
-      const aTs = a.lastAudit ? Date.parse(a.lastAudit) : 0;
-      const bTs = b.lastAudit ? Date.parse(b.lastAudit) : 0;
-      return bTs - aTs;
-    })
-    .slice(0, clampLimit(limit))
-    .map((agent, idx) => ({ rank: idx + 1, ...agent }));
+  const limit = Number.isFinite(Number(req.query.limit)) ? parseInt(String(req.query.limit), 10) : DEFAULT_HISTORY_LIMIT;
+  const snapshotKey = getSnapshotKey('agent-audits', { agentId, limit });
 
-  res.json({
-    agents,
-    source: 'dkg' as GraphSource,
-    scope,
-    repository,
-    query: { minScore, limit, jurisdiction: jurisdiction ?? null },
+  await respondWithSnapshot(res, snapshotKey, async () => {
+    const { audits, scope, repository } = await loadAuditFeed('agent-audits', { agentId, limit, minScore: 0 });
+    const filtered = audits
+      .filter((audit) => audit.agentId === agentId)
+      .sort((a, b) => (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0))
+      .slice(0, clampLimit(limit, DEFAULT_HISTORY_LIMIT));
+
+    if (filtered.length === 0) {
+      throw new RouteUnavailableError('No verified DKG audits available for this agent');
+    }
+
+    return {
+      audits: filtered,
+      source: 'dkg' as const,
+      warnings: formatWarnings(scope),
+      scope,
+      repository,
+      agentId,
+      total: filtered.length,
+    };
   });
 }));
 
@@ -445,32 +799,32 @@ router.get('/agent/:agentId/latest-audit', asyncRoute(async (req: Request, res: 
     return;
   }
 
-  const c = await getClient();
-  const dkg = c.rawDKG;
+  const snapshotKey = getSnapshotKey('latest-audit', { agentId });
 
-  const query = queryLatestAudit(agentId);
-  const { rows, scope, repository } = await queryWithParanetFallback(dkg, query, 'latest-audit');
-  const row = rows[0];
+  await respondWithSnapshot(res, snapshotKey, async () => {
+    const { audits, scope, repository } = await loadAuditFeed('latest-audit', { agentId, limit: 4, minScore: 0 });
+    const latest = audits
+      .filter((audit) => audit.agentId === agentId)
+      .sort((a, b) => (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0))[0];
 
-  if (!row) {
-    res.status(404).json({ error: 'not_found' });
-    return;
-  }
+    if (!latest) {
+      throw new RouteUnavailableError('No verified DKG audit available for this agent');
+    }
 
-  res.json({
-    audit: {
-      ual: parseString(row.audit),
-      agentId: agentId,
-      complianceScore: Math.round(parseNum(row.score)),
-      complianceClass: parseString(row.classification) || 'unknown',
-      auditorId: parseString(row.auditor),
-      auditType: parseString(row.auditType) || 'periodic',
-      date: parseDate(row.date),
-    },
-    source: 'dkg' as GraphSource,
-    scope,
-    repository,
+    return {
+      audit: latest,
+      source: 'dkg' as const,
+      warnings: formatWarnings(scope),
+      scope,
+      repository,
+    };
   });
 }));
+
+export function __resetMeishiDkgRoutesForTests(): void {
+  client = null;
+  clientInitPromise = null;
+  snapshots.clear();
+}
 
 export default router;

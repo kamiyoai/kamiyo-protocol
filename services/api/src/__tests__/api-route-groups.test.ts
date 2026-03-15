@@ -121,6 +121,7 @@ describe('api route ownership groups', () => {
     const routeDir = resolve(process.cwd(), 'src/api/routes');
     const routeFiles = readdirSync(routeDir)
       .filter((name) => name.endsWith('.ts'))
+      .filter((name) => !name.startsWith('_'))
       .map((name) => name.replace(/\.ts$/, ''))
       .sort();
 

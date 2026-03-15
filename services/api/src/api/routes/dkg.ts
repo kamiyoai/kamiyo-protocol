@@ -1,7 +1,11 @@
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
-import { createDKGClient, type ParanetConfig } from '@kamiyo/agent-paranet';
+import { createDKGClient } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
+import {
+  firstNonEmpty,
+  getParanetConfig,
+} from './_dkg-config';
 
 const router: IRouter = Router();
 
@@ -143,37 +147,6 @@ function summarizeKnowledgeAsset(publicAsset: unknown): ResolveSummary {
   const nodes = asRecordArray(publicAsset);
   if (nodes) return summarizeFromNodes(nodes);
   return { name: null, description: null, types: null, issuer: null, id: null };
-}
-
-function firstNonEmpty(keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const raw = process.env[key];
-    if (!raw) continue;
-    const value = raw.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function getParanetConfig(): ParanetConfig {
-  const endpoint = firstNonEmpty(['DKG_ENDPOINT', 'KAMIYO_DKG_ENDPOINT', 'PARANET_DKG_ENDPOINT', 'OT_NODE_ENDPOINT']);
-  const blockchainValue = firstNonEmpty(['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN']);
-
-  if (!endpoint) {
-    throw new Error('DKG endpoint missing. Set DKG_ENDPOINT or KAMIYO_DKG_ENDPOINT');
-  }
-
-  const blockchain = (blockchainValue === 'gnosis:100' || blockchainValue === 'otp:2043' ? blockchainValue : 'base:8453') as ParanetConfig['blockchain'];
-  const portRaw = firstNonEmpty(['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT']);
-  const portParsed = portRaw ? parseInt(portRaw, 10) : NaN;
-
-  return {
-    dkgEndpoint: endpoint,
-    dkgPort: Number.isFinite(portParsed) && portParsed > 0 && portParsed <= 65535 ? portParsed : 8900,
-    blockchain,
-    privateKey: firstNonEmpty(['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY']),
-    paranetUAL: firstNonEmpty(['PARANET_UAL', 'DKG_PARANET_UAL', 'KAMIYO_DKG_PARANET_UAL', 'MEISHI_PARANET_UAL']),
-  };
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

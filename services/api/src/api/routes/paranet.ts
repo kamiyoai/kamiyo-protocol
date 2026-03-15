@@ -9,9 +9,9 @@ import {
   isValidGlobalId,
   getDefaultExecutor,
   CircuitOpenError,
-  type ParanetConfig,
 } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
+import { getParanetConfig, resolveDkgPrivateKey } from './_dkg-config';
 
 const router = Router();
 
@@ -70,85 +70,6 @@ let paranetClient: AgentParanetClient | null = null;
 let clientInitPromise: Promise<AgentParanetClient> | null = null;
 let lastHealthCheck = 0;
 const HEALTH_INTERVAL = 60000;
-
-function firstNonEmpty(keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const raw = process.env[key];
-    if (!raw) continue;
-    const value = raw.trim();
-    if (value) return value;
-  }
-  return undefined;
-}
-
-function normalizeDkgEndpoint(endpoint: string): string {
-  const value = endpoint.trim();
-  if (!value) return value;
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)) {
-    return value;
-  }
-  return `http://${value}`;
-}
-
-function resolveDkgEndpoint(): string | undefined {
-  const endpoint = firstNonEmpty([
-    'DKG_ENDPOINT',
-    'KAMIYO_DKG_ENDPOINT',
-    'PARANET_DKG_ENDPOINT',
-    'OT_NODE_ENDPOINT',
-  ]);
-  return endpoint ? normalizeDkgEndpoint(endpoint) : undefined;
-}
-
-function resolveDkgBlockchain(): ParanetConfig['blockchain'] {
-  const value = firstNonEmpty(['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN']);
-  if (value === 'gnosis:100' || value === 'otp:2043') return value;
-  return 'base:8453';
-}
-
-function resolveDkgPort(): number {
-  const raw = firstNonEmpty(['DKG_PORT', 'KAMIYO_DKG_PORT', 'PARANET_DKG_PORT']);
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  if (Number.isFinite(parsed) && parsed > 0 && parsed <= 65535) return parsed;
-  return 8900;
-}
-
-function resolveDkgPrivateKey(): string | undefined {
-  return firstNonEmpty(['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY']);
-}
-
-function resolveDkgEpochs(): number {
-  const raw = firstNonEmpty(['DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS', 'PARANET_EPOCHS']);
-  const parsed = raw ? parseInt(raw, 10) : NaN;
-  if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return 12;
-}
-
-function resolveParanetUal(): string | undefined {
-  return firstNonEmpty([
-    'PARANET_UAL',
-    'DKG_PARANET_UAL',
-    'KAMIYO_DKG_PARANET_UAL',
-    'MEISHI_PARANET_UAL',
-  ]);
-}
-
-function getParanetConfig(): ParanetConfig {
-  const endpoint = resolveDkgEndpoint();
-
-  if (!endpoint) {
-    throw new Error('DKG endpoint missing. Set DKG_ENDPOINT or KAMIYO_DKG_ENDPOINT');
-  }
-
-  return {
-    dkgEndpoint: endpoint,
-    dkgPort: resolveDkgPort(),
-    blockchain: resolveDkgBlockchain(),
-    privateKey: resolveDkgPrivateKey(),
-    epochs: resolveDkgEpochs(),
-    paranetUAL: resolveParanetUal(),
-  };
-}
 
 async function getClient(): Promise<AgentParanetClient> {
   if (paranetClient && Date.now() - lastHealthCheck > HEALTH_INTERVAL) {
