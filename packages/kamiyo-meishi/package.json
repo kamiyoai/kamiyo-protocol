@@ -30,7 +30,7 @@
     "prepare": "npm run build",
     "dev": "tsc --watch",
     "lint": "eslint src --ext .ts",
-    "test": "tsx ../../node_modules/mocha/bin/mocha.js ../../tests/meishi-validation.test.ts ../../tests/meishi-dkg-alignment.test.ts ../../tests/meishi-dkg-integrity.test.ts"
+    "test": "tsx ../../node_modules/mocha/bin/mocha.js ../../tests/meishi-validation.test.ts ../../tests/meishi-dkg-alignment.test.ts ../../tests/meishi-dkg-integrity.test.ts ../../tests/meishi-dkg-epochs.test.ts"
   },
   "author": "KAMIYO",
   "license": "MIT",

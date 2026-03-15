@@ -53,6 +53,10 @@ export {
 const MAX_EPOCHS = 100;
 const DEFAULT_EPOCHS = 5;
 
+function clampEpochs(value: number, minimum = 1): number {
+  return Math.min(MAX_EPOCHS, Math.max(value, minimum));
+}
+
 export interface DKGClient {
   query(sparql: string): Promise<unknown[]>;
   get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }>;
@@ -81,12 +85,12 @@ export class MeishiDKGPublisher {
 
   async publishTransactionDecision(params: TransactionDecisionDoc): Promise<string> {
     const payload = buildTransactionDecisionPayload(params);
-    return this.dkg.publish(payload, { epochs: this.defaultEpochs });
+    return this.dkg.publish(payload, { epochs: clampEpochs(this.defaultEpochs) });
   }
 
   async publishComplianceAudit(params: ComplianceAuditDoc): Promise<string> {
     const payload = buildComplianceAuditPayload(params);
-    const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 10));
+    const epochs = clampEpochs(this.defaultEpochs);
     return this.dkg.publish(payload, { epochs });
   }
 
@@ -94,7 +98,7 @@ export class MeishiDKGPublisher {
     params: ComplianceAuditDoc
   ): Promise<PublishedAssetIntegrity> {
     const payload = buildComplianceAuditPayload(params);
-    const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 10));
+    const epochs = clampEpochs(this.defaultEpochs);
     const publicHashHex = sha256HexCanonicalJson(payload.public);
     const publicHashBytes = sha256BytesCanonicalJson(payload.public);
     const ual = await this.dkg.publish(payload, { epochs });
@@ -103,7 +107,7 @@ export class MeishiDKGPublisher {
 
   async publishLiabilityResolution(params: LiabilityResolutionDoc): Promise<string> {
     const payload = buildLiabilityResolutionPayload(params);
-    const epochs = Math.min(MAX_EPOCHS, Math.max(this.defaultEpochs, 20));
+    const epochs = clampEpochs(this.defaultEpochs, 20);
     return this.dkg.publish(payload, { epochs });
   }
 
