@@ -313,9 +313,7 @@ async function buildDkgClient(): Promise<DKGClient> {
       for (const repository of repositories) {
         if (paranetUAL) {
           try {
-            const result = await withDkgRetry(() =>
-              raw.graph.query(sparql, 'SELECT', { repository, paranetUAL })
-            );
+            const result = await raw.graph.query(sparql, 'SELECT', { repository, paranetUAL });
             if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
           } catch {
             // fall through to global query
@@ -323,9 +321,7 @@ async function buildDkgClient(): Promise<DKGClient> {
         }
 
         try {
-          const result = await withDkgRetry(() =>
-            raw.graph.query(sparql, 'SELECT', { repository })
-          );
+          const result = await raw.graph.query(sparql, 'SELECT', { repository });
           if (Array.isArray(result?.data) && result.data.length > 0) return result.data;
         } catch {
           // try the next repository
@@ -381,7 +377,12 @@ async function getDkgPublisher(): Promise<MeishiDKGPublisher> {
 }
 
 async function lookupLatestAuditUal(subjectId: string): Promise<string | null> {
-  const rows = await (await getDkgClient()).query(queryLatestAudit(subjectId));
+  let rows: unknown[];
+  try {
+    rows = await (await getDkgClient()).query(queryLatestAudit(subjectId));
+  } catch {
+    return null;
+  }
   const first = Array.isArray(rows) ? rows[0] : null;
   if (!first || typeof first !== 'object') return null;
   const ual = (first as { audit?: unknown }).audit;
