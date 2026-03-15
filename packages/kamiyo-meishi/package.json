@@ -14,11 +14,15 @@
     },
     "./zk": {
       "types": "./dist/zk/index.d.ts",
-      "import": "./dist/zk/index.js"
+      "import": "./dist/zk/index.js",
+      "require": "./dist/zk/index.js",
+      "default": "./dist/zk/index.js"
     },
     "./dkg": {
       "types": "./dist/dkg/index.d.ts",
-      "import": "./dist/dkg/index.js"
+      "import": "./dist/dkg/index.js",
+      "require": "./dist/dkg/index.js",
+      "default": "./dist/dkg/index.js"
     }
   },
   "scripts": {
