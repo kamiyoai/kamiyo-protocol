@@ -3,11 +3,14 @@ import { Router, type Request, type Response } from 'express';
 import {
   ensureMeishiIdentity,
   meishiIdentityRouteEnabled,
+  startMeishiDkgOutboxWorker,
   verifyMeishiInternalSecret,
   type EnsureMeishiIdentityInput,
 } from '../../meishi/identity-assurance';
 
 const router = Router();
+
+startMeishiDkgOutboxWorker();
 
 function badRequest(res: Response, error: string): void {
   res.status(400).json({ error });

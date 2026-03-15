@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 
 import { AgentParanetClient } from '@kamiyo/agent-paranet';
 import {
@@ -29,6 +30,7 @@ import {
   resolveMeishiRepositories,
   resolveParanetUAL,
 } from '../api/routes/_dkg-config';
+import { logger } from '../logger';
 import { getSolanaConnection } from '../solana';
 
 export type MeishiIdentityEntityType = 'human' | 'agent';
@@ -62,6 +64,7 @@ export interface EnsureMeishiIdentityResult {
   mandateUpdated: boolean;
   auditRecorded: boolean;
   dkgAuditPublished: boolean;
+  dkgAuditQueued: boolean;
   mandateVersion: number;
   auditNonce: number;
   latestAuditUal: string | null;
@@ -96,6 +99,35 @@ let meishiClientPromise: Promise<MeishiClient> | null = null;
 let meishiWriterPromise: Promise<MeishiWriter> | null = null;
 let dkgClientPromise: Promise<DKGClient> | null = null;
 let dkgPublisherPromise: Promise<MeishiDKGPublisher> | null = null;
+let dkgOutboxWorkerInterval: NodeJS.Timeout | null = null;
+let dkgOutboxDrainPromise: Promise<void> | null = null;
+let dkgOutboxLock: Promise<void> = Promise.resolve();
+
+interface PublishComplianceAuditInput {
+  agentId: string;
+  meishiPda: string;
+  auditorId: string;
+  auditType: string;
+  dimensions: Array<{
+    name: string;
+    score: number;
+    findings: string[];
+  }>;
+  overallScore: number;
+  classification: string;
+  jurisdiction: string;
+  recommendations: string[];
+}
+
+interface PendingDkgAudit {
+  id: string;
+  payload: PublishComplianceAuditInput;
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+  nextAttemptAt: string;
+  lastError: string | null;
+}
 
 function clampScore(value: number): number {
   return Math.max(-1000, Math.min(1000, Math.round(value)));
@@ -171,9 +203,148 @@ function dkgRetryBaseMs(): number {
   return Math.max(250, intEnv('MEISHI_DKG_RETRY_BASE_MS', 1_250));
 }
 
+function dkgOutboxIntervalMs(): number {
+  return Math.max(5_000, intEnv('MEISHI_DKG_OUTBOX_INTERVAL_MS', 30_000));
+}
+
+function dkgOutboxBaseMs(): number {
+  return Math.max(5_000, intEnv('MEISHI_DKG_OUTBOX_BASE_MS', 30_000));
+}
+
 function isRetryableDkgError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
   return /over rate limit|rate limit|too many requests|429|timed out|timeout|econnreset|socket hang up|temporarily unavailable/i.test(message);
+}
+
+function meishiDataDir(): string {
+  return normalizedString(process.env.DATA_DIR) ?? './data';
+}
+
+function meishiDkgOutboxPath(): string {
+  return path.resolve(meishiDataDir(), 'meishi-dkg-outbox.json');
+}
+
+function ensureMeishiDataDir(): void {
+  fs.mkdirSync(meishiDataDir(), { recursive: true });
+}
+
+function readPendingDkgAudits(): PendingDkgAudit[] {
+  ensureMeishiDataDir();
+  const filePath = meishiDkgOutboxPath();
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8').trim();
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as PendingDkgAudit[]) : [];
+  } catch (error) {
+    logger.warn('Failed to read Meishi DKG outbox', {
+      filePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
+function writePendingDkgAudits(entries: PendingDkgAudit[]): void {
+  ensureMeishiDataDir();
+  const filePath = meishiDkgOutboxPath();
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(entries, null, 2));
+  fs.renameSync(tempPath, filePath);
+}
+
+async function withDkgOutboxLock<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = dkgOutboxLock;
+  let release!: () => void;
+  dkgOutboxLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+function dkgAuditId(payload: PublishComplianceAuditInput): string {
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+async function upsertPendingDkgAudit(
+  payload: PublishComplianceAuditInput,
+  error: unknown
+): Promise<void> {
+  const now = new Date();
+  const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown DKG publish failure');
+
+  await withDkgOutboxLock(async () => {
+    const entries = readPendingDkgAudits();
+    const id = dkgAuditId(payload);
+    const nextAttemptAt = new Date(now.getTime() + dkgOutboxBaseMs()).toISOString();
+    const existing = entries.find((entry) => entry.id === id);
+
+    if (existing) {
+      existing.updatedAt = now.toISOString();
+      existing.lastError = errorMessage;
+      existing.nextAttemptAt = nextAttemptAt;
+      writePendingDkgAudits(entries);
+      return;
+    }
+
+    entries.push({
+      id,
+      payload,
+      attempts: 1,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      nextAttemptAt,
+      lastError: errorMessage,
+    });
+    writePendingDkgAudits(entries);
+  });
+}
+
+async function removePendingDkgAudit(payload: PublishComplianceAuditInput): Promise<void> {
+  await withDkgOutboxLock(async () => {
+    const id = dkgAuditId(payload);
+    const entries = readPendingDkgAudits();
+    const nextEntries = entries.filter((entry) => entry.id !== id);
+    if (nextEntries.length !== entries.length) {
+      writePendingDkgAudits(nextEntries);
+    }
+  });
+}
+
+async function nextPendingDkgAudit(): Promise<PendingDkgAudit | null> {
+  return withDkgOutboxLock(async () => {
+    const now = Date.now();
+    const entries = readPendingDkgAudits()
+      .filter((entry) => Date.parse(entry.nextAttemptAt) <= now)
+      .sort((left, right) => Date.parse(left.nextAttemptAt) - Date.parse(right.nextAttemptAt));
+    return entries[0] ?? null;
+  });
+}
+
+async function updatePendingDkgAuditFailure(entry: PendingDkgAudit, error: unknown): Promise<void> {
+  const errorMessage = error instanceof Error ? error.message : String(error ?? 'Unknown DKG publish failure');
+  const attempts = entry.attempts + 1;
+  const nextAttemptAt = new Date(Date.now() + dkgOutboxBaseMs() * Math.min(attempts, 10)).toISOString();
+
+  await withDkgOutboxLock(async () => {
+    const entries = readPendingDkgAudits();
+    const current = entries.find((candidate) => candidate.id === entry.id);
+    if (!current) return;
+    current.attempts = attempts;
+    current.updatedAt = new Date().toISOString();
+    current.nextAttemptAt = nextAttemptAt;
+    current.lastError = errorMessage;
+    writePendingDkgAudits(entries);
+  });
 }
 
 async function withDkgRetry<T>(operation: () => Promise<T>): Promise<T> {
@@ -376,6 +547,81 @@ async function getDkgPublisher(): Promise<MeishiDKGPublisher> {
   return dkgPublisherPromise;
 }
 
+export function startMeishiDkgOutboxWorker(): void {
+  if (dkgOutboxWorkerInterval) return;
+
+  dkgOutboxWorkerInterval = setInterval(() => {
+    void flushPendingDkgAudits();
+  }, dkgOutboxIntervalMs());
+  dkgOutboxWorkerInterval.unref();
+}
+
+async function flushPendingDkgAudits(): Promise<void> {
+  if (dkgOutboxDrainPromise) {
+    return dkgOutboxDrainPromise;
+  }
+
+  dkgOutboxDrainPromise = (async () => {
+    while (true) {
+      const entry = await nextPendingDkgAudit();
+      if (!entry) return;
+
+      try {
+        const ual = await (await getDkgPublisher()).publishComplianceAudit(entry.payload);
+        await removePendingDkgAudit(entry.payload);
+        logger.info('Published queued Meishi DKG audit', {
+          subjectId: entry.payload.agentId,
+          ual,
+        });
+      } catch (error) {
+        await updatePendingDkgAuditFailure(entry, error);
+        logger.warn('Deferred Meishi DKG audit publish still failing', {
+          subjectId: entry.payload.agentId,
+          attempts: entry.attempts + 1,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+    }
+  })();
+
+  try {
+    await dkgOutboxDrainPromise;
+  } finally {
+    dkgOutboxDrainPromise = null;
+  }
+}
+
+async function publishComplianceAudit(
+  payload: PublishComplianceAuditInput
+): Promise<{ latestAuditUal: string | null; dkgAuditPublished: boolean; dkgAuditQueued: boolean }> {
+  try {
+    const latestAuditUal = await (await getDkgPublisher()).publishComplianceAudit(payload);
+    await removePendingDkgAudit(payload);
+    return {
+      latestAuditUal,
+      dkgAuditPublished: true,
+      dkgAuditQueued: false,
+    };
+  } catch (error) {
+    if (!isRetryableDkgError(error)) {
+      throw error;
+    }
+
+    await upsertPendingDkgAudit(payload, error);
+    logger.warn('Queued Meishi DKG audit after retryable publish failure', {
+      subjectId: payload.agentId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    return {
+      latestAuditUal: null,
+      dkgAuditPublished: false,
+      dkgAuditQueued: true,
+    };
+  }
+}
+
 async function lookupLatestAuditUal(subjectId: string): Promise<string | null> {
   let rows: unknown[];
   try {
@@ -503,6 +749,8 @@ function buildDkgOnlyReport(
 export async function ensureMeishiIdentity(
   input: EnsureMeishiIdentityInput
 ): Promise<EnsureMeishiIdentityResult> {
+  startMeishiDkgOutboxWorker();
+
   const walletAddress = normalizedString(input.walletAddress);
   if (!walletAddress) {
     throw new Error('walletAddress is required');
@@ -520,6 +768,7 @@ export async function ensureMeishiIdentity(
   let mandateUpdated = false;
   let auditRecorded = false;
   let dkgAuditPublished = false;
+  let dkgAuditQueued = false;
   let latestAuditUal: string | null = null;
   const existingAuditUal = await lookupLatestAuditUal(subjectId);
   await getSigner();
@@ -634,7 +883,7 @@ export async function ensureMeishiIdentity(
     assuranceMode === 'dkg_only';
 
   if (shouldPublishDkg) {
-    latestAuditUal = await (await getDkgPublisher()).publishComplianceAudit({
+    const auditPayload: PublishComplianceAuditInput = {
       agentId: subjectId,
       meishiPda: passportAddressBase58,
       auditorId: resolveAuditorId(),
@@ -660,8 +909,11 @@ export async function ensureMeishiIdentity(
               `${input.entityType} identity registered on Singularity`,
               input.displayName ? `display_name=${input.displayName}` : `wallet=${walletAddress}`,
             ],
-    });
-    dkgAuditPublished = true;
+    };
+    const publishResult = await publishComplianceAudit(auditPayload);
+    latestAuditUal = publishResult.latestAuditUal;
+    dkgAuditPublished = publishResult.dkgAuditPublished;
+    dkgAuditQueued = publishResult.dkgAuditQueued;
   }
 
   return {
@@ -682,6 +934,7 @@ export async function ensureMeishiIdentity(
     mandateUpdated,
     auditRecorded,
     dkgAuditPublished,
+    dkgAuditQueued,
     mandateVersion,
     auditNonce,
     latestAuditUal,
@@ -707,4 +960,10 @@ export function __resetMeishiIdentityAssuranceForTests(): void {
   meishiWriterPromise = null;
   dkgClientPromise = null;
   dkgPublisherPromise = null;
+  if (dkgOutboxWorkerInterval) {
+    clearInterval(dkgOutboxWorkerInterval);
+  }
+  dkgOutboxWorkerInterval = null;
+  dkgOutboxDrainPromise = null;
+  dkgOutboxLock = Promise.resolve();
 }

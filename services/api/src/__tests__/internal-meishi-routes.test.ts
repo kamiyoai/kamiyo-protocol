@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import http from 'http';
@@ -155,8 +158,10 @@ function startServer(app: express.Express): Promise<{ baseUrl: string; close: ()
 }
 
 describe('internal meishi routes', () => {
+  let tempDataDir = '';
   const envBackup = {
     API_SECRET: process.env.API_SECRET,
+    DATA_DIR: process.env.DATA_DIR,
     DKG_ENDPOINT: process.env.DKG_ENDPOINT,
     DKG_PRIVATE_KEY: process.env.DKG_PRIVATE_KEY,
     DKG_BLOCKCHAIN: process.env.DKG_BLOCKCHAIN,
@@ -167,6 +172,7 @@ describe('internal meishi routes', () => {
   };
 
   beforeEach(() => {
+    tempDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'meishi-dkg-'));
     state.passport = null;
     state.mandate = null;
     state.createPassportError = null;
@@ -183,10 +189,12 @@ describe('internal meishi routes', () => {
     process.env.MEISHI_INTERNAL_API_SECRET = 'test-meishi-secret-value';
     process.env.MEISHI_INTERNAL_ROUTE_ENABLED = 'true';
     process.env.MEISHI_WRITER_KEYPAIR = JSON.stringify(Array.from(Keypair.generate().secretKey));
+    process.env.DATA_DIR = tempDataDir;
   });
 
   afterEach(() => {
     __resetMeishiIdentityAssuranceForTests();
+    fs.rmSync(tempDataDir, { recursive: true, force: true });
     for (const [key, value] of Object.entries(envBackup)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
@@ -223,6 +231,7 @@ describe('internal meishi routes', () => {
       expect(body.mandateUpdated).toBe(true);
       expect(body.auditRecorded).toBe(true);
       expect(body.dkgAuditPublished).toBe(true);
+      expect(body.dkgAuditQueued).toBe(false);
       expect(body.latestAuditUal).toBe('did:dkg:otp:2043/test/audit-1');
       expect(publishAuditMock).toHaveBeenCalledTimes(1);
     } finally {
@@ -273,6 +282,7 @@ describe('internal meishi routes', () => {
       expect(body.mandateUpdated).toBe(false);
       expect(body.auditRecorded).toBe(false);
       expect(body.dkgAuditPublished).toBe(false);
+      expect(body.dkgAuditQueued).toBe(false);
       expect(body.existingAuditUal).toBe('did:dkg:otp:2043/test/existing-audit');
       expect(publishAuditMock).not.toHaveBeenCalled();
     } finally {
@@ -313,6 +323,7 @@ describe('internal meishi routes', () => {
       expect(body.mandateUpdated).toBe(false);
       expect(body.auditRecorded).toBe(false);
       expect(body.dkgAuditPublished).toBe(true);
+      expect(body.dkgAuditQueued).toBe(false);
       expect(body.onChainComplianceScore).toBe(0);
       expect(body.dkgComplianceScore).toBeGreaterThan(0);
       expect(body.complianceClass).toBe('limited');
@@ -326,6 +337,45 @@ describe('internal meishi routes', () => {
           auditType: 'initial',
         })
       );
+    } finally {
+      await close();
+    }
+  });
+
+  it('queues the audit when DKG publish hits a retryable rate limit', async () => {
+    graphQueryMock.mockResolvedValue({ data: [] });
+    publishAuditMock.mockRejectedValue(new Error('Returned error: over rate limit'));
+
+    const app = express();
+    app.use(express.json());
+    app.use('/internal/meishi', internalMeishiRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const walletAddress = Keypair.generate().publicKey.toBase58();
+      const res = await fetch(`${baseUrl}/internal/meishi/ensure-identity`, {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer test-meishi-secret-value',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityType: 'human',
+          walletAddress,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.dkgAuditPublished).toBe(false);
+      expect(body.dkgAuditQueued).toBe(true);
+      expect(body.latestAuditUal).toBeNull();
+
+      const outboxPath = path.join(tempDataDir, 'meishi-dkg-outbox.json');
+      expect(fs.existsSync(outboxPath)).toBe(true);
+      const queued = JSON.parse(fs.readFileSync(outboxPath, 'utf8')) as Array<{ payload: { agentId: string } }>;
+      expect(queued).toHaveLength(1);
+      expect(queued[0]?.payload.agentId).toBe(`urn:kamiyo:solana:${walletAddress}`);
     } finally {
       await close();
     }
