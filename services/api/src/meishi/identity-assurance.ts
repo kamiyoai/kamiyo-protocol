@@ -292,17 +292,13 @@ async function buildDkgClient(): Promise<DKGClient> {
     },
 
     async get(ual: string): Promise<{ content: unknown; metadata?: Record<string, unknown> }> {
-      const content = await paranetClient.rawDKG.asset.get(ual, {
-        contentType: 'all',
-        ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
-      });
+      const content = await paranetClient.rawDKG.asset.get(ual);
       return { content };
     },
 
     async publish(content: DKGAssetPayload, options?: { epochs?: number }): Promise<string> {
       const result = await paranetClient.rawDKG.asset.create(content, {
         ...(options?.epochs ? { epochsNum: options.epochs } : {}),
-        tokenAmount: 0,
         ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
       });
       const ual =
