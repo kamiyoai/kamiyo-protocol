@@ -620,13 +620,17 @@ async function respondWithSnapshot<T extends { warnings: string[] }>(
     }
 
     const message = error instanceof Error ? error.message : 'DKG unavailable';
+    logger.warn('Meishi DKG unavailable with no verified snapshot', {
+      snapshotKey,
+      error: message,
+    });
     res.status(503).json({
       source: 'unavailable',
       dataMode: 'unavailable',
       asOf: null,
       staleAgeMs: 0,
       warnings: ['Verified DKG audit data is temporarily unavailable.'],
-      error: message,
+      error: 'Verified DKG audit data is unavailable.',
     });
   }
 }
