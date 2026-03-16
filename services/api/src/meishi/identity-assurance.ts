@@ -103,6 +103,9 @@ let dkgPublisherPromise: Promise<MeishiDKGPublisher> | null = null;
 let dkgOutboxWorkerInterval: NodeJS.Timeout | null = null;
 let dkgOutboxDrainPromise: Promise<void> | null = null;
 let dkgOutboxLock: Promise<void> = Promise.resolve();
+let dkgPublishLock: Promise<void> = Promise.resolve();
+
+const DKG_UAL_RECOVERY_DELAYS_MS = [250, 500, 1_000, 1_500] as const;
 
 interface PublishComplianceAuditInput {
   agentId: string;
@@ -232,7 +235,9 @@ async function withDkgTimeout<T>(label: string, operation: () => Promise<T>): Pr
 
 function isRetryableDkgError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
-  return /over rate limit|rate limit|too many requests|429|timed out|timeout|econnreset|socket hang up|temporarily unavailable/i.test(message);
+  return /over rate limit|rate limit|too many requests|429|timed out|timeout|econnreset|socket hang up|temporarily unavailable|replacement transaction underpriced|nonce too low|already known|missing UAL/i.test(
+    message
+  );
 }
 
 function meishiDataDir(): string {
@@ -280,6 +285,20 @@ async function withDkgOutboxLock<T>(operation: () => Promise<T>): Promise<T> {
   const previous = dkgOutboxLock;
   let release!: () => void;
   dkgOutboxLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+async function withDkgPublishLock<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = dkgPublishLock;
+  let release!: () => void;
+  dkgPublishLock = new Promise<void>((resolve) => {
     release = resolve;
   });
   await previous.catch(() => undefined);
@@ -575,6 +594,31 @@ async function getDkgPublisher(): Promise<MeishiDKGPublisher> {
   return dkgPublisherPromise;
 }
 
+async function publishComplianceAuditAsset(payload: PublishComplianceAuditInput): Promise<string> {
+  try {
+    return await withDkgPublishLock(async () => (await getDkgPublisher()).publishComplianceAudit(payload));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    if (!/missing UAL/i.test(message)) {
+      throw error;
+    }
+
+    for (const delayMs of DKG_UAL_RECOVERY_DELAYS_MS) {
+      await sleep(delayMs);
+      const recoveredUal = await lookupLatestAuditUal(payload.agentId);
+      if (recoveredUal) {
+        logger.warn('Recovered Meishi DKG audit UAL after missing publish response', {
+          subjectId: payload.agentId,
+          recoveredUal,
+        });
+        return recoveredUal;
+      }
+    }
+
+    throw error;
+  }
+}
+
 export function startMeishiDkgOutboxWorker(): void {
   if (dkgOutboxWorkerInterval) return;
 
@@ -595,7 +639,7 @@ async function flushPendingDkgAudits(): Promise<void> {
       if (!entry) return;
 
       try {
-        const ual = await (await getDkgPublisher()).publishComplianceAudit(entry.payload);
+        const ual = await publishComplianceAuditAsset(entry.payload);
         await removePendingDkgAudit(entry.payload);
         logger.info('Published queued Meishi DKG audit', {
           subjectId: entry.payload.agentId,
@@ -624,7 +668,7 @@ async function publishComplianceAudit(
   payload: PublishComplianceAuditInput
 ): Promise<{ latestAuditUal: string | null; dkgAuditPublished: boolean; dkgAuditQueued: boolean }> {
   try {
-    const latestAuditUal = await (await getDkgPublisher()).publishComplianceAudit(payload);
+    const latestAuditUal = await publishComplianceAuditAsset(payload);
     await removePendingDkgAudit(payload);
     return {
       latestAuditUal,
@@ -994,4 +1038,5 @@ export function __resetMeishiIdentityAssuranceForTests(): void {
   dkgOutboxWorkerInterval = null;
   dkgOutboxDrainPromise = null;
   dkgOutboxLock = Promise.resolve();
+  dkgPublishLock = Promise.resolve();
 }

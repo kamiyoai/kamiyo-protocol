@@ -380,4 +380,77 @@ describe('internal meishi routes', () => {
       await close();
     }
   });
+
+  it('recovers the latest audit when the DKG publish response omits the UAL', async () => {
+    publishAuditMock.mockRejectedValueOnce(new Error('DKG publish response missing UAL'));
+    let queryCount = 0;
+    graphQueryMock.mockImplementation(async () => {
+      queryCount += 1;
+      if (queryCount === 1) {
+        return { data: [] };
+      }
+      return { data: [{ audit: 'did:dkg:otp:2043/test/recovered-audit' }] };
+    });
+
+    const app = express();
+    app.use(express.json());
+    app.use('/internal/meishi', internalMeishiRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const walletAddress = Keypair.generate().publicKey.toBase58();
+      const res = await fetch(`${baseUrl}/internal/meishi/ensure-identity`, {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer test-meishi-secret-value',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityType: 'human',
+          walletAddress,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.dkgAuditPublished).toBe(true);
+      expect(body.dkgAuditQueued).toBe(false);
+      expect(body.latestAuditUal).toBe('did:dkg:otp:2043/test/recovered-audit');
+    } finally {
+      await close();
+    }
+  });
+
+  it('queues the audit when DKG publish hits a nonce contention error', async () => {
+    graphQueryMock.mockResolvedValue({ data: [] });
+    publishAuditMock.mockRejectedValue(new Error('Returned error: replacement transaction underpriced'));
+
+    const app = express();
+    app.use(express.json());
+    app.use('/internal/meishi', internalMeishiRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const walletAddress = Keypair.generate().publicKey.toBase58();
+      const res = await fetch(`${baseUrl}/internal/meishi/ensure-identity`, {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer test-meishi-secret-value',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityType: 'agent',
+          walletAddress,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.dkgAuditPublished).toBe(false);
+      expect(body.dkgAuditQueued).toBe(true);
+      expect(body.latestAuditUal).toBeNull();
+    } finally {
+      await close();
+    }
+  });
 });
