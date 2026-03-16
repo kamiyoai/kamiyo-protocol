@@ -202,6 +202,13 @@ export async function flushFairscaleTrustEventsOnce(): Promise<FlushResult> {
   }
 }
 
+export async function flushFairscaleTrustEventsNow(): Promise<FlushResult> {
+  if (flushInFlight) {
+    await flushInFlight;
+  }
+  return flushFairscaleTrustEventsOnce();
+}
+
 async function tick(): Promise<void> {
   for (let i = 0; i < 5; i += 1) {
     const result = await flushFairscaleTrustEventsOnce();

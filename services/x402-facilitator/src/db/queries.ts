@@ -765,6 +765,19 @@ export type FairscaleTrustEventOutboxRow = {
   updated_at: Date;
 };
 
+export type FairscaleTrustEventOutboxSummary = {
+  total_count: number;
+  pending_count: number;
+  ready_count: number;
+  leased_count: number;
+  retrying_count: number;
+  failed_count: number;
+  delivered_count: number;
+  oldest_pending_at: Date | null;
+  latest_delivered_at: Date | null;
+  latest_attempt_at: Date | null;
+};
+
 export type KizunaFinalizeSettlementResult = {
   lane: KizunaLane;
   poolId: string;
@@ -962,6 +975,110 @@ export async function markFairscaleTrustEventAttemptFailed(params: {
      WHERE id = $1`,
     [params.id, params.httpStatus ?? null, params.error ?? null, params.nextAttemptAt]
   );
+}
+
+export async function getFairscaleTrustEventOutboxSummary(): Promise<FairscaleTrustEventOutboxSummary> {
+  const row = await queryOne<FairscaleTrustEventOutboxSummary>(
+    `SELECT
+       COUNT(*)::int AS total_count,
+       COUNT(*) FILTER (WHERE delivered_at IS NULL)::int AS pending_count,
+       COUNT(*) FILTER (
+         WHERE delivered_at IS NULL
+           AND next_attempt_at <= NOW()
+           AND (leased_until IS NULL OR leased_until <= NOW())
+       )::int AS ready_count,
+       COUNT(*) FILTER (
+         WHERE delivered_at IS NULL
+           AND leased_until IS NOT NULL
+           AND leased_until > NOW()
+       )::int AS leased_count,
+       COUNT(*) FILTER (
+         WHERE delivered_at IS NULL
+           AND attempt_count > 0
+       )::int AS retrying_count,
+       COUNT(*) FILTER (
+         WHERE delivered_at IS NULL
+           AND last_error IS NOT NULL
+       )::int AS failed_count,
+       COUNT(*) FILTER (WHERE delivered_at IS NOT NULL)::int AS delivered_count,
+       MIN(next_attempt_at) FILTER (WHERE delivered_at IS NULL) AS oldest_pending_at,
+       MAX(delivered_at) AS latest_delivered_at,
+       MAX(last_attempt_at) AS latest_attempt_at
+     FROM kizuna_fairscale_event_outbox`
+  );
+
+  return (
+    row || {
+      total_count: 0,
+      pending_count: 0,
+      ready_count: 0,
+      leased_count: 0,
+      retrying_count: 0,
+      failed_count: 0,
+      delivered_count: 0,
+      oldest_pending_at: null,
+      latest_delivered_at: null,
+      latest_attempt_at: null,
+    }
+  );
+}
+
+export async function listFairscaleTrustEventOutbox(limit: number = 10): Promise<FairscaleTrustEventOutboxRow[]> {
+  const safeLimit = Math.max(1, Math.min(limit, 50));
+  return query<FairscaleTrustEventOutboxRow>(
+    `SELECT
+       id,
+       event_id,
+       event_type,
+       entity_id,
+       idempotency_key,
+       payload,
+       attempt_count,
+       next_attempt_at,
+       leased_until,
+       last_attempt_at,
+       last_http_status,
+       last_error,
+       delivered_at,
+       created_at,
+       updated_at
+     FROM kizuna_fairscale_event_outbox
+     ORDER BY updated_at DESC, created_at DESC
+     LIMIT $1`,
+    [safeLimit]
+  );
+}
+
+export async function requeueFairscaleTrustEvents(params?: {
+  limit?: number;
+  failedOnly?: boolean;
+}): Promise<number> {
+  const safeLimit = Math.max(1, Math.min(params?.limit ?? 50, 200));
+  const failedOnly = Boolean(params?.failedOnly);
+
+  const rows = await query<{ count: string }>(
+    `WITH target AS (
+       SELECT id
+       FROM kizuna_fairscale_event_outbox
+       WHERE delivered_at IS NULL
+         AND (
+           $2::boolean = false
+           OR attempt_count > 0
+         )
+       ORDER BY next_attempt_at ASC, created_at ASC
+       LIMIT $1
+     )
+     UPDATE kizuna_fairscale_event_outbox outbox
+     SET next_attempt_at = NOW(),
+         leased_until = NULL,
+         updated_at = NOW()
+     FROM target
+     WHERE outbox.id = target.id
+     RETURNING 1::text AS count`,
+    [safeLimit, failedOnly]
+  );
+
+  return rows.length;
 }
 
 async function ensureKizunaPoolReserve(

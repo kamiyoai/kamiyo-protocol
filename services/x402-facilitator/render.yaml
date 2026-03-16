@@ -2,8 +2,8 @@ services:
   - type: web
     name: kamiyo-x402-facilitator
     runtime: node
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: pnpm install --ignore-scripts && pnpm --dir services/x402-facilitator build
+    startCommand: pnpm --dir services/x402-facilitator start
     envVars:
       - key: NODE_ENV
         value: production
@@ -27,5 +27,65 @@ services:
         sync: false
       - key: BASE_TREASURY_ADDRESS
         sync: false
+      - key: KIZUNA_ENABLED
+        value: "true"
+      - key: KIZUNA_SHADOW_MODE
+        value: "false"
+      - key: KIZUNA_MAX_SINGLE_MICRO
+        value: "2000000"
+      - key: KIZUNA_RESERVATION_TTL_MS
+        value: "120000"
+      - key: KIZUNA_INTERNAL_TOKEN
+        sync: false
+      - key: WALLET_CONTROL_PLANE_URL
+        sync: false
+      - key: CREDITS_INTERNAL_URL
+        sync: false
+      - key: KIZUNA_KERNEL_URL
+        sync: false
+      - key: KIZUNA_KERNEL_TIMEOUT_MS
+        value: "1500"
+      - key: KIZUNA_KERNEL_FAIL_CLOSED
+        value: "true"
+      - key: KIZUNA_KERNEL_SIGNING_KEYS
+        sync: false
+      - key: KIZUNA_ENTERPRISE_POOL_ID
+        value: enterprise-main
+      - key: KIZUNA_FASTPATH_POOL_ID
+        value: fastpath-main
+      - key: KIZUNA_ENTERPRISE_REQUIRE_PREFUND
+        value: "true"
+      - key: KIZUNA_SECURED_ONLY
+        value: "false"
+      - key: KIZUNA_FASTPATH_LTV_CAP_BPS
+        value: "4000"
+      - key: KIZUNA_FASTPATH_MIN_HEALTH_FACTOR
+        value: "1.8"
+      - key: KIZUNA_FASTPATH_ASSET_HAIRCUT_BPS
+        value: "0"
+      - key: FAIRSCALE_TRUST_EVENTS_URL
+        sync: false
+      - key: FAIRSCALE_TRUST_EVENTS_KEY
+        sync: false
+      - key: FAIRSCALE_TRUST_EVENTS_KEY_HEADER
+        value: x-kizuna-key
+      - key: FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE
+        value: disabled
+      - key: FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER
+        value: x-kizuna-signature
+      - key: FAIRSCALE_TRUST_EVENTS_HMAC_SECRET
+        sync: false
+      - key: FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD
+        value: signature
+      - key: FAIRSCALE_TRUST_EVENTS_BATCH_SIZE
+        value: "50"
+      - key: FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS
+        value: "5000"
+      - key: FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS
+        value: "5000"
+      - key: FAIRSCALE_TRUST_EVENTS_LEASE_MS
+        value: "30000"
+      - key: FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS
+        value: "300000"
     healthCheckPath: /health
     autoDeploy: true

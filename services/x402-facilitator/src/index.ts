@@ -23,6 +23,7 @@ import { createDiscoveryRouter } from './routes/discovery';
 import { createSupportedRouter } from './routes/supported';
 import { createSessionRouter } from './routes/session';
 import { createKizunaRouter } from './routes/kizuna';
+import { createFairscaleRouter } from './routes/fairscale';
 import { isBaseEnabled } from './services/base-settlement';
 import { startFairscaleTrustSync, stopFairscaleTrustSync } from './services/fairscale-trust-sync';
 import { getSupportedNetworkIds, SOLANA_MAINNET_CAIP2 } from './protocol/networks';
@@ -172,6 +173,7 @@ async function main() {
   app.use('/fees', rateLimit, createFeesRouter());
   app.use('/reputation', rateLimit, createReputationRouter());
   app.use('/session', rateLimit, createSessionRouter(connection, facilitatorKeypair));
+  app.use('/kizuna/fairscale', rateLimit, createFairscaleRouter());
   app.use('/kizuna', rateLimit, createKizunaRouter());
 
   app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection, facilitatorKeypair.publicKey));
