@@ -17,6 +17,8 @@ export type ExecutionPolicyInput = Pick<
   | 'KAMIYO_AUTO_STAKE_ENABLED'
   | 'KAMIYO_AUTO_STAKE_AVAILABLE_BPS'
   | 'KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX'
+  | 'KAMIYO_STAKING_POOL'
+  | 'KAMIYO_KYOSHIN_STAKING_POOL'
   | 'KAMIYO_ALLOWED_STAKING_POOLS'
   | 'KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST'
 >;
@@ -102,6 +104,13 @@ function normalizePoolAddress(value: string): string {
   return value.trim();
 }
 
+function addAllowedPool(allowedPools: Set<string>, poolAddress: string | undefined): void {
+  if (!poolAddress) return;
+  const normalized = normalizePoolAddress(poolAddress);
+  if (!normalized) return;
+  allowedPools.add(normalized);
+}
+
 export type ExecutionPolicy = {
   stage: ExecutionStage;
   hardStop: boolean;
@@ -164,6 +173,8 @@ export function buildExecutionPolicy(env: ExecutionPolicyInput): ExecutionPolicy
   const allowedStakingPools = new Set(
     env.KAMIYO_ALLOWED_STAKING_POOLS.map(normalizePoolAddress).filter(Boolean)
   );
+  addAllowedPool(allowedStakingPools, env.KAMIYO_STAKING_POOL);
+  addAllowedPool(allowedStakingPools, env.KAMIYO_KYOSHIN_STAKING_POOL);
 
   return {
     stage: env.KAMIYO_EXECUTION_STAGE,

@@ -18,6 +18,8 @@ function baseInput(): ExecutionPolicyInput {
     KAMIYO_AUTO_STAKE_ENABLED: true,
     KAMIYO_AUTO_STAKE_AVAILABLE_BPS: 4000,
     KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX: 0,
+    KAMIYO_STAKING_POOL: undefined,
+    KAMIYO_KYOSHIN_STAKING_POOL: undefined,
     KAMIYO_ALLOWED_STAKING_POOLS: ['PoolA', 'PoolB'],
     KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST: true,
   };
@@ -64,4 +66,16 @@ test('full stage preserves configured caps and allowlist', () => {
   assert.equal(policy.autoStakeEnabled, true);
   assert.equal(policy.allowedStakingPools.has('PoolA'), true);
   assert.equal(policy.allowedStakingPools.has('PoolB'), true);
+});
+
+test('configured staking targets are auto-allowlisted', () => {
+  const policy = buildExecutionPolicy({
+    ...baseInput(),
+    KAMIYO_ALLOWED_STAKING_POOLS: [],
+    KAMIYO_STAKING_POOL: '9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d',
+    KAMIYO_KYOSHIN_STAKING_POOL: 'Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx',
+  });
+
+  assert.equal(policy.allowedStakingPools.has('9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d'), true);
+  assert.equal(policy.allowedStakingPools.has('Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx'), true);
 });
