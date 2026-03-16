@@ -1,0 +1,13 @@
+{
+  "writerPublicKey": "ECQaPKRa5cVCU7FVRvExd5uUwUhdpGYARDheeMppKLrt",
+  "fundingSignature": "2GGRBM1zG3MnorUgfxYgrtVRNoWHs8Lg9HTVeQukQ8DdqYA4VSHQ1K8SYTnC1ACmvFTh876kK9Z5DEf8CU91STdK",
+  "lamports": 20000000,
+  "updatedKeys": [
+    "MEISHI_WRITER_KEYPAIR",
+    "DKG_ENDPOINT",
+    "DKG_PRIVATE_KEY",
+    "DKG_BLOCKCHAIN",
+    "DKG_PORT",
+    "DKG_PARANET_UAL"
+  ]
+}

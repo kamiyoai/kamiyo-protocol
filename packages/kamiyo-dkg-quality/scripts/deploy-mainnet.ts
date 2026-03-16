@@ -26,9 +26,13 @@ async function main() {
   const DKG = await import('dkg.js');
   const DKGClass = DKG.default || DKG;
 
-  // DKG config - use testnet by default (mainnet public gateway requires auth)
+  // DKG config - production should always use a dedicated OT node.
   const endpoint = process.env.DKG_ENDPOINT ||
-    (isMainnet ? 'https://positron.origin-trail.network' : 'https://v6-pegasus-node-02.origin-trail.network');
+    (isMainnet ? undefined : 'https://v6-pegasus-node-02.origin-trail.network');
+  if (!endpoint) {
+    console.log('Set DKG_ENDPOINT to your dedicated OT node for mainnet deploys\n');
+    return;
+  }
   const blockchain = isMainnet ? 'base:8453' : 'otp:20430';
 
   const client = new DKGClass({

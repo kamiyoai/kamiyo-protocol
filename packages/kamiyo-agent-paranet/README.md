@@ -25,7 +25,7 @@ import { AgentParanetClient } from '@kamiyo/agent-paranet';
 
 // Create client
 const client = await AgentParanetClient.create({
-  dkgEndpoint: 'https://positron.origin-trail.network',
+  dkgEndpoint: 'https://your-dkg-node.example.com',
   blockchain: 'base:8453',
   privateKey: process.env.DKG_PRIVATE_KEY,
   epochs: 12,
@@ -288,7 +288,7 @@ interface ParanetConfig {
 ## Environment Variables
 
 ```bash
-DKG_ENDPOINT=https://positron.origin-trail.network
+DKG_ENDPOINT=https://your-dkg-node.example.com
 DKG_PORT=8900
 DKG_BLOCKCHAIN=base:8453
 DKG_PRIVATE_KEY=0x...

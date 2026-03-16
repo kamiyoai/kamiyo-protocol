@@ -8,7 +8,7 @@ metadata:
   labels:
     app: kamiyo-paranet
 data:
-  DKG_ENDPOINT: "https://positron.origin-trail.network"
+  DKG_ENDPOINT: "https://your-dkg-node.example.com"
   DKG_PORT: "8900"
   DKG_BLOCKCHAIN: "base:8453"
   DKG_EPOCHS: "12"
