@@ -45,6 +45,7 @@ export interface ParanetConfig {
   dkgPort?: number;
   blockchain: 'base:8453' | 'gnosis:100' | 'otp:2043';
   privateKey?: string;
+  rpc?: string;
   epochs?: number;
   paranetUAL?: string;
 }

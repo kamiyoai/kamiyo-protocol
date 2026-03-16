@@ -46,6 +46,10 @@ export function resolveDkgPrivateKey(): string | undefined {
   return firstNonEmpty(['DKG_PRIVATE_KEY', 'KAMIYO_DKG_PRIVATE_KEY', 'PARANET_PRIVATE_KEY']);
 }
 
+export function resolveDkgRpc(): string | undefined {
+  return firstNonEmpty(['DKG_RPC_URL', 'KAMIYO_DKG_RPC_URL', 'PARANET_DKG_RPC_URL']);
+}
+
 export function resolveDkgEpochs(): number {
   const raw = firstNonEmpty(['DKG_EPOCHS', 'KAMIYO_DKG_EPOCHS', 'PARANET_EPOCHS']);
   const parsed = raw ? parseInt(raw, 10) : NaN;

@@ -27,6 +27,7 @@ import {
   resolveDkgEpochs,
   resolveDkgPort,
   resolveDkgPrivateKey,
+  resolveDkgRpc,
   resolveMeishiRepositories,
   resolveParanetUAL,
 } from '../api/routes/_dkg-config';
@@ -490,6 +491,7 @@ async function buildDkgClient(): Promise<DKGClient> {
     dkgPort: resolveDkgPort(),
     blockchain: resolveDkgBlockchain(),
     privateKey,
+    ...(resolveDkgRpc() ? { rpc: resolveDkgRpc() } : {}),
     ...(resolveParanetUAL() ? { paranetUAL: resolveParanetUAL() } : {}),
   });
 

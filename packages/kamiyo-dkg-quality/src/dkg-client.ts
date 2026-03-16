@@ -8,6 +8,7 @@ export interface DKGClientConfig {
     name: string;
     publicKey?: string;
     privateKey?: string;
+    rpc?: string;
   };
   maxRetries?: number;
   retryDelayMs?: number;
@@ -260,6 +261,11 @@ export function createDKGClient(
   logger?: DKGLogger
 ): DKGClientInterface {
   const endpoint = config?.endpoint || process.env.DKG_ENDPOINT;
+  const rpc =
+    config?.blockchain?.rpc ||
+    process.env.DKG_RPC_URL ||
+    process.env.KAMIYO_DKG_RPC_URL ||
+    process.env.PARANET_DKG_RPC_URL;
 
   if (!endpoint) {
     if (logger) {
@@ -275,6 +281,7 @@ export function createDKGClient(
       name: process.env.DKG_BLOCKCHAIN || (process.env.DKG_MAINNET === 'true' ? DKG_NETWORKS.BASE_MAINNET : DKG_NETWORKS.NEUROWEB_TESTNET),
       publicKey: process.env.DKG_PUBLIC_KEY,
       privateKey: process.env.DKG_PRIVATE_KEY,
+      ...(rpc ? { rpc } : {}),
     },
     maxRetries: config?.maxRetries,
     retryDelayMs: config?.retryDelayMs,

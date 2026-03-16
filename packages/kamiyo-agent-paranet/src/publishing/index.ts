@@ -235,6 +235,7 @@ export async function createDKGClient(config: ParanetConfig): Promise<DKGClient>
         name: config.blockchain,
         publicKey: config.privateKey ? undefined : 'readonly',
         privateKey: config.privateKey,
+        ...(config.rpc ? { rpc: config.rpc } : {}),
       },
       maxNumberOfRetries: 3,
       frequency: 2,
