@@ -8,11 +8,7 @@ import { randomBytes } from 'crypto';
 import { getTokenBalance } from '../tiers';
 import { logger } from '../logger';
 
-// JWT_SECRET must be set in production - fail startup if missing
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
-const JWT_SECRET: string = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET?.trim() || null;
 
 const JWT_EXPIRY = '24h';
 const CHALLENGE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
@@ -91,6 +87,18 @@ export interface JWTPayload {
   balance: number;
   iat: number;
   exp: number;
+}
+
+export function isJwtAuthConfigured(): boolean {
+  return JWT_SECRET !== null;
+}
+
+function requireJwtSecret(): string {
+  if (JWT_SECRET) {
+    return JWT_SECRET;
+  }
+
+  throw new Error('JWT auth is not configured');
 }
 
 export function generateChallenge(wallet: string): { challenge: string; expiresAt: number } | null {
@@ -173,9 +181,10 @@ export async function generateApiKey(wallet: string): Promise<{
     tier,
     balance,
   };
+  const jwtSecret = requireJwtSecret();
 
-  const apiKey = sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
-  const decoded = verify(apiKey, JWT_SECRET) as JWTPayload;
+  const apiKey = sign(payload, jwtSecret, { expiresIn: JWT_EXPIRY });
+  const decoded = verify(apiKey, jwtSecret) as JWTPayload;
 
   logger.info('API key generated', { wallet: wallet.slice(0, 8) + '...', tier, balance });
 
@@ -188,6 +197,10 @@ export async function generateApiKey(wallet: string): Promise<{
 }
 
 export function verifyApiKey(token: string): JWTPayload | null {
+  if (!JWT_SECRET) {
+    return null;
+  }
+
   try {
     const payload = verify(token, JWT_SECRET) as JWTPayload;
     return payload;
@@ -213,5 +226,6 @@ export function generateWalletToken(wallet: string): string {
     tier: 'wallet',
     balance: 0,
   };
-  return sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+
+  return sign(payload, requireJwtSecret(), { expiresIn: JWT_EXPIRY });
 }
