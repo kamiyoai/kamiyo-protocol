@@ -6,27 +6,29 @@
 
 ![kamiyo-protocol](https://github.com/user-attachments/assets/707baf74-fdb8-451e-8bc2-931afb143d2a)
 
-Open-source rails for Kizuna, KAMIYO's payment layer for autonomous agents.
+Open-source rails for KAMIYO's trust, settlement, and control layer for AI agents.
 
-Kizuna is the repo default. The broader platform stays in the monorepo, but it now hangs off the Kizuna spine instead of competing with it.
+Kizuna is the repo default path. It is the main open rail in this monorepo, but the repository also includes trust services, policy and compliance surfaces, operator controls, SDKs, and agent integrations built around that core.
 
 ## What This Repo Is For
 
-Kizuna gives agents a controlled way to pay for work over open rails:
+KAMIYO Protocol gives agents a way to operate with explicit trust signals, controlled approvals, and auditable settlement over open rails:
 
-- enterprise lane: prefunded, policy-limited approvals
-- crypto-fast lane: overcollateralized approvals with health checks
-- shared settlement, funding, repayment, and audit surfaces
+- trust inputs and attestations for who can act, under what policy, and with what evidence
+- settlement rails for verification, funding, repayment, and billable execution
+- control-plane surfaces for mandates, linked wallets, collateral, and operator actions
 - open protocol interfaces with a closed hosted kernel for production decisioning
+- agent and app integrations that consume those rails instead of bypassing them
 
 This repository contains the open parts of that stack:
 
+- trust-layer crates and the `trust-layer-service`
 - x402 verification and settlement rails
 - Kizuna account, funding, collateral, and repayment APIs
 - wallet mandate and control-plane services
-- client SDKs and settlement packages
-- operator and onboarding surfaces
-- module integrations that spend through Kizuna
+- Meishi policy and compliance packages
+- client SDKs, operator surfaces, and settlement packages
+- agent-facing integrations built on top of the trust, settlement, and control rails
 
 ## Repo Taxonomy
 
@@ -34,9 +36,9 @@ The workspace is intentionally split into three layers.
 
 | Tier | What belongs here | Current examples |
 |---|---|---|
-| `core` | Default production path for Kizuna | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api` (Kizuna slice), `packages/kamiyo-x402-client`, `packages/kamiyo-settlement`, `packages/kamiyo-meishi`, `apps/cdp-onboarding` |
-| `module` | Kizuna-powered runtimes, apps, and orchestration layers | `services/kyoshin`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
-| `legacy` | Retained but non-default integrations, demos, and contract tracks | FairScale fusion surfaces, trust-graph/paranet/PoCH-heavy routes, oracle/deploy tracks, old demos, contract-specific workflows |
+| `core` | Default production path for Kizuna settlement and control | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api` (Kizuna slice), `packages/kamiyo-x402-client`, `packages/kamiyo-settlement`, `packages/kamiyo-meishi`, `apps/cdp-onboarding` |
+| `module` | Agent runtimes, apps, and orchestration layers built on top of the rails | `services/kyoshin`, `services/keiro-api`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
+| `legacy` | Retained but non-default integrations, demos, trust/reputation experiments, and contract tracks | FairScale fusion surfaces, trust-graph/paranet/PoCH-heavy routes, oracle/deploy tracks, old demos, contract-specific workflows |
 
 The source of truth for these groupings lives in `config/workspace-groups.json`.
 
@@ -111,14 +113,39 @@ Broader API service with Kizuna-facing credits, billing, and repayment interface
 
 Docs: `services/api/README.md`
 
-## Kizuna-Powered Modules
+## Trust Services
 
-These stay in the repo, but they no longer define the product story.
+### Trust Layer Service
+
+Durable trust-event ingest and read service for agent trust state, receipts, and replayable evidence.
+
+- idempotent trust event ingest
+- per-subject trust state reads
+- Postgres-backed durability with Kafka outbox relay
+- replay and dead-letter tooling for operational recovery
+
+Docs: `services/trust-layer-service/README.md`
+
+## Policy and Compliance
+
+### Meishi
+
+Compliance passport and mandate surfaces that feed underwriting, policy checks, and control-layer decisions.
+
+- agent passports and mandate primitives
+- compliance scoring and audit inputs
+- exchange helpers for integrating policy state into protocol flows
+
+Service docs: `services/meishi-compliance/README.md`
+
+## Agent-Facing Modules
+
+These stay in the repo, but they sit on top of the trust, settlement, and control rails instead of defining them.
 
 - `Kyoshin`: execution runtime that spends and settles through Kizuna
-- `Keiro`: client surface for agent identity, wallet, and Kizuna account state
-- `OpenClaw`, Hive, and agent packages: orchestration and integration layers on top of Kizuna rails
-- `Meishi`: compliance and policy input into Kizuna underwriting
+- `Keiro` and `Keiro API`: client and API surfaces for agent identity, receipts, reputation, and Kizuna account state
+- `Agent Factory`: autonomous agent runtime for integration-response and forum workflows
+- `OpenClaw`, Hive, and agent packages: orchestration and integration layers on top of Kizuna
 
 ## Documentation
 
@@ -136,7 +163,7 @@ These stay in the repo, but they no longer define the product story.
 
 ## Contributing
 
-Contributions are welcome. Default changes should strengthen the Kizuna core path first. Use module or legacy lanes only when the work is not part of the core payment spine.
+Contributions are welcome. Default changes should strengthen the Kizuna core path first. Use module or legacy lanes only when the work is not part of the core trust, settlement, and control spine.
 
 ## Security
 
