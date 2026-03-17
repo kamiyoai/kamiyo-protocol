@@ -166,7 +166,7 @@ function parseDate(val: unknown): string | null {
 
 function formatWarnings(scope: QueryScope | null): string[] {
   if (scope === 'global_fallback') {
-    return ['Paranet data is unavailable. Showing the latest verified DKG data from the global repository.'];
+    return ['Paranet records are temporarily unavailable. Displaying the latest verified DKG records.'];
   }
   if (scope === 'global') {
     return ['Paranet is not configured. Showing verified DKG data from the global repository.'];
