@@ -7,7 +7,7 @@ import {
   TokenType,
 } from '@oobe-protocol-labs/synapse-sap-sdk';
 import { resolveAllowedTargetHosts } from './allowed-target-hosts';
-import { COMPANION_X402_NETWORKS, getMcpCapability } from './core-capabilities';
+import { getMcpCapability, resolveX402SupportedNetworks } from './core-capabilities';
 import { getHostedToolDefinition } from './mcp/server';
 
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
@@ -266,7 +266,7 @@ export function getSapPricingManifest(baseUrl = getSapBaseUrl()) {
       unit: 'micro-usdc',
       headers: ['payment-signature', 'X-Payment'],
       facilitator: PayAIFacilitator.URL,
-      networks: COMPANION_X402_NETWORKS.map((network) => ({
+      networks: resolveX402SupportedNetworks().map((network) => ({
         name: network,
         chainId: PayAIFacilitator.getChainId(network),
         usdc: PayAIFacilitator.getUsdcAddress(network),

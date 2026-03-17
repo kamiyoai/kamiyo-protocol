@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { createPayAIFacilitator, PayAIFacilitator, type PayAINetwork } from '@kamiyo/x402-client';
-import { COMPANION_X402_NETWORKS, getX402Capability } from './core-capabilities';
+import { getX402Capability, resolveX402SupportedNetworks } from './core-capabilities';
 import { logger } from './logger';
 
 export type X402HeaderType = 'missing' | 'payment-signature' | 'x-payment';
@@ -18,9 +18,11 @@ export interface SettledX402Payment {
   headerType: Exclude<X402HeaderType, 'missing'>;
 }
 
-export const SUPPORTED_X402_NETWORKS: PayAINetwork[] = [...COMPANION_X402_NETWORKS];
-
 let facilitator: PayAIFacilitator | null = null;
+
+export function getSupportedX402Networks(env: NodeJS.ProcessEnv = process.env): PayAINetwork[] {
+  return [...resolveX402SupportedNetworks(env)];
+}
 
 function readHeader(
   headers: IncomingHttpHeaders | Record<string, string | string[] | undefined>,
@@ -38,6 +40,7 @@ function readHeader(
 
 export function initX402Gateway(): void {
   const capability = getX402Capability();
+  const supportedNetworks = getSupportedX402Networks();
   facilitator = null;
 
   if (!capability.enabled || !capability.merchantWallet) {
@@ -45,7 +48,7 @@ export function initX402Gateway(): void {
   }
 
   facilitator = createPayAIFacilitator(capability.merchantWallet, {
-    defaultNetwork: 'base',
+    defaultNetwork: supportedNetworks[0] || 'base',
     onVerified: (result) => {
       logger.info('x402 payment verified', {
         valid: result.valid,
@@ -68,7 +71,7 @@ export function initX402Gateway(): void {
 
   logger.info('x402 payment gateway initialized', {
     merchant: `${capability.merchantWallet.slice(0, 10)}...`,
-    networks: SUPPORTED_X402_NETWORKS.join(', '),
+    networks: supportedNetworks.join(', '),
   });
 }
 
@@ -100,7 +103,7 @@ export function getX402Challenge(
   resource: string,
   priceUsd: number,
   description: string,
-  networks: readonly PayAINetwork[] = SUPPORTED_X402_NETWORKS
+  networks: readonly PayAINetwork[] = getSupportedX402Networks()
 ): { body: Record<string, unknown>; headers: Record<string, string> } {
   if (!facilitator) {
     throw new Error('x402 gateway not configured');
@@ -117,7 +120,7 @@ export async function verifyAndSettleX402Payment(
   resource: string,
   priceUsd: number,
   description: string,
-  networks: readonly PayAINetwork[] = SUPPORTED_X402_NETWORKS
+  networks: readonly PayAINetwork[] = getSupportedX402Networks()
 ): Promise<{ ok: true; payment: SettledX402Payment } | { ok: false; verifyError?: string }> {
   if (!facilitator) {
     throw new Error('x402 gateway not configured');

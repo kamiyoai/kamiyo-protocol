@@ -21,7 +21,7 @@ import {
   getX402Challenge,
   getX402Gateway,
   getX402PaymentHeader,
-  SUPPORTED_X402_NETWORKS,
+  getSupportedX402Networks,
   verifyAndSettleX402Payment,
 } from '../../x402-runtime';
 
@@ -409,6 +409,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
   const paymentMode = getPaymentMode(tool);
   const toolProfile = sapToolProfiles.get(tool);
   const resource = getExecuteResource(req);
+  const supportedNetworks = getSupportedX402Networks();
 
   if (tool === 'create_escrow') {
     const validation = validateSapEscrowArgs(args);
@@ -445,7 +446,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
           resource,
           SAP_BASELINE_PRICE_USD,
           toolProfile.description,
-          SUPPORTED_X402_NETWORKS
+          supportedNetworks
         );
         Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
         recordSapRequest(tool, 'payment_required', paymentMode, headerType);
@@ -463,7 +464,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
         resource,
         SAP_BASELINE_PRICE_USD,
         toolProfile.description,
-        SUPPORTED_X402_NETWORKS
+        supportedNetworks
       );
 
       if (!paymentResult.ok) {
@@ -471,7 +472,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
           resource,
           SAP_BASELINE_PRICE_USD,
           toolProfile.description,
-          SUPPORTED_X402_NETWORKS
+          supportedNetworks
         );
         Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
         recordSapRequest(tool, 'payment_required', paymentMode, headerType);

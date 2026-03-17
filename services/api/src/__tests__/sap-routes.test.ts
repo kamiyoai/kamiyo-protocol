@@ -20,8 +20,8 @@ vi.mock('../mcp/server', async () => {
 });
 
 vi.mock('../x402-runtime', () => ({
-  SUPPORTED_X402_NETWORKS: ['base'],
   getX402Gateway: mocks.getX402Gateway,
+  getSupportedX402Networks: () => ['base'],
   getX402Challenge: mocks.getX402Challenge,
   getX402PaymentHeader: mocks.getX402PaymentHeader,
   verifyAndSettleX402Payment: mocks.verifyAndSettleX402Payment,

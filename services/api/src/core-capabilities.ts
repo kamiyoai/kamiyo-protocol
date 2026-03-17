@@ -16,6 +16,21 @@ function readEnv(env: NodeJS.ProcessEnv, key: string): string | null {
   return value ? value : null;
 }
 
+function parseConfiguredNetworks(value: string | null): PayAINetwork[] {
+  if (!value) {
+    return [];
+  }
+
+  const configured = value
+    .split(/[,\n]/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry): entry is PayAINetwork =>
+      (COMPANION_X402_NETWORKS as readonly string[]).includes(entry)
+    );
+
+  return [...new Set(configured)];
+}
+
 function disabledState(reason: DisabledReason) {
   return {
     enabled: false as const,
@@ -47,6 +62,24 @@ export interface McpCapability {
   state: 'ready';
   publicBaseUrl: string;
   source: BaseUrlSource;
+}
+
+export function resolveX402SupportedNetworks(env: NodeJS.ProcessEnv = process.env): readonly PayAINetwork[] {
+  const configured = parseConfiguredNetworks(readEnv(env, 'X402_SUPPORTED_NETWORKS'));
+  if (configured.length > 0) {
+    return configured;
+  }
+
+  const merchantWallet = readEnv(env, 'X402_MERCHANT_WALLET');
+  if (!merchantWallet) {
+    return COMPANION_X402_NETWORKS;
+  }
+
+  if (merchantWallet.startsWith('0x')) {
+    return COMPANION_X402_NETWORKS.filter((network) => network !== 'solana');
+  }
+
+  return ['solana'];
 }
 
 export function getCreditsCapability(env: NodeJS.ProcessEnv = process.env): CreditsCapability {
@@ -86,12 +119,13 @@ export function getCreditsCapability(env: NodeJS.ProcessEnv = process.env): Cred
 
 export function getX402Capability(env: NodeJS.ProcessEnv = process.env): X402Capability {
   const merchantWallet = readEnv(env, 'X402_MERCHANT_WALLET');
+  const supportedNetworks = resolveX402SupportedNetworks(env);
 
   if (!merchantWallet) {
     return {
       ...disabledState('merchant_wallet_missing'),
       merchantWallet,
-      supportedNetworks: COMPANION_X402_NETWORKS,
+      supportedNetworks,
     };
   }
 
@@ -100,7 +134,7 @@ export function getX402Capability(env: NodeJS.ProcessEnv = process.env): X402Cap
     state: 'ready',
     reason: null,
     merchantWallet,
-    supportedNetworks: COMPANION_X402_NETWORKS,
+    supportedNetworks,
   };
 }
 

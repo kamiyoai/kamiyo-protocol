@@ -14,9 +14,9 @@ import { getX402Capability } from '../../core-capabilities';
 import {
   getX402Challenge,
   getX402Gateway,
+  getSupportedX402Networks,
   getX402PaymentHeader,
   initX402Gateway,
-  SUPPORTED_X402_NETWORKS,
   verifyAndSettleX402Payment,
 } from '../../x402-runtime';
 
@@ -107,6 +107,7 @@ async function paymentMiddleware(
     const paidReq = asPaidRequest(req);
     const walletHeader = req.headers['x-wallet'] as string | undefined;
     const facilitator = getX402Gateway();
+    const supportedNetworks = getSupportedX402Networks();
 
     if (walletHeader) {
       const requiredMicro = usdToCredits(priceUsd);
@@ -148,7 +149,7 @@ async function paymentMiddleware(
     const paymentHeader = getX402PaymentHeader(req.headers);
 
     if (paymentHeader.type === 'missing') {
-      const { body, headers } = getX402Challenge(req.path, priceUsd, description, SUPPORTED_X402_NETWORKS);
+      const { body, headers } = getX402Challenge(req.path, priceUsd, description, supportedNetworks);
       const responseBody: Record<string, unknown> = { ...body };
       if (walletHeader) {
         responseBody.credits = {
@@ -168,7 +169,7 @@ async function paymentMiddleware(
       req.path,
       priceUsd,
       description,
-      SUPPORTED_X402_NETWORKS
+      supportedNetworks
     );
     if (result.ok) {
       const burnService = getBurnService();
@@ -186,7 +187,7 @@ async function paymentMiddleware(
       return;
     }
 
-    const { body } = getX402Challenge(req.path, priceUsd, description, SUPPORTED_X402_NETWORKS);
+    const { body } = getX402Challenge(req.path, priceUsd, description, supportedNetworks);
     if (result.verifyError) {
       body.verifyError = result.verifyError;
     }
@@ -389,6 +390,7 @@ router.get('/market', async (req: Request, res: Response) => {
 router.get('/pricing', (_req: Request, res: Response) => {
   const capability = getX402Capability();
   const facilitator = getX402Gateway();
+  const supportedNetworks = getSupportedX402Networks();
 
   if (!facilitator) {
     res.status(503).json({
@@ -413,7 +415,7 @@ router.get('/pricing', (_req: Request, res: Response) => {
     payment: {
       protocol: 'x402',
       asset: 'USDC',
-      networks: SUPPORTED_X402_NETWORKS.map(n => ({
+      networks: supportedNetworks.map(n => ({
         name: n,
         chainId: PayAIFacilitator.getChainId(n),
         usdc: PayAIFacilitator.getUsdcAddress(n),
