@@ -124,6 +124,43 @@ describe('Meishi DKG routes', () => {
     }
   });
 
+  it('uses the corrected warning copy when falling back from paranet to global records', async () => {
+    graphQueryMock
+      .mockRejectedValueOnce(new Error('paranet unavailable'))
+      .mockRejectedValueOnce(new Error('paranet unavailable'))
+      .mockResolvedValueOnce({
+        data: [
+          {
+            audit: 'urn:dkg:audit:1',
+            agent: 'agent-alpha',
+            score: '91',
+            classification: 'minimal',
+            jurisdiction: 'global',
+            auditor: 'auditor-1',
+            auditType: 'periodic',
+            date: '2026-03-15T12:00:00Z',
+          },
+        ],
+      });
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/dashboard`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.dataMode).toBe('live');
+      expect(body.health.scope).toBe('global_fallback');
+      expect(body.warnings).toContain(
+        'Paranet records are temporarily unavailable. Displaying the latest verified DKG records.'
+      );
+    } finally {
+      await close();
+    }
+  });
+
   it('serves the last verified dashboard snapshot when live DKG reads fail', async () => {
     graphQueryMock
       .mockResolvedValueOnce({
