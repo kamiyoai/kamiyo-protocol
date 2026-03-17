@@ -843,6 +843,7 @@ export async function ensureMeishiIdentity(
   let dkgAuditQueued = false;
   let latestAuditUal: string | null = null;
   const existingAuditUal = await lookupLatestAuditUal(subjectId);
+  latestAuditUal = existingAuditUal;
   await getSigner();
 
   let report: ComplianceReport;
@@ -951,8 +952,7 @@ export async function ensureMeishiIdentity(
     !existingAuditUal ||
     passportCreated ||
     mandateUpdated ||
-    auditRecorded ||
-    assuranceMode === 'dkg_only';
+    auditRecorded;
 
   if (shouldPublishDkg) {
     const auditPayload: PublishComplianceAuditInput = {

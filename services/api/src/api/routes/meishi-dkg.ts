@@ -32,6 +32,7 @@ interface AuditRecord {
   date: string | null;
   scope: QueryScope;
   repository: string;
+  provisional: boolean;
 }
 
 interface LeaderboardAgent {
@@ -250,13 +251,14 @@ function queryAuditFeed(minScore: number, opts?: { jurisdiction?: string; limit?
 
   return `
     PREFIX schema: <https://schema.org/>
-    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date
+    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date ?reviewBody
     WHERE {
       ?audit a schema:Review ;
              schema:reviewRating/schema:ratingValue ?score .
       OPTIONAL { ?audit schema:name ?auditName . }
       FILTER(!BOUND(?auditName) || ?auditName = "ComplianceAudit")
       OPTIONAL { ?audit schema:datePublished ?date . }
+      OPTIONAL { ?audit schema:reviewBody ?reviewBody . }
       OPTIONAL {
         ?audit schema:itemReviewed ?agentRef .
         OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
@@ -380,19 +382,32 @@ function normalizeAudit(row: Record<string, unknown>, scope: QueryScope, reposit
   const agentId = parseString(row.agent);
   const ual = parseString(row.audit);
   if (!agentId || !ual) return null;
+  const provisional = isProvisioningAudit(row.reviewBody);
+  const complianceScore = provisional ? 0 : Math.round(parseNum(row.score));
+  const complianceClass = provisional ? 'unclassified' : (parseString(row.classification) || 'unknown');
 
   return {
     ual,
     agentId,
-    complianceScore: Math.round(parseNum(row.score)),
-    complianceClass: parseString(row.classification) || 'unknown',
+    complianceScore,
+    complianceClass,
     jurisdiction: parseString(row.jurisdiction) || null,
     auditorId: parseString(row.auditor) || null,
     auditType: parseString(row.auditType) || 'periodic',
     date: parseDate(row.date),
     scope,
     repository,
+    provisional,
   };
+}
+
+function isProvisioningAudit(reviewBody: unknown): boolean {
+  const normalized = parseString(reviewBody).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('provision an on-chain kamiyo agent identity before enabling meishi passport issuance')
+    || normalized.includes('register a meishi mandate before this subject executes trades')
+  );
 }
 
 function buildLeaderboard(audits: AuditRecord[], limit: number): LeaderboardAgent[] {
@@ -547,11 +562,13 @@ function pickFeaturedAgent(leaderboard: LeaderboardAgent[], audits: AuditRecord[
 async function loadAuditFeed(route: string, opts?: { minScore?: number; limit?: number; jurisdiction?: string; agentId?: string }) {
   const client = await withTimeout('dkg_client_init', getClient());
   const dkg = client.rawDKG;
-  const query = queryAuditFeed(opts?.minScore ?? 0, opts);
+  const minScore = opts?.minScore ?? 0;
+  const query = queryAuditFeed(minScore, opts);
   const { rows, scope, repository } = await withTimeout(route, queryWithParanetFallback(dkg, query, route));
   const audits = rows
     .map((row) => normalizeAudit(row, scope, repository))
-    .filter((value): value is AuditRecord => Boolean(value));
+    .filter((value): value is AuditRecord => Boolean(value))
+    .filter((audit) => audit.complianceScore >= minScore);
 
   return {
     audits,

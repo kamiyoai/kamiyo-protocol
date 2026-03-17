@@ -161,6 +161,40 @@ describe('Meishi DKG routes', () => {
     }
   });
 
+  it('normalizes provisioning audits so placeholder dkg-only records do not present as limited compliance', async () => {
+    graphQueryMock.mockResolvedValueOnce({
+      data: [
+        {
+          audit: 'urn:dkg:audit:bootstrap-1',
+          agent: 'agent-alpha',
+          score: '66',
+          classification: 'limited',
+          jurisdiction: 'global',
+          auditor: 'urn:kamiyo:service:meishi-internal',
+          auditType: 'triggered',
+          reviewBody:
+            'Provision an on-chain Kamiyo agent identity before enabling Meishi passport issuance.; Register a Meishi mandate before this subject executes trades.',
+          date: '2026-03-17T12:00:00Z',
+        },
+      ],
+    });
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/dashboard`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.leaderboard.agents[0].complianceScore).toBe(0);
+      expect(body.leaderboard.agents[0].complianceClass).toBe('unclassified');
+      expect(body.graph.stats.avgComplianceScore).toBe(0);
+    } finally {
+      await close();
+    }
+  });
+
   it('serves the last verified dashboard snapshot when live DKG reads fail', async () => {
     graphQueryMock
       .mockResolvedValueOnce({
