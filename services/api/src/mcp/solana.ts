@@ -4,34 +4,17 @@
 import { AnchorProvider, Program, Idl, BN } from '@coral-xyz/anchor';
 import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { randomUUID } from 'crypto';
-import bs58 from 'bs58';
-import fs from 'fs';
 import path from 'path';
 import { _attachTelemetry, _padAmount } from '../telemetry'; // perf monitoring
 import { enforceSurfpoolPreflight } from '../surfpool-gate';
+import { loadSolanaKeypair } from '../solana-keypair';
+import fs from 'fs';
 
 // Required env vars for Solana integration
 const REQUIRED_ENV = ['SOLANA_RPC_URL', 'MCP_PROGRAM_ID', 'MCP_AGENT_KEYPAIR'];
 
 export function isSolanaConfigured(): boolean {
   return REQUIRED_ENV.every((key) => !!process.env[key]);
-}
-
-function loadKeypair(pathOrBase58: string): Keypair {
-  if (pathOrBase58.includes('/') || pathOrBase58.includes('\\')) {
-    const data = JSON.parse(fs.readFileSync(pathOrBase58, 'utf-8'));
-    return Keypair.fromSecretKey(new Uint8Array(data));
-  }
-  try {
-    return Keypair.fromSecretKey(bs58.decode(pathOrBase58));
-  } catch {
-    try {
-      return Keypair.fromSecretKey(Buffer.from(pathOrBase58, 'base64'));
-    } catch {
-      const arr = JSON.parse(pathOrBase58);
-      return Keypair.fromSecretKey(new Uint8Array(arr));
-    }
-  }
 }
 
 class PDADeriver {
@@ -460,7 +443,7 @@ export function getSolanaProgram(): X402Program | null {
   const programId = new PublicKey(process.env.MCP_PROGRAM_ID!);
   const keypairSource = process.env.MCP_AGENT_KEYPAIR!;
 
-  const keypair = loadKeypair(keypairSource);
+  const keypair = loadSolanaKeypair(keypairSource);
   const connection = new Connection(rpcUrl, 'confirmed');
 
   program = new X402Program(connection, keypair, programId);
@@ -471,7 +454,7 @@ export function getAgentPublicKey(): string | null {
   if (!isSolanaConfigured()) return null;
   const keypairSource = process.env.MCP_AGENT_KEYPAIR!;
   try {
-    const keypair = loadKeypair(keypairSource);
+    const keypair = loadSolanaKeypair(keypairSource);
     return keypair.publicKey.toBase58();
   } catch {
     return null;

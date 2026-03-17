@@ -1,3 +1,5 @@
+import { resolveAllowedTargetHosts } from './allowed-target-hosts';
+
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
 
 export const OOBE_ALLOWED_TOOL_NAMES = [
@@ -9,24 +11,10 @@ export const OOBE_ALLOWED_TOOL_NAMES = [
 
 export type OobeAllowedToolName = (typeof OOBE_ALLOWED_TOOL_NAMES)[number];
 
-function normalizeHost(value: string): string | null {
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return null;
-
-  const withoutScheme = trimmed.replace(/^[a-z]+:\/\//, '');
-  const host = withoutScheme.split('/')[0]?.split(':')[0]?.trim();
-  return host || null;
-}
-
 export function getOobePartnerBearerToken(): string {
   return process.env.OOBE_PARTNER_BEARER_TOKEN?.trim() || '';
 }
 
 export function getOobeAllowedTargetHosts(): string[] {
-  const configured = (process.env.OOBE_ALLOWED_TARGET_HOSTS || '')
-    .split(/[,\n]/)
-    .map((value) => normalizeHost(value))
-    .filter((value): value is string => Boolean(value));
-
-  return [...new Set([...DEFAULT_ALLOWED_TARGET_HOSTS, ...configured])];
+  return resolveAllowedTargetHosts(DEFAULT_ALLOWED_TARGET_HOSTS, process.env.OOBE_ALLOWED_TARGET_HOSTS);
 }

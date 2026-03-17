@@ -4,21 +4,26 @@ import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import Anthropic from '@anthropic-ai/sdk';
 import { randomBytes } from 'crypto';
-import { createPayAIFacilitator, PayAIFacilitator, PayAINetwork } from '@kamiyo/x402-client';
+import { PayAIFacilitator } from '@kamiyo/x402-client';
 import { getContext, formatContextForPrompt } from '../../crypto-context';
 import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { logger } from '../../logger';
 import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits, isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
 import { getBurnService, type BurnRecord } from '../../burn-service';
-import { COMPANION_X402_NETWORKS, getX402Capability } from '../../core-capabilities';
+import { getX402Capability } from '../../core-capabilities';
+import {
+  getX402Challenge,
+  getX402Gateway,
+  getX402PaymentHeader,
+  initX402Gateway,
+  SUPPORTED_X402_NETWORKS,
+  verifyAndSettleX402Payment,
+} from '../../x402-runtime';
 
 const router: IRouter = Router();
 
 const CHAT_PRICE_USD = 0.01;
 const MARKET_PRICE_USD = 0.005;
-const SUPPORTED_NETWORKS: PayAINetwork[] = [...COMPANION_X402_NETWORKS];
-
-let facilitator: PayAIFacilitator | null = null;
 let anthropicClient: Anthropic | null = null;
 
 interface PaidCreditsContext {
@@ -45,55 +50,18 @@ function asPaidRequest(req: Request): PaidRequest {
 }
 
 export function initX402(anthropic?: Anthropic): void {
-  const capability = getX402Capability();
-  facilitator = null;
-
-  if (!capability.enabled || !capability.merchantWallet) {
-    if (anthropic) {
-      anthropicClient = anthropic;
-    }
-    return;
-  }
-
-  facilitator = createPayAIFacilitator(capability.merchantWallet, {
-    defaultNetwork: 'base',
-    onVerified: (result) => {
-      logger.info('x402 payment verified', {
-        valid: result.valid,
-        payer: result.payer?.slice(0, 10),
-        network: result.network,
-        amount: result.amount,
-      });
-    },
-    onSettled: (result) => {
-      logger.info('x402 payment settled', {
-        success: result.success,
-        tx: result.tx?.slice(0, 16),
-        network: result.network,
-      });
-    },
-    onError: (error) => {
-      logger.error('x402 payment error', { code: error.code, message: error.message });
-    },
-  });
+  initX402Gateway();
 
   if (anthropic) {
     anthropicClient = anthropic;
   }
-
-  logger.info('x402 payment gateway initialized', {
-    merchant: capability.merchantWallet.slice(0, 10) + '...',
-    networks: SUPPORTED_NETWORKS.join(', '),
-  });
 }
 
 export function setAnthropicClient(client: Anthropic): void {
   anthropicClient = client;
 }
 
-export function isX402Available(): boolean {
-  return facilitator !== null;
-}
+export { isX402Available } from '../../x402-runtime';
 
 async function emitPaidFusionEvent(
   req: Request,
@@ -138,6 +106,7 @@ async function paymentMiddleware(
   return async (req: Request, res: Response, next: () => void): Promise<void> => {
     const paidReq = asPaidRequest(req);
     const walletHeader = req.headers['x-wallet'] as string | undefined;
+    const facilitator = getX402Gateway();
 
     if (walletHeader) {
       const requiredMicro = usdToCredits(priceUsd);
@@ -176,16 +145,10 @@ async function paymentMiddleware(
       return;
     }
 
-    const paymentHeader = req.headers['payment-signature'] as string | undefined;
+    const paymentHeader = getX402PaymentHeader(req.headers);
 
-    if (!paymentHeader) {
-      const body = facilitator.response402(
-        req.path,
-        priceUsd,
-        description,
-        SUPPORTED_NETWORKS
-      );
-      const headers = facilitator.headers402();
+    if (paymentHeader.type === 'missing') {
+      const { body, headers } = getX402Challenge(req.path, priceUsd, description, SUPPORTED_X402_NETWORKS);
       const responseBody: Record<string, unknown> = { ...body };
       if (walletHeader) {
         responseBody.credits = {
@@ -200,46 +163,33 @@ async function paymentMiddleware(
       return;
     }
 
-    const reqs = facilitator.requirements(
+    const result = await verifyAndSettleX402Payment(
+      paymentHeader,
       req.path,
       priceUsd,
       description,
-      SUPPORTED_NETWORKS
+      SUPPORTED_X402_NETWORKS
     );
+    if (result.ok) {
+      const burnService = getBurnService();
+      const burn = burnService.recordX402Burn(result.payment.payer || 'unknown', endpoint, priceUsd);
 
-    for (const requirement of reqs) {
-      try {
-        const { verify, settle } = await facilitator.verifyAndSettle(
-          paymentHeader,
-          requirement
-        );
-        if (verify.valid && settle?.success) {
-          // Record 1% burn from x402 payment
-          const burnService = getBurnService();
-          const burn = burnService.recordX402Burn(verify.payer, endpoint, priceUsd);
+      paidReq.x402 = {
+        payer: result.payment.payer,
+        network: result.payment.network,
+        amount: result.payment.amount,
+        tx: result.payment.tx,
+      };
+      paidReq.burn = burn;
 
-          paidReq.x402 = {
-            payer: verify.payer,
-            network: verify.network,
-            amount: verify.amount,
-            tx: settle.tx,
-          };
-          paidReq.burn = burn;
-
-          next();
-          return;
-        }
-      } catch {
-        continue;
-      }
+      next();
+      return;
     }
 
-    const body = facilitator.response402(
-      req.path,
-      priceUsd,
-      description,
-      SUPPORTED_NETWORKS
-    );
+    const { body } = getX402Challenge(req.path, priceUsd, description, SUPPORTED_X402_NETWORKS);
+    if (result.verifyError) {
+      body.verifyError = result.verifyError;
+    }
     res.status(402).json(body);
   };
 }
@@ -438,6 +388,7 @@ router.get('/market', async (req: Request, res: Response) => {
 
 router.get('/pricing', (_req: Request, res: Response) => {
   const capability = getX402Capability();
+  const facilitator = getX402Gateway();
 
   if (!facilitator) {
     res.status(503).json({
@@ -462,7 +413,7 @@ router.get('/pricing', (_req: Request, res: Response) => {
     payment: {
       protocol: 'x402',
       asset: 'USDC',
-      networks: SUPPORTED_NETWORKS.map(n => ({
+      networks: SUPPORTED_X402_NETWORKS.map(n => ({
         name: n,
         chainId: PayAIFacilitator.getChainId(n),
         usdc: PayAIFacilitator.getUsdcAddress(n),
@@ -486,6 +437,7 @@ router.get('/pricing', (_req: Request, res: Response) => {
 });
 
 router.get('/health', async (_req: Request, res: Response) => {
+  const facilitator = getX402Gateway();
   if (!facilitator) {
     const capability = getX402Capability();
     res.json({

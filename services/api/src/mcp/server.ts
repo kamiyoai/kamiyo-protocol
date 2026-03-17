@@ -143,6 +143,18 @@ const TOOL_DEFINITIONS = [
       },
       required: ['api', 'amount'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        escrowAddress: { type: 'string' },
+        transactionId: { type: 'string' },
+        signature: { type: 'string' },
+        adjudicationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+    },
   },
   {
     name: 'check_escrow_status',
@@ -154,6 +166,21 @@ const TOOL_DEFINITIONS = [
         transactionId: { type: 'string', description: 'Transaction ID' },
       },
       required: [] as string[],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        status: { type: 'string' },
+        agent: { type: 'string' },
+        api: { type: 'string' },
+        amount: { type: 'number' },
+        createdAt: { type: 'number' },
+        expiresAt: { type: 'number' },
+        transactionId: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
     },
   },
   {
@@ -317,6 +344,33 @@ const TOOL_DEFINITIONS = [
       },
       required: ['url'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        free: { type: 'boolean' },
+        options: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              network: { type: 'string' },
+              priceUsd: {
+                anyOf: [
+                  { type: 'number' },
+                  { type: 'string' },
+                ],
+              },
+              asset: { type: 'string' },
+              description: { type: 'string' },
+            },
+          },
+        },
+        adjudicationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+    },
   },
   {
     name: 'x402_fetch',
@@ -334,6 +388,27 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['url'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        paid: { type: 'boolean' },
+        data: {},
+        summary: { type: 'string' },
+        payment: {
+          type: 'object',
+          properties: {
+            network: { type: 'string' },
+            amountUsd: { type: 'number' },
+            asset: { type: 'string' },
+            signature: { type: 'string' },
+          },
+        },
+        adjudicationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
     },
   },
 ];
@@ -357,6 +432,14 @@ export class HostedToolError extends Error {
 
 function getToolDefinition(name: string): ToolDefinition | undefined {
   return TOOL_DEFINITIONS.find((tool) => tool.name === name);
+}
+
+export function getHostedToolDefinition(name: string): ToolDefinition | undefined {
+  return getToolDefinition(name);
+}
+
+export function getHostedToolDefinitions(): readonly ToolDefinition[] {
+  return TOOL_DEFINITIONS;
 }
 
 function validateArgs(args: unknown, schema: { required?: string[]; properties?: Record<string, unknown> }): string | null {
