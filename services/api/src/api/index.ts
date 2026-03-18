@@ -131,6 +131,26 @@ export interface ApiServerConfig {
 export function createApiServer(config: ApiServerConfig = {}): Express {
   const app = express();
   const runtime = config.runtime ?? getCompanionRuntimeState();
+  const corsOptions = {
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      if (!origin) return callback(null, true);
+      if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+      if (origin.startsWith('http://localhost:')) return callback(null, true);
+      if (process.env.NODE_ENV === 'development') return callback(null, true);
+      return callback(null, true);
+    },
+    methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'payment-signature',
+      'x-payment',
+      'X-Payment',
+      'x-wallet',
+      'X-Wallet',
+    ],
+    credentials: true,
+  } satisfies Parameters<typeof cors>[0];
 
   // Set Anthropic client for chat routes if provided
   if (config.anthropic) {
@@ -145,28 +165,10 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   initCreditsRoutes();
 
   // CORS - allow known origins + localhost for development
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        // Allow requests with no origin (server-to-server, curl, mobile apps)
-        if (!origin) return callback(null, true);
-        // Allow known origins
-        if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-        // Allow localhost for development
-        if (origin.startsWith('http://localhost:')) return callback(null, true);
-        // Allow all in development mode
-        if (process.env.NODE_ENV === 'development') return callback(null, true);
-        // Default: allow (permissive for now, can tighten later)
-        return callback(null, true);
-      },
-      methods: ['GET', 'POST', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-    })
-  );
+  app.use(cors(corsOptions));
 
   // Handle preflight requests explicitly before rate limiters
-  app.options('*', cors());
+  app.options('*', cors(corsOptions));
 
   app.use(express.json({ limit: '1mb' }));
 

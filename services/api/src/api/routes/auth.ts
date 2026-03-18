@@ -2,13 +2,34 @@
 
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
-import { generateChallenge, verifySignature, generateApiKey, refreshApiKey, generateWalletToken } from '../auth';
+import {
+  generateChallenge,
+  verifySignature,
+  generateApiKey,
+  refreshApiKey,
+  generateWalletToken,
+  isJwtAuthConfigured,
+} from '../auth';
 import { logger } from '../../logger';
 
 const router: IRouter = Router();
 
+function sendAuthDisabled(res: Response): void {
+  res.status(503).json({
+    error: {
+      code: 'AUTH_DISABLED',
+      message: 'Wallet authentication is not configured.',
+    },
+  });
+}
+
 // GET /api/auth/challenge?wallet=<pubkey>
 router.get('/challenge', (req: Request, res: Response) => {
+  if (!isJwtAuthConfigured()) {
+    sendAuthDisabled(res);
+    return;
+  }
+
   const wallet = req.query.wallet as string;
 
   if (!wallet || wallet.length < 32 || wallet.length > 44) {
@@ -43,6 +64,11 @@ router.get('/challenge', (req: Request, res: Response) => {
 
 // POST /api/auth/verify
 router.post('/verify', async (req: Request, res: Response) => {
+  if (!isJwtAuthConfigured()) {
+    sendAuthDisabled(res);
+    return;
+  }
+
   const { wallet, signature } = req.body;
 
   if (!wallet || !signature) {
@@ -86,6 +112,11 @@ router.post('/verify', async (req: Request, res: Response) => {
 
 // POST /api/auth/wallet - wallet-only auth (no token balance required)
 router.post('/wallet', async (req: Request, res: Response) => {
+  if (!isJwtAuthConfigured()) {
+    sendAuthDisabled(res);
+    return;
+  }
+
   const { wallet, signature } = req.body;
 
   if (!wallet || !signature) {
@@ -117,6 +148,11 @@ router.post('/wallet', async (req: Request, res: Response) => {
 // POST /api/auth/refresh
 // Note: Client must request /challenge first, sign it, then call /refresh with signature
 router.post('/refresh', async (req: Request, res: Response) => {
+  if (!isJwtAuthConfigured()) {
+    sendAuthDisabled(res);
+    return;
+  }
+
   const { wallet, signature } = req.body;
 
   if (!wallet || !signature) {
