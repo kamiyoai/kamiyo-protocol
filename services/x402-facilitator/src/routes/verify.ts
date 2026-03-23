@@ -23,13 +23,10 @@ import {
 } from '../db/queries';
 import { hashSessionToken, parseSessionPaymentHeader } from '../services/session';
 import { getUsdcDelegateState } from '../services/solana-session';
-import { runKizunaUnderwrite } from '../services/kizuna-underwrite';
 import { getKizunaMandateLimits } from '../services/kizuna-wallet-control-plane';
 import {
   evaluateKizunaKernelDecision,
   hashKizunaDecisionEnvelope,
-  KernelEvaluateResult,
-  mintLocalKizunaEnvelope,
 } from '../services/kizuna-kernel';
 import { buildKizunaIdentityPayload, getAuthorizedRegistryWallet } from '../services/agent-registry';
 
@@ -63,118 +60,6 @@ function parseNonNegativeBigint(value: string | null | undefined): bigint {
 
 function minBigint(a: bigint, b: bigint): bigint {
   return a < b ? a : b;
-}
-
-function toRiskBand(scoreRaw: number, lane: KizunaLane, healthFactor?: number): string {
-  if (lane === 'crypto-fast') {
-    if ((healthFactor ?? 0) < 1) return 'critical';
-    if ((healthFactor ?? 0) < 1.2) return 'elevated';
-  }
-  if (scoreRaw >= 700) return 'low';
-  if (scoreRaw >= 450) return 'medium';
-  return 'high';
-}
-
-function buildFallbackDecision(params: {
-  agentId: string;
-  payerWallet: string;
-  requestNonce: string;
-  network: string;
-  lane: KizunaLane;
-  poolId: string;
-  requestedMicro: bigint;
-  outstandingMicro: bigint;
-  maxSingleMicro: bigint;
-  mandateSingleLimitMicro: bigint | null;
-  snapshot: NonNullable<Awaited<ReturnType<typeof getKizunaUnderwriteSnapshot>>>;
-  collateral?: {
-    effectiveCollateralMicro: bigint;
-    ltvCapBps: number;
-    healthFactor: number;
-  };
-}): KernelEvaluateResult {
-  const underwrite = runKizunaUnderwrite({
-    requestedMicro: params.requestedMicro,
-    outstandingMicro: params.outstandingMicro,
-    maxSingleMicro: params.maxSingleMicro,
-    mandateSingleLimitMicro: params.mandateSingleLimitMicro,
-    snapshot: params.snapshot,
-  });
-
-  let availableMicro = underwrite.availableMicro;
-  let approvedMicro = underwrite.approvedMicro;
-  let ltvBps: number | undefined;
-  let healthFactor: number | undefined;
-  const reasonCodes = [...underwrite.reasonCodes];
-
-  if (params.lane === 'crypto-fast') {
-    if (!params.collateral) {
-      availableMicro = 0n;
-      approvedMicro = 0n;
-      reasonCodes.push('fastpath_no_collateral');
-    } else {
-      const collateralLimit =
-        (params.collateral.effectiveCollateralMicro * BigInt(params.collateral.ltvCapBps)) / 10_000n;
-      const collateralAvailable =
-        collateralLimit > params.outstandingMicro ? collateralLimit - params.outstandingMicro : 0n;
-
-      availableMicro = minBigint(availableMicro, collateralAvailable);
-      approvedMicro = minBigint(params.requestedMicro, availableMicro);
-      healthFactor = params.collateral.healthFactor;
-      ltvBps =
-        params.collateral.effectiveCollateralMicro > 0n
-          ? Number(
-              (params.outstandingMicro * 10_000n) / params.collateral.effectiveCollateralMicro
-            )
-          : 0;
-
-      if (collateralAvailable <= 0n) {
-        reasonCodes.push('fastpath_collateral_limit_reached');
-      }
-      if ((healthFactor ?? 0) < 1) {
-        reasonCodes.push('fastpath_health_factor_breach');
-        approvedMicro = 0n;
-      }
-    }
-  }
-
-  const decisionId = `fallback:${params.payerWallet}:${params.requestNonce}`;
-  const policyPackId =
-    params.lane === 'crypto-fast' ? 'kizuna-fastpath-default-v1' : 'kizuna-enterprise-default-v1';
-  const riskBand = toRiskBand(underwrite.scoreRaw, params.lane, healthFactor);
-
-  const decisionEnvelope = mintLocalKizunaEnvelope({
-    decisionId,
-    agentId: params.agentId,
-    payerWallet: params.payerWallet,
-    requestNonce: params.requestNonce,
-    network: params.network,
-    lane: params.lane,
-    poolId: params.poolId,
-    approvedMicro: approvedMicro.toString(10),
-    policyPackId,
-    riskBand,
-    ltvBps,
-    healthFactor,
-  });
-
-  return {
-    approved: approvedMicro > 0n,
-    decisionId,
-    approvedMicro: approvedMicro.toString(10),
-    availableMicro: availableMicro.toString(10),
-    outstandingMicro: params.outstandingMicro.toString(10),
-    scoreRaw: underwrite.scoreRaw,
-    reasonCodes,
-    tier: underwrite.tier,
-    lane: params.lane,
-    poolId: params.poolId,
-    policyPackId,
-    riskBand,
-    ltvBps,
-    healthFactor,
-    decisionEnvelope,
-  };
 }
 
 export function createVerifyRouter(connection: Connection, facilitator: PublicKey): Router {
@@ -474,7 +359,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         }
       }
 
-      let decisionResult: KernelEvaluateResult;
+      let decisionResult;
       try {
         decisionResult = await evaluateKizunaKernelDecision({
           agentId: requirementKizuna.agentId,
@@ -483,8 +368,14 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
           requestNonce: payment.nonce,
           network,
           requestedMicro: requestedMicro.toString(10),
+          resource: payment.resource || resource || null,
+          payTo: requirementPayTo || null,
           maxSingleMicro: laneMaxSingleMicro.toString(10),
           outstandingMicro: outstandingMicro.toString(10),
+          prefundAvailableMicro:
+            lane === 'enterprise' && enterpriseBalance?.available_micro
+              ? enterpriseBalance.available_micro
+              : null,
           lane,
           poolId,
           mandateSingleLimitMicro:
@@ -503,40 +394,14 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
           collateral: collateralContext,
         });
       } catch (err) {
-        if (config.KIZUNA_KERNEL_FAIL_CLOSED && !config.KIZUNA_SHADOW_MODE) {
-          sendVerifyFailure(
-            res,
-            503,
-            'kizuna_kernel_unavailable',
-            `Kizuna kernel evaluate failed: ${err instanceof Error ? err.message : 'unknown error'}`,
-            payment.payer
-          );
-          return;
-        }
-
-        decisionResult = buildFallbackDecision({
-          agentId: requirementKizuna.agentId,
-          payerWallet: payment.payer,
-          requestNonce: payment.nonce,
-          network,
-          lane,
-          poolId,
-          requestedMicro,
-          outstandingMicro,
-          maxSingleMicro: laneMaxSingleMicro > 0n ? laneMaxSingleMicro : BigInt(config.KIZUNA_MAX_SINGLE_MICRO),
-          mandateSingleLimitMicro: mandateSingleLimitMicro > 0n ? mandateSingleLimitMicro : null,
-          snapshot,
-          collateral:
-            lane === 'crypto-fast' && collateralContext
-              ? {
-                  effectiveCollateralMicro: parseNonNegativeBigint(
-                    collateralContext.effectiveCollateralMicro
-                  ),
-                  ltvCapBps: collateralContext.ltvCapBps,
-                  healthFactor: collateralContext.healthFactor,
-                }
-              : undefined,
-        });
+        sendVerifyFailure(
+          res,
+          503,
+          'kizuna_kernel_unavailable',
+          `Kizuna kernel evaluate failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+          payment.payer
+        );
+        return;
       }
 
       const envelopeHash = decisionResult.decisionEnvelope
@@ -560,12 +425,17 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         reasonCodes: decisionResult.reasonCodes,
         tier: decisionResult.tier,
         policyPackId: decisionResult.policyPackId,
+        policyPackVersion: decisionResult.policyPackVersion,
         riskBand: decisionResult.riskBand,
+        riskAction: decisionResult.riskAction,
         ltvBps: decisionResult.ltvBps ?? null,
         healthFactor:
           decisionResult.healthFactor != null
             ? decisionResult.healthFactor.toString()
             : null,
+        requestHash: decisionResult.requestHash,
+        signingKid: decisionResult.signingKid,
+        envelopeVersion: decisionResult.envelopeVersion,
         decisionEnvelopeHash: envelopeHash,
       });
 
@@ -582,8 +452,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
         parseNonNegativeBigint(decisionResult.approvedMicro),
         effectiveAvailableMicro
       );
-      const reserveMicro =
-        approvedMicro > 0n ? approvedMicro : config.KIZUNA_SHADOW_MODE ? requestedMicro : 0n;
+      const reserveMicro = approvedMicro > 0n ? approvedMicro : 0n;
       const requestedFundingMode =
         lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND
           ? 'prefunded'
@@ -634,7 +503,7 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
       }
 
       const decisionApproved = decisionResult.approved && approvedMicro > 0n;
-      const effectiveApproved = decisionApproved || config.KIZUNA_SHADOW_MODE;
+      const effectiveApproved = decisionApproved;
       const response: VerifyResponse = {
         valid: effectiveApproved,
         isValid: effectiveApproved,
@@ -660,7 +529,12 @@ export function createVerifyRouter(connection: Connection, facilitator: PublicKe
             lane: decisionResult.lane,
             decisionEnvelope: decisionResult.decisionEnvelope,
             policyPackId: decisionResult.policyPackId,
+            policyPackVersion: decisionResult.policyPackVersion,
             riskBand: decisionResult.riskBand,
+            riskAction: decisionResult.riskAction,
+            requestHash: decisionResult.requestHash,
+            envelopeVersion: decisionResult.envelopeVersion,
+            signingKid: decisionResult.signingKid,
             poolId: decisionResult.poolId,
             ltvBps: decisionResult.ltvBps,
             healthFactor: decisionResult.healthFactor,

@@ -561,9 +561,14 @@ export type KizunaDecisionRow = {
   reason_codes: string[];
   tier: string;
   policy_pack_id: string | null;
+  policy_pack_version: string | null;
   risk_band: string | null;
+  risk_action: string | null;
   ltv_bps: number | null;
   health_factor: string | null;
+  request_hash: string | null;
+  signing_kid: string | null;
+  envelope_version: string | null;
   decision_envelope_hash: string | null;
   created_at: Date;
 };
@@ -1387,9 +1392,14 @@ export async function insertKizunaUnderwriteDecision(params: {
   reasonCodes: string[];
   tier: string;
   policyPackId?: string | null;
+  policyPackVersion?: string | null;
   riskBand?: string | null;
+  riskAction?: string | null;
   ltvBps?: number | null;
   healthFactor?: string | null;
+  requestHash?: string | null;
+  signingKid?: string | null;
+  envelopeVersion?: string | null;
   decisionEnvelopeHash?: string | null;
 }): Promise<KizunaDecisionRow> {
   const rows = await query<KizunaDecisionRow>(
@@ -1410,12 +1420,17 @@ export async function insertKizunaUnderwriteDecision(params: {
        reason_codes,
        tier,
        policy_pack_id,
+       policy_pack_version,
        risk_band,
+       risk_action,
        ltv_bps,
        health_factor,
+       request_hash,
+       signing_kid,
+       envelope_version,
        decision_envelope_hash
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
      RETURNING
        id,
        agent_id,
@@ -1434,9 +1449,14 @@ export async function insertKizunaUnderwriteDecision(params: {
        reason_codes,
        tier,
        policy_pack_id,
+       policy_pack_version,
        risk_band,
+       risk_action,
        ltv_bps,
        health_factor::text,
+       request_hash,
+       signing_kid,
+       envelope_version,
        decision_envelope_hash,
        created_at`,
     [
@@ -1456,9 +1476,14 @@ export async function insertKizunaUnderwriteDecision(params: {
       params.reasonCodes,
       params.tier,
       params.policyPackId ?? null,
+      params.policyPackVersion ?? null,
       params.riskBand ?? null,
+      params.riskAction ?? null,
       params.ltvBps ?? null,
       params.healthFactor ?? null,
+      params.requestHash ?? null,
+      params.signingKid ?? null,
+      params.envelopeVersion ?? null,
       params.decisionEnvelopeHash ?? null,
     ]
   );
@@ -1583,9 +1608,14 @@ export async function getKizunaReservationByNonce(
       decision_reason_codes: string[];
       decision_tier: string;
       decision_policy_pack_id: string | null;
+      decision_policy_pack_version: string | null;
       decision_risk_band: string | null;
+      decision_risk_action: string | null;
       decision_ltv_bps: number | null;
       decision_health_factor: string | null;
+      decision_request_hash: string | null;
+      decision_signing_kid: string | null;
+      decision_envelope_version: string | null;
       decision_envelope_hash: string | null;
       decision_created_at: Date;
     }
@@ -1625,9 +1655,14 @@ export async function getKizunaReservationByNonce(
        d.reason_codes AS decision_reason_codes,
        d.tier AS decision_tier,
        d.policy_pack_id AS decision_policy_pack_id,
+       d.policy_pack_version AS decision_policy_pack_version,
        d.risk_band AS decision_risk_band,
+       d.risk_action AS decision_risk_action,
        d.ltv_bps AS decision_ltv_bps,
        d.health_factor::text AS decision_health_factor,
+       d.request_hash AS decision_request_hash,
+       d.signing_kid AS decision_signing_kid,
+       d.envelope_version AS decision_envelope_version,
        d.decision_envelope_hash AS decision_envelope_hash,
        d.created_at AS decision_created_at
      FROM kizuna_credit_reservations r
@@ -1672,9 +1707,14 @@ export async function getKizunaReservationByNonce(
       reason_codes: row.decision_reason_codes,
       tier: row.decision_tier,
       policy_pack_id: row.decision_policy_pack_id,
+      policy_pack_version: row.decision_policy_pack_version,
       risk_band: row.decision_risk_band,
+      risk_action: row.decision_risk_action,
       ltv_bps: row.decision_ltv_bps,
       health_factor: row.decision_health_factor,
+      request_hash: row.decision_request_hash,
+      signing_kid: row.decision_signing_kid,
+      envelope_version: row.decision_envelope_version,
       decision_envelope_hash: row.decision_envelope_hash,
       created_at: row.decision_created_at,
     },

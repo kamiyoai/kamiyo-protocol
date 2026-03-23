@@ -876,6 +876,38 @@ const MIGRATIONS = [
         ON kizuna_fairscale_event_outbox(entity_id, created_at DESC);
     `,
   },
+  {
+    name: '018_kizuna_kernel_v2_metadata',
+    sql: `
+      ALTER TABLE kizuna_underwrite_decisions
+        ADD COLUMN IF NOT EXISTS policy_pack_version TEXT,
+        ADD COLUMN IF NOT EXISTS risk_action TEXT,
+        ADD COLUMN IF NOT EXISTS request_hash TEXT,
+        ADD COLUMN IF NOT EXISTS signing_kid TEXT,
+        ADD COLUMN IF NOT EXISTS envelope_version TEXT;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_kizuna_decisions_risk_action') THEN
+          ALTER TABLE kizuna_underwrite_decisions
+            ADD CONSTRAINT chk_kizuna_decisions_risk_action
+            CHECK (risk_action IS NULL OR risk_action IN ('none', 'freeze', 'throttle', 'unfreeze'));
+        END IF;
+      END $$;
+
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_kizuna_decisions_envelope_version') THEN
+          ALTER TABLE kizuna_underwrite_decisions
+            ADD CONSTRAINT chk_kizuna_decisions_envelope_version
+            CHECK (envelope_version IS NULL OR envelope_version IN ('kizuna-envelope-v1', 'kizuna-envelope-v2'));
+        END IF;
+      END $$;
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_decisions_request_hash
+        ON kizuna_underwrite_decisions(request_hash);
+      CREATE INDEX IF NOT EXISTS idx_kizuna_decisions_signing_kid
+        ON kizuna_underwrite_decisions(signing_kid, created_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {

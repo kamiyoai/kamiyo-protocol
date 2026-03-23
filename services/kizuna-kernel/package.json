@@ -1,0 +1,30 @@
+{
+  "name": "@kamiyo/kizuna-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hosted Kizuna kernel for policy evaluation, risk state, abuse controls, and signed approvals.",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "rm -rf dist && tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "migrate": "node dist/db/migrate.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kms": "^3.913.0",
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.6.0",
+    "pg": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.0",
+    "vitest": "^4.0.18"
+  }
+}
