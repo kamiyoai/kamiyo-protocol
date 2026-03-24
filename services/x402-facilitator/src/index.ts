@@ -62,7 +62,6 @@ function getPublicExtensions(config: ReturnType<typeof getConfig>): string[] {
   const extensions = ['discovery', 'kamiyo-session'];
   if (config.KIZUNA_ENABLED) {
     extensions.push('kamiyo-kizuna-credit');
-    extensions.push('kamiyo-kizuna-kernel-v1');
     extensions.push('kamiyo-kizuna-kernel-v2');
     extensions.push('kamiyo-kizuna-fastpath-v1');
   }
