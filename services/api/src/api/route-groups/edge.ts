@@ -3,13 +3,14 @@ import type { Express, NextFunction, Request, RequestHandler, Response } from 'e
 import authRoutes from '../routes/auth';
 import verifyRoutes from '../routes/verify';
 import blacklistRoutes from '../routes/blacklist';
+import x402DiscoveryRoutes from '../routes/x402-discovery';
 
 export interface ApiEdgeRouteGroup {
   path: string;
   handlers: RequestHandler[];
 }
 
-export const EDGE_ROUTE_IDS = ['auth', 'verify', 'blacklist'] as const;
+export const EDGE_ROUTE_IDS = ['auth', 'verify', 'blacklist', 'x402-discovery'] as const;
 
 function createEdgeHeaders(): RequestHandler {
   return (_req: Request, res: Response, next: NextFunction) => {
@@ -23,6 +24,7 @@ export function createEdgeRouteGroups(
   apiKeyRateLimiter: RequestHandler
 ): ApiEdgeRouteGroup[] {
   return [
+    { path: '/.well-known/x402', handlers: [x402DiscoveryRoutes] },
     { path: '/verify', handlers: [authRateLimiter, verifyRoutes] },
     { path: '/blacklist', handlers: [authRateLimiter, blacklistRoutes] },
     { path: '/api/auth/challenge', handlers: [authRateLimiter] },

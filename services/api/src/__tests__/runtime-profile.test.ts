@@ -1,5 +1,8 @@
 import { once } from 'node:events';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   getCompanionRuntimeState,
@@ -8,6 +11,8 @@ import {
 } from '../runtime-profile';
 
 let createApiServer: typeof import('../api').createApiServer;
+const originalDataDir = process.env.DATA_DIR;
+let tempDataDir = '';
 
 describe('companion runtime profile', () => {
   it('defaults to kizuna-core', () => {
@@ -78,9 +83,21 @@ describe('companion runtime profile', () => {
 
 describe('api version runtime metadata', () => {
   beforeAll(async () => {
+    tempDataDir = mkdtempSync(join(tmpdir(), 'kamiyo-runtime-profile-'));
     process.env.JWT_SECRET ??= 'test-jwt-secret';
     process.env.API_SECRET ??= 'test-api-secret';
+    process.env.DATA_DIR = tempDataDir;
     ({ createApiServer } = await import('../api'));
+  });
+
+  afterAll(() => {
+    if (originalDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = originalDataDir;
+
+    if (tempDataDir) {
+      rmSync(tempDataDir, { recursive: true, force: true });
+      tempDataDir = '';
+    }
   });
 
   it('reports the injected runtime profile on /version', async () => {
@@ -163,6 +180,39 @@ describe('api version runtime metadata', () => {
       expect(moduleRoute.status).toBe(404);
       expect(legacyRoute.status).toBe(200);
       expect(legacyRoute.headers.get('x-kamiyo-route-ownership')).toBe('kizuna-core');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('serves x402 discovery from the api host as an edge-owned route', async () => {
+    const app = createApiServer({
+      runtime: getCompanionRuntimeState(),
+    });
+    const server = app.listen(0);
+    await once(server, 'listening');
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Unexpected server address');
+      }
+
+      const response = await fetch(`http://127.0.0.1:${address.port}/.well-known/x402`);
+      const body = (await response.json()) as {
+        version: number;
+        resources: Array<{ path: string }>;
+        links: { sapMetadata: string; paidPricing: string };
+      };
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('x-kamiyo-route-ownership')).toBe('edge');
+      expect(body.version).toBe(2);
+      expect(body.resources.map((resource) => resource.path)).toEqual(
+        expect.arrayContaining(['/api/paid/chat', '/api/paid/market', '/api/sap/execute'])
+      );
+      expect(body.links.sapMetadata).toContain('/api/sap/metadata');
+      expect(body.links.paidPricing).toContain('/api/paid/pricing');
     } finally {
       server.close();
     }

@@ -1,11 +1,14 @@
 import { once } from 'node:events';
-import { readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import express, { Router } from 'express';
 import type * as RouteGroups from '../api/route-groups';
 
 let routeGroups: typeof RouteGroups;
+const originalDataDir = process.env.DATA_DIR;
+let tempDataDir = '';
 
 function getRouteGroups(): typeof RouteGroups {
   if (!routeGroups) {
@@ -19,9 +22,21 @@ const passThroughLimiter = Router();
 
 describe('api route ownership groups', () => {
   beforeAll(async () => {
+    tempDataDir = mkdtempSync(join(tmpdir(), 'kamiyo-route-groups-'));
     process.env.JWT_SECRET ??= 'test-jwt-secret';
     process.env.API_SECRET ??= 'test-api-secret';
+    process.env.DATA_DIR = tempDataDir;
     routeGroups = await import('../api/route-groups');
+  });
+
+  afterAll(() => {
+    if (originalDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = originalDataDir;
+
+    if (tempDataDir) {
+      rmSync(tempDataDir, { recursive: true, force: true });
+      tempDataDir = '';
+    }
   });
 
   it('builds a stable ownership collection for the api entrypoint', () => {
@@ -39,6 +54,7 @@ describe('api route ownership groups', () => {
     const groups = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter);
 
     expect(groups.length).toBeGreaterThan(0);
+    expect(groups.map((group) => group.path)).toContain('/.well-known/x402');
     expect(groups.map((group) => group.path)).toContain('/verify');
     expect(groups.map((group) => group.path)).toContain('/api/auth');
   });
