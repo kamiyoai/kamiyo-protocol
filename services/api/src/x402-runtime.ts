@@ -332,8 +332,8 @@ export async function verifyAndSettleX402Payment(
         txSignature = await runtime.client.escrow.settle(depositor, 1, serviceHash, [
           { pubkey: escrowAta, isSigner: false, isWritable: true },
           { pubkey: agentAta, isSigner: false, isWritable: true },
-          { pubkey: escrowState.tokenMint, isSigner: false, isWritable: false },
           { pubkey: tokenProgram.equals(TOKEN_PROGRAM_ID) ? TOKEN_PROGRAM_ID : tokenProgram, isSigner: false, isWritable: false },
+          { pubkey: escrowState.tokenMint, isSigner: false, isWritable: false },
         ]);
       } else {
         const settlement = await runtime.client.x402.settle(
