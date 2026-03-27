@@ -6,7 +6,7 @@ import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { _attachTelemetry, _padAmount } from '../telemetry'; // perf monitoring
-import { enforceSurfpoolPreflight } from '../surfpool-gate';
+import { enforceEscrowCreationPreflight, enforceSurfpoolPreflight } from '../surfpool-gate';
 import { loadSolanaKeypair } from '../solana-keypair';
 import fs from 'fs';
 
@@ -192,6 +192,16 @@ export class X402Program {
     });
   }
 
+  private async runEscrowCreationPreflight(counterparty: PublicKey, amountLamports: number): Promise<void> {
+    await enforceEscrowCreationPreflight({
+      label: 'initializeEscrow',
+      agent: this.wallet.publicKey,
+      counterparty,
+      amountLamports,
+      tokenMint: SystemProgram.programId,
+    });
+  }
+
   private toCamelCase(value: string): string {
     return value.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
   }
@@ -328,7 +338,7 @@ export class X402Program {
           }
         ).preInstructions(preIx ? [preIx] : []);
 
-        await this.runSurfpoolPreflight('initializeEscrow', build());
+        await this.runEscrowCreationPreflight(params.api, params.amount);
         const signature = await build().rpc();
         return { signature, escrowPDA };
       } catch (error) {
