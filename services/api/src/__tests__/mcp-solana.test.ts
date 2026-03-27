@@ -36,7 +36,6 @@ describe('X402Program.initializeEscrow', () => {
 
     const builder = {
       preInstructions: vi.fn().mockReturnThis(),
-      rpc: vi.fn().mockResolvedValue('sig-1'),
       transaction: vi.fn(() => {
         throw new Error('initializeEscrow should not use generic transaction preflight');
       }),
@@ -54,6 +53,7 @@ describe('X402Program.initializeEscrow', () => {
       attachAccounts: vi.fn(() => builder),
       isSeedsMismatch: vi.fn(() => false),
       runEscrowCreationPreflight: X402Program.prototype['runEscrowCreationPreflight'],
+      sendInstruction: vi.fn().mockResolvedValue('sig-1'),
     };
 
     const result = await X402Program.prototype.initializeEscrow.call(fakeProgram as any, {
@@ -72,7 +72,55 @@ describe('X402Program.initializeEscrow', () => {
     });
     expect(mocks.enforceSurfpoolPreflight).not.toHaveBeenCalled();
     expect(builder.transaction).not.toHaveBeenCalled();
-    expect(builder.rpc).toHaveBeenCalledTimes(1);
+    expect(fakeProgram.sendInstruction).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ signature: 'sig-1', escrowPDA: escrow });
+  });
+
+  it('prunes omitted optional token accounts from initializeEscrow instructions', async () => {
+    const { X402Program } = await import('../mcp/solana');
+    const fakeProgram = {
+      instruction: vi.fn(() => ({
+        accounts: [
+          { name: 'protocol_config' },
+          { name: 'treasury' },
+          { name: 'escrow' },
+          { name: 'agent' },
+          { name: 'api' },
+          { name: 'system_program' },
+          { name: 'token_mint', optional: true },
+          { name: 'escrow_token_account', optional: true },
+          { name: 'agent_token_account', optional: true },
+          { name: 'token_program', optional: true },
+          { name: 'associated_token_program', optional: true },
+        ],
+      })),
+      toCamelCase: X402Program.prototype['toCamelCase'],
+    };
+
+    const keep = Array.from({ length: 6 }, () => ({ pubkey: Keypair.generate().publicKey, isSigner: false, isWritable: false }));
+    const placeholders = Array.from({ length: 5 }, () => ({ pubkey: Keypair.generate().publicKey, isSigner: false, isWritable: false }));
+    const transaction = {
+      instructions: [
+        {
+          keys: [...keep, ...placeholders],
+        },
+      ],
+    };
+
+    X402Program.prototype['pruneOptionalInstructionAccounts'].call(fakeProgram as any, 'initializeEscrow', transaction as any, {
+      protocolConfig: keep[0].pubkey,
+      treasury: keep[1].pubkey,
+      escrow: keep[2].pubkey,
+      agent: keep[3].pubkey,
+      api: keep[4].pubkey,
+      systemProgram: keep[5].pubkey,
+      tokenMint: null,
+      escrowTokenAccount: null,
+      agentTokenAccount: null,
+      tokenProgram: null,
+      associatedTokenProgram: null,
+    });
+
+    expect(transaction.instructions[0].keys).toEqual(keep);
   });
 });
