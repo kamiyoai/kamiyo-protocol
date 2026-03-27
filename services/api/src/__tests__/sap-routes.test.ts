@@ -534,16 +534,7 @@ describe('SAP HTTP routes', () => {
     });
   });
 
-  it('forwards SAP-x402 headers upstream for x402_fetch', async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ ok: true, market: 'kamiyo' }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-    );
-
+  it('rejects SAP-x402 headers for x402_fetch', async () => {
     await withServer(async (baseUrl) => {
       const res = await fetch(`${baseUrl}/api/sap/execute`, {
         method: 'POST',
@@ -566,28 +557,15 @@ describe('SAP HTTP routes', () => {
         }),
       });
 
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(400);
       await expect(res.json()).resolves.toEqual({
-        success: true,
-        paid: true,
-        data: { ok: true, market: 'kamiyo' },
-        summary: 'ok: boolean, market: kamiyo',
+        success: false,
+        code: 'INVALID_REQUEST',
+        error: 'SAP-x402 headers are not supported for x402_fetch; satisfy the upstream x402 challenge directly',
+        tool: 'x402_fetch',
       });
-
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      const [, init] = fetchMock.mock.calls[0];
-      expect(init?.headers).toEqual({
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-Payment-Protocol': 'SAP-x402',
-        'X-Payment-Escrow': 'escrow-1',
-        'X-Payment-Agent': 'agent-1',
-        'X-Payment-Depositor': 'depositor-1',
-        'X-Payment-MaxCalls': '15',
-        'X-Payment-PricePerCall': '1388',
-        'X-Payment-Program': 'program-1',
-        'X-Payment-Network': 'mainnet-beta',
-      });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
     });
   });
 

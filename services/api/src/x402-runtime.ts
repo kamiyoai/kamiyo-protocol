@@ -25,6 +25,10 @@ export interface SettledX402Payment {
   headerType: Exclude<X402HeaderType, 'missing'>;
 }
 
+interface VerifyX402PaymentOptions {
+  allowSapX402?: boolean;
+}
+
 let facilitator: PayAIFacilitator | null = null;
 let cachedSapRuntime:
   | {
@@ -245,18 +249,27 @@ export function getX402Challenge(
   };
 }
 
+function usdToMicroUsdc(priceUsd: number): string {
+  return String(Math.round(priceUsd * 1_000_000));
+}
+
 export async function verifyAndSettleX402Payment(
   paymentHeader: X402PaymentHeader,
   resource: string,
   priceUsd: number,
   description: string,
-  networks: readonly PayAINetwork[] = getSupportedX402Networks()
+  networks: readonly PayAINetwork[] = getSupportedX402Networks(),
+  options: VerifyX402PaymentOptions = {}
 ): Promise<{ ok: true; payment: SettledX402Payment } | { ok: false; verifyError?: string }> {
   if (paymentHeader.type === 'missing') {
     return { ok: false };
   }
 
   if (paymentHeader.type === 'sap-x402') {
+    if (!options.allowSapX402) {
+      return { ok: false, verifyError: 'sap x402 headers are not supported for this endpoint' };
+    }
+
     const sapHeaders = paymentHeader.sapHeaders;
     if (!sapHeaders) {
       return { ok: false, verifyError: 'missing sap x402 headers' };
@@ -317,6 +330,9 @@ export async function verifyAndSettleX402Payment(
         sha256(JSON.stringify({ resource, description, quotedPriceUsd: priceUsd }))
       );
       const settlementAmount = escrowState.pricePerCall.toString();
+      if (settlementAmount !== usdToMicroUsdc(priceUsd)) {
+        return { ok: false, verifyError: 'sap quoted price mismatch' };
+      }
 
       let txSignature: string;
       if (escrowState.tokenMint) {

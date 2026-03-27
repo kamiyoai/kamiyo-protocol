@@ -169,7 +169,8 @@ async function paymentMiddleware(
       req.path,
       priceUsd,
       description,
-      supportedNetworks
+      supportedNetworks,
+      { allowSapX402: false }
     );
     if (result.ok) {
       const burnService = getBurnService();

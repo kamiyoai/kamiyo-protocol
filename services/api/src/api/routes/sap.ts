@@ -295,6 +295,10 @@ async function executePassThroughFetch(
   paymentHeader: ReturnType<typeof getX402PaymentHeader>,
   res: ExpressResponse
 ): Promise<{ status: 'success' | 'payment_required' | 'error' }> {
+  if (paymentHeader.type === 'sap-x402') {
+    throw new HostedToolError(400, 'SAP-x402 headers are not supported for x402_fetch; satisfy the upstream x402 challenge directly');
+  }
+
   const parsedUrl = parseAllowedSapTarget(args.url);
   const method =
     typeof args.method === 'string' && args.method.trim()
@@ -476,7 +480,8 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
         resource,
         toolPriceUsd,
         toolProfile.description,
-        supportedNetworks
+        supportedNetworks,
+        { allowSapX402: true }
       );
 
       if (!paymentResult.ok) {
