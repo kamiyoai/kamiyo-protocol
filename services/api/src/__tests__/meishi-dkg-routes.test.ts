@@ -245,6 +245,9 @@ describe('Meishi DKG routes', () => {
           method: 'POST',
         })
       );
+      const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+      expect(typeof requestInit?.body).toBe('string');
+      expect(String(requestInit?.body)).toContain('PREFIX schema: <http://schema.org/>');
     } finally {
       fetchMock.mockRestore();
       await close();

@@ -281,7 +281,7 @@ function queryAuditFeed(minScore: number, opts?: { jurisdiction?: string; limit?
     : '';
 
   return `
-    PREFIX schema: <https://schema.org/>
+    PREFIX schema: <http://schema.org/>
     SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date ?reviewBody
     WHERE {
       ?audit a schema:Review ;
