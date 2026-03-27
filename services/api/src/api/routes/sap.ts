@@ -13,7 +13,6 @@ import {
   getSapRegistrationProfile,
   isSapEscrowExecutionEnabled,
   SAP_ALLOWED_TOOL_NAMES,
-  SAP_BASELINE_PRICE_USD,
   type SapPaymentMode,
   type SapToolName,
 } from '../../sap';
@@ -441,16 +440,23 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
 
     if (paymentMode === 'x402') {
       const facilitator = getX402Gateway();
-      if (!toolProfile || (paymentHeader.type !== 'sap-x402' && !facilitator)) {
+      if (
+        !toolProfile ||
+        toolProfile.priceMicroUsdc === null ||
+        toolProfile.priceMicroUsdc <= 0 ||
+        (paymentHeader.type !== 'sap-x402' && !facilitator)
+      ) {
         recordSapRequest(tool, 'unavailable', paymentMode, headerType);
         sendSapError(res, tool, 503, 'SERVICE_UNAVAILABLE', 'SAP payment gateway not configured');
         return;
       }
 
+      const toolPriceUsd = toolProfile.priceMicroUsdc / 1_000_000;
+
       if (paymentHeader.type === 'missing') {
         const { body, headers } = getX402Challenge(
           resource,
-          SAP_BASELINE_PRICE_USD,
+          toolPriceUsd,
           toolProfile.description,
           supportedNetworks
         );
@@ -468,7 +474,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
       const paymentResult = await verifyAndSettleX402Payment(
         paymentHeader,
         resource,
-        SAP_BASELINE_PRICE_USD,
+        toolPriceUsd,
         toolProfile.description,
         supportedNetworks
       );
@@ -477,7 +483,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
         if (facilitator && toolProfile) {
           const { body, headers } = getX402Challenge(
             resource,
-            SAP_BASELINE_PRICE_USD,
+            toolPriceUsd,
             toolProfile.description,
             supportedNetworks
           );

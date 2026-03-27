@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getSapMetadata, getSapPricingManifest } from '../sap';
+import { getSapMetadata, getSapPricingManifest, SAP_BASELINE_PRICE_MICRO_USDC, SAP_BASELINE_PRICE_USD } from '../sap';
 
 const mocks = vi.hoisted(() => ({
   executeHostedTool: vi.fn(),
@@ -66,7 +66,7 @@ describe('SAP HTTP routes', () => {
     });
     mocks.getX402Challenge.mockReturnValue({
       body: {
-        accepts: [{ network: 'base', amount: '5000', asset: 'USDC' }],
+        accepts: [{ network: 'base', amount: String(SAP_BASELINE_PRICE_MICRO_USDC), asset: 'USDC' }],
         facilitator: 'https://facilitator.example',
       },
       headers: {
@@ -123,7 +123,7 @@ describe('SAP HTTP routes', () => {
       payment: {
         payer: 'payer',
         network: 'base',
-        amount: '5000',
+        amount: String(SAP_BASELINE_PRICE_MICRO_USDC),
         tx: 'tx-1',
         headerType: 'payment-signature',
       },
@@ -296,10 +296,17 @@ describe('SAP HTTP routes', () => {
       expect(res.status).toBe(402);
       expect(res.headers.get('WWW-Authenticate')).toBe('X402');
       await expect(res.json()).resolves.toMatchObject({
+        accepts: [{ network: 'base', amount: String(SAP_BASELINE_PRICE_MICRO_USDC), asset: 'USDC' }],
         success: false,
         code: 'PAYMENT_REQUIRED',
         tool: 'create_escrow',
       });
+      expect(mocks.getX402Challenge).toHaveBeenCalledWith(
+        '/api/sap/execute',
+        SAP_BASELINE_PRICE_USD,
+        'Create payment escrow with quality guarantee',
+        ['base']
+      );
       expect(mocks.executeHostedTool).not.toHaveBeenCalled();
     });
   });
@@ -376,7 +383,7 @@ describe('SAP HTTP routes', () => {
       payment: {
         payer: 'payer',
         network: 'base',
-        amount: '5000',
+        amount: String(SAP_BASELINE_PRICE_MICRO_USDC),
         tx: 'tx-2',
         headerType: 'x-payment',
       },

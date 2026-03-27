@@ -28,7 +28,11 @@ export const SAP_AGENT_DESCRIPTION =
 export const SAP_AGENT_ID = 'kamiyo-sap-mainnet';
 export const SAP_ACTIVE = true;
 export const SAP_PROTOCOLS = ['sap', 'kamiyo', 'x402'] as const;
-export const SAP_BASELINE_PRICE_MICRO_USDC = 5_000;
+const DEFAULT_SAP_BASELINE_PRICE_MICRO_USDC = 1_388;
+export const SAP_BASELINE_PRICE_MICRO_USDC = parsePositiveInteger(
+  process.env.SAP_BASELINE_PRICE_MICRO_USDC,
+  DEFAULT_SAP_BASELINE_PRICE_MICRO_USDC
+);
 export const SAP_BASELINE_RATE_LIMIT = 60;
 export const SAP_BASELINE_PRICE_USD = SAP_BASELINE_PRICE_MICRO_USDC / 1_000_000;
 export const SAP_PAYMENT_HEADERS = [
@@ -56,6 +60,15 @@ function parseConfiguredList(configured: string | undefined): string[] {
 function parsePositiveNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getFixedPriceNote(suffix = '.'): string {
+  return `Fixed baseline price of ${SAP_BASELINE_PRICE_MICRO_USDC} micro-USDC per call${suffix}`;
 }
 
 export const SAP_CAPABILITIES: Capability[] = [
@@ -147,7 +160,7 @@ const SAP_TOOL_SEEDS: Record<SapToolName, SapToolProfileSeed> = {
     categoryKey: 'Payment',
     paymentMode: 'x402',
     priceMicroUsdc: SAP_BASELINE_PRICE_MICRO_USDC,
-    pricingNote: 'Fixed baseline price of 5000 micro-USDC per call. Execution stays disabled until SAP escrow allowlist and spend cap are configured.',
+    pricingNote: getFixedPriceNote('. Execution stays disabled until SAP escrow allowlist and spend cap are configured.'),
   },
   check_escrow_status: {
     protocolId: 'kamiyo',
@@ -155,7 +168,7 @@ const SAP_TOOL_SEEDS: Record<SapToolName, SapToolProfileSeed> = {
     categoryKey: 'Payment',
     paymentMode: 'x402',
     priceMicroUsdc: SAP_BASELINE_PRICE_MICRO_USDC,
-    pricingNote: 'Fixed baseline price of 5000 micro-USDC per call.',
+    pricingNote: getFixedPriceNote(),
   },
 };
 
