@@ -74,13 +74,49 @@ describe('SAP HTTP routes', () => {
       },
     });
     mocks.getX402PaymentHeader.mockImplementation((headers: Record<string, unknown>) => {
+      if (typeof headers['x-payment-protocol'] === 'string' && headers['x-payment-protocol'] === 'SAP-x402') {
+        return {
+          type: 'sap-x402',
+          value: null,
+          forwardHeaders: {
+            'X-Payment-Protocol': 'SAP-x402',
+            'X-Payment-Escrow': String(headers['x-payment-escrow'] ?? ''),
+            'X-Payment-Agent': String(headers['x-payment-agent'] ?? ''),
+            'X-Payment-Depositor': String(headers['x-payment-depositor'] ?? ''),
+            'X-Payment-MaxCalls': String(headers['x-payment-maxcalls'] ?? ''),
+            'X-Payment-PricePerCall': String(headers['x-payment-pricepercall'] ?? ''),
+            'X-Payment-Program': String(headers['x-payment-program'] ?? ''),
+            'X-Payment-Network': String(headers['x-payment-network'] ?? ''),
+          },
+          sapHeaders: {
+            'X-Payment-Protocol': 'SAP-x402',
+            'X-Payment-Escrow': String(headers['x-payment-escrow'] ?? ''),
+            'X-Payment-Agent': String(headers['x-payment-agent'] ?? ''),
+            'X-Payment-Depositor': String(headers['x-payment-depositor'] ?? ''),
+            'X-Payment-MaxCalls': String(headers['x-payment-maxcalls'] ?? ''),
+            'X-Payment-PricePerCall': String(headers['x-payment-pricepercall'] ?? ''),
+            'X-Payment-Program': String(headers['x-payment-program'] ?? ''),
+            'X-Payment-Network': String(headers['x-payment-network'] ?? ''),
+          },
+        };
+      }
       if (typeof headers['payment-signature'] === 'string') {
-        return { type: 'payment-signature', value: headers['payment-signature'] };
+        return {
+          type: 'payment-signature',
+          value: headers['payment-signature'],
+          forwardHeaders: { 'payment-signature': headers['payment-signature'] },
+          sapHeaders: null,
+        };
       }
       if (typeof headers['x-payment'] === 'string') {
-        return { type: 'x-payment', value: headers['x-payment'] };
+        return {
+          type: 'x-payment',
+          value: headers['x-payment'],
+          forwardHeaders: { 'X-Payment': headers['x-payment'] },
+          sapHeaders: null,
+        };
       }
-      return { type: 'missing', value: null };
+      return { type: 'missing', value: null, forwardHeaders: {}, sapHeaders: null };
     });
     mocks.verifyAndSettleX402Payment.mockResolvedValue({
       ok: true,
@@ -365,6 +401,45 @@ describe('SAP HTTP routes', () => {
     });
   });
 
+  it('accepts SAP-x402 headers for paid SAP tools', async () => {
+    mocks.verifyAndSettleX402Payment.mockResolvedValue({
+      ok: true,
+      payment: {
+        payer: 'payer',
+        network: 'mainnet-beta',
+        amount: '1388',
+        tx: 'tx-3',
+        headerType: 'sap-x402',
+      },
+    });
+    mocks.executeHostedTool.mockResolvedValue({ success: true, status: 'active' });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/sap/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Payment-Protocol': 'SAP-x402',
+          'X-Payment-Escrow': 'escrow-1',
+          'X-Payment-Agent': 'agent-1',
+          'X-Payment-Depositor': 'depositor-1',
+          'X-Payment-MaxCalls': '15',
+          'X-Payment-PricePerCall': '1388',
+          'X-Payment-Program': 'program-1',
+          'X-Payment-Network': 'mainnet-beta',
+        },
+        body: JSON.stringify({
+          tool: 'check_escrow_status',
+          args: { transactionId: 'tx-123' },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ success: true, status: 'active' });
+      expect(mocks.verifyAndSettleX402Payment).toHaveBeenCalled();
+    });
+  });
+
   it('keeps x402_fetch as true pass-through and relays the upstream challenge', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({
@@ -449,6 +524,63 @@ describe('SAP HTTP routes', () => {
       });
       expect(mocks.executeHostedTool).not.toHaveBeenCalled();
       expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
+    });
+  });
+
+  it('forwards SAP-x402 headers upstream for x402_fetch', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, market: 'kamiyo' }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+    );
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/sap/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Payment-Protocol': 'SAP-x402',
+          'X-Payment-Escrow': 'escrow-1',
+          'X-Payment-Agent': 'agent-1',
+          'X-Payment-Depositor': 'depositor-1',
+          'X-Payment-MaxCalls': '15',
+          'X-Payment-PricePerCall': '1388',
+          'X-Payment-Program': 'program-1',
+          'X-Payment-Network': 'mainnet-beta',
+        },
+        body: JSON.stringify({
+          tool: 'x402_fetch',
+          args: {
+            url: 'https://api.kamiyo.ai/api/paid/market',
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        paid: true,
+        data: { ok: true, market: 'kamiyo' },
+        summary: 'ok: boolean, market: kamiyo',
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0];
+      expect(init?.headers).toEqual({
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Payment-Protocol': 'SAP-x402',
+        'X-Payment-Escrow': 'escrow-1',
+        'X-Payment-Agent': 'agent-1',
+        'X-Payment-Depositor': 'depositor-1',
+        'X-Payment-MaxCalls': '15',
+        'X-Payment-PricePerCall': '1388',
+        'X-Payment-Program': 'program-1',
+        'X-Payment-Network': 'mainnet-beta',
+      });
     });
   });
 

@@ -31,6 +31,18 @@ export const SAP_PROTOCOLS = ['sap', 'kamiyo', 'x402'] as const;
 export const SAP_BASELINE_PRICE_MICRO_USDC = 5_000;
 export const SAP_BASELINE_RATE_LIMIT = 60;
 export const SAP_BASELINE_PRICE_USD = SAP_BASELINE_PRICE_MICRO_USDC / 1_000_000;
+export const SAP_PAYMENT_HEADERS = [
+  'payment-signature',
+  'X-Payment',
+  'X-Payment-Protocol',
+  'X-Payment-Escrow',
+  'X-Payment-Agent',
+  'X-Payment-Depositor',
+  'X-Payment-MaxCalls',
+  'X-Payment-PricePerCall',
+  'X-Payment-Program',
+  'X-Payment-Network',
+] as const;
 
 function parseConfiguredList(configured: string | undefined): string[] {
   return [...new Set(
@@ -264,7 +276,7 @@ export function getSapPricingManifest(baseUrl = getSapBaseUrl()) {
       protocol: 'x402',
       asset: 'USDC',
       unit: 'micro-usdc',
-      headers: ['payment-signature', 'X-Payment'],
+      headers: [...SAP_PAYMENT_HEADERS],
       facilitator: PayAIFacilitator.URL,
       networks: resolveX402SupportedNetworks().map((network) => ({
         name: network,

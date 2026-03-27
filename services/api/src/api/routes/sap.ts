@@ -36,6 +36,14 @@ const blockedProxyHeaders = new Set([
   'payment-signature',
   'transfer-encoding',
   'x-payment',
+  'x-payment-protocol',
+  'x-payment-escrow',
+  'x-payment-agent',
+  'x-payment-depositor',
+  'x-payment-maxcalls',
+  'x-payment-pricepercall',
+  'x-payment-program',
+  'x-payment-network',
 ]);
 
 function asHeaderType(value: ReturnType<typeof getX402PaymentHeader>['type']): string {
@@ -44,6 +52,9 @@ function asHeaderType(value: ReturnType<typeof getX402PaymentHeader>['type']): s
   }
   if (value === 'x-payment') {
     return 'x_payment';
+  }
+  if (value === 'sap-x402') {
+    return 'sap_x402';
   }
   return 'missing';
 }
@@ -297,12 +308,7 @@ async function executePassThroughFetch(
     ...parseForwardHeaders(args.headers),
   };
 
-  if (paymentHeader.type === 'payment-signature' && paymentHeader.value) {
-    headers['payment-signature'] = paymentHeader.value;
-  }
-  if (paymentHeader.type === 'x-payment' && paymentHeader.value) {
-    headers['X-Payment'] = paymentHeader.value;
-  }
+  Object.assign(headers, paymentHeader.forwardHeaders);
 
   const upstream = await fetchWithTimeout(
     parsedUrl.toString(),
@@ -435,7 +441,7 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
 
     if (paymentMode === 'x402') {
       const facilitator = getX402Gateway();
-      if (!facilitator || !toolProfile) {
+      if (!toolProfile || (paymentHeader.type !== 'sap-x402' && !facilitator)) {
         recordSapRequest(tool, 'unavailable', paymentMode, headerType);
         sendSapError(res, tool, 503, 'SERVICE_UNAVAILABLE', 'SAP payment gateway not configured');
         return;
@@ -468,16 +474,27 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
       );
 
       if (!paymentResult.ok) {
-        const { body, headers } = getX402Challenge(
-          resource,
-          SAP_BASELINE_PRICE_USD,
-          toolProfile.description,
-          supportedNetworks
-        );
-        Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+        if (facilitator && toolProfile) {
+          const { body, headers } = getX402Challenge(
+            resource,
+            SAP_BASELINE_PRICE_USD,
+            toolProfile.description,
+            supportedNetworks
+          );
+          Object.entries(headers).forEach(([key, value]) => res.setHeader(key, value));
+          recordSapRequest(tool, 'payment_required', paymentMode, headerType);
+          res.status(402).json({
+            ...body,
+            success: false,
+            code: 'PAYMENT_REQUIRED',
+            tool,
+            verifyError: paymentResult.verifyError,
+          });
+          return;
+        }
+
         recordSapRequest(tool, 'payment_required', paymentMode, headerType);
         res.status(402).json({
-          ...body,
           success: false,
           code: 'PAYMENT_REQUIRED',
           tool,
