@@ -55,6 +55,33 @@ export function getSupportedX402Networks(env: NodeJS.ProcessEnv = process.env): 
   return [...resolveX402SupportedNetworks(env)];
 }
 
+function readEnv(env: NodeJS.ProcessEnv, key: string): string | null {
+  const value = env[key]?.trim();
+  return value ? value : null;
+}
+
+function splitUrls(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[,\n]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+export function resolveX402FacilitatorUrls(env: NodeJS.ProcessEnv = process.env): string[] {
+  const preferred = splitUrls(readEnv(env, 'X402_FACILITATOR_URLS'));
+  const fallback = splitUrls(readEnv(env, 'FACILITATOR_URLS'));
+  const primary = [
+    readEnv(env, 'X402_FACILITATOR_URL'),
+    readEnv(env, 'FACILITATOR_URL'),
+  ].filter((value): value is string => value !== null);
+
+  return Array.from(new Set([...preferred, ...fallback, ...primary]));
+}
+
 function readHeader(
   headers: IncomingHttpHeaders | Record<string, string | string[] | undefined>,
   name: string
@@ -155,6 +182,7 @@ function parsePublicKey(value: string, label: string): PublicKey {
 export function initX402Gateway(): void {
   const capability = getX402Capability();
   const supportedNetworks = getSupportedX402Networks();
+  const facilitatorUrls = resolveX402FacilitatorUrls();
   facilitator = null;
 
   if (!capability.enabled || !capability.merchantWallet) {
@@ -162,6 +190,7 @@ export function initX402Gateway(): void {
   }
 
   facilitator = createPayAIFacilitator(capability.merchantWallet, {
+    facilitatorUrls: facilitatorUrls.length > 0 ? facilitatorUrls : undefined,
     defaultNetwork: supportedNetworks[0] || 'base',
     onVerified: (result) => {
       logger.info('x402 payment verified', {
@@ -186,6 +215,8 @@ export function initX402Gateway(): void {
   logger.info('x402 payment gateway initialized', {
     merchant: `${capability.merchantWallet.slice(0, 10)}...`,
     networks: supportedNetworks.join(', '),
+    facilitators:
+      facilitatorUrls.length > 0 ? facilitatorUrls.join(', ') : PayAIFacilitator.URL,
   });
 }
 
