@@ -13,18 +13,18 @@ vi.mock('../mcp/server', async () => {
 });
 
 describe('OOBE partner HTTP routes', () => {
-  const previousPartnerToken = process.env.OOBE_PARTNER_BEARER_TOKEN;
+  const previousPartnerToken = process.env.OOBE_PARTNER_API_KEY;
 
   beforeEach(() => {
-    process.env.OOBE_PARTNER_BEARER_TOKEN = 'oobe-secret';
+    process.env.OOBE_PARTNER_API_KEY = 'oobe-secret';
     executeHostedTool.mockReset();
   });
 
   afterEach(() => {
     if (previousPartnerToken === undefined) {
-      delete process.env.OOBE_PARTNER_BEARER_TOKEN;
+      delete process.env.OOBE_PARTNER_API_KEY;
     } else {
-      process.env.OOBE_PARTNER_BEARER_TOKEN = previousPartnerToken;
+      process.env.OOBE_PARTNER_API_KEY = previousPartnerToken;
     }
   });
 
@@ -50,35 +50,84 @@ describe('OOBE partner HTTP routes', () => {
     }
   }
 
-  it('rejects missing bearer auth', async () => {
+  it('rejects missing api key', async () => {
     await withServer(async (baseUrl) => {
       const res = await fetch(`${baseUrl}/api/partners/oobe/x402/pricing?url=https://api.kamiyo.ai/api/paid/market`);
 
       expect(res.status).toBe(401);
       await expect(res.json()).resolves.toEqual({
         success: false,
-        error: 'Missing bearer token',
+        error: 'Missing API key',
         code: 'UNAUTHORIZED',
       });
     });
   });
 
-  it('rejects invalid bearer auth', async () => {
+  it('rejects invalid api key', async () => {
     await withServer(async (baseUrl) => {
       const res = await fetch(`${baseUrl}/api/partners/oobe/x402/pricing?url=https://api.kamiyo.ai/api/paid/market`, {
-        headers: { authorization: 'Bearer wrong-secret' },
+        headers: { 'x-api-key': 'wrong-secret' },
       });
 
       expect(res.status).toBe(401);
       await expect(res.json()).resolves.toEqual({
         success: false,
-        error: 'Invalid bearer token',
+        error: 'Invalid API key',
         code: 'UNAUTHORIZED',
       });
     });
   });
 
-  it('forwards pricing calls to the hosted MCP tool execution path', async () => {
+  it('accepts x-api-key headers', async () => {
+    executeHostedTool.mockResolvedValue({
+      success: true,
+      free: false,
+      options: [{ network: 'base', amount: '1000' }],
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/partners/oobe/x402/pricing?url=https://api.kamiyo.ai/api/paid/market`, {
+        headers: { 'x-api-key': 'oobe-secret' },
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        free: false,
+        options: [{ network: 'base', amount: '1000' }],
+      });
+      expect(executeHostedTool).toHaveBeenCalledWith(
+        'x402_check_pricing',
+        { url: 'https://api.kamiyo.ai/api/paid/market' },
+        expect.objectContaining({
+          allowedTools: expect.arrayContaining(['x402_check_pricing', 'x402_fetch']),
+        })
+      );
+    });
+  });
+
+  it('accepts api_key query params', async () => {
+    executeHostedTool.mockResolvedValue({
+      success: true,
+      free: false,
+      options: [{ network: 'base', amount: '1000' }],
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(
+        `${baseUrl}/api/partners/oobe/x402/pricing?url=https://api.kamiyo.ai/api/paid/market&api_key=oobe-secret`
+      );
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        free: false,
+        options: [{ network: 'base', amount: '1000' }],
+      });
+    });
+  });
+
+  it('keeps bearer auth as a compatibility path', async () => {
     executeHostedTool.mockResolvedValue({
       success: true,
       free: false,
@@ -96,13 +145,6 @@ describe('OOBE partner HTTP routes', () => {
         free: false,
         options: [{ network: 'base', amount: '1000' }],
       });
-      expect(executeHostedTool).toHaveBeenCalledWith(
-        'x402_check_pricing',
-        { url: 'https://api.kamiyo.ai/api/paid/market' },
-        expect.objectContaining({
-          allowedTools: expect.arrayContaining(['x402_check_pricing', 'x402_fetch']),
-        })
-      );
     });
   });
 });

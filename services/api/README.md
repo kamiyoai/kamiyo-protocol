@@ -112,6 +112,7 @@ pnpm --filter kamiyo-companion run preflight:env
 
 Partner-private OOBE controls:
 
+- `OOBE_PARTNER_API_KEY`
 - `OOBE_PARTNER_BEARER_TOKEN`
 - `OOBE_ALLOWED_TARGET_HOSTS`
 - `X402_MAX_PRICE_USD`

@@ -11,8 +11,8 @@ export const OOBE_ALLOWED_TOOL_NAMES = [
 
 export type OobeAllowedToolName = (typeof OOBE_ALLOWED_TOOL_NAMES)[number];
 
-export function getOobePartnerBearerToken(): string {
-  return process.env.OOBE_PARTNER_BEARER_TOKEN?.trim() || '';
+export function getOobePartnerApiKey(): string {
+  return process.env.OOBE_PARTNER_API_KEY?.trim() || process.env.OOBE_PARTNER_BEARER_TOKEN?.trim() || '';
 }
 
 export function getOobeAllowedTargetHosts(): string[] {
