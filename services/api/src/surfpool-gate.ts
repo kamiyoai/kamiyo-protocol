@@ -21,6 +21,10 @@ export interface SurfpoolEscrowGateInput {
   failOpen?: boolean;
 }
 
+function isSurfpoolUnavailable(error: string | undefined): boolean {
+  return typeof error === 'string' && error.toLowerCase().includes('surfpool rpc call failed');
+}
+
 export async function enforceSurfpoolPreflight({
   label,
   transaction,
@@ -75,6 +79,13 @@ export async function enforceEscrowCreationPreflight({
     tokenMint
   );
   if (result.success) {
+    return;
+  }
+
+  if (isSurfpoolUnavailable(result.error)) {
+    logger.warn(`Surfpool unavailable during ${label}; continuing without escrow preflight`, {
+      counterparty: counterparty.toBase58(),
+    });
     return;
   }
 
