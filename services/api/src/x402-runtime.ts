@@ -50,6 +50,7 @@ const SAP_X402_HEADER_NAMES = [
   'X-Payment-Program',
   'X-Payment-Network',
 ] as const;
+const KAMIYO_FACILITATOR_URL = 'https://x402.kamiyo.ai';
 
 export function getSupportedX402Networks(env: NodeJS.ProcessEnv = process.env): PayAINetwork[] {
   return [...resolveX402SupportedNetworks(env)];
@@ -71,6 +72,19 @@ function splitUrls(value: string | null): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function isKamiyoDeployment(env: NodeJS.ProcessEnv): boolean {
+  const baseUrl = readEnv(env, 'API_BASE_URL');
+  if (!baseUrl) {
+    return env.NODE_ENV === 'production';
+  }
+
+  try {
+    return new URL(baseUrl).hostname.toLowerCase().endsWith('kamiyo.ai');
+  } catch {
+    return false;
+  }
+}
+
 export function resolveX402FacilitatorUrls(env: NodeJS.ProcessEnv = process.env): string[] {
   const preferred = splitUrls(readEnv(env, 'X402_FACILITATOR_URLS'));
   const fallback = splitUrls(readEnv(env, 'FACILITATOR_URLS'));
@@ -79,7 +93,16 @@ export function resolveX402FacilitatorUrls(env: NodeJS.ProcessEnv = process.env)
     readEnv(env, 'FACILITATOR_URL'),
   ].filter((value): value is string => value !== null);
 
-  return Array.from(new Set([...preferred, ...fallback, ...primary]));
+  const configured = Array.from(new Set([...preferred, ...fallback, ...primary]));
+  if (configured.length > 0) {
+    return configured;
+  }
+
+  if (isKamiyoDeployment(env)) {
+    return [KAMIYO_FACILITATOR_URL, PayAIFacilitator.URL];
+  }
+
+  return [];
 }
 
 function readHeader(

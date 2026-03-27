@@ -104,6 +104,18 @@ describe('x402 runtime header parsing', () => {
     ]);
   });
 
+  it('defaults to the Kamiyo facilitator with PayAI fallback for Kamiyo deployments', () => {
+    const urls = resolveX402FacilitatorUrls({
+      API_BASE_URL: 'https://api.kamiyo.ai',
+      NODE_ENV: 'production',
+    } as NodeJS.ProcessEnv);
+
+    expect(urls).toEqual([
+      'https://x402.kamiyo.ai',
+      'https://facilitator.payai.network',
+    ]);
+  });
+
   it('initializes the payment gateway with configured facilitator URLs', () => {
     process.env.X402_MERCHANT_WALLET = '11111111111111111111111111111111';
     process.env.X402_FACILITATOR_URLS = 'https://x402.kamiyo.ai, https://facilitator.payai.network';
