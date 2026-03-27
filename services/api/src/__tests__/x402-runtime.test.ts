@@ -119,12 +119,14 @@ describe('x402 runtime header parsing', () => {
   it('initializes the payment gateway with configured facilitator URLs', () => {
     process.env.X402_MERCHANT_WALLET = '11111111111111111111111111111111';
     process.env.X402_FACILITATOR_URLS = 'https://x402.kamiyo.ai, https://facilitator.payai.network';
+    process.env.X402_FACILITATOR_API_KEY = 'km_test_key';
 
     initX402Gateway();
 
     expect(mocks.createPayAIFacilitator).toHaveBeenCalledWith(
       '11111111111111111111111111111111',
       expect.objectContaining({
+        apiKey: 'km_test_key',
         facilitatorUrls: ['https://x402.kamiyo.ai', 'https://facilitator.payai.network'],
         defaultNetwork: 'solana',
       })

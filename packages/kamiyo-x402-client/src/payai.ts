@@ -254,6 +254,7 @@ export interface PayAIConfig {
   merchantAddress: string;
   facilitatorUrl?: string;
   facilitatorUrls?: string[];
+  apiKey?: string;
   timeoutMs?: number;
   defaultNetwork?: PayAINetwork;
   retryAttempts?: number;
@@ -404,6 +405,7 @@ export class PayAIFacilitator {
   private readonly merchant: string;
   private readonly url: string;
   private readonly facilitatorUrls: string[];
+  private readonly apiKey: string | null;
   private readonly timeout: number;
   private readonly network: PayAINetwork;
   private readonly retries: number;
@@ -434,6 +436,7 @@ export class PayAIFacilitator {
 
     this.url = normalizedUrls[0];
     this.facilitatorUrls = normalizedUrls;
+    this.apiKey = config.apiKey?.trim() || null;
     this.timeout = config.timeoutMs || DEFAULT_TIMEOUT_MS;
     this.network = config.defaultNetwork || 'base';
     this.retries = config.retryAttempts ?? DEFAULT_RETRY_ATTEMPTS;
@@ -763,14 +766,21 @@ export class PayAIFacilitator {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.timeout);
     try {
+      const headers: Record<string, string> = {
+        'User-Agent': `Kamiyo-x402/${PayAIFacilitator.VERSION}`,
+      };
+
+      if (body) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      if (this.apiKey) {
+        headers['X-API-Key'] = this.apiKey;
+      }
+
       const res = await fetch(`${facilitatorUrl}${path}`, {
         method,
-        headers: body
-          ? {
-              'Content-Type': 'application/json',
-              'User-Agent': `Kamiyo-x402/${PayAIFacilitator.VERSION}`,
-            }
-          : { 'User-Agent': `Kamiyo-x402/${PayAIFacilitator.VERSION}` },
+        headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: ctrl.signal,
       });

@@ -105,6 +105,10 @@ export function resolveX402FacilitatorUrls(env: NodeJS.ProcessEnv = process.env)
   return [];
 }
 
+function resolveX402FacilitatorApiKey(env: NodeJS.ProcessEnv = process.env): string | null {
+  return readEnv(env, 'X402_FACILITATOR_API_KEY') ?? readEnv(env, 'FACILITATOR_API_KEY');
+}
+
 function readHeader(
   headers: IncomingHttpHeaders | Record<string, string | string[] | undefined>,
   name: string
@@ -206,6 +210,7 @@ export function initX402Gateway(): void {
   const capability = getX402Capability();
   const supportedNetworks = getSupportedX402Networks();
   const facilitatorUrls = resolveX402FacilitatorUrls();
+  const facilitatorApiKey = resolveX402FacilitatorApiKey();
   facilitator = null;
 
   if (!capability.enabled || !capability.merchantWallet) {
@@ -214,6 +219,7 @@ export function initX402Gateway(): void {
 
   facilitator = createPayAIFacilitator(capability.merchantWallet, {
     facilitatorUrls: facilitatorUrls.length > 0 ? facilitatorUrls : undefined,
+    apiKey: facilitatorApiKey || undefined,
     defaultNetwork: supportedNetworks[0] || 'base',
     onVerified: (result) => {
       logger.info('x402 payment verified', {
@@ -240,6 +246,7 @@ export function initX402Gateway(): void {
     networks: supportedNetworks.join(', '),
     facilitators:
       facilitatorUrls.length > 0 ? facilitatorUrls.join(', ') : PayAIFacilitator.URL,
+    facilitatorAuth: facilitatorApiKey ? 'api-key' : 'none',
   });
 }
 
