@@ -1,7 +1,8 @@
 import type { IncomingHttpHeaders } from 'node:http';
 import { PublicKey } from '@solana/web3.js';
+import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
 import { createPayAIFacilitator, PayAIFacilitator, type PayAINetwork } from '@kamiyo/x402-client';
-import { SapConnection, deriveAgent, deriveEscrow, type X402Headers } from '@oobe-protocol-labs/synapse-sap-sdk';
+import { SapConnection, deriveAgent, deriveEscrow, hashToArray, sha256, type X402Headers } from '@oobe-protocol-labs/synapse-sap-sdk';
 import { getX402Capability, resolveX402SupportedNetworks } from './core-capabilities';
 import { logger } from './logger';
 import { loadSolanaKeypair } from './solana-keypair';
@@ -312,19 +313,44 @@ export async function verifyAndSettleX402Payment(
         return { ok: false, verifyError: 'sap escrow has no calls remaining' };
       }
 
-      const settlement = await runtime.client.x402.settle(
-        depositor,
-        1,
-        JSON.stringify({ resource, description, quotedPriceUsd: priceUsd })
+      const serviceHash = hashToArray(
+        sha256(JSON.stringify({ resource, description, quotedPriceUsd: priceUsd }))
       );
+      const settlementAmount = escrowState.pricePerCall.toString();
+
+      let txSignature: string;
+      if (escrowState.tokenMint) {
+        const mintInfo = await runtime.connection.connection.getAccountInfo(escrowState.tokenMint);
+        if (!mintInfo) {
+          return { ok: false, verifyError: 'sap token mint not found' };
+        }
+
+        const tokenProgram = mintInfo.owner;
+        const escrowAta = await getAssociatedTokenAddress(escrowState.tokenMint, escrow, true, tokenProgram);
+        const agentAta = await getAssociatedTokenAddress(escrowState.tokenMint, runtime.agentWallet, false, tokenProgram);
+
+        txSignature = await runtime.client.escrow.settle(depositor, 1, serviceHash, [
+          { pubkey: escrowAta, isSigner: false, isWritable: true },
+          { pubkey: agentAta, isSigner: false, isWritable: true },
+          { pubkey: escrowState.tokenMint, isSigner: false, isWritable: false },
+          { pubkey: tokenProgram.equals(TOKEN_PROGRAM_ID) ? TOKEN_PROGRAM_ID : tokenProgram, isSigner: false, isWritable: false },
+        ]);
+      } else {
+        const settlement = await runtime.client.x402.settle(
+          depositor,
+          1,
+          JSON.stringify({ resource, description, quotedPriceUsd: priceUsd })
+        );
+        txSignature = settlement.txSignature;
+      }
 
       return {
         ok: true,
         payment: {
           payer: depositor.toBase58(),
           network: sapHeaders['X-Payment-Network'],
-          amount: settlement.amount.toString(),
-          tx: settlement.txSignature,
+          amount: settlementAmount,
+          tx: txSignature,
           headerType: 'sap-x402',
         },
       };
