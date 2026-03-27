@@ -3,6 +3,7 @@ import type { Router as IRouter } from 'express-serve-static-core';
 import { AgentParanetClient } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 import {
+  firstNonEmpty,
   resolveDkgBlockchain,
   resolveDkgEndpoint,
   resolveDkgPort,
@@ -175,6 +176,14 @@ function formatWarnings(scope: QueryScope | null): string[] {
   return [];
 }
 
+function resolveMeishiDkgEndpoint(): string | undefined {
+  return firstNonEmpty(['PARANET_DKG_ENDPOINT']) || resolveDkgEndpoint();
+}
+
+function deriveParanetRepository(paranetUAL: string): string {
+  return `paranet-${paranetUAL.toLowerCase().replace(/[/:]/g, '-')}`;
+}
+
 function getSnapshotKey(route: string, params: Record<string, string | number | null | undefined>): string {
   const query = Object.entries(params)
     .filter(([, value]) => value !== undefined && value !== null && value !== '')
@@ -296,7 +305,7 @@ let clientInitPromise: Promise<AgentParanetClient> | null = null;
 async function getClient(): Promise<AgentParanetClient> {
   if (client) return client;
 
-  const endpoint = resolveDkgEndpoint();
+  const endpoint = resolveMeishiDkgEndpoint();
   if (!endpoint) {
     throw new RouteUnavailableError('DKG endpoint not configured');
   }
@@ -342,6 +351,21 @@ async function queryWithParanetFallback(
     }
 
     return firstEmptySuccess ?? { rows: [], scope: 'global', repository: repositories[0] ?? DEFAULT_REPOSITORY };
+  }
+
+  const paranetRepository = deriveParanetRepository(paranetUAL);
+  try {
+    const result = await dkg.graph.query(query, 'SELECT', { repository: paranetRepository });
+    const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+    if (rows.length > 0) return { rows, scope: 'paranet', repository: paranetRepository };
+    firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'paranet', repository: paranetRepository };
+  } catch (error) {
+    logger.warn('Meishi DKG paranet repository query failed, trying scoped fallback', {
+      route,
+      repository: paranetRepository,
+      paranetUAL,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   for (const repository of repositories) {
@@ -578,7 +602,7 @@ async function loadAuditFeed(route: string, opts?: { minScore?: number; limit?: 
 }
 
 async function loadDashboard(limit: number, minScore: number): Promise<DashboardPayload> {
-  const endpoint = resolveDkgEndpoint() || null;
+  const endpoint = resolveMeishiDkgEndpoint() || null;
   if (!endpoint) {
     throw new RouteUnavailableError('DKG endpoint not configured');
   }
@@ -653,7 +677,7 @@ async function respondWithSnapshot<T extends { warnings: string[] }>(
 }
 
 router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
-  const endpoint = resolveDkgEndpoint() || null;
+  const endpoint = resolveMeishiDkgEndpoint() || null;
   const blockchain = resolveDkgBlockchain();
   const paranetUAL = resolveParanetUAL() || null;
   const timestamp = new Date().toISOString();
@@ -696,27 +720,43 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       checks.push({ name: 'paranet_access', status: 'warn', message: 'No paranet UAL configured' });
     } else {
       const paranetStarted = Date.now();
+      const paranetRepository = deriveParanetRepository(paranetUAL);
       try {
         await withTimeout(
           'paranet_query',
           dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', {
-            repository,
-            paranetUAL,
+            repository: paranetRepository,
           })
         );
         checks.push({
           name: 'paranet_access',
           status: 'pass',
-          message: 'Paranet accessible',
+          message: 'Paranet repository accessible',
           latencyMs: Date.now() - paranetStarted,
         });
       } catch (error) {
-        checks.push({
-          name: 'paranet_access',
-          status: 'warn',
-          message: `Paranet query failed (${error instanceof Error ? error.message : String(error)})`,
-          latencyMs: Date.now() - paranetStarted,
-        });
+        try {
+          await withTimeout(
+            'paranet_query_scoped',
+            dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', {
+              repository,
+              paranetUAL,
+            })
+          );
+          checks.push({
+            name: 'paranet_access',
+            status: 'pass',
+            message: 'Paranet scoped query accessible',
+            latencyMs: Date.now() - paranetStarted,
+          });
+        } catch (scopedError) {
+          checks.push({
+            name: 'paranet_access',
+            status: 'warn',
+            message: `Paranet query failed (${scopedError instanceof Error ? scopedError.message : String(scopedError)})`,
+            latencyMs: Date.now() - paranetStarted,
+          });
+        }
       }
     }
 
