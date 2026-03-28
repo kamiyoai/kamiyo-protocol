@@ -2,10 +2,11 @@ flowchart LR
   O["OOBE"]
 
   subgraph K["KAMIYO API"]
-    MCP["/partners/oobe/mcp<br/>OAuth<br/>resource-bound tokens<br/>4 tools only"]
-    HTTP["/api/partners/oobe<br/>Bearer token<br/>4 endpoints"]
+    MCP["/partners/oobe/mcp<br/>OAuth<br/>resource-bound tokens<br/>trust + payment tool pack"]
+    HTTP["/api/partners/oobe<br/>API key<br/>trust + payment endpoints"]
     EXEC["Shared tool executor"]
     POLICY["Target host allowlist<br/>default: api.kamiyo.ai<br/>default: x402.kamiyo.ai<br/>+ env extensions"]
+    TRUST["meishi verify/passport/mandate/audit<br/>API reputation<br/>quality assessment"]
     X402["x402_check_pricing<br/>x402_fetch"]
     ESCROW["create_escrow<br/>check_escrow_status"]
     PROV["provision:oobe-mcp-client"]
@@ -22,6 +23,7 @@ flowchart LR
   HTTP --> EXEC
 
   EXEC --> POLICY
+  EXEC --> TRUST
   POLICY --> X402
   EXEC --> ESCROW
 

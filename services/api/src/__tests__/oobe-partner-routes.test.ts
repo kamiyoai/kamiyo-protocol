@@ -147,4 +147,75 @@ describe('OOBE partner HTTP routes', () => {
       });
     });
   });
+
+  it('routes identity verification through the partner API', async () => {
+    executeHostedTool.mockResolvedValue({
+      success: true,
+      passportAddress: 'passport-1',
+      isValid: true,
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(
+        `${baseUrl}/api/partners/oobe/identity/verify?agentIdentity=agent-1&attestationProvider=openclaw`,
+        {
+          headers: { 'x-api-key': 'oobe-secret' },
+        }
+      );
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        passportAddress: 'passport-1',
+        isValid: true,
+      });
+      expect(executeHostedTool).toHaveBeenCalledWith(
+        'meishi_verify_agent',
+        {
+          agentIdentity: 'agent-1',
+          attestationProvider: 'openclaw',
+        },
+        expect.objectContaining({
+          allowedTools: expect.arrayContaining(['meishi_verify_agent']),
+        })
+      );
+    });
+  });
+
+  it('routes quality assessment through the partner API', async () => {
+    executeHostedTool.mockResolvedValue({
+      success: true,
+      qualityScore: 92,
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/partners/oobe/quality/assess`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': 'oobe-secret',
+        },
+        body: JSON.stringify({
+          apiResponse: { foo: 'bar' },
+          expectedCriteria: ['foo'],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        qualityScore: 92,
+      });
+      expect(executeHostedTool).toHaveBeenCalledWith(
+        'assess_data_quality',
+        {
+          apiResponse: { foo: 'bar' },
+          expectedCriteria: ['foo'],
+        },
+        expect.objectContaining({
+          allowedTools: expect.arrayContaining(['assess_data_quality']),
+        })
+      );
+    });
+  });
 });

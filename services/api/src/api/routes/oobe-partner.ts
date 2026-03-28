@@ -27,6 +27,30 @@ function matchesSecret(expected: string, provided: string): boolean {
   return timingSafeEqual(expectedBytes, providedBytes);
 }
 
+function getJsonBody(req: Request): Record<string, unknown> {
+  return req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+    ? (req.body as Record<string, unknown>)
+    : {};
+}
+
+function getOptionalQueryString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function getOptionalQueryNumber(value: unknown): number | string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
 function getProvidedApiKey(req: Request): string {
   const headerValue = req.headers['x-api-key'];
   if (typeof headerValue === 'string' && headerValue.trim()) {
@@ -92,31 +116,67 @@ router.use(requirePartnerApiKey);
 
 router.get('/x402/pricing', async (req: Request, res: Response) => {
   await runTool(res, 'x402_check_pricing', {
-    url: typeof req.query.url === 'string' ? req.query.url : '',
+    url: getOptionalQueryString(req.query.url),
   });
 });
 
 router.post('/x402/fetch', async (req: Request, res: Response) => {
-  const body =
-    req.body && typeof req.body === 'object' && !Array.isArray(req.body)
-      ? (req.body as Record<string, unknown>)
-      : {};
-  await runTool(res, 'x402_fetch', body);
+  await runTool(res, 'x402_fetch', getJsonBody(req));
 });
 
 router.post('/escrows', async (req: Request, res: Response) => {
-  const body =
-    req.body && typeof req.body === 'object' && !Array.isArray(req.body)
-      ? (req.body as Record<string, unknown>)
-      : {};
-  await runTool(res, 'create_escrow', body);
+  await runTool(res, 'create_escrow', getJsonBody(req));
 });
 
 router.get('/escrows/status', async (req: Request, res: Response) => {
   await runTool(res, 'check_escrow_status', {
-    escrowAddress: typeof req.query.escrowAddress === 'string' ? req.query.escrowAddress : undefined,
-    transactionId: typeof req.query.transactionId === 'string' ? req.query.transactionId : undefined,
+    escrowAddress: getOptionalQueryString(req.query.escrowAddress),
+    transactionId: getOptionalQueryString(req.query.transactionId),
   });
+});
+
+router.get('/identity/verify', async (req: Request, res: Response) => {
+  await runTool(res, 'meishi_verify_agent', {
+    agentIdentity: getOptionalQueryString(req.query.agentIdentity),
+    attestationProvider: getOptionalQueryString(req.query.attestationProvider),
+  });
+});
+
+router.get('/passport', async (req: Request, res: Response) => {
+  await runTool(res, 'meishi_get_passport', {
+    passportAddress: getOptionalQueryString(req.query.passportAddress),
+    attestationProvider: getOptionalQueryString(req.query.attestationProvider),
+  });
+});
+
+router.get('/mandate', async (req: Request, res: Response) => {
+  await runTool(res, 'meishi_get_mandate', {
+    passportAddress: getOptionalQueryString(req.query.passportAddress),
+    version: getOptionalQueryNumber(req.query.version),
+    attestationProvider: getOptionalQueryString(req.query.attestationProvider),
+  });
+});
+
+router.get('/audit', async (req: Request, res: Response) => {
+  await runTool(res, 'meishi_get_audit', {
+    passportAddress: getOptionalQueryString(req.query.passportAddress),
+    nonce: getOptionalQueryNumber(req.query.nonce),
+    attestationProvider: getOptionalQueryString(req.query.attestationProvider),
+  });
+});
+
+router.get('/reputation', async (req: Request, res: Response) => {
+  await runTool(res, 'get_api_reputation', {
+    apiProvider: getOptionalQueryString(req.query.apiProvider),
+  });
+});
+
+router.post('/quality/assess', async (req: Request, res: Response) => {
+  await runTool(res, 'assess_data_quality', getJsonBody(req));
+});
+
+router.post('/quality/refund-estimate', async (req: Request, res: Response) => {
+  await runTool(res, 'estimate_refund', getJsonBody(req));
 });
 
 export default router;

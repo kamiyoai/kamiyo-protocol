@@ -40,8 +40,15 @@ describe('OOBE MCP tool filtering', () => {
     });
 
     expect(tools.map((tool) => tool.name)).toEqual([
+      'meishi_verify_agent',
+      'meishi_get_passport',
+      'meishi_get_mandate',
+      'meishi_get_audit',
       'create_escrow',
       'check_escrow_status',
+      'assess_data_quality',
+      'estimate_refund',
+      'get_api_reputation',
       'x402_check_pricing',
       'x402_fetch',
     ]);
