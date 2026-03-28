@@ -257,6 +257,107 @@ describe('SAP HTTP routes', () => {
     });
   });
 
+  it('runs Meishi verification without requiring SAP payment', async () => {
+    mocks.executeHostedTool.mockResolvedValue({
+      success: true,
+      agentIdentity: 'agent-1',
+      passportAddress: 'passport-1',
+      verified: true,
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/sap/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: 'meishi_verify_agent',
+          args: { agentIdentity: 'agent-1' },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        agentIdentity: 'agent-1',
+        passportAddress: 'passport-1',
+        verified: true,
+      });
+      expect(mocks.getX402Challenge).not.toHaveBeenCalled();
+      expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
+    });
+  });
+
+  it('runs Meishi audit reads without requiring SAP payment', async () => {
+    mocks.executeHostedTool.mockResolvedValue({
+      success: true,
+      audit: {
+        passed: true,
+        findingsUal: 'ual://kamiyo/audit/1',
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/sap/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: 'meishi_get_audit',
+          args: { passportAddress: 'passport-1', nonce: 1 },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        audit: {
+          passed: true,
+          findingsUal: 'ual://kamiyo/audit/1',
+        },
+      });
+      expect(mocks.getX402Challenge).not.toHaveBeenCalled();
+      expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
+    });
+  });
+
+  it('runs quality assessment without requiring SAP payment', async () => {
+    mocks.executeHostedTool.mockResolvedValue({
+      success: true,
+      qualityScore: 92,
+      refundPercentage: 0,
+      completeness: 100,
+      freshness: 80,
+      schemaCompliance: 100,
+      rationale: 'Quality: 92/100. Refund: 0%',
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/sap/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool: 'assess_data_quality',
+          args: {
+            apiResponse: { ok: true, price: 42 },
+            expectedCriteria: ['ok', 'price'],
+          },
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({
+        success: true,
+        qualityScore: 92,
+        refundPercentage: 0,
+        completeness: 100,
+        freshness: 80,
+        schemaCompliance: 100,
+        rationale: 'Quality: 92/100. Refund: 0%',
+      });
+      expect(mocks.getX402Challenge).not.toHaveBeenCalled();
+      expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
+    });
+  });
+
   it('returns 503 for create_escrow when spend controls are not configured', async () => {
     delete process.env.SAP_ESCROW_ALLOWED_APIS;
     delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
