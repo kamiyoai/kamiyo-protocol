@@ -189,15 +189,27 @@ describe('SAP registration reconcile', () => {
 
     expect(result.agent.action).toBe('registered');
     expect(result.tools.published).toEqual([
+      'meishi_verify_agent',
+      'meishi_get_passport',
+      'meishi_get_mandate',
+      'meishi_get_audit',
+      'get_api_reputation',
+      'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
       'create_escrow',
       'check_escrow_status',
     ]);
-    expect(result.discovery.protocolsInitialized).toEqual(['sap', 'kamiyo', 'x402']);
-    expect(result.discovery.capabilitiesInitialized).toHaveLength(4);
+    expect(result.discovery.protocolsInitialized).toEqual(['sap', 'kamiyo', 'x402', 'meishi']);
+    expect(result.discovery.capabilitiesInitialized).toHaveLength(10);
     expect(result.discovery.categoriesInitialized).toEqual([5, 4]);
     expect(result.discovery.categoriesLinked).toEqual([
+      'meishi_verify_agent',
+      'meishi_get_passport',
+      'meishi_get_mandate',
+      'meishi_get_audit',
+      'get_api_reputation',
+      'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
       'create_escrow',
@@ -217,6 +229,12 @@ describe('SAP registration reconcile', () => {
     expect(result.tools.updated).toEqual([]);
     expect(result.tools.reactivated).toEqual([]);
     expect(result.tools.unchanged).toEqual([
+      'meishi_verify_agent',
+      'meishi_get_passport',
+      'meishi_get_mandate',
+      'meishi_get_audit',
+      'get_api_reputation',
+      'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
       'create_escrow',

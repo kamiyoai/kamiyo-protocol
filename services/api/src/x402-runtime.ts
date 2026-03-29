@@ -51,6 +51,7 @@ const SAP_X402_HEADER_NAMES = [
   'X-Payment-Network',
 ] as const;
 const KAMIYO_FACILITATOR_URL = 'https://x402.kamiyo.ai';
+const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
 
 export function getSupportedX402Networks(env: NodeJS.ProcessEnv = process.env): PayAINetwork[] {
   return [...resolveX402SupportedNetworks(env)];
@@ -103,6 +104,10 @@ export function resolveX402FacilitatorUrls(env: NodeJS.ProcessEnv = process.env)
   }
 
   return [];
+}
+
+function resolveX402FacilitatorApiKey(env: NodeJS.ProcessEnv = process.env): string | null {
+  return readEnv(env, 'X402_FACILITATOR_API_KEY') ?? readEnv(env, 'FACILITATOR_API_KEY');
 }
 
 function readHeader(
@@ -202,10 +207,25 @@ function parsePublicKey(value: string, label: string): PublicKey {
   }
 }
 
+export function isAcceptedSapNetwork(network: string, cluster: string): boolean {
+  const normalized = network.trim().toLowerCase();
+  const accepted =
+    cluster === 'mainnet-beta'
+      ? ['mainnet-beta', 'mainnet', 'solana:mainnet-beta', 'solana:mainnet', SOLANA_MAINNET_CAIP2]
+      : cluster === 'devnet'
+        ? ['devnet', 'solana:devnet']
+        : cluster === 'localnet'
+          ? ['localnet', 'localhost', '127.0.0.1', 'solana:localnet']
+          : [cluster];
+
+  return accepted.some((candidate) => candidate.toLowerCase() === normalized);
+}
+
 export function initX402Gateway(): void {
   const capability = getX402Capability();
   const supportedNetworks = getSupportedX402Networks();
   const facilitatorUrls = resolveX402FacilitatorUrls();
+  const facilitatorApiKey = resolveX402FacilitatorApiKey();
   facilitator = null;
 
   if (!capability.enabled || !capability.merchantWallet) {
@@ -214,6 +234,7 @@ export function initX402Gateway(): void {
 
   facilitator = createPayAIFacilitator(capability.merchantWallet, {
     facilitatorUrls: facilitatorUrls.length > 0 ? facilitatorUrls : undefined,
+    apiKey: facilitatorApiKey || undefined,
     defaultNetwork: supportedNetworks[0] || 'base',
     onVerified: (result) => {
       logger.info('x402 payment verified', {
@@ -240,6 +261,7 @@ export function initX402Gateway(): void {
     networks: supportedNetworks.join(', '),
     facilitators:
       facilitatorUrls.length > 0 ? facilitatorUrls.join(', ') : PayAIFacilitator.URL,
+    facilitatorAuth: facilitatorApiKey ? 'api-key' : 'none',
   });
 }
 
@@ -339,7 +361,7 @@ export async function verifyAndSettleX402Payment(
       const agent = parsePublicKey(sapHeaders['X-Payment-Agent'], 'sap agent');
       const depositor = parsePublicKey(sapHeaders['X-Payment-Depositor'], 'sap depositor');
 
-      if (sapHeaders['X-Payment-Network'] !== runtime.connection.cluster) {
+      if (!isAcceptedSapNetwork(sapHeaders['X-Payment-Network'], runtime.connection.cluster)) {
         return { ok: false, verifyError: 'sap network mismatch' };
       }
 

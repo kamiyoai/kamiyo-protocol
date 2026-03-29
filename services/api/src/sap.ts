@@ -13,6 +13,12 @@ import { getHostedToolDefinition } from './mcp/server';
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
 
 export const SAP_ALLOWED_TOOL_NAMES = [
+  'meishi_verify_agent',
+  'meishi_get_passport',
+  'meishi_get_mandate',
+  'meishi_get_audit',
+  'get_api_reputation',
+  'assess_data_quality',
   'x402_check_pricing',
   'x402_fetch',
   'create_escrow',
@@ -24,10 +30,10 @@ export type SapPaymentMode = 'free' | 'pass_through' | 'x402';
 
 export const SAP_AGENT_NAME = 'KAMIYO SAP Agent';
 export const SAP_AGENT_DESCRIPTION =
-  'SAP-native access to KAMIYO x402 pricing, x402 fetch, and escrow settlement tools.';
+  'SAP-native access to KAMIYO trust, data quality, x402 pricing and fetch, and escrow settlement tools.';
 export const SAP_AGENT_ID = 'kamiyo-sap-mainnet';
 export const SAP_ACTIVE = true;
-export const SAP_PROTOCOLS = ['sap', 'kamiyo', 'x402'] as const;
+export const SAP_PROTOCOLS = ['sap', 'kamiyo', 'x402', 'meishi'] as const;
 const DEFAULT_SAP_BASELINE_PRICE_MICRO_USDC = 1_388;
 export const SAP_BASELINE_PRICE_MICRO_USDC = parsePositiveInteger(
   process.env.SAP_BASELINE_PRICE_MICRO_USDC,
@@ -72,6 +78,42 @@ function getFixedPriceNote(suffix = '.'): string {
 }
 
 export const SAP_CAPABILITIES: Capability[] = [
+  {
+    id: 'kamiyo:meishi-verify-agent',
+    description: 'Verify whether an agent has a valid Meishi passport.',
+    protocolId: 'meishi',
+    version: '1.0.0',
+  },
+  {
+    id: 'kamiyo:meishi-passport-read',
+    description: 'Read a Meishi passport and latest mandate.',
+    protocolId: 'meishi',
+    version: '1.0.0',
+  },
+  {
+    id: 'kamiyo:meishi-mandate-read',
+    description: 'Read a specific Meishi mandate version.',
+    protocolId: 'meishi',
+    version: '1.0.0',
+  },
+  {
+    id: 'kamiyo:meishi-audit-read',
+    description: 'Read a specific Meishi audit entry.',
+    protocolId: 'meishi',
+    version: '1.0.0',
+  },
+  {
+    id: 'kamiyo:api-reputation-read',
+    description: 'Read KAMIYO API provider reputation.',
+    protocolId: 'kamiyo',
+    version: '1.0.0',
+  },
+  {
+    id: 'kamiyo:data-quality-assess',
+    description: 'Assess returned data quality against expected criteria.',
+    protocolId: 'kamiyo',
+    version: '1.0.0',
+  },
   {
     id: 'kamiyo:x402-pricing',
     description: 'Inspect x402 pricing for allowlisted endpoints.',
@@ -138,6 +180,54 @@ export interface SapToolProfile extends SapToolProfileSeed {
 }
 
 const SAP_TOOL_SEEDS: Record<SapToolName, SapToolProfileSeed> = {
+  meishi_verify_agent: {
+    protocolId: 'meishi',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Verify whether a target agent has a valid Meishi passport.',
+  },
+  meishi_get_passport: {
+    protocolId: 'meishi',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Read a Meishi passport and its latest mandate.',
+  },
+  meishi_get_mandate: {
+    protocolId: 'meishi',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Read a specific Meishi mandate version.',
+  },
+  meishi_get_audit: {
+    protocolId: 'meishi',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Read a specific Meishi audit entry.',
+  },
+  get_api_reputation: {
+    protocolId: 'kamiyo',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Inspect KAMIYO reputation signals for an API provider.',
+  },
+  assess_data_quality: {
+    protocolId: 'kamiyo',
+    category: 'data',
+    categoryKey: 'Data',
+    paymentMode: 'free',
+    priceMicroUsdc: 0,
+    pricingNote: 'Free. Score returned API data against expected criteria.',
+  },
   x402_check_pricing: {
     protocolId: 'x402',
     category: 'data',

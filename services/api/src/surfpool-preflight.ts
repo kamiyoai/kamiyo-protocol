@@ -591,10 +591,10 @@ class SurfpoolPreflightService {
     transaction: Transaction | VersionedTransaction
   ): Promise<{ success: boolean; computeUnits: number; logs: string[]; error?: string }> {
     try {
-      const result = await this.surfpoolConnection.simulateTransaction(
-        transaction as VersionedTransaction,
-        { commitment: 'confirmed' }
-      );
+      const result =
+        transaction instanceof VersionedTransaction
+          ? await this.surfpoolConnection.simulateTransaction(transaction, { commitment: 'confirmed' })
+          : await this.surfpoolConnection.simulateTransaction(transaction);
 
       return {
         success: !result.value.err,

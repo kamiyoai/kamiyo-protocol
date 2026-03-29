@@ -56,6 +56,46 @@ describe('PayAIFacilitator', () => {
         'https://facilitator.payai.network',
       ]);
     });
+
+    it('sends the configured facilitator API key', async () => {
+      const f = new PayAIFacilitator({
+        merchantAddress: merchant,
+        facilitatorUrl: 'https://primary.example',
+        apiKey: 'km_test_key',
+        retryAttempts: 1,
+      });
+
+      const fetchSpy = jest.spyOn(globalThis as any, 'fetch');
+      const fetchMock = fetchSpy as unknown as jest.Mock;
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ isValid: true, payer: merchant }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }) as unknown as Response
+      );
+
+      await f.verify('dummy-payment-header', {
+        scheme: 'exact',
+        network: 'eip155:8453',
+        amount: '10000',
+        resource: '/api/test',
+        description: 'Test payment',
+        payTo: merchant,
+        asset: 'USDC',
+        maxTimeoutSeconds: 60,
+      });
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://primary.example/verify',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-API-Key': 'km_test_key',
+          }),
+        })
+      );
+
+      fetchSpy.mockRestore();
+    });
   });
 
   describe('facilitator failover', () => {

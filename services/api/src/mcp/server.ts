@@ -79,6 +79,18 @@ const TOOL_DEFINITIONS = [
       },
       required: ['agentIdentity'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        agentIdentity: { type: 'string' },
+        passportAddress: { type: 'string' },
+        attestationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: true,
+    },
   },
   {
     name: 'meishi_get_passport',
@@ -93,6 +105,29 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['passportAddress'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        passportAddress: { type: 'string' },
+        attestationProvider: { type: 'string' },
+        passport: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        latestMandate: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -110,6 +145,22 @@ const TOOL_DEFINITIONS = [
       },
       required: ['passportAddress', 'version'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        attestationProvider: { type: 'string' },
+        mandate: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'meishi_get_audit',
@@ -125,6 +176,22 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['passportAddress', 'nonce'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        attestationProvider: { type: 'string' },
+        audit: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -204,6 +271,21 @@ const TOOL_DEFINITIONS = [
         expectedCriteria: { type: 'array', description: 'Fields to check' },
       },
       required: ['apiResponse', 'expectedCriteria'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        qualityScore: { type: 'number' },
+        refundPercentage: { type: 'number' },
+        completeness: { type: 'number' },
+        freshness: { type: 'number' },
+        schemaCompliance: { type: 'number' },
+        rationale: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -328,6 +410,21 @@ const TOOL_DEFINITIONS = [
         apiProvider: { type: 'string', description: 'Provider wallet' },
       },
       required: ['apiProvider'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        reputationScore: { type: 'number' },
+        totalTransactions: { type: 'number' },
+        disputesFiled: { type: 'number' },
+        disputesWon: { type: 'number' },
+        averageQualityReceived: { type: 'number' },
+        recommendation: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {

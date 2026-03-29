@@ -19,6 +19,7 @@ vi.mock('@kamiyo/x402-client', async () => {
 import {
   getX402PaymentHeader,
   initX402Gateway,
+  isAcceptedSapNetwork,
   resolveX402FacilitatorUrls,
   verifyAndSettleX402Payment,
 } from '../x402-runtime';
@@ -104,6 +105,14 @@ describe('x402 runtime header parsing', () => {
     ]);
   });
 
+  it('accepts Solana mainnet SAP aliases for mainnet-beta clusters', () => {
+    expect(isAcceptedSapNetwork('mainnet-beta', 'mainnet-beta')).toBe(true);
+    expect(isAcceptedSapNetwork('solana:mainnet-beta', 'mainnet-beta')).toBe(true);
+    expect(isAcceptedSapNetwork('solana:mainnet', 'mainnet-beta')).toBe(true);
+    expect(isAcceptedSapNetwork('solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', 'mainnet-beta')).toBe(true);
+    expect(isAcceptedSapNetwork('devnet', 'mainnet-beta')).toBe(false);
+  });
+
   it('defaults to the Kamiyo facilitator with PayAI fallback for Kamiyo deployments', () => {
     const urls = resolveX402FacilitatorUrls({
       API_BASE_URL: 'https://api.kamiyo.ai',
@@ -119,12 +128,14 @@ describe('x402 runtime header parsing', () => {
   it('initializes the payment gateway with configured facilitator URLs', () => {
     process.env.X402_MERCHANT_WALLET = '11111111111111111111111111111111';
     process.env.X402_FACILITATOR_URLS = 'https://x402.kamiyo.ai, https://facilitator.payai.network';
+    process.env.X402_FACILITATOR_API_KEY = 'km_test_key';
 
     initX402Gateway();
 
     expect(mocks.createPayAIFacilitator).toHaveBeenCalledWith(
       '11111111111111111111111111111111',
       expect.objectContaining({
+        apiKey: 'km_test_key',
         facilitatorUrls: ['https://x402.kamiyo.ai', 'https://facilitator.payai.network'],
         defaultNetwork: 'solana',
       })
