@@ -1,8 +1,9 @@
 import type { IncomingHttpHeaders } from 'node:http';
-import { PublicKey } from '@solana/web3.js';
+import { BN } from '@coral-xyz/anchor';
 import { TOKEN_PROGRAM_ID, getAssociatedTokenAddress } from '@solana/spl-token';
+import { type AccountMeta, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
 import { createPayAIFacilitator, PayAIFacilitator, type PayAINetwork } from '@kamiyo/x402-client';
-import { SapConnection, deriveAgent, deriveEscrow, hashToArray, sha256, type X402Headers } from '@oobe-protocol-labs/synapse-sap-sdk';
+import { SapConnection, deriveAgent, deriveAgentStats, deriveEscrow, hashToArray, sha256, type X402Headers } from '@oobe-protocol-labs/synapse-sap-sdk';
 import { getX402Capability, resolveX402SupportedNetworks } from './core-capabilities';
 import { logger } from './logger';
 import { loadSolanaKeypair } from './solana-keypair';
@@ -33,6 +34,7 @@ let facilitator: PayAIFacilitator | null = null;
 let cachedSapRuntime:
   | {
       cacheKey: string;
+      keypair: Keypair;
       agentWallet: PublicKey;
       agentPda: PublicKey;
       connection: SapConnection;
@@ -52,6 +54,8 @@ const SAP_X402_HEADER_NAMES = [
 ] as const;
 const KAMIYO_FACILITATOR_URL = 'https://x402.kamiyo.ai';
 const SOLANA_MAINNET_CAIP2 = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const SAP_SETTLEMENT_CONFIRMATION_TIMEOUT_MS = 90_000;
+const SAP_SETTLEMENT_CONFIRMATION_POLL_MS = 2_000;
 
 export function getSupportedX402Networks(env: NodeJS.ProcessEnv = process.env): PayAINetwork[] {
   return [...resolveX402SupportedNetworks(env)];
@@ -130,6 +134,7 @@ function getSapAgentSecret(env: NodeJS.ProcessEnv = process.env): string | null 
 
 function getSapRuntime():
   | {
+      keypair: Keypair;
       agentWallet: PublicKey;
       agentPda: PublicKey;
       connection: SapConnection;
@@ -156,6 +161,7 @@ function getSapRuntime():
 
     cachedSapRuntime = {
       cacheKey,
+      keypair,
       agentWallet: keypair.publicKey,
       agentPda,
       connection,
@@ -205,6 +211,95 @@ function parsePublicKey(value: string, label: string): PublicKey {
   } catch {
     throw new Error(`invalid ${label}`);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getSapSettlementConfirmationTimeoutMs(): number {
+  const raw = process.env.SAP_SETTLEMENT_CONFIRMATION_TIMEOUT_MS?.trim();
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed >= 30_000 ? parsed : SAP_SETTLEMENT_CONFIRMATION_TIMEOUT_MS;
+}
+
+async function confirmSapSettlement(
+  connection: SapConnection,
+  signature: string,
+  lastValidBlockHeight: number
+): Promise<void> {
+  const startedAt = Date.now();
+  const timeoutMs = getSapSettlementConfirmationTimeoutMs();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const [statuses, blockHeight] = await Promise.all([
+      connection.connection.getSignatureStatuses([signature], { searchTransactionHistory: true }),
+      connection.connection.getBlockHeight(connection.commitment),
+    ]);
+
+    const status = statuses.value[0];
+    if (status?.err) {
+      throw new Error(`sap settlement failed: ${JSON.stringify(status.err)}`);
+    }
+
+    if (status?.confirmationStatus === 'confirmed' || status?.confirmationStatus === 'finalized') {
+      return;
+    }
+
+    if (blockHeight > lastValidBlockHeight) {
+      throw new Error(`sap settlement expired before confirmation for ${signature}`);
+    }
+
+    await sleep(SAP_SETTLEMENT_CONFIRMATION_POLL_MS);
+  }
+
+  const statuses = await connection.connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+  const status = statuses.value[0];
+  if (status?.err) {
+    throw new Error(`sap settlement failed: ${JSON.stringify(status.err)}`);
+  }
+
+  if (status?.confirmationStatus === 'confirmed' || status?.confirmationStatus === 'finalized') {
+    return;
+  }
+
+  throw new Error(`sap settlement confirmation timed out for ${signature}`);
+}
+
+async function submitSapSettlement(
+  runtime: NonNullable<ReturnType<typeof getSapRuntime>>,
+  depositor: PublicKey,
+  serviceHash: number[],
+  remainingAccounts: AccountMeta[] = []
+): Promise<string> {
+  const [agentPda] = deriveAgent(runtime.agentWallet);
+  const [statsPda] = deriveAgentStats(agentPda);
+  const [escrowPda] = deriveEscrow(agentPda, depositor);
+  const latestBlockhash = await runtime.connection.connection.getLatestBlockhash(runtime.connection.commitment);
+  const program = runtime.client.program as any;
+  const transaction = await program.methods
+    .settleCalls(new BN(1), serviceHash)
+    .accounts({
+      wallet: runtime.agentWallet,
+      agent: agentPda,
+      agentStats: statsPda,
+      escrow: escrowPda,
+      systemProgram: SystemProgram.programId,
+    })
+    .remainingAccounts(remainingAccounts)
+    .transaction();
+
+  transaction.feePayer = runtime.agentWallet;
+  transaction.recentBlockhash = latestBlockhash.blockhash;
+  transaction.sign(runtime.keypair);
+
+  const signature = await runtime.connection.connection.sendRawTransaction(transaction.serialize(), {
+    preflightCommitment: runtime.connection.commitment,
+    maxRetries: 5,
+  });
+
+  await confirmSapSettlement(runtime.connection, signature, latestBlockhash.lastValidBlockHeight);
+  return signature;
 }
 
 export function isAcceptedSapNetwork(network: string, cluster: string): boolean {
@@ -421,19 +516,18 @@ export async function verifyAndSettleX402Payment(
         const escrowAta = await getAssociatedTokenAddress(escrowState.tokenMint, escrow, true, tokenProgram);
         const agentAta = await getAssociatedTokenAddress(escrowState.tokenMint, runtime.agentWallet, false, tokenProgram);
 
-        txSignature = await runtime.client.escrow.settle(depositor, 1, serviceHash, [
+        txSignature = await submitSapSettlement(runtime, depositor, serviceHash, [
           { pubkey: escrowAta, isSigner: false, isWritable: true },
           { pubkey: agentAta, isSigner: false, isWritable: true },
           { pubkey: tokenProgram.equals(TOKEN_PROGRAM_ID) ? TOKEN_PROGRAM_ID : tokenProgram, isSigner: false, isWritable: false },
           { pubkey: escrowState.tokenMint, isSigner: false, isWritable: false },
         ]);
       } else {
-        const settlement = await runtime.client.x402.settle(
+        txSignature = await submitSapSettlement(
+          runtime,
           depositor,
-          1,
-          JSON.stringify({ resource, description, quotedPriceUsd: priceUsd })
+          serviceHash
         );
-        txSignature = settlement.txSignature;
       }
 
       return {
