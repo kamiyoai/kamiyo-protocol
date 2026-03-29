@@ -14,13 +14,9 @@ vi.mock('../mcp/server', async () => {
 
 describe('OOBE partner HTTP routes', () => {
   const previousPartnerToken = process.env.OOBE_PARTNER_API_KEY;
-  const previousEscrowAllowedApis = process.env.SAP_ESCROW_ALLOWED_APIS;
-  const previousEscrowMaxAmountSol = process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
 
   beforeEach(() => {
     process.env.OOBE_PARTNER_API_KEY = 'oobe-secret';
-    process.env.SAP_ESCROW_ALLOWED_APIS = '11111111111111111111111111111111';
-    process.env.SAP_ESCROW_MAX_AMOUNT_SOL = '0.25';
     executeHostedTool.mockReset();
   });
 
@@ -29,18 +25,6 @@ describe('OOBE partner HTTP routes', () => {
       delete process.env.OOBE_PARTNER_API_KEY;
     } else {
       process.env.OOBE_PARTNER_API_KEY = previousPartnerToken;
-    }
-
-    if (previousEscrowAllowedApis === undefined) {
-      delete process.env.SAP_ESCROW_ALLOWED_APIS;
-    } else {
-      process.env.SAP_ESCROW_ALLOWED_APIS = previousEscrowAllowedApis;
-    }
-
-    if (previousEscrowMaxAmountSol === undefined) {
-      delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
-    } else {
-      process.env.SAP_ESCROW_MAX_AMOUNT_SOL = previousEscrowMaxAmountSol;
     }
   });
 
@@ -122,10 +106,7 @@ describe('OOBE partner HTTP routes', () => {
     });
   });
 
-  it('applies escrow spend controls before executing the partner create route', async () => {
-    delete process.env.SAP_ESCROW_ALLOWED_APIS;
-    delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
-
+  it('does not expose the removed escrow routes', async () => {
     await withServer(async (baseUrl) => {
       const res = await fetch(`${baseUrl}/api/partners/oobe/escrows`, {
         method: 'POST',
@@ -139,12 +120,7 @@ describe('OOBE partner HTTP routes', () => {
         }),
       });
 
-      expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({
-        success: false,
-        error: 'SAP create_escrow is disabled until allowlisted APIs and a spend cap are configured',
-        code: 'SAP_ESCROW_DISABLED',
-      });
+      expect(res.status).toBe(404);
       expect(executeHostedTool).not.toHaveBeenCalled();
     });
   });

@@ -197,12 +197,10 @@ describe('SAP registration reconcile', () => {
       'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
-      'create_escrow',
-      'check_escrow_status',
     ]);
     expect(result.discovery.protocolsInitialized).toEqual(['sap', 'kamiyo', 'x402', 'meishi']);
-    expect(result.discovery.capabilitiesInitialized).toHaveLength(10);
-    expect(result.discovery.categoriesInitialized).toEqual([5, 4]);
+    expect(result.discovery.capabilitiesInitialized).toHaveLength(8);
+    expect(result.discovery.categoriesInitialized).toEqual([5]);
     expect(result.discovery.categoriesLinked).toEqual([
       'meishi_verify_agent',
       'meishi_get_passport',
@@ -212,8 +210,6 @@ describe('SAP registration reconcile', () => {
       'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
-      'create_escrow',
-      'check_escrow_status',
     ]);
   });
 
@@ -237,8 +233,6 @@ describe('SAP registration reconcile', () => {
       'assess_data_quality',
       'x402_check_pricing',
       'x402_fetch',
-      'create_escrow',
-      'check_escrow_status',
     ]);
   });
 
@@ -246,14 +240,14 @@ describe('SAP registration reconcile', () => {
     const profile = getSapRegistrationProfile('https://api.kamiyo.ai');
     const staleTools = new Map<string, ReturnType<typeof buildToolState>>();
     staleTools.set(
-      'create_escrow',
+      'x402_fetch',
       buildToolState(
-        'create_escrow',
-        'kamiyo',
+        'x402_fetch',
+        'x402',
         'stale-description',
         { type: 'object', properties: { stale: { type: 'boolean' } }, required: [] },
         { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'] },
-        'payment',
+        'data',
         1,
         0,
         false
@@ -274,7 +268,7 @@ describe('SAP registration reconcile', () => {
 
     expect(result.agent.action).toBe('updated');
     expect(result.agent.reactivated).toBe(true);
-    expect(result.tools.updated).toContain('create_escrow');
-    expect(result.tools.reactivated).toContain('create_escrow');
+    expect(result.tools.updated).toContain('x402_fetch');
+    expect(result.tools.reactivated).toContain('x402_fetch');
   });
 });

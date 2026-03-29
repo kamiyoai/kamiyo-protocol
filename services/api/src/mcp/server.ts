@@ -24,7 +24,6 @@ import {
   fileDispute,
   getApiReputation,
 } from './solana';
-import { createSapEscrow, checkSapEscrowStatus } from './sap-escrow';
 import {
   getMeishiClient,
   parsePubkey,
@@ -191,62 +190,6 @@ const TOOL_DEFINITIONS = [
       },
       required: ['success'],
       additionalProperties: false,
-    },
-  },
-  {
-    name: 'create_escrow',
-    description: 'Create payment escrow with quality guarantee',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        api: { type: 'string', description: 'API provider wallet' },
-        amount: { type: 'number', description: 'Amount in SOL' },
-        timeLock: { type: 'number', description: 'Expiry in seconds' },
-        adjudicationProvider: {
-          type: 'string',
-          description: 'Optional dispute adjudicator preference: openclaw, nanoclaw, or ironclaw',
-        },
-      },
-      required: ['api', 'amount'],
-    },
-    outputSchema: {
-      type: 'object' as const,
-      properties: {
-        success: { type: 'boolean' },
-        escrowAddress: { type: 'string' },
-        transactionId: { type: 'string' },
-        signature: { type: 'string' },
-        adjudicationProvider: { type: 'string' },
-        error: { type: 'string' },
-      },
-      required: ['success'],
-    },
-  },
-  {
-    name: 'check_escrow_status',
-    description: 'Check escrow status',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        escrowAddress: { type: 'string', description: 'Escrow PDA' },
-        transactionId: { type: 'string', description: 'Deprecated alias for the escrow PDA' },
-      },
-      required: [] as string[],
-    },
-    outputSchema: {
-      type: 'object' as const,
-      properties: {
-        success: { type: 'boolean' },
-        status: { type: 'string' },
-        agent: { type: 'string' },
-        api: { type: 'string' },
-        amount: { type: 'number' },
-        createdAt: { type: 'number' },
-        expiresAt: { type: 'number' },
-        transactionId: { type: 'string' },
-        error: { type: 'string' },
-      },
-      required: ['success'],
     },
   },
   {
@@ -578,8 +521,6 @@ function validateArgs(args: unknown, schema: { required?: string[]; properties?:
 }
 
 const SOLANA_TOOLS = [
-  'create_escrow',
-  'check_escrow_status',
   'verify_payment',
   'file_dispute',
   'get_api_reputation',
@@ -593,7 +534,7 @@ function toolHasScope(toolName: string, auth: AuthInfo): boolean {
     auth.scopes.includes(scope) || auth.scopes.includes('mcp:tools');
 
   if (toolName.startsWith('x402_')) return hasScope('mcp:tools:x402');
-  if (['create_escrow', 'file_dispute', 'file_dispute_truth_court'].includes(toolName)) {
+  if (['file_dispute', 'file_dispute_truth_court'].includes(toolName)) {
     return hasScope('mcp:tools:escrow');
   }
   return hasScope('mcp:tools');
@@ -1259,23 +1200,6 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
       };
     }
     return fileDisputeWithTruthCourt(truthCourtArgs, program);
-  }
-
-  if (name === 'create_escrow') {
-    return createSapEscrow({
-      api: args.api as string,
-      amount: args.amount as number,
-      timeLock: args.timeLock as number | undefined,
-      pricePerCall: args.pricePerCall as number | string | undefined,
-      maxCalls: args.maxCalls as number | string | undefined,
-    });
-  }
-
-  if (name === 'check_escrow_status') {
-    return checkSapEscrowStatus({
-      escrowAddress: args.escrowAddress as string | undefined,
-      transactionId: args.transactionId as string | undefined,
-    });
   }
 
   // Solana tools

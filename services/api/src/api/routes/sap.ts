@@ -3,15 +3,11 @@ import { getX402Capability } from '../../core-capabilities';
 import { logger } from '../../logger';
 import { sapToolRequestsTotal } from '../../metrics';
 import { executeHostedTool, HostedToolError } from '../../mcp/server';
-import { validateSapEscrowArgs } from '../../sap-escrow-policy';
 import {
   getSapAllowedTargetHosts,
-  getSapEscrowAllowedApis,
-  getSapEscrowMaxAmountSol,
   getSapMetadata,
   getSapPricingManifest,
   getSapRegistrationProfile,
-  isSapEscrowExecutionEnabled,
   SAP_ALLOWED_TOOL_NAMES,
   type SapPaymentMode,
   type SapToolName,
@@ -25,7 +21,6 @@ import {
 } from '../../x402-runtime';
 
 const router = Router();
-const paidSapTools = new Set<SapToolName>(['create_escrow', 'check_escrow_status']);
 const passThroughSapTools = new Set<SapToolName>(['x402_fetch']);
 const sapToolProfiles = new Map(getSapRegistrationProfile().tools.map((tool) => [tool.name, tool]));
 const blockedProxyHeaders = new Set([
@@ -63,9 +58,6 @@ function isSapToolName(value: string): value is SapToolName {
 }
 
 function getPaymentMode(toolName: SapToolName): SapPaymentMode {
-  if (paidSapTools.has(toolName)) {
-    return 'x402';
-  }
   if (passThroughSapTools.has(toolName)) {
     return 'pass_through';
   }
@@ -291,11 +283,6 @@ async function executePassThroughFetch(
 
 router.get('/health', async (_req: Request, res: ExpressResponse) => {
   const facilitator = getX402Gateway();
-  const escrowExecution = {
-    enabled: isSapEscrowExecutionEnabled(),
-    allowedApis: getSapEscrowAllowedApis().length,
-    maxAmountSol: getSapEscrowMaxAmountSol(),
-  };
 
   if (!facilitator) {
     const capability = getX402Capability();
@@ -305,7 +292,6 @@ router.get('/health', async (_req: Request, res: ExpressResponse) => {
         enabled: false,
         reason: capability.reason,
       },
-      escrowExecution,
       tools: SAP_ALLOWED_TOOL_NAMES.length,
     });
     return;
@@ -315,7 +301,6 @@ router.get('/health', async (_req: Request, res: ExpressResponse) => {
   res.status(health.ok ? 200 : 503).json({
     status: health.ok ? 'ok' : 'degraded',
     tools: SAP_ALLOWED_TOOL_NAMES.length,
-    escrowExecution,
     paymentGateway: {
       enabled: true,
       latencyMs: health.latency,
@@ -353,15 +338,6 @@ router.post('/execute', async (req: Request, res: ExpressResponse) => {
   const toolProfile = sapToolProfiles.get(tool);
   const resource = getExecuteResource(req);
   const supportedNetworks = getSupportedX402Networks();
-
-  if (tool === 'create_escrow') {
-    const validation = validateSapEscrowArgs(args);
-    if (!validation.ok) {
-      recordSapRequest(tool, validation.statusCode === 503 ? 'unavailable' : 'blocked', paymentMode, headerType);
-      sendSapError(res, tool, validation.statusCode, validation.code, validation.message);
-      return;
-    }
-  }
 
   try {
     if (tool === 'x402_fetch') {

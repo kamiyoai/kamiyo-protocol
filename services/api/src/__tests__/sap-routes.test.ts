@@ -1,7 +1,7 @@
 import { once } from 'node:events';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getSapMetadata, getSapPricingManifest, SAP_BASELINE_PRICE_MICRO_USDC, SAP_BASELINE_PRICE_USD } from '../sap';
+import { getSapMetadata, getSapPricingManifest, SAP_BASELINE_PRICE_MICRO_USDC } from '../sap';
 
 const mocks = vi.hoisted(() => ({
   executeHostedTool: vi.fn(),
@@ -358,193 +358,30 @@ describe('SAP HTTP routes', () => {
     });
   });
 
-  it('returns 503 for create_escrow when spend controls are not configured', async () => {
-    delete process.env.SAP_ESCROW_ALLOWED_APIS;
-    delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
-
+  it('rejects removed escrow tools', async () => {
     await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool: 'create_escrow',
-          args: { api: '11111111111111111111111111111111', amount: 0.1 },
-        }),
-      });
+      for (const tool of ['create_escrow', 'check_escrow_status']) {
+        const res = await fetch(`${baseUrl}/api/sap/execute`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tool,
+            args: {},
+          }),
+        });
 
-      expect(res.status).toBe(503);
-      await expect(res.json()).resolves.toEqual({
-        success: false,
-        code: 'SAP_ESCROW_DISABLED',
-        error: 'SAP create_escrow is disabled until allowlisted APIs and a spend cap are configured',
-        tool: 'create_escrow',
-      });
+        expect(res.status).toBe(400);
+        await expect(res.json()).resolves.toEqual({
+          success: false,
+          code: 'INVALID_TOOL',
+          error: 'Unsupported SAP tool',
+          tool,
+        });
+      }
+
       expect(mocks.getX402Challenge).not.toHaveBeenCalled();
-    });
-  });
-
-  it('returns 402 for paid SAP tools without payment', async () => {
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool: 'create_escrow',
-          args: { api: '11111111111111111111111111111111', amount: 0.1 },
-        }),
-      });
-
-      expect(res.status).toBe(402);
-      expect(res.headers.get('WWW-Authenticate')).toBe('X402');
-      await expect(res.json()).resolves.toMatchObject({
-        accepts: [{ network: 'base', amount: String(SAP_BASELINE_PRICE_MICRO_USDC), asset: 'USDC' }],
-        success: false,
-        code: 'PAYMENT_REQUIRED',
-        tool: 'create_escrow',
-      });
-      expect(mocks.getX402Challenge).toHaveBeenCalledWith(
-        '/api/sap/execute',
-        SAP_BASELINE_PRICE_USD,
-        'Create payment escrow with quality guarantee',
-        ['base']
-      );
+      expect(mocks.verifyAndSettleX402Payment).not.toHaveBeenCalled();
       expect(mocks.executeHostedTool).not.toHaveBeenCalled();
-    });
-  });
-
-  it('rejects create_escrow for non-allowlisted API providers before charging', async () => {
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool: 'create_escrow',
-          args: { api: 'SysvarRent111111111111111111111111111111111', amount: 0.1 },
-        }),
-      });
-
-      expect(res.status).toBe(403);
-      await expect(res.json()).resolves.toEqual({
-        success: false,
-        code: 'FORBIDDEN',
-        error: 'api provider is not allowlisted for SAP escrow execution',
-        tool: 'create_escrow',
-      });
-      expect(mocks.getX402Challenge).not.toHaveBeenCalled();
-    });
-  });
-
-  it('rejects create_escrow amounts above the configured cap before charging', async () => {
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool: 'create_escrow',
-          args: { api: '11111111111111111111111111111111', amount: 0.5 },
-        }),
-      });
-
-      expect(res.status).toBe(403);
-      await expect(res.json()).resolves.toEqual({
-        success: false,
-        code: 'FORBIDDEN',
-        error: 'amount exceeds SAP escrow max of 0.25 SOL',
-        tool: 'create_escrow',
-      });
-      expect(mocks.getX402Challenge).not.toHaveBeenCalled();
-    });
-  });
-
-  it('accepts payment-signature for paid SAP tools', async () => {
-    mocks.executeHostedTool.mockResolvedValue({ success: true, transactionId: 'tx-123' });
-
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'payment-signature': 'signature-1',
-        },
-        body: JSON.stringify({
-          tool: 'check_escrow_status',
-          args: { transactionId: 'tx-123' },
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      await expect(res.json()).resolves.toEqual({ success: true, transactionId: 'tx-123' });
-      expect(mocks.verifyAndSettleX402Payment).toHaveBeenCalled();
-    });
-  });
-
-  it('accepts X-Payment for paid SAP tools', async () => {
-    mocks.verifyAndSettleX402Payment.mockResolvedValue({
-      ok: true,
-      payment: {
-        payer: 'payer',
-        network: 'base',
-        amount: String(SAP_BASELINE_PRICE_MICRO_USDC),
-        tx: 'tx-2',
-        headerType: 'x-payment',
-      },
-    });
-    mocks.executeHostedTool.mockResolvedValue({ success: true, escrowAddress: 'escrow-1' });
-
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-payment': 'legacy-payment',
-        },
-        body: JSON.stringify({
-          tool: 'create_escrow',
-          args: { api: '11111111111111111111111111111111', amount: 0.1 },
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      await expect(res.json()).resolves.toEqual({ success: true, escrowAddress: 'escrow-1' });
-    });
-  });
-
-  it('accepts SAP-x402 headers for paid SAP tools', async () => {
-    mocks.verifyAndSettleX402Payment.mockResolvedValue({
-      ok: true,
-      payment: {
-        payer: 'payer',
-        network: 'mainnet-beta',
-        amount: '1388',
-        tx: 'tx-3',
-        headerType: 'sap-x402',
-      },
-    });
-    mocks.executeHostedTool.mockResolvedValue({ success: true, status: 'active' });
-
-    await withServer(async (baseUrl) => {
-      const res = await fetch(`${baseUrl}/api/sap/execute`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Payment-Protocol': 'SAP-x402',
-          'X-Payment-Escrow': 'escrow-1',
-          'X-Payment-Agent': 'agent-1',
-          'X-Payment-Depositor': 'depositor-1',
-          'X-Payment-MaxCalls': '15',
-          'X-Payment-PricePerCall': '1388',
-          'X-Payment-Program': 'program-1',
-          'X-Payment-Network': 'mainnet-beta',
-        },
-        body: JSON.stringify({
-          tool: 'check_escrow_status',
-          args: { transactionId: 'tx-123' },
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      await expect(res.json()).resolves.toEqual({ success: true, status: 'active' });
-      expect(mocks.verifyAndSettleX402Payment).toHaveBeenCalled();
     });
   });
 

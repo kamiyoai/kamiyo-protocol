@@ -7,7 +7,6 @@ import {
   getOobeAllowedTargetHosts,
   getOobePartnerApiKey,
 } from '../../oobe.js';
-import { validateSapEscrowArgs } from '../../sap-escrow-policy';
 
 const router: IRouter = Router();
 
@@ -123,23 +122,6 @@ router.get('/x402/pricing', async (req: Request, res: Response) => {
 
 router.post('/x402/fetch', async (req: Request, res: Response) => {
   await runTool(res, 'x402_fetch', getJsonBody(req));
-});
-
-router.post('/escrows', async (req: Request, res: Response) => {
-  const args = getJsonBody(req);
-  const validation = validateSapEscrowArgs(args);
-  if (!validation.ok) {
-    sendError(res, validation.statusCode, validation.code, validation.message);
-    return;
-  }
-  await runTool(res, 'create_escrow', args);
-});
-
-router.get('/escrows/status', async (req: Request, res: Response) => {
-  await runTool(res, 'check_escrow_status', {
-    escrowAddress: getOptionalQueryString(req.query.escrowAddress),
-    transactionId: getOptionalQueryString(req.query.transactionId),
-  });
 });
 
 router.get('/identity/verify', async (req: Request, res: Response) => {

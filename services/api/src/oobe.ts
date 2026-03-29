@@ -9,8 +9,6 @@ export const OOBE_ALLOWED_TOOL_NAMES = [
   'meishi_get_audit',
   'x402_check_pricing',
   'x402_fetch',
-  'create_escrow',
-  'check_escrow_status',
   'get_api_reputation',
   'assess_data_quality',
   'estimate_refund',

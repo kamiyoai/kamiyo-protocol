@@ -9,16 +9,6 @@ import {
 import { resolveAllowedTargetHosts } from './allowed-target-hosts';
 import { getMcpCapability, resolveX402SupportedNetworks } from './core-capabilities';
 import { getHostedToolDefinition } from './mcp/server';
-import {
-  getSapEscrowAllowedApis,
-  getSapEscrowMaxAmountSol,
-  isSapEscrowExecutionEnabled,
-} from './sap-escrow-policy';
-export {
-  getSapEscrowAllowedApis,
-  getSapEscrowMaxAmountSol,
-  isSapEscrowExecutionEnabled,
-} from './sap-escrow-policy';
 
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
 
@@ -31,8 +21,6 @@ export const SAP_ALLOWED_TOOL_NAMES = [
   'assess_data_quality',
   'x402_check_pricing',
   'x402_fetch',
-  'create_escrow',
-  'check_escrow_status',
 ] as const;
 
 export type SapToolName = (typeof SAP_ALLOWED_TOOL_NAMES)[number];
@@ -40,7 +28,7 @@ export type SapPaymentMode = 'free' | 'pass_through' | 'x402';
 
 export const SAP_AGENT_NAME = 'KAMIYO SAP Agent';
 export const SAP_AGENT_DESCRIPTION =
-  'SAP-native access to KAMIYO trust, data quality, x402 pricing and fetch, and escrow settlement tools.';
+  'SAP-native access to KAMIYO trust, data quality, and x402 pricing and fetch tools.';
 export const SAP_AGENT_ID = 'kamiyo-sap-mainnet';
 export const SAP_ACTIVE = true;
 export const SAP_PROTOCOLS = ['sap', 'kamiyo', 'x402', 'meishi'] as const;
@@ -67,10 +55,6 @@ export const SAP_PAYMENT_HEADERS = [
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function getFixedPriceNote(suffix = '.'): string {
-  return `Fixed baseline price of ${SAP_BASELINE_PRICE_MICRO_USDC} micro-USDC per call${suffix}`;
 }
 
 export const SAP_CAPABILITIES: Capability[] = [
@@ -120,18 +104,6 @@ export const SAP_CAPABILITIES: Capability[] = [
     id: 'kamiyo:x402-fetch',
     description: 'Fetch x402-protected resources with automatic payment handling.',
     protocolId: 'x402',
-    version: '1.0.0',
-  },
-  {
-    id: 'kamiyo:escrow-create',
-    description: 'Create KAMIYO escrow sessions for paid execution.',
-    protocolId: 'kamiyo',
-    version: '1.0.0',
-  },
-  {
-    id: 'kamiyo:escrow-status',
-    description: 'Read KAMIYO escrow session state.',
-    protocolId: 'kamiyo',
     version: '1.0.0',
   },
 ] as const;
@@ -239,22 +211,6 @@ const SAP_TOOL_SEEDS: Record<SapToolName, SapToolProfileSeed> = {
     paymentMode: 'pass_through',
     priceMicroUsdc: null,
     pricingNote: 'Pass-through only. The caller must satisfy the upstream x402 challenge directly; no SAP surcharge is added.',
-  },
-  create_escrow: {
-    protocolId: 'kamiyo',
-    category: 'payment',
-    categoryKey: 'Payment',
-    paymentMode: 'x402',
-    priceMicroUsdc: SAP_BASELINE_PRICE_MICRO_USDC,
-    pricingNote: getFixedPriceNote('. Execution stays disabled until SAP escrow allowlist and spend cap are configured.'),
-  },
-  check_escrow_status: {
-    protocolId: 'kamiyo',
-    category: 'payment',
-    categoryKey: 'Payment',
-    paymentMode: 'x402',
-    priceMicroUsdc: SAP_BASELINE_PRICE_MICRO_USDC,
-    pricingNote: getFixedPriceNote(),
   },
 };
 
@@ -383,11 +339,6 @@ export function getSapPricingManifest(baseUrl = getSapBaseUrl()) {
     ),
     safeguards: {
       x402Fetch: 'Caller-paid pass-through. Upstream payment headers are forwarded, not settled by the SAP server.',
-      createEscrow: {
-        enabled: isSapEscrowExecutionEnabled(),
-        allowedApis: getSapEscrowAllowedApis(),
-        maxAmountSol: getSapEscrowMaxAmountSol(),
-      },
     },
   };
 }
