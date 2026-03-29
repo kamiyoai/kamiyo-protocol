@@ -14,9 +14,13 @@ vi.mock('../mcp/server', async () => {
 
 describe('OOBE partner HTTP routes', () => {
   const previousPartnerToken = process.env.OOBE_PARTNER_API_KEY;
+  const previousEscrowAllowedApis = process.env.SAP_ESCROW_ALLOWED_APIS;
+  const previousEscrowMaxAmountSol = process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
 
   beforeEach(() => {
     process.env.OOBE_PARTNER_API_KEY = 'oobe-secret';
+    process.env.SAP_ESCROW_ALLOWED_APIS = '11111111111111111111111111111111';
+    process.env.SAP_ESCROW_MAX_AMOUNT_SOL = '0.25';
     executeHostedTool.mockReset();
   });
 
@@ -25,6 +29,18 @@ describe('OOBE partner HTTP routes', () => {
       delete process.env.OOBE_PARTNER_API_KEY;
     } else {
       process.env.OOBE_PARTNER_API_KEY = previousPartnerToken;
+    }
+
+    if (previousEscrowAllowedApis === undefined) {
+      delete process.env.SAP_ESCROW_ALLOWED_APIS;
+    } else {
+      process.env.SAP_ESCROW_ALLOWED_APIS = previousEscrowAllowedApis;
+    }
+
+    if (previousEscrowMaxAmountSol === undefined) {
+      delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
+    } else {
+      process.env.SAP_ESCROW_MAX_AMOUNT_SOL = previousEscrowMaxAmountSol;
     }
   });
 
@@ -103,6 +119,33 @@ describe('OOBE partner HTTP routes', () => {
           allowedTools: expect.arrayContaining(['x402_check_pricing', 'x402_fetch']),
         })
       );
+    });
+  });
+
+  it('applies escrow spend controls before executing the partner create route', async () => {
+    delete process.env.SAP_ESCROW_ALLOWED_APIS;
+    delete process.env.SAP_ESCROW_MAX_AMOUNT_SOL;
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/partners/oobe/escrows`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': 'oobe-secret',
+        },
+        body: JSON.stringify({
+          api: '11111111111111111111111111111111',
+          amount: 0.1,
+        }),
+      });
+
+      expect(res.status).toBe(503);
+      await expect(res.json()).resolves.toEqual({
+        success: false,
+        error: 'SAP create_escrow is disabled until allowlisted APIs and a spend cap are configured',
+        code: 'SAP_ESCROW_DISABLED',
+      });
+      expect(executeHostedTool).not.toHaveBeenCalled();
     });
   });
 

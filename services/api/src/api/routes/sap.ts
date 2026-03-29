@@ -1,9 +1,9 @@
-import { PublicKey } from '@solana/web3.js';
 import { Router, type Request, type Response as ExpressResponse } from 'express';
 import { getX402Capability } from '../../core-capabilities';
 import { logger } from '../../logger';
 import { sapToolRequestsTotal } from '../../metrics';
 import { executeHostedTool, HostedToolError } from '../../mcp/server';
+import { validateSapEscrowArgs } from '../../sap-escrow-policy';
 import {
   getSapAllowedTargetHosts,
   getSapEscrowAllowedApis,
@@ -222,72 +222,6 @@ function setUpstreamHeaders(res: ExpressResponse, headers: Headers): void {
     }
     res.setHeader(key, value);
   });
-}
-
-function validateSapEscrowArgs(args: Record<string, unknown>):
-  | { ok: true }
-  | { ok: false; statusCode: number; code: string; message: string } {
-  if (!isSapEscrowExecutionEnabled()) {
-    return {
-      ok: false,
-      statusCode: 503,
-      code: 'SAP_ESCROW_DISABLED',
-      message: 'SAP create_escrow is disabled until allowlisted APIs and a spend cap are configured',
-    };
-  }
-
-  const api = typeof args.api === 'string' ? args.api.trim() : '';
-  if (!api) {
-    return {
-      ok: false,
-      statusCode: 400,
-      code: 'INVALID_REQUEST',
-      message: 'api provider address is required',
-    };
-  }
-
-  try {
-    new PublicKey(api);
-  } catch {
-    return {
-      ok: false,
-      statusCode: 400,
-      code: 'INVALID_REQUEST',
-      message: 'api provider address must be a valid Solana public key',
-    };
-  }
-
-  const allowedApis = new Set(getSapEscrowAllowedApis());
-  if (!allowedApis.has(api)) {
-    return {
-      ok: false,
-      statusCode: 403,
-      code: 'FORBIDDEN',
-      message: 'api provider is not allowlisted for SAP escrow execution',
-    };
-  }
-
-  const amount = args.amount;
-  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
-    return {
-      ok: false,
-      statusCode: 400,
-      code: 'INVALID_REQUEST',
-      message: 'amount must be a positive number',
-    };
-  }
-
-  const maxAmountSol = getSapEscrowMaxAmountSol();
-  if (amount > maxAmountSol) {
-    return {
-      ok: false,
-      statusCode: 403,
-      code: 'FORBIDDEN',
-      message: `amount exceeds SAP escrow max of ${maxAmountSol} SOL`,
-    };
-  }
-
-  return { ok: true };
 }
 
 async function executePassThroughFetch(

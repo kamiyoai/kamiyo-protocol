@@ -9,6 +9,16 @@ import {
 import { resolveAllowedTargetHosts } from './allowed-target-hosts';
 import { getMcpCapability, resolveX402SupportedNetworks } from './core-capabilities';
 import { getHostedToolDefinition } from './mcp/server';
+import {
+  getSapEscrowAllowedApis,
+  getSapEscrowMaxAmountSol,
+  isSapEscrowExecutionEnabled,
+} from './sap-escrow-policy';
+export {
+  getSapEscrowAllowedApis,
+  getSapEscrowMaxAmountSol,
+  isSapEscrowExecutionEnabled,
+} from './sap-escrow-policy';
 
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
 
@@ -53,20 +63,6 @@ export const SAP_PAYMENT_HEADERS = [
   'X-Payment-Program',
   'X-Payment-Network',
 ] as const;
-
-function parseConfiguredList(configured: string | undefined): string[] {
-  return [...new Set(
-    (configured || '')
-      .split(/[,\n]/)
-      .map((value) => value.trim())
-      .filter(Boolean)
-  )];
-}
-
-function parsePositiveNumber(value: string | undefined, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -326,18 +322,6 @@ export function getSapToolCatalog(): SapToolProfile[] {
 
 export function getSapAllowedTargetHosts(): string[] {
   return resolveAllowedTargetHosts(DEFAULT_ALLOWED_TARGET_HOSTS, process.env.SAP_ALLOWED_TARGET_HOSTS);
-}
-
-export function getSapEscrowAllowedApis(): string[] {
-  return parseConfiguredList(process.env.SAP_ESCROW_ALLOWED_APIS);
-}
-
-export function getSapEscrowMaxAmountSol(): number {
-  return parsePositiveNumber(process.env.SAP_ESCROW_MAX_AMOUNT_SOL, 0);
-}
-
-export function isSapEscrowExecutionEnabled(): boolean {
-  return getSapEscrowAllowedApis().length > 0 && getSapEscrowMaxAmountSol() > 0;
 }
 
 export function getSapBaseUrl(env: NodeJS.ProcessEnv = process.env): string {

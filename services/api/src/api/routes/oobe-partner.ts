@@ -7,6 +7,7 @@ import {
   getOobeAllowedTargetHosts,
   getOobePartnerApiKey,
 } from '../../oobe.js';
+import { validateSapEscrowArgs } from '../../sap-escrow-policy';
 
 const router: IRouter = Router();
 
@@ -125,7 +126,13 @@ router.post('/x402/fetch', async (req: Request, res: Response) => {
 });
 
 router.post('/escrows', async (req: Request, res: Response) => {
-  await runTool(res, 'create_escrow', getJsonBody(req));
+  const args = getJsonBody(req);
+  const validation = validateSapEscrowArgs(args);
+  if (!validation.ok) {
+    sendError(res, validation.statusCode, validation.code, validation.message);
+    return;
+  }
+  await runTool(res, 'create_escrow', args);
 });
 
 router.get('/escrows/status', async (req: Request, res: Response) => {

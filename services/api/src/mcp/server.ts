@@ -20,12 +20,11 @@ import { logger } from '../logger.js';
 import {
   getSolanaProgram,
   isSolanaConfigured,
-  createEscrow,
-  checkEscrowStatus,
   verifyPayment,
   fileDispute,
   getApiReputation,
 } from './solana';
+import { createSapEscrow, checkSapEscrowStatus } from './sap-escrow';
 import {
   getMeishiClient,
   parsePubkey,
@@ -230,7 +229,7 @@ const TOOL_DEFINITIONS = [
       type: 'object' as const,
       properties: {
         escrowAddress: { type: 'string', description: 'Escrow PDA' },
-        transactionId: { type: 'string', description: 'Transaction ID' },
+        transactionId: { type: 'string', description: 'Deprecated alias for the escrow PDA' },
       },
       required: [] as string[],
     },
@@ -1262,30 +1261,27 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     return fileDisputeWithTruthCourt(truthCourtArgs, program);
   }
 
+  if (name === 'create_escrow') {
+    return createSapEscrow({
+      api: args.api as string,
+      amount: args.amount as number,
+      timeLock: args.timeLock as number | undefined,
+      pricePerCall: args.pricePerCall as number | string | undefined,
+      maxCalls: args.maxCalls as number | string | undefined,
+    });
+  }
+
+  if (name === 'check_escrow_status') {
+    return checkSapEscrowStatus({
+      escrowAddress: args.escrowAddress as string | undefined,
+      transactionId: args.transactionId as string | undefined,
+    });
+  }
+
   // Solana tools
   const program = getSolanaProgram();
   if (!program) {
     return { success: false, error: 'Solana not configured. Set MCP_PROGRAM_ID, MCP_AGENT_KEYPAIR, SOLANA_RPC_URL.' };
-  }
-
-  if (name === 'create_escrow') {
-    const providerResolution = resolveProvider('adjudicationProvider');
-    if (providerResolution.error) return { success: false, error: providerResolution.error };
-    const escrow = await createEscrow(
-      { api: args.api as string, amount: args.amount as number, timeLock: args.timeLock as number | undefined },
-      program
-    );
-    if (providerResolution.provider && escrow && typeof escrow === 'object') {
-      return { ...escrow, adjudicationProvider: providerResolution.provider };
-    }
-    return escrow;
-  }
-
-  if (name === 'check_escrow_status') {
-    return checkEscrowStatus(
-      { escrowAddress: args.escrowAddress as string | undefined, transactionId: args.transactionId as string | undefined },
-      program
-    );
   }
 
   if (name === 'verify_payment') {
