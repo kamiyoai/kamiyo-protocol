@@ -22,7 +22,7 @@ interface LogFileInfo {
   reflective: boolean;
 }
 
-const HEADER_PREFIX = 'Kyōshin 共振 // operator log ';
+const HEADER_PREFIX = 'KAMIYO Agent // operator log ';
 const FILE_NAME_PATTERN = /^AGENT_LOG_(\d{4})_X_POST(?:_.*)?\.md$/;
 const DEFAULT_STATE_FILE = 'config/operator-logbook.state.json';
 

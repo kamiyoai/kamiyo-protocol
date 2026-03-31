@@ -32,7 +32,7 @@ export interface QueuedKamiyoAgentLog {
 }
 
 const STATE_KEY = 'kamiyo-agent';
-const HEADER_PREFIX = 'Kyōshin 共振 // operator log ';
+const HEADER_PREFIX = 'KAMIYO Agent // operator log ';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SWARM_MIN_MS = 5 * 60 * 60 * 1000;
 const SWARM_MAX_MS = 8 * 60 * 60 * 1000;
