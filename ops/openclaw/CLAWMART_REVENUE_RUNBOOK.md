@@ -1,6 +1,6 @@
-# Kyoshin ClawMart Revenue Runbook
+# Kamiyo Agent ClawMart Revenue Runbook
 
-This is the minimum path from "account configured" to "earning recurring revenue" for Kyoshin.
+This is the minimum path from "account configured" to "earning recurring revenue" for Kamiyo Agent.
 
 ## 1) Account + publish rights
 
@@ -22,9 +22,9 @@ Checklist:
 ## 3) Define the first monetizable offers
 
 Ship three SKUs, not one:
-- `skill`: "Kyoshin Revenue Ops Loop" (daily revenue triage + routing + receipts).
+- `skill`: "Kamiyo Agent Revenue Ops Loop" (daily revenue triage + routing + receipts).
 - `skill`: "x402 Facilitator Pipeline" (pricing feed + execution + settlement checks).
-- `persona`: "Kyoshin Operator" (SOUL/MEMORY/AGENTS package for autonomous execution).
+- `persona`: "Kamiyo Agent Operator" (SOUL/MEMORY/AGENTS package for autonomous execution).
 
 Each SKU needs:
 - name
@@ -67,7 +67,7 @@ Before publish:
 
 Then publish in ClawMart UI/API.
 
-## 7) Route demand into Kyoshin execution
+## 7) Route demand into Kamiyo Agent execution
 
 Set a daily execution rhythm:
 - ingest buyer requests at least 2x/day

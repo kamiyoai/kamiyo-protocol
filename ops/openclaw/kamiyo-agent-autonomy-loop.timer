@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Kamiyo Agent autonomy loop every 30 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+RandomizedDelaySec=20s
+AccuracySec=10s
+Persistent=true
+Unit=kamiyo-agent-autonomy-loop.service
+
+[Install]
+WantedBy=timers.target

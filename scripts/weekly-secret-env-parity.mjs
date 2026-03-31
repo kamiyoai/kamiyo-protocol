@@ -50,7 +50,7 @@ const RENDER_SERVICES = [
   },
   {
     id: 'crn-d6bcahur433s73d2c47g',
-    name: 'kamiyo-operator-kyoshin-exec',
+    name: 'kamiyo-operator-kamiyo-agent-exec',
     requiredKeys: [
       'SOLANA_RPC_URL',
       'ANTHROPIC_API_KEY',
@@ -63,7 +63,7 @@ const RENDER_SERVICES = [
   },
   {
     id: 'crn-d6bcb956ubrc73cgvhlg',
-    name: 'kamiyo-operator-kyoshin-exec-v2',
+    name: 'kamiyo-operator-kamiyo-agent-exec-v2',
     requiredKeys: [
       'SOLANA_RPC_URL',
       'ANTHROPIC_API_KEY',

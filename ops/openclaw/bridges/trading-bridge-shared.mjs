@@ -47,7 +47,7 @@ export async function postJson(url, payload, headers = {}) {
     headers: {
       'accept': 'application/json',
       'content-type': 'application/json',
-      'user-agent': 'kyoshin-trading-bridge/1.0',
+      'user-agent': 'kamiyo-agent-trading-bridge/1.0',
       ...headers,
     },
     body: JSON.stringify(payload ?? {}),

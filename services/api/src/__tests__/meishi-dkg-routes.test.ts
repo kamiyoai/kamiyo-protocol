@@ -388,7 +388,7 @@ describe('Meishi DKG routes', () => {
       data: [
         {
           audit: 'urn:dkg:audit:10',
-          agent: 'agent-kyoshin',
+          agent: 'agent-kamiyo-agent',
           score: '96',
           classification: 'minimal',
           jurisdiction: 'global',
@@ -398,7 +398,7 @@ describe('Meishi DKG routes', () => {
         },
         {
           audit: 'urn:dkg:audit:9',
-          agent: 'agent-kyoshin',
+          agent: 'agent-kamiyo-agent',
           score: '94',
           classification: 'minimal',
           jurisdiction: 'global',
@@ -414,12 +414,12 @@ describe('Meishi DKG routes', () => {
     const { baseUrl, close } = await startServer(app);
 
     try {
-      const res = await fetch(`${baseUrl}/api/meishi-dkg/agent/${encodeURIComponent('agent-kyoshin')}/audits?limit=5`);
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/agent/${encodeURIComponent('agent-kamiyo-agent')}/audits?limit=5`);
       expect(res.status).toBe(200);
       const body = await res.json() as any;
       expect(body.dataMode).toBe('live');
       expect(body.audits).toHaveLength(2);
-      expect(body.audits[0].agentId).toBe('agent-kyoshin');
+      expect(body.audits[0].agentId).toBe('agent-kamiyo-agent');
       expect(body.audits[0].ual).toBe('urn:dkg:audit:10');
     } finally {
       await close();

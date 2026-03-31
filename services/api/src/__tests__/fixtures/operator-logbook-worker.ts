@@ -1,10 +1,10 @@
-import { maybeQueueKyoshinOperatorLog } from '../../operator-logbook';
+import { maybeQueueKamiyoAgentOperatorLog } from '../../operator-logbook';
 
 const nowMsRaw = process.env.KYO_TEST_NOW_MS;
 const nowMs = Number.parseInt(nowMsRaw ?? '', 10);
 const tickAt = Number.isFinite(nowMs) ? nowMs : Date.now();
 
-const queued = maybeQueueKyoshinOperatorLog(tickAt);
+const queued = maybeQueueKamiyoAgentOperatorLog(tickAt);
 
 process.stdout.write(
   JSON.stringify({

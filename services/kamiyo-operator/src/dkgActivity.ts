@@ -2,9 +2,9 @@ import { AgentParanetClient, type ParanetConfig } from '@kamiyo/agent-paranet';
 
 export type DkgActivityEventType =
   | 'fee_vault_claim'
-  | 'kyoshin_staking_claim'
+  | 'kamiyo_agent_staking_claim'
   | 'staking_period_deposit'
-  | 'kyoshin_route_deposit'
+  | 'kamiyo_agent_route_deposit'
   | 'meishi_passport_create'
   | 'meishi_mandate_update'
   | 'meishi_audit_record';
@@ -55,9 +55,9 @@ type ScoreWeights = Record<DkgActivityEventType, number>;
 
 const SCORE_WEIGHTS: ScoreWeights = {
   fee_vault_claim: 20,
-  kyoshin_staking_claim: 16,
+  kamiyo_agent_staking_claim: 16,
   staking_period_deposit: 14,
-  kyoshin_route_deposit: 18,
+  kamiyo_agent_route_deposit: 18,
   meishi_passport_create: 12,
   meishi_mandate_update: 12,
   meishi_audit_record: 16,
@@ -101,14 +101,14 @@ function summarizeEvents(events: DkgActivityEvent[]): string {
   if (counts.get('fee_vault_claim')) {
     parts.push(`fee claims=${counts.get('fee_vault_claim')}`);
   }
-  if (counts.get('kyoshin_staking_claim')) {
-    parts.push(`kyoshin claims=${counts.get('kyoshin_staking_claim')}`);
+  if (counts.get('kamiyo_agent_staking_claim')) {
+    parts.push(`kamiyo-agent claims=${counts.get('kamiyo_agent_staking_claim')}`);
   }
   if (counts.get('staking_period_deposit')) {
     parts.push(`operator feeds=${counts.get('staking_period_deposit')}`);
   }
-  if (counts.get('kyoshin_route_deposit')) {
-    parts.push(`kyoshin routes=${counts.get('kyoshin_route_deposit')}`);
+  if (counts.get('kamiyo_agent_route_deposit')) {
+    parts.push(`kamiyo-agent routes=${counts.get('kamiyo_agent_route_deposit')}`);
   }
   if (counts.get('meishi_passport_create')) {
     parts.push(`meishi passports=${counts.get('meishi_passport_create')}`);
@@ -129,9 +129,9 @@ function computeScore(events: DkgActivityEvent[], signatureCount: number): numbe
   }
   score += Math.min(12, signatureCount * 2);
 
-  const hasClaim = events.some(event => event.type === 'fee_vault_claim' || event.type === 'kyoshin_staking_claim');
+  const hasClaim = events.some(event => event.type === 'fee_vault_claim' || event.type === 'kamiyo_agent_staking_claim');
   const hasStakeRoute = events.some(
-    event => event.type === 'staking_period_deposit' || event.type === 'kyoshin_route_deposit'
+    event => event.type === 'staking_period_deposit' || event.type === 'kamiyo_agent_route_deposit'
   );
   if (hasClaim && hasStakeRoute) {
     score += 6;

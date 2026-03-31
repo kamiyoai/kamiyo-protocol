@@ -3,9 +3,9 @@ set -euo pipefail
 
 OPENCLAW_USER="${OPENCLAW_USER:-openclaw}"
 OPENCLAW_HOME="${OPENCLAW_HOME:-/home/$OPENCLAW_USER}"
-SYSTEMD_UNIT="${SYSTEMD_UNIT:-kyoshin-autonomy-loop.service}"
+SYSTEMD_UNIT="${SYSTEMD_UNIT:-kamiyo-agent-autonomy-loop.service}"
 ENFORCE_REVENUE_GATES="${ENFORCE_REVENUE_GATES:-true}"
-KYOSHIN_DB_PATH="${KYOSHIN_DB_PATH:-}"
+KAMIYO_AGENT_DB_PATH="${KAMIYO_AGENT_DB_PATH:-}"
 SYSTEMCTL_REQUIRED="${SYSTEMCTL_REQUIRED:-false}"
 USE_SUDO="${USE_SUDO:-true}"
 
@@ -91,34 +91,34 @@ run() {
   fi
   local scripts=(
     "fundry_staking_deposit.py"
-    "kyoshin-sync-feed-config.py"
-    "kyoshin-marketplace-intake.py"
-    "kyoshin-x402-feed.py"
-    "kyoshin-dx-terminal-feed.py"
-    "kyoshin-receipt-sync.py"
-    "kyoshin-context-guard.py"
-    "kyoshin-sentry-pipeline.py"
-    "kyoshin-tool-health.py"
-    "kyoshin-runtime-bridge.py"
-    "kyoshin-swarm-governor.py"
-    "kyoshin-swarm-planner.py"
-    "kyoshin-mission-control.py"
-    "kyoshin-revenue-guard.py"
-    "kyoshin-trading-feed.py"
-    "kyoshin-trading-exec.py"
-    "kyoshin-trading-staking-route.py"
-    "kyoshin-trading-earnings-sweep.sh"
-    "kyoshin-x402-agentcash.py"
-    "kyoshin-clawmart-staking-route.py"
-    "kyoshin-whop-staking-route.py"
-    "kyoshin-creator-fee-inflow-route.py"
-    "kyoshin-clawmart-monitor.py"
-    "kyoshin-distribution-engine.py"
-    "kyoshin-artifact-contracts.py"
-    "kyoshin-learnings.py"
-    "kyoshin-memory-extract.py"
-    "kyoshin-operator-log.py"
-    "kyoshin-autonomy-loop.sh"
+    "kamiyo-agent-sync-feed-config.py"
+    "kamiyo-agent-marketplace-intake.py"
+    "kamiyo-agent-x402-feed.py"
+    "kamiyo-agent-dx-terminal-feed.py"
+    "kamiyo-agent-receipt-sync.py"
+    "kamiyo-agent-context-guard.py"
+    "kamiyo-agent-sentry-pipeline.py"
+    "kamiyo-agent-tool-health.py"
+    "kamiyo-agent-runtime-bridge.py"
+    "kamiyo-agent-swarm-governor.py"
+    "kamiyo-agent-swarm-planner.py"
+    "kamiyo-agent-mission-control.py"
+    "kamiyo-agent-revenue-guard.py"
+    "kamiyo-agent-trading-feed.py"
+    "kamiyo-agent-trading-exec.py"
+    "kamiyo-agent-trading-staking-route.py"
+    "kamiyo-agent-trading-earnings-sweep.sh"
+    "kamiyo-agent-x402-agentcash.py"
+    "kamiyo-agent-clawmart-staking-route.py"
+    "kamiyo-agent-whop-staking-route.py"
+    "kamiyo-agent-creator-fee-inflow-route.py"
+    "kamiyo-agent-clawmart-monitor.py"
+    "kamiyo-agent-distribution-engine.py"
+    "kamiyo-agent-artifact-contracts.py"
+    "kamiyo-agent-learnings.py"
+    "kamiyo-agent-memory-extract.py"
+    "kamiyo-agent-operator-log.py"
+    "kamiyo-agent-autonomy-loop.sh"
   )
   local script
   for script in "${scripts[@]}"; do
@@ -140,10 +140,10 @@ run() {
   local bridge
   local bridges=(
     "trading-bridge-shared.mjs"
-    "kyoshin-polymarket-bridge.mjs"
-    "kyoshin-limitless-bridge.mjs"
-    "kyoshin-earnings-sweep-bridge.mjs"
-    "kyoshin-fundry-staking-deposit.mjs"
+    "kamiyo-agent-polymarket-bridge.mjs"
+    "kamiyo-agent-limitless-bridge.mjs"
+    "kamiyo-agent-earnings-sweep-bridge.mjs"
+    "kamiyo-agent-fundry-staking-deposit.mjs"
   )
   for bridge in "${bridges[@]}"; do
     if is_true "$USE_SUDO"; then
@@ -161,7 +161,7 @@ run() {
     if command -v npm >/dev/null 2>&1; then
       cd \"$TARGET_BRIDGES_DIR\"
       if [ ! -f package.json ]; then
-        printf '%s\n' '{\"name\":\"kyoshin-trading-bridges\",\"private\":true,\"type\":\"module\"}' > package.json
+        printf '%s\n' '{\"name\":\"kamiyo-agent-trading-bridges\",\"private\":true,\"type\":\"module\"}' > package.json
       fi
       if [ ! -d node_modules/@polymarket/clob-client ] || [ ! -d node_modules/@ethersproject/wallet ] || [ ! -d node_modules/@limitless-exchange/sdk ] || [ ! -d node_modules/ethers ] || [ ! -d node_modules/@solana/web3.js ] || [ ! -d node_modules/bs58 ]; then
         npm install --silent --no-audit --no-fund --omit=dev @polymarket/clob-client @ethersproject/wallet @limitless-exchange/sdk ethers @solana/web3.js bs58 >/dev/null 2>&1 || true
@@ -171,7 +171,7 @@ run() {
 
   echo "[2/6] ensuring required runtime gate flags exist"
   append_env_if_missing "KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS" "true"
-  append_env_if_missing "KYO_REQUIRE_KYOSHIN_RUNTIME" "true"
+  append_env_if_missing "KYO_REQUIRE_KAMIYO_AGENT_RUNTIME" "true"
   append_env_if_missing "KYO_ENABLE_MEMORY_EXTRACTION" "true"
   append_env_if_missing "KYO_REQUIRE_MEMORY_EXTRACTION" "false"
   append_env_if_missing "KYO_MEMORY_EXTRACTION_HOUR_UTC" "23"
@@ -253,7 +253,7 @@ run() {
   append_env_if_missing "KYO_TRADING_ROUTE_NET_BPS" "5000"
   append_env_if_missing "KYO_TRADING_ROUTE_MIN_SOL" "0.000001"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_ENABLED" "false"
-  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD" "$TARGET_BIN_DIR/kyoshin-trading-earnings-sweep.sh"
+  append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_CMD" "$TARGET_BIN_DIR/kamiyo-agent-trading-earnings-sweep.sh"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_MIN_USD" "1"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_RELAY_API_BASE_URL" "https://api.relay.link"
   append_env_if_missing "KYO_TRADING_ROUTE_EARNINGS_SWEEP_EVM_CHAIN_ID" "137"
@@ -278,8 +278,8 @@ run() {
   append_env_if_missing "KYO_DX_TERMINAL_GENERATED_FEED_ENABLED" "true"
   append_env_if_missing "KYO_ENABLE_SENTRY_PIPELINE" "true"
   append_env_if_missing "KYO_REQUIRE_SENTRY_PIPELINE" "false"
-  if [ -n "$KYOSHIN_DB_PATH" ]; then
-    set_env_value "KYO_KYOSHIN_DB_PATH" "$KYOSHIN_DB_PATH"
+  if [ -n "$KAMIYO_AGENT_DB_PATH" ]; then
+    set_env_value "KYO_KAMIYO_AGENT_DB_PATH" "$KAMIYO_AGENT_DB_PATH"
   fi
   if [[ "$ENFORCE_REVENUE_GATES" =~ ^(1|true|TRUE|True|yes|YES|on|ON)$ ]]; then
     set_env_value "KYO_REQUIRE_X402_FEED" "true"
@@ -294,7 +294,7 @@ run() {
   echo "[2.5/6] verifying trading bridge readiness"
   run_as_openclaw "
     set -euo pipefail
-    if [ -x \"$TARGET_BRIDGES_DIR/kyoshin-polymarket-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-limitless-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-earnings-sweep-bridge.mjs\" ]; then
+    if [ -x \"$TARGET_BRIDGES_DIR/kamiyo-agent-polymarket-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kamiyo-agent-limitless-bridge.mjs\" ] && [ -x \"$TARGET_BRIDGES_DIR/kamiyo-agent-earnings-sweep-bridge.mjs\" ]; then
       echo 'bridges_installed=true'
     else
       echo 'bridges_installed=false'
@@ -314,7 +314,7 @@ run() {
     else
       echo 'limitless_bridge_deps=missing'
     fi
-    if [ -d \"$TARGET_BRIDGES_DIR/node_modules/@solana/web3.js\" ] && [ -d \"$TARGET_BRIDGES_DIR/node_modules/bs58\" ] && [ -x \"$TARGET_BRIDGES_DIR/kyoshin-fundry-staking-deposit.mjs\" ]; then
+    if [ -d \"$TARGET_BRIDGES_DIR/node_modules/@solana/web3.js\" ] && [ -d \"$TARGET_BRIDGES_DIR/node_modules/bs58\" ] && [ -x \"$TARGET_BRIDGES_DIR/kamiyo-agent-fundry-staking-deposit.mjs\" ]; then
       echo 'fundry_staking_bridge=installed'
     else
       echo 'fundry_staking_bridge=missing'
@@ -343,7 +343,7 @@ run() {
     echo "systemctl not found; running loop script directly"
     run_as_openclaw "
       set -euo pipefail
-      \"$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh\"
+      \"$TARGET_BIN_DIR/kamiyo-agent-autonomy-loop.sh\"
     "
   fi
 
@@ -465,11 +465,11 @@ run() {
     fi
 
     echo
-    echo '--- kyoshin-receipt-sync-state.json ---'
-    if [ -f \"$RUNTIME_STATE_DIR/kyoshin-receipt-sync-state.json\" ]; then
-      jq . \"$RUNTIME_STATE_DIR/kyoshin-receipt-sync-state.json\"
+    echo '--- kamiyo-agent-receipt-sync-state.json ---'
+    if [ -f \"$RUNTIME_STATE_DIR/kamiyo-agent-receipt-sync-state.json\" ]; then
+      jq . \"$RUNTIME_STATE_DIR/kamiyo-agent-receipt-sync-state.json\"
     else
-      echo 'missing kyoshin-receipt-sync-state.json'
+      echo 'missing kamiyo-agent-receipt-sync-state.json'
     fi
 
     echo
@@ -585,7 +585,7 @@ run() {
   if [ "$has_systemctl" -eq 1 ]; then
     echo "and restart: sudo systemctl restart $SYSTEMD_UNIT"
   else
-    echo "and rerun: sudo -u $OPENCLAW_USER -H bash -lc '$TARGET_BIN_DIR/kyoshin-autonomy-loop.sh'"
+    echo "and rerun: sudo -u $OPENCLAW_USER -H bash -lc '$TARGET_BIN_DIR/kamiyo-agent-autonomy-loop.sh'"
   fi
 }
 

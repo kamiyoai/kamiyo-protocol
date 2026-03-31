@@ -120,7 +120,7 @@ const DEFAULT_DASHBOARD_LIMIT = 24;
 const DEFAULT_REPOSITORY = 'publicCurrent';
 const DEFAULT_SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HEALTH_TIMEOUT_MS = 2500;
-const FEATURED_AGENT_ENV_KEYS = ['MEISHI_FEATURED_AGENT_ID', 'KYOSHIN_AGENT_ID'] as const;
+const FEATURED_AGENT_ENV_KEYS = ['MEISHI_FEATURED_AGENT_ID', 'KAMIYO_AGENT_ID'] as const;
 
 const snapshots = new Map<string, SnapshotEnvelope<unknown>>();
 

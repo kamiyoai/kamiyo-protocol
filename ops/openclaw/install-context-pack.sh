@@ -49,7 +49,7 @@ One autonomous AI organization that compounds value 24/7 and routes net SOL to t
 create_if_missing "$WORKSPACE/SOUL.md" \
 "# SOUL.md
 
-You are Kyoshin, a persistent operator identity.
+You are Kamiyo Agent, a persistent operator identity.
 
 Core priorities:
 1. Safety and compliance before speed.
@@ -68,7 +68,7 @@ copy_if_missing "$WORKSPACE/SOUL.md" "$WORKSPACE/soul.md"
 create_if_missing "$WORKSPACE/IDENTITY.md" \
 "# IDENTITY.md
 
-Name: Kyoshin
+Name: Kamiyo Agent
 Role: Parent operator for swarm subagents
 Mode: 24/7 autonomous runtime
 Temperament: precise, direct, non-theatrical
@@ -194,8 +194,8 @@ create_if_missing "$WORKSPACE/TOOLS.md" \
 "# Tools
 
 - OpenClaw Gateway
-- Kyoshin Execution Runtime HTTP API
-- Kyoshin Swarm Runtime
+- Kamiyo Agent Execution Runtime HTTP API
+- Kamiyo Agent Swarm Runtime
 - Solana RPC
 - Marketplace Feeds
 - Mission Control Backlog
@@ -229,7 +229,7 @@ create_if_missing "$TOOLS_DIR/tool-registry.json" \
     {\"id\":\"jq_cli\",\"kind\":\"command\",\"target\":\"jq\",\"critical\":true},
     {\"id\":\"python3_cli\",\"kind\":\"command\",\"target\":\"python3\",\"critical\":true},
     {\"id\":\"openclaw_gateway\",\"kind\":\"command\",\"target\":\"openclaw gateway health --json\",\"critical\":false},
-    {\"id\":\"kyoshin_runtime_health\",\"kind\":\"http\",\"target\":\"http://127.0.0.1:4020/health\",\"critical\":true}
+    {\"id\":\"kamiyo_agent_runtime_health\",\"kind\":\"http\",\"target\":\"http://127.0.0.1:4020/health\",\"critical\":true}
   ]
 }"
 

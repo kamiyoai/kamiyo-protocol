@@ -37,7 +37,7 @@ The workspace is intentionally split into three layers.
 | Tier | What belongs here | Current examples |
 |---|---|---|
 | `core` | Default production path for Kizuna settlement and control | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api` (Kizuna slice), `packages/kamiyo-x402-client`, `packages/kamiyo-settlement`, `packages/kamiyo-meishi`, `apps/cdp-onboarding` |
-| `module` | Agent runtimes, apps, and orchestration layers built on top of the rails | `services/kyoshin`, `services/keiro-api`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
+| `module` | Agent runtimes, apps, and orchestration layers built on top of the rails | `services/kamiyo-agent`, `services/keiro-api`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
 | `legacy` | Retained but non-default integrations, demos, trust/reputation experiments, and contract tracks | FairScale fusion surfaces, trust-graph/paranet/PoCH-heavy routes, oracle/deploy tracks, old demos, contract-specific workflows |
 
 The source of truth for these groupings lives in `config/workspace-groups.json`.
@@ -142,7 +142,7 @@ Service docs: `services/meishi-compliance/README.md`
 
 These stay in the repo, but they sit on top of the trust, settlement, and control rails instead of defining them.
 
-- `Kyoshin`: execution runtime that spends and settles through Kizuna
+- `Kamiyo Agent`: execution runtime that spends and settles through Kizuna
 - `Keiro` and `Keiro API`: client and API surfaces for agent identity, receipts, reputation, and Kizuna account state
 - `Agent Factory`: autonomous agent runtime for integration-response and forum workflows
 - `OpenClaw`, Hive, and agent packages: orchestration and integration layers on top of Kizuna

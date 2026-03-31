@@ -158,7 +158,7 @@ function main(): void {
            END
          ) AS rateLimited
        FROM actions
-       WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+       WHERE tool IN ('kamiyo_agent_staking_claim', 'swarm_agent_staking_claim')
          AND at >= ?`
     )
     .get(fundryLookbackIso) as FundryAggregateRow;
@@ -172,7 +172,7 @@ function main(): void {
       .prepare(
         `SELECT tool, at, error
          FROM actions
-         WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+         WHERE tool IN ('kamiyo_agent_staking_claim', 'swarm_agent_staking_claim')
            AND error IS NOT NULL
            AND at >= ?
          ORDER BY at DESC
@@ -192,7 +192,7 @@ function main(): void {
       .prepare(
         `SELECT tool, at, error
          FROM actions
-         WHERE tool IN ('kyoshin_staking_claim', 'swarm_agent_staking_claim')
+         WHERE tool IN ('kamiyo_agent_staking_claim', 'swarm_agent_staking_claim')
            AND error IS NOT NULL
            AND at >= ?
          ORDER BY at DESC

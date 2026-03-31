@@ -124,9 +124,9 @@ build-facilitator:
 build-wcp:
   pnpm --filter @kamiyo/wallet-control-plane run build
 
-# Build kyoshin runtime
-build-kyoshin:
-  pnpm run build:kyoshin
+# Build kamiyo-agent runtime
+build-kamiyo-agent:
+  pnpm run build:kamiyo-agent
 
 # ── Render Safety ────────────────────────────────────────────────────
 

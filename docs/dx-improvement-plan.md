@@ -121,7 +121,7 @@ Services needing templates:
 - `services/api/`
 - `services/x402-facilitator/`
 - `services/wallet-control-plane/`
-- `services/kyoshin/`
+- `services/kamiyo-agent/`
 - `services/keiro-api/`
 - `services/agent-factory/`
 

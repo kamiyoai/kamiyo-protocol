@@ -51,7 +51,7 @@ const swarmAgentSchema = z.object({
 
 const swarmRegistrySchema = z.object({
   version: z.coerce.number().int().positive().default(1),
-  parent: requiredString.default('kyoshin'),
+  parent: requiredString.default('kamiyo-agent'),
   agents: z.array(swarmAgentSchema).default([]),
 });
 

@@ -49,7 +49,7 @@ function makeRegistry(agentCount: number): SwarmRegistry {
 
   return {
     version: 1,
-    parent: 'kyoshin',
+    parent: 'kamiyo-agent',
     agents,
   };
 }

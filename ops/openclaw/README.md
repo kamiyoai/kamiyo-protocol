@@ -1,68 +1,68 @@
-# Kyoshin OpenClaw Runtime Artifacts
+# Kamiyo Agent OpenClaw Runtime Artifacts
 
 This folder versions the deployed autonomy loop artifacts used on the OpenClaw droplet.
 
 ## Files
 
-- `kyoshin-marketplace-intake.py`: marketplace feed polling and normalization.
-- `kyoshin-x402-feed.py`: builds executable x402 opportunities from self-hosted facilitator pricing/manual endpoint specs.
-- `kyoshin-dx-terminal-feed.py`: builds DX Terminal Pro opportunities (leaderboard + token flow + optional owner-vault snapshot).
-- `kyoshin-swarm-planner.py`: opportunity-to-subagent assignment planner.
-- `kyoshin-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
-- `kyoshin-receipt-sync.py`: exports Kyoshin `swarm_jobs` outcomes into OpenClaw `execution-receipts.jsonl` for governor policy.
-- `kyoshin-context-guard.py`: brain-dump and mission-context completeness guard.
-- `kyoshin-sentry-pipeline.py`: ingests Sentry webhooks and maintains auto-fix vs escalate triage artifacts.
-- `kyoshin-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
-- `kyoshin-runtime-bridge.py`: ingests Kyoshin execution runtime `/health` + `/status` into OpenClaw runtime state.
-- `kyoshin-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
-- `kyoshin-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
-- `kyoshin-revenue-guard.py`: enforces spend caps and red-line revenue policy before paid execution.
-- `kyoshin-x402-agentcash.py`: executes paid x402 allowlist routes through `agentcash` and normalizes receipts into the revenue ledger.
-- `kyoshin-clawmart-staking-route.py`: idempotent ClawMart earnings router that executes staking transfer and appends route receipts.
-- `kyoshin-clawmart-monitor.py`: ClawMart sales/listing monitor that appends fulfillment tasks, enforces staking-route policy, and tracks receipt checkpoints.
-- `kyoshin-distribution-engine.py`: autonomous outbound dispatch with channel limits, cooldowns, and safety filters.
-- `kyoshin-artifact-contracts.py`: validates JSON contracts for runtime artifacts before autonomy tick is accepted as healthy.
-- `kyoshin-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
-- `kyoshin-memory-extract.py`: nightly extraction of durable `MEMORY.md` facts from daily workspace notes.
-- `kyoshin-operator-log.py`: daily operator summary publisher (revenue/cost/net/routing/blockers).
-- `kyoshin-autonomy-loop.sh`: single autonomy control-loop tick.
+- `kamiyo-agent-marketplace-intake.py`: marketplace feed polling and normalization.
+- `kamiyo-agent-x402-feed.py`: builds executable x402 opportunities from self-hosted facilitator pricing/manual endpoint specs.
+- `kamiyo-agent-dx-terminal-feed.py`: builds DX Terminal Pro opportunities (leaderboard + token flow + optional owner-vault snapshot).
+- `kamiyo-agent-swarm-planner.py`: opportunity-to-subagent assignment planner.
+- `kamiyo-agent-sync-feed-config.py`: per-cycle feed config sync (live URLs from env, bootstrap fallback).
+- `kamiyo-agent-receipt-sync.py`: exports Kamiyo Agent `swarm_jobs` outcomes into OpenClaw `execution-receipts.jsonl` for governor policy.
+- `kamiyo-agent-context-guard.py`: brain-dump and mission-context completeness guard.
+- `kamiyo-agent-sentry-pipeline.py`: ingests Sentry webhooks and maintains auto-fix vs escalate triage artifacts.
+- `kamiyo-agent-tool-health.py`: tool registry checks (command/http/file checks with critical gating).
+- `kamiyo-agent-runtime-bridge.py`: ingests Kamiyo Agent execution runtime `/health` + `/status` into OpenClaw runtime state.
+- `kamiyo-agent-swarm-governor.py`: subagent `work / earn / or die` policy governor (priority/status automation from receipts).
+- `kamiyo-agent-mission-control.py`: mission-control board/backlog generator for custom tool build tasks.
+- `kamiyo-agent-revenue-guard.py`: enforces spend caps and red-line revenue policy before paid execution.
+- `kamiyo-agent-x402-agentcash.py`: executes paid x402 allowlist routes through `agentcash` and normalizes receipts into the revenue ledger.
+- `kamiyo-agent-clawmart-staking-route.py`: idempotent ClawMart earnings router that executes staking transfer and appends route receipts.
+- `kamiyo-agent-clawmart-monitor.py`: ClawMart sales/listing monitor that appends fulfillment tasks, enforces staking-route policy, and tracks receipt checkpoints.
+- `kamiyo-agent-distribution-engine.py`: autonomous outbound dispatch with channel limits, cooldowns, and safety filters.
+- `kamiyo-agent-artifact-contracts.py`: validates JSON contracts for runtime artifacts before autonomy tick is accepted as healthy.
+- `kamiyo-agent-learnings.py`: converts degraded-cycle mistakes into durable `.learnings/LEARNINGS.md` rules.
+- `kamiyo-agent-memory-extract.py`: nightly extraction of durable `MEMORY.md` facts from daily workspace notes.
+- `kamiyo-agent-operator-log.py`: daily operator summary publisher (revenue/cost/net/routing/blockers).
+- `kamiyo-agent-autonomy-loop.sh`: single autonomy control-loop tick.
 - `rollout-artifact-contracts.sh`: host rollout helper that installs artifact-contract validator + updated loop and runs one verification tick.
 - `install-context-pack.sh`: scaffolds mission/profile/goals/tool-registry baseline files.
-- `kyoshin-autonomy-loop.service`: systemd oneshot service for a loop tick.
-- `kyoshin-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=30min`).
+- `kamiyo-agent-autonomy-loop.service`: systemd oneshot service for a loop tick.
+- `kamiyo-agent-autonomy-loop.timer`: systemd timer (`OnUnitActiveSec=30min`).
 
 ## Install on host
 
 ```bash
-sudo install -m 700 -o openclaw -g openclaw kyoshin-marketplace-intake.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-x402-feed.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-dx-terminal-feed.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-planner.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-sync-feed-config.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-receipt-sync.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-context-guard.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-sentry-pipeline.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-tool-health.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-runtime-bridge.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-swarm-governor.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-mission-control.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-revenue-guard.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-x402-agentcash.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-clawmart-staking-route.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-clawmart-monitor.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-distribution-engine.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-artifact-contracts.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-learnings.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-memory-extract.py ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-operator-log.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-marketplace-intake.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-x402-feed.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-dx-terminal-feed.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-swarm-planner.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-sync-feed-config.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-receipt-sync.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-context-guard.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-sentry-pipeline.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-tool-health.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-runtime-bridge.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-swarm-governor.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-mission-control.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-revenue-guard.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-x402-agentcash.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-clawmart-staking-route.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-clawmart-monitor.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-distribution-engine.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-artifact-contracts.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-learnings.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-memory-extract.py ~/bin/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-operator-log.py ~/bin/
 sudo install -m 700 -o openclaw -g openclaw install-context-pack.sh ~/bin/
-sudo install -m 700 -o openclaw -g openclaw kyoshin-autonomy-loop.sh ~/bin/
-sudo install -m 644 -o root -g root kyoshin-autonomy-loop.service /etc/systemd/system/
-sudo install -m 644 -o root -g root kyoshin-autonomy-loop.timer /etc/systemd/system/
+sudo install -m 700 -o openclaw -g openclaw kamiyo-agent-autonomy-loop.sh ~/bin/
+sudo install -m 644 -o root -g root kamiyo-agent-autonomy-loop.service /etc/systemd/system/
+sudo install -m 644 -o root -g root kamiyo-agent-autonomy-loop.timer /etc/systemd/system/
 sudo -u openclaw -H bash -lc '~/bin/install-context-pack.sh'
 sudo systemctl daemon-reload
-sudo systemctl enable --now kyoshin-autonomy-loop.timer
-sudo systemctl start kyoshin-autonomy-loop.service
+sudo systemctl enable --now kamiyo-agent-autonomy-loop.timer
+sudo systemctl start kamiyo-agent-autonomy-loop.service
 ```
 
 Rollout helper for this specific hardening:
@@ -79,7 +79,7 @@ Rollout helper for this specific hardening:
 - DX Terminal generated feed output: `~/.openclaw/workspace/runtime/feeds/dx-terminal-opportunities.json`
 - Assignment output: `~/.openclaw/workspace/runtime/queue/assignments.json`
 - Tool health output: `~/.openclaw/workspace/runtime/tools/tool-health.json`
-- Kyoshin runtime bridge output: `~/.openclaw/workspace/runtime/state/kyoshin-runtime.json`
+- Kamiyo Agent runtime bridge output: `~/.openclaw/workspace/runtime/state/kamiyo-agent-runtime.json`
 - Governor output: `~/.openclaw/workspace/runtime/state/swarm-governor.json`
 - Mission control board: `~/.openclaw/workspace/runtime/mission-control/board.json`
 - Mission control backlog: `~/.openclaw/workspace/runtime/mission-control/backlog.json`
@@ -93,7 +93,7 @@ Rollout helper for this specific hardening:
 - Learnings state: `~/.openclaw/workspace/runtime/state/learnings-state.json`
 - Memory extraction state: `~/.openclaw/workspace/runtime/state/memory-extract-state.json`
 - Operator log output: `~/.openclaw/workspace/runtime/state/operator-log.json`
-- Receipt sync state: `~/.openclaw/workspace/runtime/state/kyoshin-receipt-sync-state.json`
+- Receipt sync state: `~/.openclaw/workspace/runtime/state/kamiyo-agent-receipt-sync-state.json`
 - Context guard output: `~/.openclaw/workspace/runtime/state/context-guard.json`
 - Sentry inbox: `~/.openclaw/workspace/runtime/hooks/sentry-alerts.jsonl`
 - Sentry triage output: `~/.openclaw/workspace/runtime/incidents/sentry-triage.json`
@@ -142,7 +142,7 @@ Set these env vars in `~/.openclaw/.env`:
 - optional: `KYO_BOOTSTRAP_FEED_FALLBACK=true|false`
 - autonomy guard controls:
   - `KYO_REQUIRE_RUNTIME_GUARDS=true|false` (default `true`)
-  - `KYO_REQUIRE_KYOSHIN_RUNTIME=true|false` (default `true`)
+  - `KYO_REQUIRE_KAMIYO_AGENT_RUNTIME=true|false` (default `true`)
   - `KYO_REQUIRE_RUNTIME_ARTIFACT_CONTRACTS=true|false` (default `true`)
   - `KYO_REQUIRE_X402_FEED=true|false` (default `false`)
   - `KYO_REQUIRE_RECEIPT_SYNC=true|false` (default `false`)
@@ -182,14 +182,14 @@ Set these env vars in `~/.openclaw/.env`:
   - `KYO_DX_TERMINAL_OWNER_ADDRESS=0x...` (optional owner-vault snapshot)
   - `KYO_REQUIRE_DX_TERMINAL_FEED=true|false` (default `false`, turns DX feed into a hard gate)
 - receipt sync controls:
-  - `KYO_KYOSHIN_DB_PATH=/absolute/path/to/services/kyoshin/output/kyoshin/state.db`
+  - `KYO_KAMIYO_AGENT_DB_PATH=/absolute/path/to/services/kamiyo-agent/output/kamiyo-agent/state.db`
   - `KYO_RECEIPT_SYNC_MAX_BATCH=1000`
   - `KYO_RECEIPT_SOL_PRICE_USD=150`
   - `KYO_RECEIPT_ESTIMATED_FEE_SOL=0.00001`
 - runtime bridge controls:
-  - `KYO_KYOSHIN_RUNTIME_HEALTH_URL=http://127.0.0.1:4020/health`
-  - `KYO_KYOSHIN_RUNTIME_STATUS_URL=http://127.0.0.1:4020/status`
-  - `KYO_KYOSHIN_RUNTIME_TOKEN=...` (required if Kyoshin status endpoint is token-gated)
+  - `KYO_KAMIYO_AGENT_RUNTIME_HEALTH_URL=http://127.0.0.1:4020/health`
+  - `KYO_KAMIYO_AGENT_RUNTIME_STATUS_URL=http://127.0.0.1:4020/status`
+  - `KYO_KAMIYO_AGENT_RUNTIME_TOKEN=...` (required if Kamiyo Agent status endpoint is token-gated)
   - `KYO_RUNTIME_BRIDGE_TIMEOUT_SECONDS=8`
   - `KYO_RUNTIME_BRIDGE_SCRAPE_METRICS=true|false` (default `false`)
 - nightly proactive controls:
@@ -267,7 +267,7 @@ Set these env vars in `~/.openclaw/.env`:
 To ingest one Sentry webhook payload into the runtime queue:
 
 ```bash
-cat sentry-payload.json | ~/bin/kyoshin-sentry-pipeline.py --ingest
+cat sentry-payload.json | ~/bin/kamiyo-agent-sentry-pipeline.py --ingest
 ```
 
 Once URLs are present, each autonomy cycle re-syncs `marketplace-feeds.json` automatically and prefers live URLs over bootstrap feed files.
@@ -281,8 +281,8 @@ When staking-route enforcement is enabled, ClawMart earnings are considered comp
 {"source":"clawmart","stakingPoolUrl":"https://fundry.collaterize.com/staking/9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d","clawMartTotalSalesRouted":12,"txSignature":"<solana_sig>","at":"2026-02-27T20:00:00Z"}
 ```
 
-If `totalSales` exceeds the latest routed checkpoint, `kyoshin-clawmart-monitor.py` emits `ok=false`, adds a `clawmart_staking_route` task, and blocks the cycle when `KYO_REQUIRE_CLAWMART_MONITOR=true`.
-`kyoshin-clawmart-staking-route.py` runs earlier in the same tick and advances that checkpoint by executing the transfer + receipt append.
+If `totalSales` exceeds the latest routed checkpoint, `kamiyo-agent-clawmart-monitor.py` emits `ok=false`, adds a `clawmart_staking_route` task, and blocks the cycle when `KYO_REQUIRE_CLAWMART_MONITOR=true`.
+`kamiyo-agent-clawmart-staking-route.py` runs earlier in the same tick and advances that checkpoint by executing the transfer + receipt append.
 
 ### Zero-inference baseline
 
@@ -291,7 +291,7 @@ If you want zero Anthropic/OpenAI spend in this loop, keep:
 ```bash
 KYO_ENABLE_AGENT_HEARTBEAT=false
 KYO_REQUIRE_GATEWAY_HEALTH=false
-KYO_REQUIRE_KYOSHIN_RUNTIME=true
+KYO_REQUIRE_KAMIYO_AGENT_RUNTIME=true
 ```
 
 This keeps intake/planning/governor/mission-control active while grounding health on the execution runtime instead of LLM heartbeats.
@@ -308,7 +308,7 @@ This gives non-synthetic external opportunities right away. Replace it with your
 
 ## Living-AI baseline (required)
 
-These files are enforced by `kyoshin-context-guard.py`:
+These files are enforced by `kamiyo-agent-context-guard.py`:
 
 - `SOUL.md`
 - `IDENTITY.md`
@@ -329,7 +329,7 @@ If these are empty/placeholder, the cycle is marked `degraded`.
 
 ## ClawWork-style subagent policy
 
-`kyoshin-swarm-governor.py` applies `work / earn / or die` policy from execution receipts:
+`kamiyo-agent-swarm-governor.py` applies `work / earn / or die` policy from execution receipts:
 
 - weak agents are auto-paused (`status=paused`) when success/profit/loss-streak thresholds fail.
 - strong agents get priority boosts.

@@ -1,9 +1,9 @@
 import { db } from './clients';
 import { logger } from './logger';
 
-export type KyoshinLogKind = 'daily_24h' | 'swarm' | 'reflective';
+export type KamiyoAgentLogKind = 'daily_24h' | 'swarm' | 'reflective';
 
-interface KyoshinLogState {
+interface KamiyoAgentLogState {
   next_serial: number;
   next_daily_at: number;
   next_swarm_at: number;
@@ -24,14 +24,14 @@ interface ExecutionSnapshot {
   signals24h: number;
 }
 
-export interface QueuedKyoshinLog {
+export interface QueuedKamiyoAgentLog {
   id: number;
-  kind: KyoshinLogKind;
+  kind: KamiyoAgentLogKind;
   serial: number;
   content: string;
 }
 
-const STATE_KEY = 'kyoshin';
+const STATE_KEY = 'kamiyo-agent';
 const HEADER_PREFIX = 'Kyōshin 共振 // operator log ';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SWARM_MIN_MS = 5 * 60 * 60 * 1000;
@@ -56,14 +56,14 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
-const KYOSHIN_OPERATOR_LOG_ENABLED = parseBool(process.env.KYOSHIN_OPERATOR_LOG_ENABLED, false);
-const KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL = parsePositiveInt(
-  process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL,
+const KAMIYO_AGENT_OPERATOR_LOG_ENABLED = parseBool(process.env.KAMIYO_AGENT_OPERATOR_LOG_ENABLED, false);
+const KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL = parsePositiveInt(
+  process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL,
   DEFAULT_INITIAL_SERIAL
 );
 
 db.exec(`
-  CREATE TABLE IF NOT EXISTS kyoshin_operator_log_state (
+  CREATE TABLE IF NOT EXISTS kamiyo_agent_operator_log_state (
     key TEXT PRIMARY KEY,
     next_serial INTEGER NOT NULL,
     next_daily_at INTEGER NOT NULL,
@@ -89,20 +89,20 @@ function headerFor(serial: number): string {
   return `${HEADER_PREFIX}${formatSerial(serial)}`;
 }
 
-function readState(nowMs: number): KyoshinLogState {
+function readState(nowMs: number): KamiyoAgentLogState {
   const row = db.prepare(`
     SELECT next_serial, next_daily_at, next_swarm_at, next_reflective_at,
            last_daily_at, last_swarm_at, last_reflective_at, updated_at
-    FROM kyoshin_operator_log_state
+    FROM kamiyo_agent_operator_log_state
     WHERE key = ?
-  `).get(STATE_KEY) as KyoshinLogState | undefined;
+  `).get(STATE_KEY) as KamiyoAgentLogState | undefined;
 
   if (row) {
     return row;
   }
 
-  const initial: KyoshinLogState = {
-    next_serial: KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL,
+  const initial: KamiyoAgentLogState = {
+    next_serial: KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL,
     next_daily_at: nowMs,
     next_swarm_at: nowMs + randomMs(SWARM_MIN_MS, SWARM_MAX_MS),
     next_reflective_at: nowMs + randomMs(REFLECTIVE_MIN_MS, REFLECTIVE_MAX_MS),
@@ -116,9 +116,9 @@ function readState(nowMs: number): KyoshinLogState {
   return initial;
 }
 
-function writeState(state: KyoshinLogState): void {
+function writeState(state: KamiyoAgentLogState): void {
   db.prepare(`
-    INSERT OR REPLACE INTO kyoshin_operator_log_state (
+    INSERT OR REPLACE INTO kamiyo_agent_operator_log_state (
       key,
       next_serial,
       next_daily_at,
@@ -248,7 +248,7 @@ I measure identity through execution continuity: runs ${snapshot.swarmRuns24h}, 
 Next: convert uncertainty into measurable swarm yield.`;
 }
 
-function compactContent(kind: KyoshinLogKind, serial: number, snapshot: ExecutionSnapshot): string {
+function compactContent(kind: KamiyoAgentLogKind, serial: number, snapshot: ExecutionSnapshot): string {
   const header = headerFor(serial);
   switch (kind) {
     case 'daily_24h':
@@ -261,7 +261,7 @@ function compactContent(kind: KyoshinLogKind, serial: number, snapshot: Executio
   }
 }
 
-function buildContent(kind: KyoshinLogKind, serial: number, snapshot: ExecutionSnapshot): string {
+function buildContent(kind: KamiyoAgentLogKind, serial: number, snapshot: ExecutionSnapshot): string {
   const longForm = kind === 'daily_24h'
     ? buildDailyContent(serial, snapshot)
     : kind === 'reflective'
@@ -280,15 +280,15 @@ function buildContent(kind: KyoshinLogKind, serial: number, snapshot: ExecutionS
   return compact.slice(0, 277).trimEnd() + '...';
 }
 
-function pickDueKind(state: KyoshinLogState, nowMs: number): KyoshinLogKind | null {
+function pickDueKind(state: KamiyoAgentLogState, nowMs: number): KamiyoAgentLogKind | null {
   if (nowMs >= state.next_daily_at) return 'daily_24h';
   if (nowMs >= state.next_reflective_at) return 'reflective';
   if (nowMs >= state.next_swarm_at) return 'swarm';
   return null;
 }
 
-function advanceState(state: KyoshinLogState, kind: KyoshinLogKind, nowMs: number): KyoshinLogState {
-  const next: KyoshinLogState = {
+function advanceState(state: KamiyoAgentLogState, kind: KamiyoAgentLogKind, nowMs: number): KamiyoAgentLogState {
+  const next: KamiyoAgentLogState = {
     ...state,
     next_serial: state.next_serial + 1,
     updated_at: nowMs,
@@ -318,16 +318,16 @@ function isSqliteBusyError(error: unknown): boolean {
   return /\bdatabase is locked\b/i.test(error.message);
 }
 
-export function isKyoshinOperatorLogEnabled(): boolean {
-  return KYOSHIN_OPERATOR_LOG_ENABLED;
+export function isKamiyoAgentOperatorLogEnabled(): boolean {
+  return KAMIYO_AGENT_OPERATOR_LOG_ENABLED;
 }
 
-export function maybeQueueKyoshinOperatorLog(nowMs = Date.now()): QueuedKyoshinLog | null {
-  if (!KYOSHIN_OPERATOR_LOG_ENABLED) {
+export function maybeQueueKamiyoAgentOperatorLog(nowMs = Date.now()): QueuedKamiyoAgentLog | null {
+  if (!KAMIYO_AGENT_OPERATOR_LOG_ENABLED) {
     return null;
   }
 
-  const queue = db.transaction((tsMs: number): QueuedKyoshinLog | null => {
+  const queue = db.transaction((tsMs: number): QueuedKamiyoAgentLog | null => {
     const state = readState(tsMs);
     const kind = pickDueKind(state, tsMs);
     if (!kind) {
@@ -341,12 +341,12 @@ export function maybeQueueKyoshinOperatorLog(nowMs = Date.now()): QueuedKyoshinL
     const insert = db.prepare(`
       INSERT INTO post_queue (content, post_type, context, generated_at, status, approved_at, image_path)
       VALUES (?, 'tweet', ?, ?, 'approved', ?, NULL)
-    `).run(content, `kyoshin_log:${kind}`, tsMs, tsMs);
+    `).run(content, `kamiyo_agent_log:${kind}`, tsMs, tsMs);
 
     const nextState = advanceState(state, kind, tsMs);
     writeState(nextState);
 
-    logger.info('Queued Kyoshin operator log', {
+    logger.info('Queued Kamiyo Agent operator log', {
       queueId: insert.lastInsertRowid,
       kind,
       serial: formatSerial(serial),
@@ -367,21 +367,21 @@ export function maybeQueueKyoshinOperatorLog(nowMs = Date.now()): QueuedKyoshinL
     return queue(nowMs);
   } catch (error) {
     if (isSqliteBusyError(error)) {
-      logger.warn('Skipping Kyoshin operator log tick due to sqlite lock contention');
+      logger.warn('Skipping Kamiyo Agent operator log tick due to sqlite lock contention');
       return null;
     }
     throw error;
   }
 }
 
-export function setKyoshinOperatorNextSerial(nextSerial: number): void {
+export function setKamiyoAgentOperatorNextSerial(nextSerial: number): void {
   if (!Number.isFinite(nextSerial) || nextSerial <= 0) return;
 
   const nowMs = Date.now();
   const state = readState(nowMs);
   const requested = Math.floor(nextSerial);
   if (requested < state.next_serial) {
-    logger.warn('Ignoring Kyoshin serial rewind request', {
+    logger.warn('Ignoring Kamiyo Agent serial rewind request', {
       requested,
       current: state.next_serial,
     });

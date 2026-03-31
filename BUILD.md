@@ -57,7 +57,7 @@ pnpm run build:modules
 pnpm run test:modules
 ```
 
-Use these for Kizuna-powered runtimes and apps such as Kyoshin, Keiro, OpenClaw, Hive, and agent packages.
+Use these for Kizuna-powered runtimes and apps such as Kamiyo Agent, Keiro, OpenClaw, Hive, and agent packages.
 
 ### Legacy
 
@@ -73,7 +73,7 @@ Use these only when touching retained non-default integrations, demos, or contra
 ```bash
 pnpm run build:api
 pnpm run build:sdk
-pnpm run build:kyoshin
+pnpm run build:kamiyo-agent
 pnpm run build:oracle
 pnpm run build:program
 pnpm run test:onchain

@@ -133,7 +133,7 @@ import { getContext, formatContextForPrompt, lookupToken, lookupTokenByCA, forma
 import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransactionSummary, checkWhaleMovements, formatWhaleAlert, isValidSolanaAddress } from './chain-lookup';
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
 import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
-import { isKyoshinOperatorLogEnabled, maybeQueueKyoshinOperatorLog, setKyoshinOperatorNextSerial } from './operator-logbook';
+import { isKamiyoAgentOperatorLogEnabled, maybeQueueKamiyoAgentOperatorLog, setKamiyoAgentOperatorNextSerial } from './operator-logbook';
 import { analyzeSentiment, getSentimentTrend } from './sentiment';
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { ENGAGEMENT_CONFIG } from './config';
@@ -1200,17 +1200,17 @@ let isShuttingDown = false;
 async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting autonomous posting loop...');
   logger.info(`Approval mode: ${APPROVAL_MODE}`);
-  const kyoshinOperatorLogs = isKyoshinOperatorLogEnabled();
+  const kamiyoAgentOperatorLogs = isKamiyoAgentOperatorLogEnabled();
 
-  const forcedNextSerial = Number.parseInt(process.env.KYOSHIN_OPERATOR_LOG_FORCE_NEXT_SERIAL ?? '', 10);
-  if (kyoshinOperatorLogs && Number.isFinite(forcedNextSerial) && forcedNextSerial > 0) {
-    setKyoshinOperatorNextSerial(forcedNextSerial);
-    logger.info('Kyoshin operator next serial overridden', { nextSerial: forcedNextSerial });
+  const forcedNextSerial = Number.parseInt(process.env.KAMIYO_AGENT_OPERATOR_LOG_FORCE_NEXT_SERIAL ?? '', 10);
+  if (kamiyoAgentOperatorLogs && Number.isFinite(forcedNextSerial) && forcedNextSerial > 0) {
+    setKamiyoAgentOperatorNextSerial(forcedNextSerial);
+    logger.info('Kamiyo Agent operator next serial overridden', { nextSerial: forcedNextSerial });
   }
 
-  if (kyoshinOperatorLogs) {
-    logger.info('Kyoshin operator log autopost mode enabled', {
-      initialSerial: process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL || '9',
+  if (kamiyoAgentOperatorLogs) {
+    logger.info('Kamiyo Agent operator log autopost mode enabled', {
+      initialSerial: process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL || '9',
     });
   }
 
@@ -1221,8 +1221,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
   // Generate new posts periodically (every 3-5 hours)
   const generateLoop = async () => {
     try {
-      if (kyoshinOperatorLogs) {
-        logger.debug('Skipping generic generation in Kyoshin operator log mode');
+      if (kamiyoAgentOperatorLogs) {
+        logger.debug('Skipping generic generation in Kamiyo Agent operator log mode');
       } else {
         // Rotate mood occasionally
         rotateMood();
@@ -1238,8 +1238,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
       logger.error('Autonomous generation failed', { error: String(err) });
     }
 
-    // In Kyoshin mode this acts as a lightweight watchdog cadence.
-    const nextDelay = kyoshinOperatorLogs
+    // In Kamiyo Agent mode this acts as a lightweight watchdog cadence.
+    const nextDelay = kamiyoAgentOperatorLogs
       ? 30 * 60 * 1000
       : (3 + Math.random() * 2) * 60 * 60 * 1000;
     setTimeout(generateLoop, nextDelay);
@@ -1267,8 +1267,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
 
       // Only post if enough time has passed (2-3 hours)
       if (timeSinceLastPost >= MIN_POST_INTERVAL) {
-        if (kyoshinOperatorLogs) {
-          maybeQueueKyoshinOperatorLog(now);
+        if (kamiyoAgentOperatorLogs) {
+          maybeQueueKamiyoAgentOperatorLog(now);
         }
 
         const approved = getApprovedPosts();
