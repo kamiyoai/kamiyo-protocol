@@ -81,7 +81,25 @@
     "smoke:enterprise": "node scripts/enterprise-readiness.mjs --mode live",
     "smoke:companion:route-ownership": "pnpm --filter kamiyo-companion run smoke:route-ownership",
     "audit:policy": "node scripts/check-security-policy.mjs",
-    "audit": "pnpm audit && cargo audit"
+    "audit": "pnpm audit && cargo audit",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "packages/*/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "services/*/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "apps/*/src/**/*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "scripts/**/*.{mjs,ts}": [
+      "prettier --write"
+    ]
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -116,6 +134,8 @@
     "eslint": "^8.57.0",
     "eventsource": "^4.1.0",
     "fastestsmallesttextencoderdecoder": "^1.0.22",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "mocha": "^11.7.5",
     "prettier": "^3.8.1",
     "snarkjs": "^0.7.6",
