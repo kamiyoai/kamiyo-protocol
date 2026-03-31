@@ -148,9 +148,7 @@ function asString(value: unknown, fallback = ''): string {
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .flatMap(item => (typeof item === 'string' ? [item.trim()] : []))
-    .filter(Boolean);
+  return value.flatMap(item => (typeof item === 'string' ? [item.trim()] : [])).filter(Boolean);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -232,7 +230,8 @@ function parseState(raw: unknown): DbState {
         url: value?.url == null ? undefined : String(value.url),
         paid: Boolean(value?.paid),
         paymentNetwork: value?.paymentNetwork == null ? undefined : String(value.paymentNetwork),
-        paymentAmountUsd: value?.paymentAmountUsd == null ? undefined : asNumber(value.paymentAmountUsd),
+        paymentAmountUsd:
+          value?.paymentAmountUsd == null ? undefined : asNumber(value.paymentAmountUsd),
         revenueSol: asNumber(value?.revenueSol),
         revenueUsd: asNumber(value?.revenueUsd),
         error: value?.error == null ? undefined : String(value.error),
@@ -417,7 +416,11 @@ export function openDb(dbPath: string) {
       persist();
     },
 
-    addUsage: (tickId: string, model: string, usage: { input_tokens: number; output_tokens: number }) => {
+    addUsage: (
+      tickId: string,
+      model: string,
+      usage: { input_tokens: number; output_tokens: number }
+    ) => {
       state.llmUsage.push({
         tickId,
         at: new Date().toISOString(),
@@ -441,7 +444,9 @@ export function openDb(dbPath: string) {
       return keys.filter(key => key.startsWith(prefix));
     },
 
-    upsertIntakeJobs: (jobs: Array<{ id?: string; payload: IntakeJobPayload }>): {
+    upsertIntakeJobs: (
+      jobs: Array<{ id?: string; payload: IntakeJobPayload }>
+    ): {
       accepted: string[];
       updated: string[];
       rejected: Array<{ id: string; reason: string }>;
@@ -518,14 +523,19 @@ export function openDb(dbPath: string) {
       const rows = Object.values(state.intakeJobs)
         .filter(row => row.status === 'pending' && row.nextAttemptAt <= params.nowIso)
         .sort((a, b) => {
-          if (a.nextAttemptAt !== b.nextAttemptAt) return a.nextAttemptAt.localeCompare(b.nextAttemptAt);
+          if (a.nextAttemptAt !== b.nextAttemptAt)
+            return a.nextAttemptAt.localeCompare(b.nextAttemptAt);
           return a.createdAt.localeCompare(b.createdAt);
         })
         .slice(0, Math.max(1, params.limit));
 
       return rows.map(row => ({
         ...row,
-        payload: { ...row.payload, roleHints: [...row.payload.roleHints], tags: [...row.payload.tags] },
+        payload: {
+          ...row.payload,
+          roleHints: [...row.payload.roleHints],
+          tags: [...row.payload.tags],
+        },
         lastResult: row.lastResult ? { ...row.lastResult } : null,
       }));
     },
@@ -580,7 +590,11 @@ export function openDb(dbPath: string) {
       persist();
       return {
         ...row,
-        payload: { ...row.payload, roleHints: [...row.payload.roleHints], tags: [...row.payload.tags] },
+        payload: {
+          ...row.payload,
+          roleHints: [...row.payload.roleHints],
+          tags: [...row.payload.tags],
+        },
         lastResult: row.lastResult ? { ...row.lastResult } : null,
       };
     },
@@ -602,10 +616,7 @@ export function openDb(dbPath: string) {
       return { pending, completed, deadletter, total: pending + completed + deadletter };
     },
 
-    listIntakeJobs: (params?: {
-      status?: IntakeJobStatus;
-      limit?: number;
-    }): IntakeJobRow[] => {
+    listIntakeJobs: (params?: { status?: IntakeJobStatus; limit?: number }): IntakeJobRow[] => {
       const limit = Math.max(1, params?.limit ?? 100);
       const filtered = Object.values(state.intakeJobs)
         .filter(row => !params?.status || row.status === params.status)
@@ -614,7 +625,11 @@ export function openDb(dbPath: string) {
 
       return filtered.map(row => ({
         ...row,
-        payload: { ...row.payload, roleHints: [...row.payload.roleHints], tags: [...row.payload.tags] },
+        payload: {
+          ...row.payload,
+          roleHints: [...row.payload.roleHints],
+          tags: [...row.payload.tags],
+        },
         lastResult: row.lastResult ? { ...row.lastResult } : null,
       }));
     },
@@ -666,7 +681,9 @@ export function openDb(dbPath: string) {
         intakeJobs: Object.keys(state.intakeJobs).length,
       };
 
-      state.observations = state.observations.filter(row => row.at >= cutoffs.observationsBeforeIso);
+      state.observations = state.observations.filter(
+        row => row.at >= cutoffs.observationsBeforeIso
+      );
       state.actions = state.actions.filter(row => row.at >= cutoffs.actionsBeforeIso);
       state.llmUsage = state.llmUsage.filter(row => row.at >= cutoffs.usageBeforeIso);
       state.ticks = state.ticks.filter(
@@ -762,7 +779,33 @@ export function openDb(dbPath: string) {
       persist();
     },
 
-    swarmJobStatsSince: (sinceIso: string): Array<{
+    swarmJobsBefore: (
+      beforeIso: string
+    ): Array<{
+      id: string;
+      agentId: string;
+      source: string;
+      status: 'executed' | 'failed' | 'skipped';
+      revenueSol: number;
+      revenueUsd: number;
+      executedAt: string;
+    }> => {
+      return Object.values(state.swarmJobs)
+        .filter(row => row.executedAt < beforeIso)
+        .map(row => ({
+          id: row.id,
+          agentId: row.agentId,
+          source: row.source,
+          status: row.status,
+          revenueSol: row.revenueSol,
+          revenueUsd: row.revenueUsd,
+          executedAt: row.executedAt,
+        }));
+    },
+
+    swarmJobStatsSince: (
+      sinceIso: string
+    ): Array<{
       agentId: string;
       total: number;
       succeeded: number;
@@ -771,29 +814,30 @@ export function openDb(dbPath: string) {
       revenueSol: number;
       revenueUsd: number;
     }> => {
-      const groups = new Map<string, {
-        agentId: string;
-        total: number;
-        succeeded: number;
-        failed: number;
-        paidCount: number;
-        revenueSol: number;
-        revenueUsd: number;
-      }>();
+      const groups = new Map<
+        string,
+        {
+          agentId: string;
+          total: number;
+          succeeded: number;
+          failed: number;
+          paidCount: number;
+          revenueSol: number;
+          revenueUsd: number;
+        }
+      >();
 
       for (const row of Object.values(state.swarmJobs)) {
         if (row.executedAt < sinceIso) continue;
-        const current =
-          groups.get(row.agentId) ??
-          {
-            agentId: row.agentId,
-            total: 0,
-            succeeded: 0,
-            failed: 0,
-            paidCount: 0,
-            revenueSol: 0,
-            revenueUsd: 0,
-          };
+        const current = groups.get(row.agentId) ?? {
+          agentId: row.agentId,
+          total: 0,
+          succeeded: 0,
+          failed: 0,
+          paidCount: 0,
+          revenueSol: 0,
+          revenueUsd: 0,
+        };
 
         current.total += 1;
         if (row.status === 'executed') current.succeeded += 1;
@@ -808,7 +852,9 @@ export function openDb(dbPath: string) {
       return Array.from(groups.values()).sort((a, b) => a.agentId.localeCompare(b.agentId));
     },
 
-    swarmSourceStatsSince: (sinceIso: string): Array<{
+    swarmSourceStatsSince: (
+      sinceIso: string
+    ): Array<{
       source: string;
       total: number;
       succeeded: number;
@@ -816,27 +862,28 @@ export function openDb(dbPath: string) {
       revenueSol: number;
       revenueUsd: number;
     }> => {
-      const groups = new Map<string, {
-        source: string;
-        total: number;
-        succeeded: number;
-        failed: number;
-        revenueSol: number;
-        revenueUsd: number;
-      }>();
+      const groups = new Map<
+        string,
+        {
+          source: string;
+          total: number;
+          succeeded: number;
+          failed: number;
+          revenueSol: number;
+          revenueUsd: number;
+        }
+      >();
 
       for (const row of Object.values(state.swarmJobs)) {
         if (row.executedAt < sinceIso) continue;
-        const current =
-          groups.get(row.source) ??
-          {
-            source: row.source,
-            total: 0,
-            succeeded: 0,
-            failed: 0,
-            revenueSol: 0,
-            revenueUsd: 0,
-          };
+        const current = groups.get(row.source) ?? {
+          source: row.source,
+          total: 0,
+          succeeded: 0,
+          failed: 0,
+          revenueSol: 0,
+          revenueUsd: 0,
+        };
 
         current.total += 1;
         if (row.status === 'executed') current.succeeded += 1;
@@ -875,33 +922,36 @@ export function openDb(dbPath: string) {
       persist();
     },
 
-    revenueLaneStatsSince: (sinceIso: string): Array<{
+    revenueLaneStatsSince: (
+      sinceIso: string
+    ): Array<{
       lane: string;
       kind: string;
       events: number;
       amountSol: number;
       amountUsd: number;
     }> => {
-      const groups = new Map<string, {
-        lane: string;
-        kind: string;
-        events: number;
-        amountSol: number;
-        amountUsd: number;
-      }>();
+      const groups = new Map<
+        string,
+        {
+          lane: string;
+          kind: string;
+          events: number;
+          amountSol: number;
+          amountUsd: number;
+        }
+      >();
 
       for (const row of Object.values(state.swarmRevenueEvents)) {
         if (row.createdAt < sinceIso) continue;
         const key = `${row.lane}::${row.kind}`;
-        const current =
-          groups.get(key) ??
-          {
-            lane: row.lane,
-            kind: row.kind,
-            events: 0,
-            amountSol: 0,
-            amountUsd: 0,
-          };
+        const current = groups.get(key) ?? {
+          lane: row.lane,
+          kind: row.kind,
+          events: 0,
+          amountSol: 0,
+          amountUsd: 0,
+        };
 
         current.events += 1;
         current.amountSol += row.amountSol;
@@ -916,7 +966,9 @@ export function openDb(dbPath: string) {
       });
     },
 
-    tickStatsSince: (sinceIso: string): {
+    tickStatsSince: (
+      sinceIso: string
+    ): {
       total: number;
       ok: number;
       error: number;
@@ -931,7 +983,10 @@ export function openDb(dbPath: string) {
       };
     },
 
-    actionStatsSince: (sinceIso: string, tool?: string): {
+    actionStatsSince: (
+      sinceIso: string,
+      tool?: string
+    ): {
       total: number;
       success: number;
       failed: number;
@@ -944,7 +999,9 @@ export function openDb(dbPath: string) {
       };
     },
 
-    ticksSince: (sinceIso: string): Array<{
+    ticksSince: (
+      sinceIso: string
+    ): Array<{
       id: string;
       startedAt: string;
       finishedAt: string | null;
@@ -957,7 +1014,10 @@ export function openDb(dbPath: string) {
       );
     },
 
-    actionsSince: (sinceIso: string, tool?: string): Array<{
+    actionsSince: (
+      sinceIso: string,
+      tool?: string
+    ): Array<{
       tickId: string;
       at: string;
       tool: string;
