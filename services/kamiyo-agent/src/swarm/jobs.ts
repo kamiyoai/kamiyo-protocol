@@ -61,7 +61,9 @@ type SourceAuth = {
   authHeader?: string;
 };
 
-export type SourceAuthMap = Partial<Record<'relevance' | 'agent_ai' | 'kore' | 'near_market', SourceAuth>>;
+export type SourceAuthMap = Partial<
+  Record<'relevance' | 'agent_ai' | 'kore' | 'near_market', SourceAuth>
+>;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
@@ -85,7 +87,13 @@ function asString(value: unknown): string | null {
 function normalizeMethod(value: unknown): HttpRequestConfig['method'] {
   if (typeof value !== 'string') return 'POST';
   const method = value.toUpperCase();
-  if (method === 'GET' || method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') {
+  if (
+    method === 'GET' ||
+    method === 'POST' ||
+    method === 'PUT' ||
+    method === 'PATCH' ||
+    method === 'DELETE'
+  ) {
     return method;
   }
   return 'POST';
@@ -131,7 +139,11 @@ function requestConfigForOpportunity(opportunity: SwarmOpportunity): HttpRequest
   return { method, headers, body };
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -152,7 +164,10 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
   }
 }
 
-function extractRevenueFromPayload(payload: unknown, solPriceUsd: number): { sol: number; usd: number } {
+export function extractRevenueFromPayload(
+  payload: unknown,
+  solPriceUsd: number
+): { sol: number; usd: number } {
   const root = asRecord(payload);
   if (!root) return { sol: 0, usd: 0 };
 
@@ -177,7 +192,12 @@ function extractRevenueFromPayload(payload: unknown, solPriceUsd: number): { sol
     (revenueSol > 0 ? revenueSol * solPriceUsd : 0);
 
   return {
-    sol: revenueSol > 0 ? revenueSol : revenueUsd > 0 && solPriceUsd > 0 ? revenueUsd / solPriceUsd : 0,
+    sol:
+      revenueSol > 0
+        ? revenueSol
+        : revenueUsd > 0 && solPriceUsd > 0
+          ? revenueUsd / solPriceUsd
+          : 0,
     usd: revenueUsd > 0 ? revenueUsd : revenueSol > 0 ? revenueSol * solPriceUsd : 0,
   };
 }
@@ -214,9 +234,17 @@ function parseX402Body(raw: unknown): {
   };
 }
 
-function sourceAuthHeaders(source: SwarmOpportunity['source'], auth: SourceAuthMap | undefined): Record<string, string> {
+function sourceAuthHeaders(
+  source: SwarmOpportunity['source'],
+  auth: SourceAuthMap | undefined
+): Record<string, string> {
   if (!auth) return {};
-  if (source !== 'relevance' && source !== 'agent_ai' && source !== 'kore' && source !== 'near_market') {
+  if (
+    source !== 'relevance' &&
+    source !== 'agent_ai' &&
+    source !== 'kore' &&
+    source !== 'near_market'
+  ) {
     return {};
   }
   const sourceAuth = auth[source];
@@ -264,9 +292,7 @@ function nearMarketJobIdFromStep(params: {
 }): string | null {
   const metadata = asRecord(params.opportunity.metadata);
   const nearMarket = asRecord(metadata?.nearMarket);
-  const explicit =
-    asString(nearMarket?.jobId) ??
-    asString(metadata?.rawId);
+  const explicit = asString(nearMarket?.jobId) ?? asString(metadata?.rawId);
   if (explicit) return explicit;
 
   try {
@@ -287,7 +313,8 @@ function nearMarketBidLimits(opportunity: SwarmOpportunity): {
   const nearMarket = asRecord(metadata?.nearMarket);
   const minBidNear = Math.max(0, asNumber(nearMarket?.minBidNear) ?? 0);
   const rawMaxBidNear = asNumber(nearMarket?.maxBidNear);
-  const maxBidNear = rawMaxBidNear != null && rawMaxBidNear > 0 ? rawMaxBidNear : Number.POSITIVE_INFINITY;
+  const maxBidNear =
+    rawMaxBidNear != null && rawMaxBidNear > 0 ? rawMaxBidNear : Number.POSITIVE_INFINITY;
   const budgetNear = asNumber(nearMarket?.budgetNear);
   return {
     minBidNear,
@@ -403,7 +430,11 @@ function parseMarketplaceActionStep(name: string, value: unknown): MarketplaceAc
   const record = asRecord(value);
   if (!record) return null;
 
-  const url = asString(record.url) ?? asString(record.endpoint) ?? asString(record.href) ?? asString(record.link);
+  const url =
+    asString(record.url) ??
+    asString(record.endpoint) ??
+    asString(record.href) ??
+    asString(record.link);
   if (!url) return null;
 
   return {
@@ -468,7 +499,7 @@ function marketplaceActionSteps(opportunity: SwarmOpportunity): MarketplaceActio
   return steps;
 }
 
-function expectedRevenueSol(
+export function expectedRevenueSol(
   opportunity: SwarmOpportunity,
   assignment: SwarmOpportunityAssignment,
   solPriceUsd: number
@@ -664,7 +695,11 @@ async function executeMarketplaceLifecycle(params: {
           ? params.expectedRevenueSol
           : 0;
   const realizedRevenueUsd =
-    revenue.usd > 0 ? revenue.usd : realizedRevenueSol > 0 ? realizedRevenueSol * params.solPriceUsd : 0;
+    revenue.usd > 0
+      ? revenue.usd
+      : realizedRevenueSol > 0
+        ? realizedRevenueSol * params.solPriceUsd
+        : 0;
 
   return {
     ...common,
@@ -919,19 +954,20 @@ export async function executeAssignedOpportunity(params: {
 
       const transactionId = `swarm-job-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const payment = createSignedPayment(params.signer, transactionId, opportunity.url, amountRaw);
-      const paymentHeader = createPaymentHeader(payment, params.signer, selectedRequirement.network);
+      const paymentHeader = createPaymentHeader(
+        payment,
+        params.signer,
+        selectedRequirement.network
+      );
 
       const paidResponse = await fetchWithTimeout(
         opportunity.url,
         {
           method: request.method,
-          headers: withPaymentHeaders(
-            paymentHeader,
-            {
-              ...sourceAuthHeaders(opportunity.source, params.sourceAuth),
-              ...request.headers,
-            }
-          ),
+          headers: withPaymentHeaders(paymentHeader, {
+            ...sourceAuthHeaders(opportunity.source, params.sourceAuth),
+            ...request.headers,
+          }),
           body: request.method === 'GET' ? undefined : request.body,
         },
         params.timeoutMs
@@ -956,12 +992,9 @@ export async function executeAssignedOpportunity(params: {
 
       const revenue = extractRevenueFromPayload(payload, params.solPriceUsd);
       const realizedRevenueSol =
-        revenue.sol > 0
-          ? revenue.sol
-          : opportunity.source === 'x402'
-            ? 0
-            : expectedRevenue ?? 0;
-      const realizedRevenueUsd = revenue.usd > 0 ? revenue.usd : realizedRevenueSol * params.solPriceUsd;
+        revenue.sol > 0 ? revenue.sol : opportunity.source === 'x402' ? 0 : (expectedRevenue ?? 0);
+      const realizedRevenueUsd =
+        revenue.usd > 0 ? revenue.usd : realizedRevenueSol * params.solPriceUsd;
 
       return {
         ...common,
@@ -993,12 +1026,9 @@ export async function executeAssignedOpportunity(params: {
 
     const revenue = extractRevenueFromPayload(payload, params.solPriceUsd);
     const realizedRevenueSol =
-      revenue.sol > 0
-        ? revenue.sol
-        : opportunity.source === 'x402'
-          ? 0
-          : expectedRevenue ?? 0;
-    const realizedRevenueUsd = revenue.usd > 0 ? revenue.usd : realizedRevenueSol * params.solPriceUsd;
+      revenue.sol > 0 ? revenue.sol : opportunity.source === 'x402' ? 0 : (expectedRevenue ?? 0);
+    const realizedRevenueUsd =
+      revenue.usd > 0 ? revenue.usd : realizedRevenueSol * params.solPriceUsd;
 
     return {
       ...common,

@@ -9,6 +9,7 @@ import {
   shouldResume,
   isPhaseCompleted,
   markPhaseCompleted,
+  TICK_PHASES,
 } from './checkpoint.js';
 import type { TickCheckpointState } from './checkpoint.js';
 
@@ -168,6 +169,54 @@ test('markPhaseCompleted does not duplicate phases', () => {
   cp = markPhaseCompleted(cp, 'policy_refresh');
 
   assert.equal(cp.completedPhases.length, 1);
+});
+
+test('crash-resume: process crash mid-tick preserves completed phases', () => {
+  // Shared KV simulates on-disk persistence that survives a crash
+  const kv = makeKv();
+
+  // ── Process 1: tick starts, completes 2 phases, then crashes ──
+  let cp = createCheckpoint('tick-crash', new Date().toISOString());
+  cp = markPhaseCompleted(cp, 'policy_refresh', { policies: 3 });
+  cp = markPhaseCompleted(cp, 'opportunity_collection', { found: 5 });
+  saveCheckpoint(kv, cp);
+  // Process crashes here — all in-memory state is lost, only KV survives
+
+  // ── Process 2: restarts, recovers from KV ──
+  const recovered = loadCheckpoint(kv);
+  assert.ok(recovered, 'checkpoint should survive crash');
+  assert.equal(shouldResume(recovered, 60_000), true);
+
+  // Completed phases are preserved
+  assert.equal(isPhaseCompleted(recovered, 'policy_refresh'), true);
+  assert.equal(isPhaseCompleted(recovered, 'opportunity_collection'), true);
+  assert.deepEqual(recovered.phaseOutputs.policy_refresh, { policies: 3 });
+  assert.deepEqual(recovered.phaseOutputs.opportunity_collection, { found: 5 });
+
+  // Remaining phases are NOT completed — these need re-execution
+  assert.equal(isPhaseCompleted(recovered, 'mission_planning'), false);
+  assert.equal(isPhaseCompleted(recovered, 'execution'), false);
+  assert.equal(isPhaseCompleted(recovered, 'settlement'), false);
+  assert.equal(isPhaseCompleted(recovered, 'housekeeping'), false);
+
+  // Continue tick from where it left off
+  let resumed = recovered;
+  for (const phase of TICK_PHASES) {
+    if (!isPhaseCompleted(resumed, phase)) {
+      resumed = markPhaseCompleted(resumed, phase);
+    }
+  }
+  assert.equal(resumed.completedPhases.length, TICK_PHASES.length);
+
+  // Clear after success
+  clearCheckpoint(kv, 'tick-crash');
+  assert.equal(loadCheckpoint(kv), null);
+});
+
+test('loadCheckpoint returns null for missing required fields', () => {
+  const kv = makeKv();
+  kv.kvSet('tick_checkpoint', JSON.stringify({ tickId: '', startedAt: 'x', completedPhases: [] }));
+  assert.equal(loadCheckpoint(kv), null); // empty tickId is rejected
 });
 
 test('full checkpoint lifecycle', () => {

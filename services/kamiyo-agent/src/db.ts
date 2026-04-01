@@ -897,6 +897,12 @@ export function openDb(dbPath: string) {
       return Array.from(groups.values()).sort((a, b) => a.source.localeCompare(b.source));
     },
 
+    hasFailedSwarmJob(opportunityId: string): boolean {
+      return Object.values(state.swarmJobs).some(
+        row => row.id.endsWith(`:${opportunityId}`) && row.status === 'failed'
+      );
+    },
+
     recordRevenueEvent: (params: {
       id: string;
       tickId: string;

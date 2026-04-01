@@ -32,6 +32,8 @@ import {
 } from './swarm/opportunities.js';
 import {
   executeAssignedOpportunity,
+  extractRevenueFromPayload,
+  expectedRevenueSol,
   type SourceAuthMap,
   type SwarmJobExecutionResult,
 } from './swarm/jobs.js';
@@ -1526,8 +1528,23 @@ export class KamiyoAgentRuntime {
         const lookbackIso = daysAgoIso(7);
         const sourceStats = this.db.swarmSourceStatsSince(lookbackIso);
         const sourceRow = sourceStats.find(s => s.source === opportunity.source);
-        const sourceReliability =
+        const rawSourceReliability =
           sourceRow && sourceRow.total > 0 ? sourceRow.succeeded / sourceRow.total : 0.5;
+
+        // Trusted operator sources get a reliability floor — bootstrap past the
+        // chicken-and-egg problem where new sources can never auto-approve.
+        const TRUSTED_SOURCE_FLOOR: Record<string, number> = {
+          direct: 0.85,
+          internal: 0.9,
+          x402: 0.8,
+          kore: 0.75,
+        };
+        const reliabilityFloor = TRUSTED_SOURCE_FLOOR[opportunity.source];
+        const sourceReliability =
+          reliabilityFloor != null
+            ? Math.max(rawSourceReliability, reliabilityFloor)
+            : rawSourceReliability;
+
         const agentStats = this.db.swarmJobStatsSince(lookbackIso);
         const agentRow = agentStats.find(a => a.agentId === agent.id);
         const agentSuccessRate =
@@ -1663,7 +1680,28 @@ export class KamiyoAgentRuntime {
           });
           this.db.addObservation(params.tickId, 'team-execution', teamResult);
 
-          // Map team result to standard execution result
+          // Map team result to standard execution result with revenue attribution
+          const executorOutput = teamResult.phases.find(p => p.role === 'executor')?.output;
+          const teamRevenue = extractRevenueFromPayload(
+            executorOutput,
+            this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+          );
+          const teamExpectedRev = expectedRevenueSol(
+            opportunity,
+            assignment,
+            this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+          );
+          const teamRevSol =
+            teamRevenue.sol > 0
+              ? teamRevenue.sol
+              : teamResult.finalStatus === 'executed' && teamExpectedRev != null
+                ? teamExpectedRev
+                : 0;
+          const teamRevUsd =
+            teamRevenue.usd > 0
+              ? teamRevenue.usd
+              : teamRevSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD;
+
           result = {
             status: teamResult.finalStatus,
             agentId: agent.id,
@@ -1671,9 +1709,9 @@ export class KamiyoAgentRuntime {
             source: opportunity.source,
             endpoint: opportunity.url,
             reason: teamResult.reason,
-            output: teamResult.phases.find(p => p.role === 'executor')?.output,
-            realizedRevenueSol: 0,
-            realizedRevenueUsd: 0,
+            output: executorOutput,
+            realizedRevenueSol: teamRevSol,
+            realizedRevenueUsd: teamRevUsd,
             paid: false,
           };
         } else {
@@ -1698,7 +1736,11 @@ export class KamiyoAgentRuntime {
       } else if (
         // ── Feature 6: Agentic Loop ──────────────────────────────
         this.runtimeEnv.KAMIYO_AGENTIC_LOOP_ENABLED &&
-        shouldUseAgenticLoop(opportunity.source, false, relevantMemories)
+        shouldUseAgenticLoop(
+          opportunity.source,
+          this.db.hasFailedSwarmJob(assignment.opportunityId),
+          relevantMemories
+        )
       ) {
         const loopResult = await runAgenticLoop(
           {
@@ -1724,7 +1766,27 @@ export class KamiyoAgentRuntime {
           },
         });
 
-        // Map agentic loop result to standard execution result
+        // Map agentic loop result to standard execution result with revenue
+        const loopRevenue = extractRevenueFromPayload(
+          loopResult.output,
+          this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+        );
+        const loopExpectedRev = expectedRevenueSol(
+          opportunity,
+          assignment,
+          this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD
+        );
+        const loopRevSol =
+          loopRevenue.sol > 0
+            ? loopRevenue.sol
+            : loopResult.finalStatus === 'executed' && loopExpectedRev != null
+              ? loopExpectedRev
+              : 0;
+        const loopRevUsd =
+          loopRevenue.usd > 0
+            ? loopRevenue.usd
+            : loopRevSol * this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD;
+
         result = {
           status: loopResult.finalStatus,
           agentId: agent.id,
@@ -1733,8 +1795,8 @@ export class KamiyoAgentRuntime {
           endpoint: opportunity.url,
           reason: loopResult.reason,
           output: loopResult.output,
-          realizedRevenueSol: 0,
-          realizedRevenueUsd: 0,
+          realizedRevenueSol: loopRevSol,
+          realizedRevenueUsd: loopRevUsd,
           paid: false,
         };
       } else {
