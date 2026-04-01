@@ -1,5 +1,5 @@
 [Unit]
-Description=Kamiyo Kamiyo Agent Assessment Bootstrap (1000 cycles)
+Description=KAMIYO Agent Assessment Bootstrap (1000 cycles)
 After=network-online.target
 Wants=network-online.target
 

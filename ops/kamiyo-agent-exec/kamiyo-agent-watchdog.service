@@ -1,5 +1,5 @@
 [Unit]
-Description=Kamiyo Kamiyo Agent Exec Watchdog
+Description=KAMIYO Agent Exec Watchdog
 After=network-online.target
 Wants=network-online.target
 

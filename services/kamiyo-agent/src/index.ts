@@ -8,7 +8,9 @@ import { KamiyoAgentServer } from './server.js';
 async function main(): Promise<void> {
   const serviceDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const lockPathRaw = env.KAMIYO_SINGLE_INSTANCE_LOCK_PATH ?? `${env.KAMIYO_DB_PATH}.lock`;
-  const lockPath = path.isAbsolute(lockPathRaw) ? lockPathRaw : path.resolve(serviceDir, lockPathRaw);
+  const lockPath = path.isAbsolute(lockPathRaw)
+    ? lockPathRaw
+    : path.resolve(serviceDir, lockPathRaw);
   const lock = env.KAMIYO_SINGLE_INSTANCE_LOCK_ENABLED
     ? new ProcessLock(lockPath, { service: 'kamiyo-agent-exec' })
     : null;
@@ -39,6 +41,8 @@ async function main(): Promise<void> {
           host: env.KAMIYO_AGENT_HTTP_HOST,
           port: env.KAMIYO_AGENT_HTTP_PORT,
           token: env.KAMIYO_AGENT_HTTP_TOKEN,
+          sseEnabled: env.KAMIYO_EVENTS_SSE_ENABLED,
+          eventBus: runtime.eventBus,
           getStatus: () => runtime.getStatus(),
           getMetrics: () => runtime.getMetrics(),
           enqueueIntakeJobs: payload => runtime.enqueueIntakeJobs(payload),
@@ -49,14 +53,27 @@ async function main(): Promise<void> {
 
     const shutdown = async (signal: string): Promise<void> => {
       try {
-        console.log(JSON.stringify({ ts: new Date().toISOString(), level: 'info', message: `received ${signal}, shutting down` }));
+        console.log(
+          JSON.stringify({
+            ts: new Date().toISOString(),
+            level: 'info',
+            message: `received ${signal}, shutting down`,
+          })
+        );
         if (server) await server.stop();
         await runtime.stop();
         releaseLock();
         process.exit(0);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: 'shutdown_failed', error: message }));
+        console.error(
+          JSON.stringify({
+            ts: new Date().toISOString(),
+            level: 'error',
+            message: 'shutdown_failed',
+            error: message,
+          })
+        );
         releaseLock();
         process.exit(1);
       }
@@ -71,13 +88,15 @@ async function main(): Promise<void> {
 
     if (server) {
       await server.start();
-      console.log(JSON.stringify({
-        ts: new Date().toISOString(),
-        level: 'info',
-        message: 'kamiyo_agent_http_started',
-        host: env.KAMIYO_AGENT_HTTP_HOST,
-        port: env.KAMIYO_AGENT_HTTP_PORT,
-      }));
+      console.log(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'info',
+          message: 'kamiyo_agent_http_started',
+          host: env.KAMIYO_AGENT_HTTP_HOST,
+          port: env.KAMIYO_AGENT_HTTP_PORT,
+        })
+      );
     }
 
     await runtime.start();
@@ -95,6 +114,13 @@ async function main(): Promise<void> {
 
 main().catch(error => {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(JSON.stringify({ ts: new Date().toISOString(), level: 'error', message: 'runtime_boot_failed', error: message }));
+  console.error(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: 'error',
+      message: 'runtime_boot_failed',
+      error: message,
+    })
+  );
   process.exit(1);
 });

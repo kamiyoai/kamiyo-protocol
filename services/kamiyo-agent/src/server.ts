@@ -1,11 +1,14 @@
 import express, { type Request, type Response } from 'express';
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { RuntimeStatus } from './state.js';
+import { type KamiyoAgentEventBus, formatSseEvent, formatSseHeartbeat } from './events.js';
 
 export type KamiyoAgentServerConfig = {
   host: string;
   port: number;
   token?: string;
+  sseEnabled?: boolean;
+  eventBus?: KamiyoAgentEventBus;
   getStatus: () => RuntimeStatus;
   getMetrics: () => string;
   enqueueIntakeJobs: (payload: unknown) => {
@@ -119,6 +122,41 @@ export class KamiyoAgentServer {
       }
       res.json(this.config.getEconomicsSnapshot());
     });
+
+    // ── SSE event stream ──────────────────────────────────────
+    if (this.config.sseEnabled && this.config.eventBus) {
+      const eventBus = this.config.eventBus;
+
+      this.app.get('/events', (req: Request, res: Response) => {
+        if (!isAuthorized(req, this.config.token)) {
+          res.status(401).json({ error: 'unauthorized' });
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        });
+
+        res.write(formatSseHeartbeat());
+
+        const listener = (event: { kind: string }) => {
+          res.write(formatSseEvent(event as Parameters<typeof formatSseEvent>[0]));
+        };
+        eventBus.onKamiyoAgent(listener);
+
+        const heartbeat = setInterval(() => {
+          res.write(formatSseHeartbeat());
+        }, 30_000);
+
+        req.on('close', () => {
+          clearInterval(heartbeat);
+          eventBus.removeListener('kamiyo-agent', listener);
+        });
+      });
+    }
   }
 
   async start(): Promise<void> {

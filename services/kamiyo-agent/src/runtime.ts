@@ -30,7 +30,11 @@ import {
   type SwarmOpportunityAssignment,
   type SwarmOpportunityIntake,
 } from './swarm/opportunities.js';
-import { executeAssignedOpportunity, type SourceAuthMap } from './swarm/jobs.js';
+import {
+  executeAssignedOpportunity,
+  type SourceAuthMap,
+  type SwarmJobExecutionResult,
+} from './swarm/jobs.js';
 import {
   parseMarginCircuitState,
   pruneMarginCircuitState,
@@ -71,6 +75,26 @@ import {
   withdrawNearMarketBid,
 } from './swarm/nearMarket.js';
 import { buildAutonomySloReport } from './swarm/slo.js';
+import {
+  createCheckpoint,
+  saveCheckpoint,
+  loadCheckpoint,
+  clearCheckpoint,
+  shouldResume,
+  isPhaseCompleted,
+  markPhaseCompleted,
+  type TickCheckpointState,
+} from './checkpoint.js';
+import { KamiyoAgentEventBus } from './events.js';
+import {
+  extractMemoriesFromResult,
+  getRelevantMemories,
+  pruneAgentMemories,
+  type AgentMemoryRow,
+} from './swarm/memory.js';
+import { classifyMandate } from './policy/mandate.js';
+import { runAgenticLoop, shouldUseAgenticLoop } from './swarm/agenticLoop.js';
+import { composeTeamForOpportunity, executeTeamMission } from './swarm/teams.js';
 import { checkBudget, applyBudget } from './policy/budget.js';
 import {
   buildExecutionPolicy,
@@ -402,6 +426,9 @@ export class KamiyoAgentRuntime {
   private lastPolicyReloadMs = 0;
   private lastStakingPeriodMaintenanceMs = 0;
 
+  readonly eventBus = new KamiyoAgentEventBus();
+  private agentMemories: AgentMemoryRow[] = [];
+
   constructor(runtimeEnv: Env = env) {
     this.runtimeEnv = runtimeEnv;
     this.executionPolicy = buildExecutionPolicy(runtimeEnv);
@@ -429,6 +456,16 @@ export class KamiyoAgentRuntime {
     this.status.mode = runtimeEnv.KAMIYO_MODE;
     this.status.selfImprove.enabled = runtimeEnv.KAMIYO_SELF_IMPROVE_ENABLED;
     this.applyExecutionPolicyToStatus();
+
+    // Load persisted agent memories
+    if (runtimeEnv.KAMIYO_AGENT_MEMORY_ENABLED) {
+      try {
+        const raw = this.db.kvGet('agent_memories');
+        if (raw) this.agentMemories = JSON.parse(raw);
+      } catch {
+        this.agentMemories = [];
+      }
+    }
 
     log('info', 'Kamiyo Agent runtime initialized', {
       mode: runtimeEnv.KAMIYO_MODE,
@@ -749,6 +786,14 @@ export class KamiyoAgentRuntime {
       this.status.lastTickStatus = 'error';
       this.status.lastError = message;
       log('error', 'Tick failed', { tickId, error: message });
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'tick:error',
+          tickId,
+          at: new Date().toISOString(),
+          payload: { error: message },
+        });
+      }
     } finally {
       this.status.lastTickFinishedAt = new Date().toISOString();
       this.status.running = false;
@@ -759,7 +804,40 @@ export class KamiyoAgentRuntime {
   private async runTick(tickId: string): Promise<void> {
     const nowIso = new Date().toISOString();
     const dayStartIso = startOfUtcDayIso();
-    this.maybeRefreshExecutionPolicy({ tickId, nowIso });
+
+    // ── Feature 2: Checkpoint/Resume ────────────────────────────
+    let checkpoint: TickCheckpointState | null = null;
+    if (this.runtimeEnv.KAMIYO_TICK_CHECKPOINT_ENABLED) {
+      const existing = loadCheckpoint(this.db);
+      if (existing && shouldResume(existing, this.runtimeEnv.KAMIYO_TICK_CHECKPOINT_MAX_STALE_MS)) {
+        checkpoint = existing;
+        log('info', 'Resuming tick from checkpoint', {
+          tickId: existing.tickId,
+          completedPhases: existing.completedPhases,
+        });
+      } else {
+        checkpoint = createCheckpoint(tickId, nowIso);
+        saveCheckpoint(this.db, checkpoint);
+      }
+    }
+
+    // ── Feature 3: Streaming Events ─────────────────────────────
+    if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+      this.eventBus.emitKamiyoAgent({
+        kind: 'tick:start',
+        tickId,
+        at: nowIso,
+        payload: { mode: this.runtimeEnv.KAMIYO_MODE },
+      });
+    }
+
+    if (!isPhaseCompleted(checkpoint, 'policy_refresh')) {
+      this.maybeRefreshExecutionPolicy({ tickId, nowIso });
+      if (checkpoint) {
+        checkpoint = markPhaseCompleted(checkpoint, 'policy_refresh');
+        saveCheckpoint(this.db, checkpoint);
+      }
+    }
     const effectiveSelfImprove = this.getEffectiveSelfImproveSnapshot();
 
     let budget = this.calculateBudgetState(dayStartIso);
@@ -797,7 +875,9 @@ export class KamiyoAgentRuntime {
       },
     };
 
-    const registryResult = loadSwarmRegistry(resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH));
+    const registryResult = loadSwarmRegistry(
+      resolvePath(this.runtimeEnv.KAMIYO_SWARM_REGISTRY_PATH)
+    );
     const swarmRegistry = registryResult.ok ? registryResult.registry : null;
     let swarmOpportunityIntake: SwarmOpportunityIntake | null = null;
 
@@ -909,6 +989,26 @@ export class KamiyoAgentRuntime {
         this.db.addObservation(tickId, 'swarm-opportunity-intake', swarmOpportunityIntake);
       }
 
+      // Checkpoint: opportunity_collection complete
+      if (checkpoint) {
+        checkpoint = markPhaseCompleted(checkpoint, 'opportunity_collection', {
+          opportunities: swarmOpportunityIntake?.opportunities.length ?? 0,
+        });
+        saveCheckpoint(this.db, checkpoint);
+      }
+      // Event: opportunities collected
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED && swarmOpportunityIntake) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'swarm:opportunities',
+          tickId,
+          at: new Date().toISOString(),
+          payload: {
+            count: swarmOpportunityIntake.opportunities.length,
+            assigned: swarmOpportunityIntake.assignments.length,
+          },
+        });
+      }
+
       const cursorKey = 'swarm_mission_cursor';
       const cursor = Number.parseInt(this.db.kvGet(cursorKey) ?? '0', 10) || 0;
       const priorityState = parsePriorityState(this.db.kvGet('swarm_priority_state'));
@@ -937,6 +1037,23 @@ export class KamiyoAgentRuntime {
         }
       );
       this.db.addAction(tickId, 'swarm_plan_missions', {}, { missionPlanReceipt, missionPlan });
+
+      // Checkpoint: mission_planning complete
+      if (checkpoint) {
+        checkpoint = markPhaseCompleted(checkpoint, 'mission_planning', {
+          missions: missionPlan.missions.length,
+        });
+        saveCheckpoint(this.db, checkpoint);
+      }
+      // Event: missions planned
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'swarm:missions',
+          tickId,
+          at: new Date().toISOString(),
+          payload: { count: missionPlan.missions.length },
+        });
+      }
 
       this.status.swarm.enabled = true;
       this.status.swarm.opportunitiesLastTick = swarmOpportunityIntake?.opportunities.length ?? 0;
@@ -978,6 +1095,16 @@ export class KamiyoAgentRuntime {
         this.db.addObservation(tickId, 'swarm-performance', performance);
 
         await this.maybeEvaluateRollback({ tickId, nowIso });
+
+        // Checkpoint: execution complete
+        if (checkpoint) {
+          checkpoint = markPhaseCompleted(checkpoint, 'execution', {
+            executed: executionResult.executed,
+            failed: executionResult.failed,
+            skipped: executionResult.skipped,
+          });
+          saveCheckpoint(this.db, checkpoint);
+        }
       }
 
       if (this.runtimeEnv.KAMIYO_MODE === 'execute') {
@@ -1050,6 +1177,21 @@ export class KamiyoAgentRuntime {
       await this.maybeProcessNearMarketSubmissions({ tickId, nowIso });
       await this.maybeCollectNearMarketSettlements({ tickId, nowIso });
       budget = await this.maybeSettleRevenuePolicy({ tickId, dayStartIso, nowIso, budget });
+
+      // Checkpoint: settlement complete
+      if (checkpoint) {
+        checkpoint = markPhaseCompleted(checkpoint, 'settlement');
+        saveCheckpoint(this.db, checkpoint);
+      }
+      // Event: settlement complete
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'tick:settlement',
+          tickId,
+          at: new Date().toISOString(),
+          payload: { spentTodaySol: budget.spentTodaySol, txToday: budget.txToday },
+        });
+      }
     }
 
     await this.maybeRunRetention({ tickId, nowIso });
@@ -1080,6 +1222,28 @@ export class KamiyoAgentRuntime {
       selfImprove: this.status.selfImprove,
     };
 
+    // ── Feature 4: Agent Memory — housekeeping prune ──────────
+    if (this.runtimeEnv.KAMIYO_AGENT_MEMORY_ENABLED && swarmRegistry) {
+      for (const agent of swarmRegistry.agents) {
+        const { kept, pruned } = pruneAgentMemories(
+          this.agentMemories,
+          agent.id,
+          this.runtimeEnv.KAMIYO_AGENT_MEMORY_MAX_PER_TYPE
+        );
+        if (pruned > 0) {
+          this.agentMemories = kept;
+          log('info', 'Pruned agent memories', { agentId: agent.id, pruned });
+        }
+      }
+      this.db.kvSet('agent_memories', JSON.stringify(this.agentMemories));
+    }
+
+    // Checkpoint: housekeeping complete → clear checkpoint
+    if (checkpoint) {
+      checkpoint = markPhaseCompleted(checkpoint, 'housekeeping');
+      clearCheckpoint(this.db, checkpoint.tickId);
+    }
+
     this.db.addObservation(tickId, 'snapshot', observation);
     log('info', 'Tick complete', {
       tickId,
@@ -1088,6 +1252,20 @@ export class KamiyoAgentRuntime {
       swarmExecuted: this.status.swarm.executedLastTick,
       swarmFailed: this.status.swarm.failedLastTick,
     });
+
+    // Event: tick complete
+    if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+      this.eventBus.emitKamiyoAgent({
+        kind: 'tick:complete',
+        tickId,
+        at: new Date().toISOString(),
+        payload: {
+          executed: this.status.swarm.executedLastTick,
+          failed: this.status.swarm.failedLastTick,
+          netRevenueSol: revenueNetToday.netSol,
+        },
+      });
+    }
   }
 
   private async executeSwarmJobs(params: {
@@ -1343,27 +1521,242 @@ export class KamiyoAgentRuntime {
         continue;
       }
 
+      // ── Feature 5: Mandate Classification ────────────────────
+      if (this.runtimeEnv.KAMIYO_MANDATE_CLASSIFICATION_ENABLED) {
+        const lookbackIso = daysAgoIso(7);
+        const sourceStats = this.db.swarmSourceStatsSince(lookbackIso);
+        const sourceRow = sourceStats.find(s => s.source === opportunity.source);
+        const sourceReliability =
+          sourceRow && sourceRow.total > 0 ? sourceRow.succeeded / sourceRow.total : 0.5;
+        const agentStats = this.db.swarmJobStatsSince(lookbackIso);
+        const agentRow = agentStats.find(a => a.agentId === agent.id);
+        const agentSuccessRate =
+          agentRow && agentRow.total > 0 ? agentRow.succeeded / agentRow.total : 0.5;
+
+        const mandate = classifyMandate({
+          estimatedCostSol: estimatedSpendSol,
+          dailyCapSol: this.executionPolicy.dailyCapSol,
+          sourceReliability,
+          agentSuccessRate,
+          sourceDisabledByRollback: rollbackStatus.disabled,
+          agentPaused: false,
+        });
+
+        if (mandate.tier === 'deny') {
+          skipped += 1;
+          this.db.recordSwarmJob({
+            id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
+            agentId: agent.id,
+            source: opportunity.source,
+            status: 'skipped',
+            url: opportunity.url,
+            paid: false,
+            revenueSol: 0,
+            revenueUsd: 0,
+            error: `mandate_denied: ${mandate.reason}`,
+            metadata: { reason: 'mandate_denied', mandate },
+          });
+          runtimeMetrics.push(metric);
+          continue;
+        }
+
+        if (mandate.tier === 'require_approval') {
+          skipped += 1;
+          this.db.recordSwarmJob({
+            id: `${params.tickId}:${agent.id}:${assignment.opportunityId}`,
+            agentId: agent.id,
+            source: opportunity.source,
+            status: 'skipped',
+            url: opportunity.url,
+            paid: false,
+            revenueSol: 0,
+            revenueUsd: 0,
+            error: `mandate_requires_approval: ${mandate.reason}`,
+            metadata: { reason: 'mandate_requires_approval', mandate },
+          });
+          log('warn', 'Job requires approval — skipping', {
+            agentId: agent.id,
+            source: opportunity.source,
+            mandate,
+          });
+          runtimeMetrics.push(metric);
+          continue;
+        }
+
+        // verify_first and auto_approve proceed to execution
+        this.db.addObservation(params.tickId, 'mandate-classification', {
+          agentId: agent.id,
+          opportunityId: assignment.opportunityId,
+          mandate,
+        });
+      }
+
+      // ── Feature 3: Streaming event — executing ────────────────
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'swarm:executing',
+          tickId: params.tickId,
+          at: new Date().toISOString(),
+          agentId: agent.id,
+          payload: { source: opportunity.source, opportunityId: assignment.opportunityId },
+        });
+      }
+
+      // ── Feature 4: Agent Memory — retrieve relevant memories ──
+      const relevantMemories = this.runtimeEnv.KAMIYO_AGENT_MEMORY_ENABLED
+        ? getRelevantMemories(
+            this.agentMemories,
+            agent.id,
+            opportunity.source,
+            this.runtimeEnv.KAMIYO_AGENT_MEMORY_INJECTION_LIMIT
+          )
+        : [];
+
       const agentSigner = agent.claimerKeypairPath
         ? (loadOptionalKeypair({ keypairPath: agent.claimerKeypairPath })?.keypair ??
           this.operatorKeypair)
         : this.operatorKeypair;
 
-      const result = await executeAssignedOpportunity({
-        agentId: agent.id,
-        opportunity,
-        assignment,
-        signer: agentSigner,
-        timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
-        solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
-        minMarginSol: params.effectiveMinMarginSol,
-        estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
-        requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
-        sourceAuth,
-        x402Enabled: this.runtimeEnv.KAMIYO_SWARM_X402_ENABLED,
-        x402MaxPriceUsd: this.runtimeEnv.KAMIYO_SWARM_X402_MAX_PRICE_USD,
-        x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
-        x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
-      });
+      // ── Feature 7: Agent Teams ────────────────────────────────
+      let result: SwarmJobExecutionResult;
+
+      if (
+        this.runtimeEnv.KAMIYO_AGENT_TEAMS_ENABLED &&
+        params.registry.agents.filter(a => a.status === 'active').length >= 2
+      ) {
+        const team = composeTeamForOpportunity({
+          registry: params.registry,
+          opportunityId: assignment.opportunityId,
+          source: opportunity.source,
+          requireScout: this.runtimeEnv.KAMIYO_AGENT_TEAMS_REQUIRE_SCOUT,
+          requireVerifier: this.runtimeEnv.KAMIYO_AGENT_TEAMS_REQUIRE_VERIFIER,
+          preferredExecutorId: agent.id,
+        });
+
+        if (team.roles.executor && team.sequenceOrder.length > 1) {
+          const teamResult = await executeTeamMission(team, async (role, phaseAgentId) => {
+            const phaseResult = await executeAssignedOpportunity({
+              agentId: phaseAgentId,
+              opportunity,
+              assignment,
+              signer: agentSigner,
+              timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+              solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+              minMarginSol: params.effectiveMinMarginSol,
+              estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
+              requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
+              sourceAuth,
+              x402Enabled: this.runtimeEnv.KAMIYO_SWARM_X402_ENABLED,
+              x402MaxPriceUsd: this.runtimeEnv.KAMIYO_SWARM_X402_MAX_PRICE_USD,
+              x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
+              x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
+            });
+            return {
+              status: phaseResult.status,
+              gateDecision: (role === 'scout'
+                ? phaseResult.status === 'executed'
+                  ? 'proceed'
+                  : 'abort'
+                : undefined) as 'proceed' | 'abort' | undefined,
+              output: phaseResult.output,
+            };
+          });
+          this.db.addObservation(params.tickId, 'team-execution', teamResult);
+
+          // Map team result to standard execution result
+          result = {
+            status: teamResult.finalStatus,
+            agentId: agent.id,
+            opportunityId: assignment.opportunityId,
+            source: opportunity.source,
+            endpoint: opportunity.url,
+            reason: teamResult.reason,
+            output: teamResult.phases.find(p => p.role === 'executor')?.output,
+            realizedRevenueSol: 0,
+            realizedRevenueUsd: 0,
+            paid: false,
+          };
+        } else {
+          // Not enough agents for a meaningful team, fallback to direct
+          result = await executeAssignedOpportunity({
+            agentId: agent.id,
+            opportunity,
+            assignment,
+            signer: agentSigner,
+            timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+            solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+            minMarginSol: params.effectiveMinMarginSol,
+            estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
+            requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
+            sourceAuth,
+            x402Enabled: this.runtimeEnv.KAMIYO_SWARM_X402_ENABLED,
+            x402MaxPriceUsd: this.runtimeEnv.KAMIYO_SWARM_X402_MAX_PRICE_USD,
+            x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
+            x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
+          });
+        }
+      } else if (
+        // ── Feature 6: Agentic Loop ──────────────────────────────
+        this.runtimeEnv.KAMIYO_AGENTIC_LOOP_ENABLED &&
+        shouldUseAgenticLoop(opportunity.source, false, relevantMemories)
+      ) {
+        const loopResult = await runAgenticLoop(
+          {
+            maxTurns: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_TURNS,
+            totalBudgetSol: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_BUDGET_SOL,
+            timeoutMs: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_TIMEOUT_MS,
+          },
+          {
+            id: assignment.opportunityId,
+            source: opportunity.source,
+            title: opportunity.title,
+            url: opportunity.url ?? '',
+          },
+          relevantMemories
+        );
+        this.db.addObservation(params.tickId, 'agentic-loop', {
+          agentId: agent.id,
+          opportunityId: assignment.opportunityId,
+          loopResult: {
+            totalTurns: loopResult.totalTurns,
+            finalStatus: loopResult.finalStatus,
+            reason: loopResult.reason,
+          },
+        });
+
+        // Map agentic loop result to standard execution result
+        result = {
+          status: loopResult.finalStatus,
+          agentId: agent.id,
+          opportunityId: assignment.opportunityId,
+          source: opportunity.source,
+          endpoint: opportunity.url,
+          reason: loopResult.reason,
+          output: loopResult.output,
+          realizedRevenueSol: 0,
+          realizedRevenueUsd: 0,
+          paid: false,
+        };
+      } else {
+        // Default execution path
+        result = await executeAssignedOpportunity({
+          agentId: agent.id,
+          opportunity,
+          assignment,
+          signer: agentSigner,
+          timeoutMs: this.runtimeEnv.KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS,
+          solPriceUsd: this.runtimeEnv.KAMIYO_SWARM_SOL_PRICE_USD,
+          minMarginSol: params.effectiveMinMarginSol,
+          estimatedFeeSol: this.runtimeEnv.KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL,
+          requireExpectedRevenue: this.runtimeEnv.KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD,
+          sourceAuth,
+          x402Enabled: this.runtimeEnv.KAMIYO_SWARM_X402_ENABLED,
+          x402MaxPriceUsd: this.runtimeEnv.KAMIYO_SWARM_X402_MAX_PRICE_USD,
+          x402PreferredNetwork: this.runtimeEnv.KAMIYO_SWARM_X402_PREFERRED_NETWORK,
+          x402FacilitatorPolicy: this.runtimeEnv.KAMIYO_SWARM_X402_FACILITATOR_POLICY,
+        });
+      }
+
       const normalizedResult =
         opportunity.source === 'near_market' &&
         result.status === 'failed' &&
@@ -1514,6 +1907,41 @@ export class KamiyoAgentRuntime {
           cooldownMinutes: this.runtimeEnv.KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES,
         });
         marginCircuitState = circuitUpdate.state;
+      }
+
+      // ── Feature 4: Agent Memory — extract memories from result ─
+      if (this.runtimeEnv.KAMIYO_AGENT_MEMORY_ENABLED) {
+        const newMemories = extractMemoriesFromResult({
+          agentId: agent.id,
+          source: opportunity.source,
+          status: normalizedResult.status,
+          revenueSol: normalizedResult.realizedRevenueSol,
+          revenueUsd: normalizedResult.realizedRevenueUsd,
+          error: normalizedResult.error ?? normalizedResult.reason,
+          url: normalizedResult.endpoint,
+          executedAt: new Date().toISOString(),
+        });
+        for (const mem of newMemories) {
+          this.agentMemories.push({
+            ...mem,
+            id: `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          });
+        }
+      }
+
+      // ── Feature 3: Streaming event — result ───────────────────
+      if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED) {
+        this.eventBus.emitKamiyoAgent({
+          kind: 'swarm:result',
+          tickId: params.tickId,
+          at: new Date().toISOString(),
+          agentId: agent.id,
+          payload: {
+            source: opportunity.source,
+            status: normalizedResult.status,
+            revenueSol: normalizedResult.realizedRevenueSol,
+          },
+        });
       }
 
       if (normalizedResult.status === 'executed') executed += 1;
@@ -2731,7 +3159,12 @@ export class KamiyoAgentRuntime {
         claims,
       }
     );
-    this.db.addAction(params.tickId, 'write_kamiyo_agent_staking_claim_receipt', {}, { receiptPath });
+    this.db.addAction(
+      params.tickId,
+      'write_kamiyo_agent_staking_claim_receipt',
+      {},
+      { receiptPath }
+    );
 
     const claimSol = lamportsToSol(claimableLamports);
     this.db.recordRevenueEvent({

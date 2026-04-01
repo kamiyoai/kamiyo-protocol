@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Kamiyo Kamiyo Agent Exec Watchdog every 2 minutes
+Description=Run KAMIYO Agent Exec Watchdog every 2 minutes
 
 [Timer]
 OnBootSec=2min
