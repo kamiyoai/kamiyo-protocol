@@ -13,6 +13,7 @@
     "test:watch": "tsx --test --watch src/**/*.test.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.77.0",
     "@kamiyo/x402-client": "workspace:*",
     "@meteora-ag/dynamic-fee-sharing-sdk": "^1.0.6",
     "@solana/web3.js": "^1.98.0",

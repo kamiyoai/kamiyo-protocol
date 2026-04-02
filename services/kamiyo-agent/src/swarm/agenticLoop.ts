@@ -5,8 +5,8 @@
  * Agents can recover from failures within a single job by retrying with
  * modifications, verifying results, and making decisions.
  *
- * Inspired by Claude Code's QueryEngine pattern: bounded turns,
- * budget tracking, and graceful degradation.
+ * When KAMIYO_AGENTIC_LOOP_API_KEY is configured, delegates tool
+ * selection to Claude. Falls back to deterministic loop on LLM failure.
  *
  * @module swarm/agenticLoop
  */
@@ -19,12 +19,25 @@ import {
   getToolDefinitions,
   type AgenticToolResult,
 } from './agenticTools.js';
+import { runAgenticLoopLlm, LlmFallbackError, type LlmLoopConfig } from './agenticLoopLlm.js';
+
+export type AgenticLoopLlmConfig = {
+  apiKey: string;
+  model: string;
+  maxTokens: number;
+  maxCostUsd: number;
+  llmTimeoutMs: number;
+  onTurn?: LlmLoopConfig['onTurn'];
+  onUsage?: LlmLoopConfig['onUsage'];
+  clientFactory?: LlmLoopConfig['clientFactory'];
+};
 
 export type AgenticLoopConfig = {
   maxTurns: number;
   totalBudgetSol: number;
   timeoutMs: number;
   fetchFn?: typeof globalThis.fetch;
+  llm?: AgenticLoopLlmConfig;
 };
 
 export type AgenticTurn = {
@@ -58,17 +71,56 @@ export type AgenticOpportunity = {
 /**
  * Run a bounded agentic loop for a single opportunity.
  *
- * The loop follows a simple strategy:
- * 1. Execute HTTP request to the opportunity endpoint
- * 2. Verify the result quality
- * 3. If verification fails and turns remain, retry with modifications
- * 4. Report final outcome
- *
- * This is a deterministic loop (not LLM-driven) for the initial
- * implementation — upgradeable to LLM-driven tool selection later
- * when KAMIYO_AGENTIC_LOOP_API_KEY is provided.
+ * If `config.llm` is set, delegates to the LLM-driven loop.
+ * Falls back to the deterministic loop on any LLM failure.
  */
 export async function runAgenticLoop(
+  config: AgenticLoopConfig,
+  opportunity: AgenticOpportunity,
+  memories?: AgentMemoryRow[]
+): Promise<AgenticLoopResult> {
+  if (config.llm) {
+    try {
+      return await runAgenticLoopLlm(
+        {
+          maxTurns: config.maxTurns,
+          totalBudgetSol: config.totalBudgetSol,
+          timeoutMs: config.timeoutMs,
+          fetchFn: config.fetchFn,
+          apiKey: config.llm.apiKey,
+          model: config.llm.model,
+          maxTokens: config.llm.maxTokens,
+          maxCostUsd: config.llm.maxCostUsd,
+          llmTimeoutMs: config.llm.llmTimeoutMs,
+          onTurn: config.llm.onTurn,
+          onUsage: config.llm.onUsage,
+          clientFactory: config.llm.clientFactory,
+        },
+        opportunity,
+        memories
+      );
+    } catch (err) {
+      if (err instanceof LlmFallbackError) {
+        console.warn(`[agenticLoop] LLM fallback: ${err.message}`);
+      } else {
+        console.warn(
+          `[agenticLoop] LLM error, falling back: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+      // Fall through to deterministic loop
+    }
+  }
+
+  return runDeterministicLoop(config, opportunity, memories);
+}
+
+// ── Deterministic Loop ─────────────────────────────────────────────────
+
+/**
+ * Deterministic loop: execute HTTP request → verify → retry.
+ * No LLM reasoning — strategy is hardcoded.
+ */
+async function runDeterministicLoop(
   config: AgenticLoopConfig,
   opportunity: AgenticOpportunity,
   memories?: AgentMemoryRow[]

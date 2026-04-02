@@ -340,6 +340,11 @@ const envSchema = z.object({
   KAMIYO_AGENTIC_LOOP_MAX_TURNS: z.coerce.number().int().positive().default(3),
   KAMIYO_AGENTIC_LOOP_BUDGET_SOL: z.coerce.number().positive().default(0.005),
   KAMIYO_AGENTIC_LOOP_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  KAMIYO_AGENTIC_LOOP_API_KEY: optionalNonEmptyString,
+  KAMIYO_AGENTIC_LOOP_MODEL: z.string().default('claude-sonnet-4-20250514'),
+  KAMIYO_AGENTIC_LOOP_MAX_TOKENS: z.coerce.number().int().positive().default(4096),
+  KAMIYO_AGENTIC_LOOP_MAX_COST_USD: z.coerce.number().positive().default(0.05),
+  KAMIYO_AGENTIC_LOOP_LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(45_000),
   KAMIYO_AGENT_TEAMS_ENABLED: z
     .enum(['true', 'false'])
     .default('false')

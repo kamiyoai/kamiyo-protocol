@@ -2192,6 +2192,9 @@ importers:
 
   services/kamiyo-agent:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.77.0
+        version: 0.77.0(zod@3.25.76)
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../../packages/kamiyo-x402-client

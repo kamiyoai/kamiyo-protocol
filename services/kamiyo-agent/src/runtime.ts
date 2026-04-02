@@ -1747,6 +1747,36 @@ export class KamiyoAgentRuntime {
             maxTurns: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_TURNS,
             totalBudgetSol: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_BUDGET_SOL,
             timeoutMs: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_TIMEOUT_MS,
+            llm: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_API_KEY
+              ? {
+                  apiKey: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_API_KEY,
+                  model: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MODEL,
+                  maxTokens: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_TOKENS,
+                  maxCostUsd: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_COST_USD,
+                  llmTimeoutMs: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_LLM_TIMEOUT_MS,
+                  onTurn: (turn, reasoning) => {
+                    if (this.runtimeEnv.KAMIYO_STREAMING_EVENTS_ENABLED && this.eventBus) {
+                      this.eventBus.emitKamiyoAgent({
+                        kind: 'swarm:executing',
+                        tickId: params.tickId,
+                        at: new Date().toISOString(),
+                        agentId: agent.id,
+                        payload: {
+                          phase: 'agentic_llm_turn',
+                          turnNumber: turn.turnNumber,
+                          toolName: turn.toolName,
+                          success: turn.toolResult.success,
+                          durationMs: turn.durationMs,
+                          reasoning: reasoning?.slice(0, 200),
+                        },
+                      });
+                    }
+                  },
+                  onUsage: (model, usage) => {
+                    this.db.addUsage(params.tickId, model, usage);
+                  },
+                }
+              : undefined,
           },
           {
             id: assignment.opportunityId,
