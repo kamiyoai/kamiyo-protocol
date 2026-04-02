@@ -2,8 +2,49 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Keypair } from '@solana/web3.js';
 
-import { executeAssignedOpportunity } from './jobs.js';
+import { buildOpportunityRequest, executeAssignedOpportunity } from './jobs.js';
 import type { SwarmOpportunity, SwarmOpportunityAssignment } from './opportunities.js';
+
+test('buildOpportunityRequest preserves metadata request and source auth headers', () => {
+  const opportunity: SwarmOpportunity = {
+    id: 'direct-job-1',
+    source: 'relevance',
+    title: 'Direct opportunity',
+    summary: 'Execute a direct API task',
+    url: 'https://api.example.com/jobs/direct-job-1',
+    confidence: 0.7,
+    roleHints: ['execution'],
+    tags: ['relevance'],
+    payoutUsd: 1,
+    payoutSolEstimate: 0.01,
+    createdAt: new Date().toISOString(),
+    metadata: {
+      executionMode: 'api',
+      request: {
+        method: 'PATCH',
+        headers: {
+          'x-request-id': 'req-1',
+        },
+        body: {
+          accepted: true,
+        },
+      },
+    },
+  };
+
+  const request = buildOpportunityRequest(opportunity, {
+    relevance: {
+      apiKey: 'test-key',
+      authHeader: 'authorization',
+    },
+  });
+
+  assert.equal(request.method, 'PATCH');
+  assert.equal(request.headers.authorization, 'Bearer test-key');
+  assert.equal(request.headers['x-request-id'], 'req-1');
+  assert.equal(request.headers['Content-Type'], 'application/json');
+  assert.equal(request.body, JSON.stringify({ accepted: true }));
+});
 
 test('near market deferred settlement does not book revenue on bid execution', async () => {
   const originalFetch = globalThis.fetch;
@@ -96,11 +137,7 @@ test('near market apply undercuts live minimum bid within configured bounds', as
 
   globalThis.fetch = async (input, init) => {
     const url =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const method = (init?.method ?? 'GET').toString().toUpperCase();
 
     if (url === 'https://market.near.ai/v1/jobs/near-job-2/bids' && method === 'GET') {
@@ -213,11 +250,7 @@ test('near market competition entries do not run bid undercut probing', async ()
 
   globalThis.fetch = async (input, init) => {
     const url =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const method = (init?.method ?? 'GET').toString().toUpperCase();
 
     if (url === 'https://market.near.ai/v1/jobs/near-comp-2/bids' && method === 'GET') {

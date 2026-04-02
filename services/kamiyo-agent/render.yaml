@@ -191,6 +191,50 @@ services:
         value: "0.0002"
       - key: KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK
         value: "4"
+      - key: KAMIYO_INSIGHT_EXTRACTION_ENABLED
+        value: "false"
+      - key: KAMIYO_TICK_CHECKPOINT_ENABLED
+        value: "false"
+      - key: KAMIYO_TICK_CHECKPOINT_MAX_STALE_MS
+        value: "600000"
+      - key: KAMIYO_STREAMING_EVENTS_ENABLED
+        value: "false"
+      - key: KAMIYO_EVENTS_SSE_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_MEMORY_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_MEMORY_MAX_PER_TYPE
+        value: "20"
+      - key: KAMIYO_AGENT_MEMORY_INJECTION_LIMIT
+        value: "5"
+      - key: KAMIYO_MANDATE_CLASSIFICATION_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENTIC_LOOP_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENTIC_LOOP_MAX_TURNS
+        value: "3"
+      - key: KAMIYO_AGENTIC_LOOP_BUDGET_SOL
+        value: "0.005"
+      - key: KAMIYO_AGENTIC_LOOP_TIMEOUT_MS
+        value: "30000"
+      - key: KAMIYO_AGENTIC_LOOP_API_KEY
+        sync: false
+      - key: KAMIYO_AGENTIC_LOOP_BASE_URL
+        value: ""
+      - key: KAMIYO_AGENTIC_LOOP_MODEL
+        value: gpt-4o-mini
+      - key: KAMIYO_AGENTIC_LOOP_MAX_TOKENS
+        value: "4096"
+      - key: KAMIYO_AGENTIC_LOOP_MAX_COST_USD
+        value: "0.05"
+      - key: KAMIYO_AGENTIC_LOOP_LLM_TIMEOUT_MS
+        value: "45000"
+      - key: KAMIYO_AGENT_TEAMS_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_TEAMS_REQUIRE_SCOUT
+        value: "false"
+      - key: KAMIYO_AGENT_TEAMS_REQUIRE_VERIFIER
+        value: "false"
 
       - key: KAMIYO_FEE_VAULT
         sync: false

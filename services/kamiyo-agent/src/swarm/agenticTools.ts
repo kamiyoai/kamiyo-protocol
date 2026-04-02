@@ -63,7 +63,11 @@ export async function executeHttpRequest(
 ): Promise<AgenticToolResult> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), input.timeoutMs ?? 20_000);
+    const timeoutMs =
+      typeof input.timeoutMs === 'number' && Number.isFinite(input.timeoutMs)
+        ? Math.max(1, input.timeoutMs)
+        : 20_000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetchFn(input.url, {
       method: input.method,

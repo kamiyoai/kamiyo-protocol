@@ -213,6 +213,43 @@ test('LLM loop: overall timeout exceeded', async () => {
   assert.equal(result.reason, 'timeout_exceeded');
 });
 
+test('LLM loop: late model responses do not execute tool calls after timeout', async () => {
+  let fetchCalls = 0;
+  const slowClient = () => {
+    return {
+      chat: {
+        completions: {
+          create: async () => {
+            await new Promise(res => setTimeout(res, 30));
+            return makeCompletion(null, [
+              makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' }),
+            ]);
+          },
+        },
+      },
+    } as unknown as OpenAI;
+  };
+
+  const result = await runAgenticLoopLlm(
+    makeLlmConfig({
+      timeoutMs: 20,
+      fetchFn: async () => {
+        fetchCalls += 1;
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+      clientFactory: () => slowClient(),
+    }),
+    makeOpportunity()
+  );
+
+  assert.equal(result.finalStatus, 'failed');
+  assert.equal(result.reason, 'timeout_exceeded');
+  assert.equal(fetchCalls, 0);
+});
+
 test('LLM loop: API error throws LlmFallbackError', async () => {
   const failingClient = () => {
     return {

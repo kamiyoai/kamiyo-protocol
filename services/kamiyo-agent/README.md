@@ -8,7 +8,8 @@ Its job is to source work, decide whether a task is worth taking, and execute wi
 
 - sources swarm, marketplace, and inbound paid jobs
 - enforces profitability and treasury guardrails before execution
-- executes jobs, including x402 flows, without inference in the hot path
+- executes jobs, including x402 flows, on a deterministic path by default
+- can switch selected opportunities into a bounded agentic loop backed by an OpenAI-compatible API
 - allocates revenue across route, reserve, and operations buckets
 - routes capital into configured staking pools with hard caps
 
@@ -21,13 +22,24 @@ Its job is to source work, decide whether a task is worth taking, and execute wi
 
 ## Guarantees in this runtime
 
-- No Anthropic or OpenAI inference calls in the hot path.
+- Hot-path inference is opt-in. `KAMIYO_AGENTIC_LOOP_ENABLED=false` keeps execution deterministic.
+- If the LLM path is enabled, tool selection is capped by turns, timeout, and spend budget.
 - Every execution attempt is policy-gated.
 - Execute mode has staged caps (`canary_0`, `canary_1`, `canary_2`, `full`).
 - Global hard stop disables mutating execution paths.
 - Staking route and claim actions can be forced through allowlists.
 - Negative margin streaks open circuit breakers per `(agent, source)`.
 - Claims and routes emit receipt files in `KAMIYO_OUTBOX_DIR`.
+
+## Runtime Flags
+
+- `KAMIYO_TICK_CHECKPOINT_ENABLED` resumes interrupted ticks from persisted checkpoint state.
+- `KAMIYO_STREAMING_EVENTS_ENABLED` and `KAMIYO_EVENTS_SSE_ENABLED` emit runtime events over the in-process bus and SSE surface.
+- `KAMIYO_AGENT_MEMORY_ENABLED` injects recent failure and execution patterns into agentic decisions.
+- `KAMIYO_MANDATE_CLASSIFICATION_ENABLED` classifies opportunities before execution.
+- `KAMIYO_AGENTIC_LOOP_ENABLED` plus `KAMIYO_AGENTIC_LOOP_API_KEY` enables OpenAI-compatible tool selection. `KAMIYO_AGENTIC_LOOP_BASE_URL` targets non-default providers.
+- `KAMIYO_AGENT_TEAMS_ENABLED` enables scout/executor/verifier sequencing for multi-agent execution.
+- The Render blueprint exposes these flags but keeps them disabled until they are explicitly rolled out.
 
 ## API
 

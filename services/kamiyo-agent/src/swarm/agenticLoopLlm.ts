@@ -81,6 +81,12 @@ function usdToSol(usd: number, solPriceUsd = 150): number {
   return usd / solPriceUsd;
 }
 
+function nextToolTimeoutMs(startTime: number, timeoutMs: number): number | null {
+  const remainingMs = timeoutMs - (Date.now() - startTime);
+  if (remainingMs <= 0) return null;
+  return Math.max(1, Math.min(remainingMs, 20_000));
+}
+
 // ── Retry / Timeout Helpers ────────────────────────────────────────────
 
 async function withRetries<T>(
@@ -356,14 +362,18 @@ export async function runAgenticLoopLlm(
     for (const call of toolCalls) {
       const turnStart = Date.now();
       const fnArgs = JSON.parse(call.function.arguments) as Record<string, unknown>;
-      const remainingMs = config.timeoutMs - (Date.now() - startTime);
+      const toolTimeoutMs = nextToolTimeoutMs(startTime, config.timeoutMs);
+      if (toolTimeoutMs == null) {
+        return {
+          turns,
+          totalTurns: turns.length,
+          finalStatus: 'failed',
+          reason: 'timeout_exceeded',
+          totalCostSol: usdToSol(totalCostUsd),
+        };
+      }
 
-      const toolResult = await executeTool(
-        call.function.name,
-        fnArgs,
-        fetchFn,
-        Math.min(remainingMs, 20_000)
-      );
+      const toolResult = await executeTool(call.function.name, fnArgs, fetchFn, toolTimeoutMs);
 
       const agenticTurn: AgenticTurn = {
         turnNumber: turns.length + 1,

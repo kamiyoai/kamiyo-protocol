@@ -37,6 +37,8 @@ type HttpRequestConfig = {
   body?: string;
 };
 
+export type OpportunityRequest = HttpRequestConfig;
+
 type X402Requirement = {
   scheme?: string;
   network: string;
@@ -137,6 +139,20 @@ function requestConfigForOpportunity(opportunity: SwarmOpportunity): HttpRequest
   }
 
   return { method, headers, body };
+}
+
+export function buildOpportunityRequest(
+  opportunity: SwarmOpportunity,
+  sourceAuth?: SourceAuthMap
+): OpportunityRequest {
+  const request = requestConfigForOpportunity(opportunity);
+  return {
+    ...request,
+    headers: {
+      ...sourceAuthHeaders(opportunity.source, sourceAuth),
+      ...request.headers,
+    },
+  };
 }
 
 async function fetchWithTimeout(
@@ -788,7 +804,7 @@ export async function executeAssignedOpportunity(params: {
     };
   }
 
-  const request = requestConfigForOpportunity(opportunity);
+  const request = buildOpportunityRequest(opportunity, params.sourceAuth);
   const common = {
     agentId,
     opportunityId: opportunity.id,
@@ -825,10 +841,7 @@ export async function executeAssignedOpportunity(params: {
       opportunity.url,
       {
         method: request.method,
-        headers: {
-          ...sourceAuthHeaders(opportunity.source, params.sourceAuth),
-          ...request.headers,
-        },
+        headers: request.headers,
         body: request.method === 'GET' ? undefined : request.body,
       },
       params.timeoutMs
@@ -964,10 +977,7 @@ export async function executeAssignedOpportunity(params: {
         opportunity.url,
         {
           method: request.method,
-          headers: withPaymentHeaders(paymentHeader, {
-            ...sourceAuthHeaders(opportunity.source, params.sourceAuth),
-            ...request.headers,
-          }),
+          headers: withPaymentHeaders(paymentHeader, request.headers),
           body: request.method === 'GET' ? undefined : request.body,
         },
         params.timeoutMs

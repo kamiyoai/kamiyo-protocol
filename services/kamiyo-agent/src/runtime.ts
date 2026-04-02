@@ -31,6 +31,7 @@ import {
   type SwarmOpportunityIntake,
 } from './swarm/opportunities.js';
 import {
+  buildOpportunityRequest,
   executeAssignedOpportunity,
   extractRevenueFromPayload,
   expectedRevenueSol,
@@ -1736,12 +1737,14 @@ export class KamiyoAgentRuntime {
       } else if (
         // ── Feature 6: Agentic Loop ──────────────────────────────
         this.runtimeEnv.KAMIYO_AGENTIC_LOOP_ENABLED &&
+        opportunity.url &&
         shouldUseAgenticLoop(
           opportunity.source,
           this.db.hasFailedSwarmJob(assignment.opportunityId),
           relevantMemories
         )
       ) {
+        const request = buildOpportunityRequest(opportunity, sourceAuth);
         const loopResult = await runAgenticLoop(
           {
             maxTurns: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_TURNS,
@@ -1783,7 +1786,10 @@ export class KamiyoAgentRuntime {
             id: assignment.opportunityId,
             source: opportunity.source,
             title: opportunity.title,
-            url: opportunity.url ?? '',
+            url: opportunity.url,
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
           },
           relevantMemories
         );

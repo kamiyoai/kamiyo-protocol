@@ -70,6 +70,12 @@ export type AgenticOpportunity = {
   expectedFields?: string[];
 };
 
+function nextRequestTimeoutMs(startTime: number, timeoutMs: number): number | null {
+  const remainingMs = timeoutMs - (Date.now() - startTime);
+  if (remainingMs <= 0) return null;
+  return Math.max(1, Math.min(remainingMs, 20_000));
+}
+
 /**
  * Run a bounded agentic loop for a single opportunity.
  *
@@ -162,6 +168,16 @@ async function runDeterministicLoop(
         // Add small delay hint in user-agent to signal polite client
         headers['x-request-priority'] = 'low';
       }
+      const requestTimeoutMs = nextRequestTimeoutMs(startTime, config.timeoutMs);
+      if (requestTimeoutMs == null) {
+        return {
+          turns,
+          totalTurns: turns.length,
+          finalStatus: 'failed',
+          reason: 'timeout_exceeded',
+          totalCostSol: 0,
+        };
+      }
 
       const result = await executeHttpRequest(
         {
@@ -169,7 +185,7 @@ async function runDeterministicLoop(
           method: opportunity.method ?? 'POST',
           headers,
           body: opportunity.body,
-          timeoutMs: Math.min(config.timeoutMs - (Date.now() - startTime), 20_000),
+          timeoutMs: requestTimeoutMs,
         },
         fetchFn
       );
@@ -246,6 +262,16 @@ async function runDeterministicLoop(
           headers: { 'x-retry-attempt': String(turn) },
         },
       });
+      const requestTimeoutMs = nextRequestTimeoutMs(startTime, config.timeoutMs);
+      if (requestTimeoutMs == null) {
+        return {
+          turns,
+          totalTurns: turns.length,
+          finalStatus: 'failed',
+          reason: 'timeout_exceeded',
+          totalCostSol: 0,
+        };
+      }
 
       const result = await executeHttpRequest(
         {
@@ -256,7 +282,7 @@ async function runDeterministicLoop(
             'x-retry-attempt': String(turn),
           },
           body: opportunity.body,
-          timeoutMs: Math.min(config.timeoutMs - (Date.now() - startTime), 20_000),
+          timeoutMs: requestTimeoutMs,
         },
         fetchFn
       );
