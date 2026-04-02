@@ -1750,6 +1750,7 @@ export class KamiyoAgentRuntime {
             llm: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_API_KEY
               ? {
                   apiKey: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_API_KEY,
+                  baseUrl: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_BASE_URL,
                   model: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MODEL,
                   maxTokens: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_TOKENS,
                   maxCostUsd: this.runtimeEnv.KAMIYO_AGENTIC_LOOP_MAX_COST_USD,

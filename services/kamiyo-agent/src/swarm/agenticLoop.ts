@@ -6,7 +6,8 @@
  * modifications, verifying results, and making decisions.
  *
  * When KAMIYO_AGENTIC_LOOP_API_KEY is configured, delegates tool
- * selection to Claude. Falls back to deterministic loop on LLM failure.
+ * selection to any OpenAI-compatible LLM. Falls back to deterministic
+ * loop on LLM failure.
  *
  * @module swarm/agenticLoop
  */
@@ -23,6 +24,7 @@ import { runAgenticLoopLlm, LlmFallbackError, type LlmLoopConfig } from './agent
 
 export type AgenticLoopLlmConfig = {
   apiKey: string;
+  baseUrl?: string;
   model: string;
   maxTokens: number;
   maxCostUsd: number;
@@ -88,6 +90,7 @@ export async function runAgenticLoop(
           timeoutMs: config.timeoutMs,
           fetchFn: config.fetchFn,
           apiKey: config.llm.apiKey,
+          baseUrl: config.llm.baseUrl,
           model: config.llm.model,
           maxTokens: config.llm.maxTokens,
           maxCostUsd: config.llm.maxCostUsd,

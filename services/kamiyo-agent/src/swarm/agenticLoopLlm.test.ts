@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type Anthropic from '@anthropic-ai/sdk';
+import type OpenAI from 'openai';
 
 import { runAgenticLoopLlm, LlmFallbackError } from './agenticLoopLlm.js';
 import { runAgenticLoop } from './agenticLoop.js';
@@ -30,7 +30,7 @@ function makeLlmConfig(overrides: Partial<LlmLoopConfig> = {}): LlmLoopConfig {
     timeoutMs: overrides.timeoutMs ?? 30_000,
     fetchFn: overrides.fetchFn ?? mockFetch(200, { result: 'ok' }),
     apiKey: overrides.apiKey ?? 'test-key',
-    model: overrides.model ?? 'claude-sonnet-4-20250514',
+    model: overrides.model ?? 'gpt-4o-mini',
     maxTokens: overrides.maxTokens ?? 4096,
     maxCostUsd: overrides.maxCostUsd ?? 0.05,
     llmTimeoutMs: overrides.llmTimeoutMs ?? 30_000,
@@ -48,71 +48,84 @@ function mockFetch(status: number, body: unknown): typeof globalThis.fetch {
     });
 }
 
-// ── Mock Anthropic Client ──────────────────────────────────────────────
+// ── Mock OpenAI Client (chat completions format) ───────────────────────
 
-type MockMessage = {
-  content: Array<
-    | { type: 'text'; text: string }
-    | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  >;
-  usage: { input_tokens: number; output_tokens: number };
-  stop_reason: string;
+type MockCompletion = {
+  choices: Array<{
+    message: {
+      role: 'assistant';
+      content: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: 'function';
+        function: { name: string; arguments: string };
+      }>;
+    };
+    finish_reason: string;
+  }>;
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 };
 
-function makeMockClient(responses: MockMessage[]): (apiKey: string) => Anthropic {
+function makeMockClient(responses: MockCompletion[]): (apiKey: string, baseUrl?: string) => OpenAI {
   return () => {
     let callIndex = 0;
     return {
-      messages: {
-        create: async () => {
-          const resp = responses[Math.min(callIndex, responses.length - 1)];
-          callIndex++;
-          return resp;
+      chat: {
+        completions: {
+          create: async () => {
+            const resp = responses[Math.min(callIndex, responses.length - 1)];
+            callIndex++;
+            return resp;
+          },
         },
       },
-    } as unknown as Anthropic;
+    } as unknown as OpenAI;
   };
 }
 
-function makeToolUse(name: string, input: Record<string, unknown>, id?: string) {
-  return { type: 'tool_use' as const, id: id ?? `call-${name}`, name, input };
+function makeToolCall(name: string, args: Record<string, unknown>, id?: string) {
+  return {
+    id: id ?? `call-${name}`,
+    type: 'function' as const,
+    function: { name, arguments: JSON.stringify(args) },
+  };
 }
 
-function makeTextBlock(text: string) {
-  return { type: 'text' as const, text };
+function makeCompletion(
+  content: string | null,
+  toolCalls?: ReturnType<typeof makeToolCall>[],
+  usage?: { prompt_tokens: number; completion_tokens: number }
+): MockCompletion {
+  const u = usage ?? { prompt_tokens: 500, completion_tokens: 200 };
+  return {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content,
+          tool_calls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
+        },
+        finish_reason: toolCalls && toolCalls.length > 0 ? 'tool_calls' : 'stop',
+      },
+    ],
+    usage: { ...u, total_tokens: u.prompt_tokens + u.completion_tokens },
+  };
 }
-
-const SMALL_USAGE = { input_tokens: 500, output_tokens: 200 };
 
 // ── Tests ──────────────────────────────────────────────────────────────
 
 test('LLM loop: happy path — http_request → report_outcome(executed)', async () => {
-  const responses: MockMessage[] = [
-    // Turn 1: Claude calls http_request
-    {
-      content: [
-        makeTextBlock('Making the request now.'),
-        makeToolUse('http_request', {
-          url: 'https://api.example.com/task',
-          method: 'POST',
-        }),
-      ],
-      usage: SMALL_USAGE,
-      stop_reason: 'tool_use',
-    },
-    // Turn 2: Claude calls report_outcome
-    {
-      content: [
-        makeTextBlock('Request succeeded.'),
-        makeToolUse('report_outcome', {
-          status: 'executed',
-          reason: 'task_completed',
-          output: { result: 'ok' },
-        }),
-      ],
-      usage: SMALL_USAGE,
-      stop_reason: 'tool_use',
-    },
+  const responses: MockCompletion[] = [
+    makeCompletion('Making the request now.', [
+      makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' }),
+    ]),
+    makeCompletion('Request succeeded.', [
+      makeToolCall('report_outcome', {
+        status: 'executed',
+        reason: 'task_completed',
+        output: { result: 'ok' },
+      }),
+    ]),
   ];
 
   const result = await runAgenticLoopLlm(
@@ -127,27 +140,13 @@ test('LLM loop: happy path — http_request → report_outcome(executed)', async
 });
 
 test('LLM loop: report_outcome with failure', async () => {
-  const responses: MockMessage[] = [
-    {
-      content: [
-        makeToolUse('http_request', {
-          url: 'https://api.example.com/task',
-          method: 'POST',
-        }),
-      ],
-      usage: SMALL_USAGE,
-      stop_reason: 'tool_use',
-    },
-    {
-      content: [
-        makeToolUse('report_outcome', {
-          status: 'failed',
-          reason: 'endpoint_unavailable',
-        }),
-      ],
-      usage: SMALL_USAGE,
-      stop_reason: 'tool_use',
-    },
+  const responses: MockCompletion[] = [
+    makeCompletion(null, [
+      makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' }),
+    ]),
+    makeCompletion(null, [
+      makeToolCall('report_outcome', { status: 'failed', reason: 'endpoint_unavailable' }),
+    ]),
   ];
 
   const result = await runAgenticLoopLlm(
@@ -160,34 +159,23 @@ test('LLM loop: report_outcome with failure', async () => {
 });
 
 test('LLM loop: cost cap exceeded', async () => {
-  // Each call uses a lot of tokens
-  const expensiveUsage = { input_tokens: 100_000, output_tokens: 50_000 };
-  const responses: MockMessage[] = [
-    {
-      content: [
-        makeToolUse('http_request', {
-          url: 'https://api.example.com/task',
-          method: 'POST',
-        }),
-      ],
-      usage: expensiveUsage,
-      stop_reason: 'tool_use',
-    },
-    {
-      content: [
-        makeToolUse('http_request', {
-          url: 'https://api.example.com/task',
-          method: 'POST',
-        }),
-      ],
-      usage: expensiveUsage,
-      stop_reason: 'tool_use',
-    },
+  const expensive = { prompt_tokens: 100_000, completion_tokens: 50_000 };
+  const responses: MockCompletion[] = [
+    makeCompletion(
+      null,
+      [makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' })],
+      expensive
+    ),
+    makeCompletion(
+      null,
+      [makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' })],
+      expensive
+    ),
   ];
 
   const result = await runAgenticLoopLlm(
     makeLlmConfig({
-      maxCostUsd: 0.001, // Very low cap
+      maxCostUsd: 0.001,
       clientFactory: makeMockClient(responses),
     }),
     makeOpportunity()
@@ -198,32 +186,24 @@ test('LLM loop: cost cap exceeded', async () => {
 });
 
 test('LLM loop: overall timeout exceeded', async () => {
-  // Use a slow mock that delays long enough for the timeout to trigger
   const slowClient = () => {
     return {
-      messages: {
-        create: async () => {
-          // First call succeeds fast, but the tool execution + second call
-          // will exceed the timeout
-          await new Promise(res => setTimeout(res, 30));
-          return {
-            content: [
-              makeToolUse('http_request', {
-                url: 'https://api.example.com/task',
-                method: 'POST',
-              }),
-            ],
-            usage: SMALL_USAGE,
-            stop_reason: 'tool_use',
-          };
+      chat: {
+        completions: {
+          create: async () => {
+            await new Promise(res => setTimeout(res, 30));
+            return makeCompletion(null, [
+              makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' }),
+            ]);
+          },
         },
       },
-    } as unknown as Anthropic;
+    } as unknown as OpenAI;
   };
 
   const result = await runAgenticLoopLlm(
     makeLlmConfig({
-      timeoutMs: 20, // Very short — will expire after first slow LLM call
+      timeoutMs: 20,
       clientFactory: () => slowClient(),
     }),
     makeOpportunity()
@@ -236,12 +216,14 @@ test('LLM loop: overall timeout exceeded', async () => {
 test('LLM loop: API error throws LlmFallbackError', async () => {
   const failingClient = () => {
     return {
-      messages: {
-        create: async () => {
-          throw new Error('API rate limited');
+      chat: {
+        completions: {
+          create: async () => {
+            throw new Error('API rate limited');
+          },
         },
       },
-    } as unknown as Anthropic;
+    } as unknown as OpenAI;
   };
 
   await assert.rejects(
@@ -256,13 +238,7 @@ test('LLM loop: API error throws LlmFallbackError', async () => {
 });
 
 test('LLM loop: no tool calls — graceful end', async () => {
-  const responses: MockMessage[] = [
-    {
-      content: [makeTextBlock('I cannot execute this opportunity.')],
-      usage: SMALL_USAGE,
-      stop_reason: 'end_turn',
-    },
-  ];
+  const responses: MockCompletion[] = [makeCompletion('I cannot execute this opportunity.')];
 
   const result = await runAgenticLoopLlm(
     makeLlmConfig({ clientFactory: makeMockClient(responses) }),
@@ -274,17 +250,11 @@ test('LLM loop: no tool calls — graceful end', async () => {
 });
 
 test('LLM loop: max turns exhausted', async () => {
-  // Always returns http_request, never report_outcome
-  const responses: MockMessage[] = Array.from({ length: 5 }, () => ({
-    content: [
-      makeToolUse('http_request', {
-        url: 'https://api.example.com/task',
-        method: 'POST',
-      }),
-    ],
-    usage: SMALL_USAGE,
-    stop_reason: 'tool_use' as const,
-  }));
+  const responses: MockCompletion[] = Array.from({ length: 5 }, () =>
+    makeCompletion(null, [
+      makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' }),
+    ])
+  );
 
   const result = await runAgenticLoopLlm(
     makeLlmConfig({
@@ -305,27 +275,16 @@ test('LLM loop: onTurn and onUsage callbacks fire', async () => {
     usage: { input_tokens: number; output_tokens: number };
   }> = [];
 
-  const responses: MockMessage[] = [
-    {
-      content: [
-        makeToolUse('http_request', {
-          url: 'https://api.example.com/task',
-          method: 'POST',
-        }),
-      ],
-      usage: { input_tokens: 300, output_tokens: 100 },
-      stop_reason: 'tool_use',
-    },
-    {
-      content: [
-        makeToolUse('report_outcome', {
-          status: 'executed',
-          reason: 'done',
-        }),
-      ],
-      usage: { input_tokens: 400, output_tokens: 150 },
-      stop_reason: 'tool_use',
-    },
+  const responses: MockCompletion[] = [
+    makeCompletion(
+      null,
+      [makeToolCall('http_request', { url: 'https://api.example.com/task', method: 'POST' })],
+      { prompt_tokens: 300, completion_tokens: 100 }
+    ),
+    makeCompletion(null, [makeToolCall('report_outcome', { status: 'executed', reason: 'done' })], {
+      prompt_tokens: 400,
+      completion_tokens: 150,
+    }),
   ];
 
   await runAgenticLoopLlm(
@@ -340,19 +299,21 @@ test('LLM loop: onTurn and onUsage callbacks fire', async () => {
   assert.ok(turnEvents.length >= 1);
   assert.equal(turnEvents[0].toolName, 'http_request');
   assert.equal(usageEvents.length, 2);
-  assert.equal(usageEvents[0].model, 'claude-sonnet-4-20250514');
+  assert.equal(usageEvents[0].model, 'gpt-4o-mini');
   assert.equal(usageEvents[0].usage.input_tokens, 300);
 });
 
 test('dispatcher: LLM failure falls back to deterministic loop', async () => {
   const failingClient = () => {
     return {
-      messages: {
-        create: async () => {
-          throw new Error('LLM unavailable');
+      chat: {
+        completions: {
+          create: async () => {
+            throw new Error('LLM unavailable');
+          },
         },
       },
-    } as unknown as Anthropic;
+    } as unknown as OpenAI;
   };
 
   const result = await runAgenticLoop(
@@ -363,7 +324,7 @@ test('dispatcher: LLM failure falls back to deterministic loop', async () => {
       fetchFn: mockFetch(200, { result: 'ok' }),
       llm: {
         apiKey: 'test-key',
-        model: 'claude-sonnet-4-20250514',
+        model: 'gpt-4o-mini',
         maxTokens: 4096,
         maxCostUsd: 0.05,
         llmTimeoutMs: 30_000,

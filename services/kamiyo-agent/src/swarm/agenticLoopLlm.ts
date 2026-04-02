@@ -2,14 +2,17 @@
  * LLM-Driven Agentic Loop
  *
  * Upgrades the bounded agentic loop from deterministic tool selection
- * to Claude-driven multi-step reasoning. Activates when
- * KAMIYO_AGENTIC_LOOP_API_KEY is set; falls back to deterministic
- * loop on any LLM failure.
+ * to LLM-driven multi-step reasoning. Uses the OpenAI-compatible API
+ * so any provider works: OpenAI, Anthropic, OpenRouter, Together,
+ * Groq, Ollama, or any compatible endpoint.
+ *
+ * Activates when KAMIYO_AGENTIC_LOOP_API_KEY is set; falls back to
+ * deterministic loop on any LLM failure.
  *
  * @module swarm/agenticLoopLlm
  */
 
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { AgentMemoryRow } from './memory.js';
 import { formatMemoryInjection } from './memory.js';
 import type { AgenticLoopResult, AgenticOpportunity, AgenticTurn } from './agenticLoop.js';
@@ -29,13 +32,14 @@ export type LlmLoopConfig = {
   timeoutMs: number;
   fetchFn?: typeof globalThis.fetch;
   apiKey: string;
+  baseUrl?: string;
   model: string;
   maxTokens: number;
   maxCostUsd: number;
   llmTimeoutMs: number;
   onTurn?: (turn: AgenticTurn, llmReasoning?: string) => void;
   onUsage?: (model: string, usage: { input_tokens: number; output_tokens: number }) => void;
-  clientFactory?: (apiKey: string) => Anthropic;
+  clientFactory?: (apiKey: string, baseUrl?: string) => OpenAI;
 };
 
 export class LlmFallbackError extends Error {
@@ -54,6 +58,12 @@ export class LlmFallbackError extends Error {
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-20250514': { input: 3, output: 15 },
   'claude-haiku-4-20250514': { input: 0.8, output: 4 },
+  'gpt-4o': { input: 2.5, output: 10 },
+  'gpt-4o-mini': { input: 0.15, output: 0.6 },
+  'gpt-4.1-mini': { input: 0.4, output: 1.6 },
+  'gpt-4.1-nano': { input: 0.1, output: 0.4 },
+  'deepseek-chat': { input: 0.14, output: 0.28 },
+  'meta-llama/llama-4-maverick': { input: 0.2, output: 0.6 },
 };
 
 function estimateCostUsd(
@@ -136,15 +146,18 @@ Execute this opportunity by making HTTP requests, verifying responses, and retry
 ${memoryBlock ? `\n## Agent Memory\n${memoryBlock}` : ''}`;
 }
 
-// ── Tool Conversion ────────────────────────────────────────────────────
+// ── Tool Conversion (OpenAI function calling format) ───────────────────
 
-function buildAnthropicTools(): Anthropic.Tool[] {
+function buildOpenAiTools(): OpenAI.ChatCompletionTool[] {
   return getToolDefinitions().map(tool => ({
-    name: tool.name,
-    description: tool.description,
-    input_schema: {
-      type: 'object' as const,
-      ...tool.parameters,
+    type: 'function' as const,
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: {
+        type: 'object' as const,
+        ...tool.parameters,
+      },
     },
   }));
 }
@@ -231,17 +244,21 @@ export async function runAgenticLoopLlm(
   memories?: AgentMemoryRow[]
 ): Promise<AgenticLoopResult> {
   const client = config.clientFactory
-    ? config.clientFactory(config.apiKey)
-    : new Anthropic({ apiKey: config.apiKey });
+    ? config.clientFactory(config.apiKey, config.baseUrl)
+    : new OpenAI({
+        apiKey: config.apiKey,
+        ...(config.baseUrl ? { baseURL: config.baseUrl } : {}),
+      });
   const fetchFn = config.fetchFn ?? globalThis.fetch;
-  const tools = buildAnthropicTools();
+  const tools = buildOpenAiTools();
   const systemPrompt = buildSystemPrompt(opportunity, memories ?? []);
 
   const turns: AgenticTurn[] = [];
   const startTime = Date.now();
   let totalCostUsd = 0;
 
-  const messages: Anthropic.MessageParam[] = [
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     {
       role: 'user',
       content: `Execute this opportunity now. Start by making the HTTP request to ${opportunity.url}.`,
@@ -271,20 +288,19 @@ export async function runAgenticLoopLlm(
       };
     }
 
-    // Call Claude
-    let response: Anthropic.Message;
+    // Call LLM
+    let response: OpenAI.ChatCompletion;
     try {
       const createCall = () =>
-        client.messages.create({
+        client.chat.completions.create({
           model: config.model,
           max_tokens: config.maxTokens,
-          system: systemPrompt,
           tools,
           messages,
         });
 
       response = await withRetries(
-        () => withTimeout(createCall(), config.llmTimeoutMs, 'Anthropic request timed out'),
+        () => withTimeout(createCall(), config.llmTimeoutMs, 'LLM request timed out'),
         { retries: 1, baseDelayMs: 300 }
       );
     } catch (err) {
@@ -297,20 +313,32 @@ export async function runAgenticLoopLlm(
 
     // Track usage
     if (response.usage) {
-      const turnCost = estimateCostUsd(config.model, response.usage);
+      const usage = {
+        input_tokens: response.usage.prompt_tokens,
+        output_tokens: response.usage.completion_tokens,
+      };
+      const turnCost = estimateCostUsd(config.model, usage);
       totalCostUsd += turnCost;
-      config.onUsage?.(config.model, response.usage);
+      config.onUsage?.(config.model, usage);
     }
 
     // Parse response
-    const assistantBlocks = response.content;
-    const toolCalls = assistantBlocks.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-    );
-    const textBlocks = assistantBlocks.filter((b): b is Anthropic.TextBlock => b.type === 'text');
-    const reasoning = textBlocks.map(b => b.text).join('\n');
+    const choice = response.choices[0];
+    if (!choice) {
+      return {
+        turns,
+        totalTurns: turns.length,
+        finalStatus: 'failed',
+        reason: 'llm_empty_response',
+        totalCostSol: usdToSol(totalCostUsd),
+      };
+    }
 
-    messages.push({ role: 'assistant', content: assistantBlocks });
+    const assistantMessage = choice.message;
+    const toolCalls = assistantMessage.tool_calls ?? [];
+    const reasoning = assistantMessage.content ?? '';
+
+    messages.push(assistantMessage);
 
     // No tool calls — model ended naturally
     if (toolCalls.length === 0) {
@@ -324,25 +352,23 @@ export async function runAgenticLoopLlm(
       };
     }
 
-    // Execute each tool call
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
+    // Execute each tool call and collect results
     for (const call of toolCalls) {
       const turnStart = Date.now();
-      const input = call.input as Record<string, unknown>;
+      const fnArgs = JSON.parse(call.function.arguments) as Record<string, unknown>;
       const remainingMs = config.timeoutMs - (Date.now() - startTime);
 
       const toolResult = await executeTool(
-        call.name,
-        input,
+        call.function.name,
+        fnArgs,
         fetchFn,
         Math.min(remainingMs, 20_000)
       );
 
       const agenticTurn: AgenticTurn = {
         turnNumber: turns.length + 1,
-        toolName: call.name,
-        toolInput: input,
+        toolName: call.function.name,
+        toolInput: fnArgs,
         toolResult,
         durationMs: Date.now() - turnStart,
       };
@@ -350,8 +376,8 @@ export async function runAgenticLoopLlm(
       config.onTurn?.(agenticTurn, reasoning);
 
       // Check if this is report_outcome — exit the loop
-      if (call.name === 'report_outcome') {
-        const outcome = input as unknown as ReportOutcomeInput;
+      if (call.function.name === 'report_outcome') {
+        const outcome = fnArgs as unknown as ReportOutcomeInput;
         return {
           turns,
           totalTurns: turns.length,
@@ -362,14 +388,13 @@ export async function runAgenticLoopLlm(
         };
       }
 
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: call.id,
+      // Push tool result back for the next LLM turn
+      messages.push({
+        role: 'tool',
+        tool_call_id: call.id,
         content: JSON.stringify(toolResult),
       });
     }
-
-    messages.push({ role: 'user', content: toolResults });
   }
 
   // Max turns exhausted
