@@ -14,6 +14,7 @@ export interface TruthCourtFactor {
 }
 
 export interface TruthCourtCaseInput {
+  caseType?: 'dispute' | 'branch_comparison';
   transactionId: string;
   claimant: string;
   respondent?: string;

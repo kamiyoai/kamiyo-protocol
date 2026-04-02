@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Tool, MessageParam, ContentBlock, Message } from '@anthropic-ai/sdk/resources/messages';
-import { createKamiyoExtension } from '@kamiyo/daydreams';
+import { createRequire } from 'module';
 import OpenAI from 'openai';
 
 type TaskInput = {
@@ -8,6 +8,8 @@ type TaskInput = {
   description: string;
   budget: number;
   teamId: string;
+  executionMode?: 'execute' | 'readonly';
+  allowedTools?: string[];
   metadata?: Record<string, unknown>;
 };
 
@@ -17,6 +19,7 @@ type TaskResult = {
   output?: unknown;
   amountDrawn?: number;
   error?: string;
+  riskFlags?: string[];
 };
 
 export interface TaskExecutorConfig {
@@ -53,6 +56,23 @@ type OpenAIProviderRuntime = {
   client: OpenAI;
 };
 
+type ExtensionAction = {
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+  handler: (input: unknown, context: never) => Promise<unknown> | unknown;
+};
+
+type KamiyoExtensionLike = {
+  initialize(): Promise<void>;
+  getActions(): ExtensionAction[];
+};
+
+const requireFromHere = createRequire(__filename);
+let createKamiyoExtensionOverride:
+  | ((config?: Record<string, unknown>) => KamiyoExtensionLike)
+  | null = null;
+
 // $3/MTok input, $15/MTok output for sonnet
 const ANTHROPIC_INPUT_COST_PER_TOKEN = 3 / 1_000_000;
 const ANTHROPIC_OUTPUT_COST_PER_TOKEN = 15 / 1_000_000;
@@ -73,6 +93,19 @@ const OPENAI_DEFAULT_MODEL = 'gpt-4o-mini';
 
 export const TASK_EXECUTOR_UNAVAILABLE_REASON =
   'Task execution not available (missing LLM provider credentials). Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or one of OPENCLAW_API_KEY+OPENCLAW_BASE_URL, NANOCLAW_API_KEY+NANOCLAW_BASE_URL, IRONCLAW_API_KEY+IRONCLAW_BASE_URL.';
+
+export const READONLY_TASK_EXECUTOR_ALLOWED_TOOLS = [
+  'kamiyo_discoverAPIs',
+  'kamiyo_checkBalance',
+  'kamiyo_getPaymentHistory',
+  'kamiyo_getQualityStats',
+  'kamiyo_generate_commitment',
+  'kamiyo_prove_reputation',
+  'kamiyo_verify_proof',
+  'kamiyo_get_reputation_tier',
+  'kamiyo_can_prove_tier',
+  'kamiyo_get_verified_peers',
+] as const;
 
 const SYSTEM_PROMPTS: Record<TaskType, string> = {
   research: `You are a research analyst with access to Kamiyo protocol tools.
@@ -136,10 +169,41 @@ function nonEmpty(value?: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function normalizeToolName(name: string): string {
+  return name.replace(/\./g, '_');
+}
+
+function toRiskFlags(flags: Set<string>): string[] | undefined {
+  return flags.size > 0 ? Array.from(flags).sort() : undefined;
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, '');
   if (trimmed.endsWith('/v1')) return trimmed;
   return `${trimmed}/v1`;
+}
+
+function loadCreateKamiyoExtension(): (config?: Record<string, unknown>) => KamiyoExtensionLike {
+  if (createKamiyoExtensionOverride) {
+    return createKamiyoExtensionOverride;
+  }
+  try {
+    const mod = requireFromHere('@kamiyo/daydreams') as {
+      createKamiyoExtension: (config?: Record<string, unknown>) => KamiyoExtensionLike;
+    };
+    return mod.createKamiyoExtension;
+  } catch {
+    const mod = requireFromHere('../../../packages/kamiyo-daydreams/src/index.ts') as {
+      createKamiyoExtension: (config?: Record<string, unknown>) => KamiyoExtensionLike;
+    };
+    return mod.createKamiyoExtension;
+  }
+}
+
+export function __setCreateKamiyoExtensionForTests(
+  factory: ((config?: Record<string, unknown>) => KamiyoExtensionLike) | null
+): void {
+  createKamiyoExtensionOverride = factory;
 }
 
 function buildOpenAIProviderConfigs(config: TaskExecutorConfig): OpenAIProviderConfig[] {
@@ -293,6 +357,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
   // Create per-task extension instance to prevent shared state corruption
   function createExtension() {
+    const createKamiyoExtension = loadCreateKamiyoExtension();
     return createKamiyoExtension({
       rpcUrl: config.solanaRpcUrl || process.env.SOLANA_RPC_URL,
       privateKeyEnvVar: config.privateKeyEnvVar || 'SWARM_AGENT_WALLET_KEY',
@@ -333,22 +398,35 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
     // Per-task extension instance (isolated state)
     const kamiyoExt = createExtension();
-    const kamiyoActions = kamiyoExt.getActions();
+    const allActions = kamiyoExt.getActions() as ExtensionAction[];
+    const knownActionNames = new Set(allActions.map((action) => normalizeToolName(action.name)));
+    const visibleToolNames = new Set(
+      (input.executionMode === 'readonly'
+        ? (input.allowedTools?.length ? input.allowedTools : Array.from(READONLY_TASK_EXECUTOR_ALLOWED_TOOLS))
+        : (input.allowedTools ?? []))
+        .map((name) => normalizeToolName(name))
+    );
+    const kamiyoActions =
+      visibleToolNames.size > 0
+        ? allActions.filter((action) => visibleToolNames.has(normalizeToolName(action.name)))
+        : allActions;
     const toolsAnthropic: Tool[] = kamiyoActions.map((action) => ({
-      name: action.name.replace(/\./g, '_'),
+      name: normalizeToolName(action.name),
       description: action.description,
       input_schema: action.schema as Tool['input_schema'],
     }));
     const toolsOpenAI: OpenAI.Chat.Completions.ChatCompletionTool[] = kamiyoActions.map((action) => ({
       type: 'function',
       function: {
-        name: action.name.replace(/\./g, '_'),
+        name: normalizeToolName(action.name),
         description: action.description,
         parameters: action.schema as Record<string, unknown>,
       },
     }));
     const actionMap = new Map(
-      kamiyoActions.map((a) => [a.name.replace(/\./g, '_'), a.handler])
+      kamiyoActions.map(
+        (action): [string, ExtensionAction['handler']] => [normalizeToolName(action.name), action.handler]
+      )
     );
 
     try {
@@ -362,6 +440,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
+        const riskFlags = new Set<string>();
         const messages: MessageParam[] = [{ role: 'user', content: input.description }];
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -372,6 +451,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               status: 'completed',
               output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
               amountDrawn: runningCost,
+              riskFlags: toRiskFlags(riskFlags),
             };
           }
 
@@ -399,6 +479,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               status: 'completed',
               output: { taskType, result: output, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
               amountDrawn: Math.min(cost, effectiveBudget),
+              riskFlags: toRiskFlags(riskFlags),
             };
           }
 
@@ -418,6 +499,9 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               } catch (err) {
                 result = { error: err instanceof Error ? err.message : 'Action failed' };
               }
+            } else if (knownActionNames.has(block.name)) {
+              riskFlags.add('mutating_tool_attempt');
+              result = { error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`, blockedTool: block.name };
             } else {
               result = { error: `Unknown tool: ${block.name}` };
             }
@@ -438,12 +522,14 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           status: 'completed',
           output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
           amountDrawn: Math.min(cost, effectiveBudget),
+          riskFlags: toRiskFlags(riskFlags),
         };
       };
 
       const runOpenAIProvider = async (provider: OpenAIProviderRuntime): Promise<TaskResult> => {
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
+        const riskFlags = new Set<string>();
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
           { role: 'system', content: SYSTEM_PROMPTS[taskType] },
@@ -458,6 +544,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               status: 'completed',
               output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
               amountDrawn: runningCost,
+              riskFlags: toRiskFlags(riskFlags),
             };
           }
 
@@ -483,6 +570,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               status: 'completed',
               output: { taskType, result: text, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
               amountDrawn: Math.min(cost, effectiveBudget),
+              riskFlags: toRiskFlags(riskFlags),
             };
           }
 
@@ -515,6 +603,9 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               } catch (err) {
                 result = { error: err instanceof Error ? err.message : 'Action failed' };
               }
+            } else if (knownActionNames.has(name)) {
+              riskFlags.add('mutating_tool_attempt');
+              result = { error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`, blockedTool: name };
             } else {
               result = { error: `Unknown tool: ${name}` };
             }
@@ -533,6 +624,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           status: 'completed',
           output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
           amountDrawn: Math.min(cost, effectiveBudget),
+          riskFlags: toRiskFlags(riskFlags),
         };
       };
 

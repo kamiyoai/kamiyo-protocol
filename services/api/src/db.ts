@@ -1357,7 +1357,11 @@ db.exec(`
     status TEXT NOT NULL,
     max_parallel INTEGER NOT NULL,
     fail_fast INTEGER NOT NULL,
+    execution_mode TEXT NOT NULL DEFAULT 'execute',
     idempotency_key TEXT,
+    snapshot_hash TEXT,
+    counterfactual_case_id TEXT,
+    counterfactual_branch_id TEXT,
     total_reserved REAL NOT NULL DEFAULT 0,
     total_spent REAL NOT NULL DEFAULT 0,
     error TEXT,
@@ -1374,6 +1378,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_swarm_runs_team_started ON swarm_runs(team_id, started_at);
   CREATE INDEX IF NOT EXISTS idx_swarm_runs_status_started ON swarm_runs(status, started_at);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key);
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_case ON swarm_runs(counterfactual_case_id);
+  CREATE INDEX IF NOT EXISTS idx_swarm_runs_branch ON swarm_runs(counterfactual_branch_id);
 
   CREATE TABLE IF NOT EXISTS swarm_run_nodes (
     id TEXT PRIMARY KEY,
@@ -1386,6 +1392,7 @@ db.exec(`
     budget_reserved REAL NOT NULL,
     amount_drawn REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL,
+    reuse_key TEXT,
     output_json TEXT,
     error TEXT,
     started_at INTEGER,
@@ -1397,6 +1404,63 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run ON swarm_run_nodes(run_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_status ON swarm_run_nodes(run_id, status);
+  CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_reuse ON swarm_run_nodes(run_id, reuse_key);
+
+  CREATE TABLE IF NOT EXISTS counterfactual_cases (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL,
+    mission TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    snapshot_hash TEXT NOT NULL,
+    snapshot_source_type TEXT NOT NULL,
+    snapshot_source_ref TEXT,
+    decision_mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_by_wallet TEXT,
+    winner_branch_id TEXT,
+    promoted_run_id TEXT,
+    error TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER,
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (team_id) REFERENCES swarm_teams(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_counterfactual_cases_team_created
+    ON counterfactual_cases(team_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS counterfactual_branches (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL,
+    policy_pack_id TEXT NOT NULL,
+    branch_kind TEXT NOT NULL,
+    swarm_run_id TEXT,
+    status TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    scorecard_json TEXT,
+    committee_json TEXT,
+    result_hash TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    completed_at INTEGER,
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (case_id) REFERENCES counterfactual_cases(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_counterfactual_branches_case_created
+    ON counterfactual_branches(case_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS counterfactual_case_events (
+    id TEXT PRIMARY KEY,
+    case_id TEXT NOT NULL,
+    branch_id TEXT,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (case_id) REFERENCES counterfactual_cases(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_counterfactual_case_events_case_created
+    ON counterfactual_case_events(case_id, created_at);
 `);
 
 // Migration: add owner_wallet column if it doesn't exist
@@ -1421,7 +1485,45 @@ try {
 }
 
 try {
+  db.exec(`ALTER TABLE swarm_runs ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'execute'`);
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec('ALTER TABLE swarm_runs ADD COLUMN snapshot_hash TEXT');
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec('ALTER TABLE swarm_runs ADD COLUMN counterfactual_case_id TEXT');
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec('ALTER TABLE swarm_runs ADD COLUMN counterfactual_branch_id TEXT');
+} catch {
+  // Column already exists
+}
+
+try {
+  db.exec('ALTER TABLE swarm_run_nodes ADD COLUMN reuse_key TEXT');
+} catch {
+  // Column already exists
+}
+
+try {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key)');
+} catch {
+  // Ignore
+}
+
+try {
+  db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_runs_case ON swarm_runs(counterfactual_case_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_runs_branch ON swarm_runs(counterfactual_branch_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_reuse ON swarm_run_nodes(run_id, reuse_key)');
 } catch {
   // Ignore
 }
