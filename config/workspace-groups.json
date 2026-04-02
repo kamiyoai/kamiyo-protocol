@@ -49,7 +49,8 @@
         { "path": "packages/kamiyo-agents", "name": "@kamiyo/agents" },
         { "path": "packages/kamiyo-agent-paranet", "name": "@kamiyo/agent-paranet" },
         { "path": "packages/kamiyo-daydreams", "name": "@kamiyo/daydreams" },
-        { "path": "packages/kamiyo-swarm-agents", "name": "@kamiyo/swarm-agents" }
+        { "path": "packages/kamiyo-swarm-agents", "name": "@kamiyo/swarm-agents" },
+        { "path": "packages/kamiyo-reality-fork", "name": "@kamiyo/reality-fork" }
       ],
       "paths": [
         "services/kamiyo-agent/",
@@ -62,6 +63,7 @@
         "packages/kamiyo-agent-paranet/",
         "packages/kamiyo-daydreams/",
         "packages/kamiyo-swarm-agents/",
+        "packages/kamiyo-reality-fork/",
         ".github/workflows/keiro.yml"
       ]
     },

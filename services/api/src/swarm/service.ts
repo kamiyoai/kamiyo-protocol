@@ -15,7 +15,13 @@ import {
   swarmRuntimeConfig,
 } from './runtime';
 import { reserveTeamBudget, settleTeamBudget } from './pool';
-import { swarmActiveNodes, swarmNodeDuration, swarmNodesTotal, swarmRunDuration, swarmRunsTotal } from '../metrics';
+import {
+  swarmActiveNodes,
+  swarmNodeDuration,
+  swarmNodesTotal,
+  swarmRunDuration,
+  swarmRunsTotal,
+} from '../metrics';
 import type { SwarmDagPlan, SwarmTeamMember } from './types';
 
 const taskExecutorConfig = {
@@ -32,6 +38,7 @@ const taskExecutorConfig = {
 const taskExecutor = hasTaskExecutorProviders(taskExecutorConfig)
   ? createTaskExecutor(taskExecutorConfig)
   : undefined;
+let taskExecutorOverride: ReturnType<typeof createTaskExecutor> | null = null;
 
 const CANCEL_TTL_MS = 24 * 60 * 60 * 1000;
 const cancelledRuns = new Map<string, { reason: string; atMs: number }>();
@@ -126,16 +133,13 @@ export type ExecuteSwarmRunOptions = {
     snapshotHash: string | null;
     caseId: string | null;
     branchId: string | null;
-  }) => Promise<
-    | {
-        reuseKey?: string | null;
-        reused?: {
-          fromRunId: string;
-          output: unknown;
-        };
-      }
-    | null
-  >;
+  }) => Promise<{
+    reuseKey?: string | null;
+    reused?: {
+      fromRunId: string;
+      output: unknown;
+    };
+  } | null>;
   onNodeReused?: (params: {
     runId: string;
     nodeId: string;
@@ -153,15 +157,23 @@ export type ExecuteSwarmRunResult = {
   timingMs: { startedAt: number; completedAt: number; duration: number };
   totals: { reserved: number; spent: number };
   hashes: { planSha256: string; resultsSha256: string };
-  kiroku:
-    | { receipt: string; url: string }
-    | { skipped: boolean; error?: string };
+  kiroku: { receipt: string; url: string } | { skipped: boolean; error?: string };
   nodes: Record<string, unknown>;
   seeded: number;
   snapshotHash: string | null;
   counterfactualCaseId: string | null;
   counterfactualBranchId: string | null;
 };
+
+export function __setSwarmTaskExecutorForTests(
+  executor: ReturnType<typeof createTaskExecutor> | null
+): void {
+  taskExecutorOverride = executor;
+}
+
+function resolveTaskExecutor() {
+  return taskExecutorOverride ?? taskExecutor;
+}
 
 function getCancelReason(runId: string): string | null {
   const now = Date.now();
@@ -197,7 +209,7 @@ function canonicalize(value: unknown): string {
 function formatDepsContext(
   deps: Array<{ id: string; result: { status: string; output?: unknown; error?: string } }>
 ): string {
-  const compact = deps.map((dep) => ({
+  const compact = deps.map(dep => ({
     id: dep.id,
     status: dep.result.status,
     error: dep.result.status !== 'completed' ? dep.result.error : undefined,
@@ -225,14 +237,18 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
 }
 
 export function getTeamMembers(teamId: string): SwarmTeamMember[] {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT id, agent_id, role, draw_limit
     FROM swarm_team_members
     WHERE team_id = ?
     ORDER BY added_at ASC
-  `).all(teamId) as Array<{ id: string; agent_id: string; role: string; draw_limit: number }>;
+  `
+    )
+    .all(teamId) as Array<{ id: string; agent_id: string; role: string; draw_limit: number }>;
 
-  return rows.map((row) => ({
+  return rows.map(row => ({
     id: row.id,
     agentId: row.agent_id,
     role: row.role,
@@ -240,32 +256,47 @@ export function getTeamMembers(teamId: string): SwarmTeamMember[] {
   }));
 }
 
-export function findExistingRunByIdempotency(teamId: string, idempotencyKey: string): string | null {
-  const existing = db.prepare(`
+export function findExistingRunByIdempotency(
+  teamId: string,
+  idempotencyKey: string
+): string | null {
+  const existing = db
+    .prepare(
+      `
     SELECT id
     FROM swarm_runs
     WHERE team_id = ? AND idempotency_key = ?
     LIMIT 1
-  `).get(teamId, idempotencyKey) as { id: string } | undefined;
+  `
+    )
+    .get(teamId, idempotencyKey) as { id: string } | undefined;
 
   return existing?.id ?? null;
 }
 
 export function getSwarmRunDetail(teamId: string, runId: string): SwarmRunDetail | null {
-  const run = db.prepare(`
+  const run = db
+    .prepare(
+      `
     SELECT *
     FROM swarm_runs
     WHERE id = ? AND team_id = ?
-  `).get(runId, teamId) as any;
+  `
+    )
+    .get(runId, teamId) as any;
 
   if (!run) return null;
 
-  const nodes = db.prepare(`
+  const nodes = db
+    .prepare(
+      `
     SELECT node_id, member_id, agent_id, depends_on_json, description, budget_reserved, amount_drawn, reuse_key, status, output_json, error, started_at, completed_at
     FROM swarm_run_nodes
     WHERE run_id = ?
     ORDER BY created_at ASC
-  `).all(runId) as Array<any>;
+  `
+    )
+    .all(runId) as Array<any>;
 
   return {
     runId: run.id,
@@ -283,7 +314,7 @@ export function getSwarmRunDetail(teamId: string, runId: string): SwarmRunDetail
     kiroku: { receipt: run.kiroku_receipt, url: run.kiroku_url, error: run.kiroku_error },
     startedAt: run.started_at * 1000,
     completedAt: run.completed_at ? run.completed_at * 1000 : null,
-    nodes: nodes.map((node) => ({
+    nodes: nodes.map(node => ({
       id: node.node_id,
       memberId: node.member_id,
       agentId: node.agent_id,
@@ -302,20 +333,28 @@ export function getSwarmRunDetail(teamId: string, runId: string): SwarmRunDetail
 }
 
 export function getSwarmRunProgress(teamId: string, runId: string): SwarmRunProgress | null {
-  const run = db.prepare(`
+  const run = db
+    .prepare(
+      `
     SELECT id, team_id, mission, status, execution_mode, snapshot_hash, counterfactual_case_id, counterfactual_branch_id, total_reserved, total_spent, error, kiroku_receipt, kiroku_url, kiroku_error, started_at, completed_at
     FROM swarm_runs
     WHERE id = ? AND team_id = ?
-  `).get(runId, teamId) as any;
+  `
+    )
+    .get(runId, teamId) as any;
 
   if (!run) return null;
 
-  const nodes = db.prepare(`
+  const nodes = db
+    .prepare(
+      `
     SELECT node_id, status, error, started_at, completed_at
     FROM swarm_run_nodes
     WHERE run_id = ?
     ORDER BY created_at ASC
-  `).all(runId) as Array<any>;
+  `
+    )
+    .all(runId) as Array<any>;
 
   return {
     runId: run.id,
@@ -331,7 +370,7 @@ export function getSwarmRunProgress(teamId: string, runId: string): SwarmRunProg
     kiroku: { receipt: run.kiroku_receipt, url: run.kiroku_url, error: run.kiroku_error },
     startedAt: run.started_at * 1000,
     completedAt: run.completed_at ? run.completed_at * 1000 : null,
-    nodes: nodes.map((node) => ({
+    nodes: nodes.map(node => ({
       id: node.node_id,
       status: node.status,
       error: node.error,
@@ -342,13 +381,17 @@ export function getSwarmRunProgress(teamId: string, runId: string): SwarmRunProg
 }
 
 export function listSwarmRuns(teamId: string, limit: number, offset: number) {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT id, mission, status, execution_mode, snapshot_hash, counterfactual_case_id, counterfactual_branch_id, total_reserved, total_spent, error, kiroku_url, started_at, completed_at
     FROM swarm_runs
     WHERE team_id = ?
     ORDER BY started_at DESC
     LIMIT ? OFFSET ?
-  `).all(teamId, limit, offset) as Array<{
+  `
+    )
+    .all(teamId, limit, offset) as Array<{
     id: string;
     mission: string;
     status: string;
@@ -364,7 +407,7 @@ export function listSwarmRuns(teamId: string, limit: number, offset: number) {
     completed_at: number | null;
   }>;
 
-  return rows.map((row) => ({
+  return rows.map(row => ({
     runId: row.id,
     id: row.id,
     mission: row.mission,
@@ -381,33 +424,46 @@ export function listSwarmRuns(teamId: string, limit: number, offset: number) {
   }));
 }
 
-export function cancelSwarmRun(teamId: string, runId: string): { ok: true } | { ok: false; error: string } {
-  const run = db.prepare(`
+export function cancelSwarmRun(
+  teamId: string,
+  runId: string
+): { ok: true } | { ok: false; error: string } {
+  const run = db
+    .prepare(
+      `
     SELECT id, status
     FROM swarm_runs
     WHERE id = ? AND team_id = ?
-  `).get(runId, teamId) as { id: string; status: string } | undefined;
+  `
+    )
+    .get(runId, teamId) as { id: string; status: string } | undefined;
 
   if (!run) return { ok: false, error: 'Run not found' };
 
   markRunCancelled(runId, 'cancelled');
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE swarm_runs
     SET status = 'cancelled', error = 'cancelled', updated_at = unixepoch()
     WHERE id = ? AND team_id = ? AND status = 'running'
-  `).run(runId, teamId);
+  `
+  ).run(runId, teamId);
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE swarm_run_nodes
     SET status = 'skipped', error = 'skipped: cancelled', started_at = COALESCE(started_at, unixepoch()), completed_at = unixepoch(), updated_at = unixepoch()
     WHERE run_id = ? AND status = 'pending'
-  `).run(runId);
+  `
+  ).run(runId);
 
   return { ok: true };
 }
 
-export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<ExecuteSwarmRunResult> {
+export async function executeSwarmRun(
+  options: ExecuteSwarmRunOptions
+): Promise<ExecuteSwarmRunResult> {
   const runId = `run_${randomUUID().slice(0, 12)}`;
   const now = Math.floor(Date.now() / 1000);
   const executionMode = options.executionMode ?? 'execute';
@@ -415,14 +471,16 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
   const caseId = options.caseId?.trim() || null;
   const branchId = options.branchId?.trim() || null;
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO swarm_runs (
       id, team_id, requested_by_wallet, mission, plan_json, status,
       max_parallel, fail_fast, execution_mode, idempotency_key, snapshot_hash,
       counterfactual_case_id, counterfactual_branch_id, started_at, created_at, updated_at
     )
     VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     runId,
     options.teamId,
     options.wallet,
@@ -449,7 +507,7 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `);
 
-  const memberById = new Map(options.members.map((member) => [member.id, member]));
+  const memberById = new Map(options.members.map(member => [member.id, member]));
   for (const node of options.plan.nodes) {
     const member = memberById.get(node.memberId);
     if (!member) continue;
@@ -533,7 +591,11 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
   let totalReserved = 0;
   let totalSpent = 0;
 
-  const dagNodes = options.plan.nodes.map((node) => ({ id: node.id, dependsOn: node.dependsOn, data: node }));
+  const dagNodes = options.plan.nodes.map(node => ({
+    id: node.id,
+    dependsOn: node.dependsOn,
+    data: node,
+  }));
   const startedAtMs = Date.now();
   const deadlineAtMs = startedAtMs + swarmRuntimeConfig.runTimeoutMs;
 
@@ -561,15 +623,16 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
         return { status: 'failed' as const, error: 'cancelled' };
       }
 
-      const executionContext = await options.resolveExecutionContext?.({
-        runId,
-        node: spec,
-        deps: deps.map((dep) => ({ id: dep.id, result: dep.result })),
-        executionMode,
-        snapshotHash,
-        caseId,
-        branchId,
-      }) ?? null;
+      const executionContext =
+        (await options.resolveExecutionContext?.({
+          runId,
+          node: spec,
+          deps: deps.map(dep => ({ id: dep.id, result: dep.result })),
+          executionMode,
+          snapshotHash,
+          caseId,
+          branchId,
+        })) ?? null;
 
       if (executionContext?.reuseKey) {
         updateNodeReuseKey.run(executionContext.reuseKey, runId, spec.id);
@@ -611,7 +674,8 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
       try {
         updateNodeRunning.run(runId, spec.id);
 
-        if (!taskExecutor) {
+        const activeTaskExecutor = resolveTaskExecutor();
+        if (!activeTaskExecutor) {
           updateNodeDone.run('failed', 0, null, TASK_EXECUTOR_UNAVAILABLE_REASON, runId, spec.id);
           return { status: 'failed' as const, error: TASK_EXECUTOR_UNAVAILABLE_REASON };
         }
@@ -630,11 +694,11 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
           spec.description,
           '',
           'Context (direct dependencies):',
-          formatDepsContext(deps.map((dep) => ({ id: dep.id, result: dep.result }))),
+          formatDepsContext(deps.map(dep => ({ id: dep.id, result: dep.result }))),
         ].join('\n');
 
         const result = await withTimeout(
-          taskExecutor({
+          activeTaskExecutor({
             taskId,
             description,
             budget: reserved,
@@ -727,7 +791,8 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
         ? (dagResult.abortReason ?? 'cancelled')
         : null;
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE swarm_runs
     SET
       status = CASE WHEN status = 'running' THEN ? ELSE status END,
@@ -737,21 +802,19 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
       completed_at = ?,
       updated_at = unixepoch()
     WHERE id = ?
-  `).run(status, totalReserved, totalSpent, runError, Math.floor(Date.now() / 1000), runId);
+  `
+  ).run(status, totalReserved, totalSpent, runError, Math.floor(Date.now() / 1000), runId);
 
   swarmRunsTotal.inc({ status });
   swarmRunDuration.observe({ status }, (endedAtMs - startedAtMs) / 1000);
 
-  const resultSummary = options.plan.nodes.map((node) => {
+  const resultSummary = options.plan.nodes.map(node => {
     const result = dagResult.nodes[node.id];
     const outputHash =
       result?.status === 'completed'
         ? sha256Hex(canonicalize((result.output as any)?.output ?? null))
         : null;
-    const amount =
-      result?.status === 'completed'
-        ? ((result.output as any)?.amountDrawn ?? 0)
-        : 0;
+    const amount = result?.status === 'completed' ? ((result.output as any)?.amountDrawn ?? 0) : 0;
 
     return {
       id: node.id,
@@ -783,27 +846,40 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
   });
 
   if (kiroku.ok) {
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE swarm_runs
       SET kiroku_receipt = ?, kiroku_url = ?, kiroku_error = NULL, updated_at = unixepoch()
       WHERE id = ?
-    `).run(kiroku.receipt, kiroku.url, runId);
+    `
+    ).run(kiroku.receipt, kiroku.url, runId);
   } else if (!kiroku.skipped) {
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE swarm_runs
       SET kiroku_error = ?, updated_at = unixepoch()
       WHERE id = ?
-    `).run(kiroku.error, runId);
+    `
+    ).run(kiroku.error, runId);
   }
 
   if (executionMode === 'execute') {
-    const completedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'completed').length;
-    const failedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'failed').length;
-    const skippedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'skipped').length;
+    const completedNodes = options.plan.nodes.filter(
+      node => dagResult.nodes[node.id]?.status === 'completed'
+    ).length;
+    const failedNodes = options.plan.nodes.filter(
+      node => dagResult.nodes[node.id]?.status === 'failed'
+    ).length;
+    const skippedNodes = options.plan.nodes.filter(
+      node => dagResult.nodes[node.id]?.status === 'skipped'
+    ).length;
     const totalNodes = options.plan.nodes.length;
-    const qualityScore = totalNodes === 0
-      ? (status === 'completed' ? 100 : 0)
-      : Math.round((completedNodes / totalNodes) * 10000) / 100;
+    const qualityScore =
+      totalNodes === 0
+        ? status === 'completed'
+          ? 100
+          : 0
+        : Math.round((completedNodes / totalNodes) * 10000) / 100;
 
     await emitFairscaleFusionEvent({
       wallet: options.wallet || '',
@@ -838,7 +914,9 @@ export async function executeSwarmRun(options: ExecuteSwarmRunOptions): Promise<
     timingMs: { startedAt: startedAtMs, completedAt: endedAtMs, duration: endedAtMs - startedAtMs },
     totals: { reserved: totalReserved, spent: totalSpent },
     hashes: { planSha256: planSha, resultsSha256: resultsSha },
-    kiroku: kiroku.ok ? { receipt: kiroku.receipt, url: kiroku.url } : { skipped: !!kiroku.skipped, error: kiroku.error },
+    kiroku: kiroku.ok
+      ? { receipt: kiroku.receipt, url: kiroku.url }
+      : { skipped: !!kiroku.skipped, error: kiroku.error },
     nodes: dagResult.nodes,
     seeded: seed.size,
     snapshotHash,

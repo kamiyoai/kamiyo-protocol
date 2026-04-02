@@ -1,0 +1,21 @@
+{
+  "name": "@kamiyo/reality-fork",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fixture-first counterfactual demo layer for KAMIYO control-room runs.",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
+  }
+}

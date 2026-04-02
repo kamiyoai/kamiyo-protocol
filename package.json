@@ -17,7 +17,7 @@
     "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git"
   },
   "license": "MIT",
-  "author": "KAMIYO <susumu@kamiyo.ai>",
+  "author": "KAMIYO <kamiyo-ai@users.noreply.github.com>",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -77,6 +77,9 @@
     "check:docs": "node scripts/check-doc-commands.mjs",
     "check:onboarding": "node scripts/check-service-onboarding.mjs",
     "check:mcp:parity": "pnpm --filter @kamiyo/mcp-server run test:tool-parity",
+    "reality-fork:build": "pnpm --filter @kamiyo/reality-fork run build",
+    "reality-fork:export-fixture": "tsx scripts/export-reality-fork-fixture.ts",
+    "reality-fork:generate-fixtures": "tsx scripts/generate-reality-fork-launch-fixtures.ts",
     "preflight:enterprise": "node scripts/enterprise-readiness.mjs --mode ci",
     "smoke:enterprise": "node scripts/enterprise-readiness.mjs --mode live",
     "smoke:companion:route-ownership": "pnpm --filter kamiyo-companion run smoke:route-ownership",

@@ -10,6 +10,26 @@ Open-source rails for KAMIYO's trust, settlement, and control layer for AI agent
 
 Kizuna is the repo default path. It is the main open rail in this monorepo, but the repository also includes trust services, policy and compliance surfaces, operator controls, SDKs, and agent integrations built around that core.
 
+## Reality Fork
+
+Reality Fork is the public layer on top of Kamiyo’s counterfactual control-room engine.
+
+- one immutable snapshot
+- multiple readonly futures
+- evidence, risk, latency, and cost scoring
+- truth-court adjudication on close calls
+- one promoted winner
+
+This repo owns the engine and the portable public contract:
+
+- authenticated Companion control-room routes under `/api/hive-teams/:id/control-room/*`
+- the public scenario package in `packages/kamiyo-reality-fork`
+- fixture export and launch-fixture generation scripts
+
+The UI lives in `kamiyo-app` so it can match the rest of the Kamiyo product surface instead of becoming a second design system inside this repo.
+
+![kamiyo animation](assets/kamiyo.gif)
+
 ## What This Repo Is For
 
 KAMIYO Protocol gives agents a way to operate with explicit trust signals, controlled approvals, and auditable settlement over open rails:
@@ -37,7 +57,7 @@ The workspace is intentionally split into three layers.
 | Tier | What belongs here | Current examples |
 |---|---|---|
 | `core` | Default production path for Kizuna settlement and control | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api` (Kizuna slice), `packages/kamiyo-x402-client`, `packages/kamiyo-settlement`, `packages/kamiyo-meishi`, `apps/cdp-onboarding` |
-| `module` | Agent runtimes, apps, and orchestration layers built on top of the rails | `services/kamiyo-agent`, `services/keiro-api`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
+| `module` | Agent runtimes, apps, and orchestration layers built on top of the rails | `services/kamiyo-agent`, `services/keiro-api`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents`, `packages/kamiyo-reality-fork` |
 | `legacy` | Retained but non-default integrations, demos, trust/reputation experiments, and contract tracks | FairScale fusion surfaces, trust-graph/paranet/PoCH-heavy routes, oracle/deploy tracks, old demos, contract-specific workflows |
 
 The source of truth for these groupings lives in `config/workspace-groups.json`.
@@ -149,6 +169,8 @@ These stay in the repo, but they sit on top of the trust, settlement, and contro
 
 ## Documentation
 
+- Reality Fork package: `packages/kamiyo-reality-fork/README.md`
+- Reality Fork launch kit: `docs/reality-fork-launch-kit.md`
 - Build and local setup: `BUILD.md`
 - Development workflows: `DEVELOPMENT.md`
 - Kizuna-first architecture: `ARCHITECTURE.md`

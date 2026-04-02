@@ -1,0 +1,420 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-02T20:27:04.276Z",
+  "generator": {
+    "source": "control-room-export",
+    "teamId": "team-1",
+    "caseId": "cf_case_6dae5ad3-616"
+  },
+  "scenario": {
+    "id": "treasury-rotation",
+    "slug": "treasury-rotation",
+    "title": "Treasury rotation vote",
+    "tagline": "Governance pressure, forked into four receipts-backed futures.",
+    "summary": "A governance-native fork with multiple futures competing over treasury rotation timing, risk, and reversibility.",
+    "tags": [
+      "governance",
+      "crypto",
+      "treasury"
+    ],
+    "sourceLabel": "Observatory Session",
+    "mission": "Recommend the least-regret treasury rotation before the governance vote opens.",
+    "createdAt": "2026-04-02T20:27:03.000Z",
+    "completedAt": "2026-04-02T20:27:04.000Z",
+    "snapshotHash": "ef6f6f58cfa6d3384565991505d572f4147d8ec7f9c8bc6eb3057314a72eae66",
+    "status": "ready",
+    "snapshot": {
+      "sourceType": "observatory_session",
+      "sourceRef": "governance_session_1",
+      "capturedAt": "2026-04-02T20:27:03.638Z",
+      "teamId": "team-1",
+      "teamMembers": [
+        {
+          "id": "mem-a",
+          "role": "research",
+          "drawLimit": 10
+        },
+        {
+          "id": "mem-b",
+          "role": "ops",
+          "drawLimit": 10
+        }
+      ],
+      "artifactCount": 6,
+      "artifactRefs": [
+        "escrow_governance_1",
+        "governance_session_1",
+        "sig_governance_1",
+        "sig_governance_1_2",
+        "treasury-rotation_evt_primary",
+        "treasury-rotation_evt_secondary"
+      ],
+      "escrows": [
+        {
+          "escrowPda": "escrow_governance_1",
+          "sessionId": "governance_session_1",
+          "lastSignature": "sig_governance_1"
+        }
+      ],
+      "events": [
+        {
+          "id": "treasury-rotation_evt_primary",
+          "signature": "sig_governance_1",
+          "sessionId": "governance_session_1",
+          "escrowPda": "escrow_governance_1"
+        },
+        {
+          "id": "treasury-rotation_evt_secondary",
+          "signature": "sig_governance_1_2",
+          "sessionId": "governance_session_1",
+          "escrowPda": "escrow_governance_1"
+        }
+      ],
+      "highlights": [
+        "2 team members in the snapshot",
+        "6 snapshot artifacts available for citation",
+        "4 counterfactual branches compared"
+      ]
+    },
+    "branches": [
+      {
+        "branchId": "cf_branch_8121abf4-531",
+        "policyPackId": "safe_exit",
+        "label": "Safe Exit",
+        "status": "failed",
+        "verdict": "winner",
+        "summary": "Biases toward reversible, lower-cost exits instead of reward chasing.",
+        "nodeCount": 3,
+        "completedNodes": 0,
+        "failedNodes": 3,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_b8b69bff-b10",
+        "policyPackId": "verify_first",
+        "label": "Verify First",
+        "status": "failed",
+        "verdict": "runner_up",
+        "summary": "Front-loads verification and risk enumeration before downstream work.",
+        "nodeCount": 4,
+        "completedNodes": 0,
+        "failedNodes": 4,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_c78b0b47-abf",
+        "policyPackId": "aggressive",
+        "label": "Aggressive",
+        "status": "failed",
+        "verdict": "contender",
+        "summary": "Presses speed and budget harder to maximize decisive forward motion.",
+        "nodeCount": 2,
+        "completedNodes": 0,
+        "failedNodes": 2,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_fe323798-56b",
+        "policyPackId": "baseline",
+        "label": "Baseline",
+        "status": "failed",
+        "verdict": "contender",
+        "summary": "Default branch with the original mission topology and standard budgets.",
+        "nodeCount": 2,
+        "completedNodes": 0,
+        "failedNodes": 2,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      }
+    ],
+    "decision": {
+      "winnerBranchId": "cf_branch_8121abf4-531",
+      "winnerLabel": "Safe Exit",
+      "winnerReason": "truth-court confirmed the score winner",
+      "mode": "score_then_truth_court",
+      "usedTruthCourt": true,
+      "committeeDisagreement": false,
+      "scoreDelta": 0,
+      "promotedRunId": null,
+      "topBranchIds": [
+        "cf_branch_8121abf4-531",
+        "cf_branch_b8b69bff-b10"
+      ]
+    },
+    "replay": {
+      "events": [
+        {
+          "id": "cf_evt_1922601c-c8f",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Safe Exit planned",
+          "description": "Safe Exit was derived with 3 nodes.",
+          "branchId": "cf_branch_8121abf4-531",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161623000,
+          "offsetMs": 0,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_19896b7e-927",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Safe Exit finished",
+          "description": "Safe Exit ended with status failed.",
+          "branchId": "cf_branch_8121abf4-531",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161623000,
+          "offsetMs": 1400,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_2fc5b942-e1b",
+          "eventType": "case_created",
+          "phase": "capture",
+          "title": "Case opened",
+          "description": "Mission captured for Recommend the least-regret treasury rotation before the governance vote opens..",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161623000,
+          "offsetMs": 2800,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_38619595-770",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Verify First planned",
+          "description": "Verify First was derived with 4 nodes.",
+          "branchId": "cf_branch_b8b69bff-b10",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161623000,
+          "offsetMs": 4200,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_471ef7bb-65f",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Aggressive planned",
+          "description": "Aggressive was derived with 2 nodes.",
+          "branchId": "cf_branch_c78b0b47-abf",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161623000,
+          "offsetMs": 5600,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_7f98f06f-843",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Safe Exit started",
+          "description": "Safe Exit began readonly execution.",
+          "branchId": "cf_branch_8121abf4-531",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161623000,
+          "offsetMs": 7000,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_a597adb9-e04",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Verify First started",
+          "description": "Verify First began readonly execution.",
+          "branchId": "cf_branch_b8b69bff-b10",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161623000,
+          "offsetMs": 8400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_c9a2e695-0fe",
+          "eventType": "snapshot_captured",
+          "phase": "capture",
+          "title": "Snapshot locked",
+          "description": "Immutable snapshot ef6f6f58cfa6 was captured.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161623000,
+          "offsetMs": 9800,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_fbdf7e49-881",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Baseline planned",
+          "description": "Baseline was derived with 2 nodes.",
+          "branchId": "cf_branch_fe323798-56b",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161623000,
+          "offsetMs": 11200,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_51a31640-38d",
+          "eventType": "adjudication_completed",
+          "phase": "adjudication",
+          "title": "Winner selected",
+          "description": "Winning branch: cf_branch_8121abf4-531.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161624000,
+          "offsetMs": 12600,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_84f72cc0-743",
+          "eventType": "adjudication_started",
+          "phase": "adjudication",
+          "title": "Adjudication started",
+          "description": "Decision mode: score_then_truth_court.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161624000,
+          "offsetMs": 14000,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_9711f91e-31c",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Aggressive started",
+          "description": "Aggressive began readonly execution.",
+          "branchId": "cf_branch_c78b0b47-abf",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161624000,
+          "offsetMs": 15400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_9899a364-6e9",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Baseline finished",
+          "description": "Baseline ended with status failed.",
+          "branchId": "cf_branch_fe323798-56b",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161624000,
+          "offsetMs": 16800,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_9f914f9c-13f",
+          "eventType": "node_reused",
+          "phase": "execution",
+          "title": "Evidence reused",
+          "description": "Node research reused prior readonly work.",
+          "branchId": "cf_branch_fe323798-56b",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161624000,
+          "offsetMs": 18200,
+          "tone": "warning"
+        },
+        {
+          "id": "cf_evt_a2feb85d-a7c",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Verify First finished",
+          "description": "Verify First ended with status failed.",
+          "branchId": "cf_branch_b8b69bff-b10",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161624000,
+          "offsetMs": 19600,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_aee9eded-eb4",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Aggressive finished",
+          "description": "Aggressive ended with status failed.",
+          "branchId": "cf_branch_c78b0b47-abf",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161624000,
+          "offsetMs": 21000,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_e20dee1e-f8c",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Baseline started",
+          "description": "Baseline began readonly execution.",
+          "branchId": "cf_branch_fe323798-56b",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161624000,
+          "offsetMs": 22400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_ef10775c-a9e",
+          "eventType": "scoring_completed",
+          "phase": "scoring",
+          "title": "Scoring finished",
+          "description": "All branches received deterministic evidence, risk, latency, and cost scores.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161624000,
+          "offsetMs": 23800,
+          "tone": "neutral"
+        }
+      ]
+    },
+    "shareCard": {
+      "headline": "Treasury rotation vote: Safe Exit wins",
+      "kicker": "Fork reality. Let futures compete. Promote the strongest path.",
+      "body": "Safe Exit won 4 readonly branches on evidence, risk, latency, and cost.",
+      "scoreline": "Safe Exit 15% | Verify First 15%",
+      "bullets": [
+        "Winner: Safe Exit",
+        "Evidence coverage: 0%",
+        "Risk penalty: 50%"
+      ],
+      "xPost": "Reality Fork: Treasury rotation vote\n\nSafe Exit beat Verify First across 4 readonly futures.\nEvidence 0% | Risk 50% | Score 15%\n\nFork reality, let futures compete, promote the strongest path."
+    }
+  }
+}

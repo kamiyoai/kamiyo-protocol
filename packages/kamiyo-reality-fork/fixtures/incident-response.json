@@ -1,0 +1,420 @@
+{
+  "version": 1,
+  "generatedAt": "2026-04-02T20:27:03.636Z",
+  "generator": {
+    "source": "control-room-export",
+    "teamId": "team-1",
+    "caseId": "cf_case_d03765c0-27d"
+  },
+  "scenario": {
+    "id": "incident-response",
+    "slug": "incident-response",
+    "title": "Bridge outage response",
+    "tagline": "Readonly futures for operators who need to move fast without guessing.",
+    "summary": "An incident-response fork where the safest winning branch is the one that proves the blast radius before acting.",
+    "tags": [
+      "incident-response",
+      "ops",
+      "agents"
+    ],
+    "sourceLabel": "Observatory Session",
+    "mission": "Choose the best response to the bridge outage without widening blast radius.",
+    "createdAt": "2026-04-02T20:27:02.000Z",
+    "completedAt": "2026-04-02T20:27:03.000Z",
+    "snapshotHash": "4b1ee7837785e2138c5e1c3e1961e8d199bdfa68e14cf06fff392c5ce5220987",
+    "status": "ready",
+    "snapshot": {
+      "sourceType": "observatory_session",
+      "sourceRef": "incident_session_1",
+      "capturedAt": "2026-04-02T20:27:02.985Z",
+      "teamId": "team-1",
+      "teamMembers": [
+        {
+          "id": "mem-a",
+          "role": "research",
+          "drawLimit": 10
+        },
+        {
+          "id": "mem-b",
+          "role": "ops",
+          "drawLimit": 10
+        }
+      ],
+      "artifactCount": 6,
+      "artifactRefs": [
+        "escrow_incident_1",
+        "incident-response_evt_primary",
+        "incident-response_evt_secondary",
+        "incident_session_1",
+        "sig_incident_1",
+        "sig_incident_1_2"
+      ],
+      "escrows": [
+        {
+          "escrowPda": "escrow_incident_1",
+          "sessionId": "incident_session_1",
+          "lastSignature": "sig_incident_1"
+        }
+      ],
+      "events": [
+        {
+          "id": "incident-response_evt_primary",
+          "signature": "sig_incident_1",
+          "sessionId": "incident_session_1",
+          "escrowPda": "escrow_incident_1"
+        },
+        {
+          "id": "incident-response_evt_secondary",
+          "signature": "sig_incident_1_2",
+          "sessionId": "incident_session_1",
+          "escrowPda": "escrow_incident_1"
+        }
+      ],
+      "highlights": [
+        "2 team members in the snapshot",
+        "6 snapshot artifacts available for citation",
+        "4 counterfactual branches compared"
+      ]
+    },
+    "branches": [
+      {
+        "branchId": "cf_branch_58f540b8-5c4",
+        "policyPackId": "aggressive",
+        "label": "Aggressive",
+        "status": "failed",
+        "verdict": "winner",
+        "summary": "Presses speed and budget harder to maximize decisive forward motion.",
+        "nodeCount": 2,
+        "completedNodes": 0,
+        "failedNodes": 2,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_8f6fea91-11c",
+        "policyPackId": "verify_first",
+        "label": "Verify First",
+        "status": "failed",
+        "verdict": "runner_up",
+        "summary": "Front-loads verification and risk enumeration before downstream work.",
+        "nodeCount": 4,
+        "completedNodes": 0,
+        "failedNodes": 4,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_d277f378-ac4",
+        "policyPackId": "safe_exit",
+        "label": "Safe Exit",
+        "status": "failed",
+        "verdict": "contender",
+        "summary": "Biases toward reversible, lower-cost exits instead of reward chasing.",
+        "nodeCount": 3,
+        "completedNodes": 0,
+        "failedNodes": 3,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      },
+      {
+        "branchId": "cf_branch_fb8cccf7-ef3",
+        "policyPackId": "baseline",
+        "label": "Baseline",
+        "status": "failed",
+        "verdict": "contender",
+        "summary": "Default branch with the original mission topology and standard budgets.",
+        "nodeCount": 2,
+        "completedNodes": 0,
+        "failedNodes": 2,
+        "latencyMs": 0,
+        "totalSpent": 0,
+        "evidenceRefs": [],
+        "riskFlags": [],
+        "highRiskFlags": [],
+        "score": 0.15,
+        "completionScore": 0,
+        "evidenceCoverage": 0,
+        "latencyScore": 1,
+        "costScore": 1,
+        "riskPenalty": 0.5,
+        "outputHighlights": []
+      }
+    ],
+    "decision": {
+      "winnerBranchId": "cf_branch_58f540b8-5c4",
+      "winnerLabel": "Aggressive",
+      "winnerReason": "truth-court confirmed the score winner",
+      "mode": "score_then_truth_court",
+      "usedTruthCourt": true,
+      "committeeDisagreement": false,
+      "scoreDelta": 0,
+      "promotedRunId": null,
+      "topBranchIds": [
+        "cf_branch_58f540b8-5c4",
+        "cf_branch_8f6fea91-11c"
+      ]
+    },
+    "replay": {
+      "events": [
+        {
+          "id": "cf_evt_2b1ddbca-039",
+          "eventType": "case_created",
+          "phase": "capture",
+          "title": "Case opened",
+          "description": "Mission captured for Choose the best response to the bridge outage without widening blast radius..",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161622000,
+          "offsetMs": 0,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_5ce9d172-bde",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Aggressive started",
+          "description": "Aggressive began readonly execution.",
+          "branchId": "cf_branch_58f540b8-5c4",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161622000,
+          "offsetMs": 1400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_5ee7f7a7-d43",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Verify First planned",
+          "description": "Verify First was derived with 4 nodes.",
+          "branchId": "cf_branch_8f6fea91-11c",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161622000,
+          "offsetMs": 2800,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_bba5e1ea-39e",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Safe Exit planned",
+          "description": "Safe Exit was derived with 3 nodes.",
+          "branchId": "cf_branch_d277f378-ac4",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161622000,
+          "offsetMs": 4200,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_de2e7c25-978",
+          "eventType": "snapshot_captured",
+          "phase": "capture",
+          "title": "Snapshot locked",
+          "description": "Immutable snapshot 4b1ee7837785 was captured.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161622000,
+          "offsetMs": 5600,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_dfc01742-a87",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Aggressive planned",
+          "description": "Aggressive was derived with 2 nodes.",
+          "branchId": "cf_branch_58f540b8-5c4",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161622000,
+          "offsetMs": 7000,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_f7aa3107-c7b",
+          "eventType": "branch_planned",
+          "phase": "planning",
+          "title": "Baseline planned",
+          "description": "Baseline was derived with 2 nodes.",
+          "branchId": "cf_branch_fb8cccf7-ef3",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161622000,
+          "offsetMs": 8400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_26ead941-8ab",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Verify First started",
+          "description": "Verify First began readonly execution.",
+          "branchId": "cf_branch_8f6fea91-11c",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161623000,
+          "offsetMs": 9800,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_2d57dbbc-283",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Safe Exit started",
+          "description": "Safe Exit began readonly execution.",
+          "branchId": "cf_branch_d277f378-ac4",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161623000,
+          "offsetMs": 11200,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_321b3c42-d4f",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Verify First finished",
+          "description": "Verify First ended with status failed.",
+          "branchId": "cf_branch_8f6fea91-11c",
+          "branchLabel": "Verify First",
+          "createdAt": 1775161623000,
+          "offsetMs": 12600,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_33adaca1-b96",
+          "eventType": "branch_started",
+          "phase": "execution",
+          "title": "Baseline started",
+          "description": "Baseline began readonly execution.",
+          "branchId": "cf_branch_fb8cccf7-ef3",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161623000,
+          "offsetMs": 14000,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_37a7c3bd-b54",
+          "eventType": "scoring_completed",
+          "phase": "scoring",
+          "title": "Scoring finished",
+          "description": "All branches received deterministic evidence, risk, latency, and cost scores.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161623000,
+          "offsetMs": 15400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_6375ce12-9b5",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Safe Exit finished",
+          "description": "Safe Exit ended with status failed.",
+          "branchId": "cf_branch_d277f378-ac4",
+          "branchLabel": "Safe Exit",
+          "createdAt": 1775161623000,
+          "offsetMs": 16800,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_6f8dbf4f-485",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Aggressive finished",
+          "description": "Aggressive ended with status failed.",
+          "branchId": "cf_branch_58f540b8-5c4",
+          "branchLabel": "Aggressive",
+          "createdAt": 1775161623000,
+          "offsetMs": 18200,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_b4df1c9e-756",
+          "eventType": "node_reused",
+          "phase": "execution",
+          "title": "Evidence reused",
+          "description": "Node research reused prior readonly work.",
+          "branchId": "cf_branch_fb8cccf7-ef3",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161623000,
+          "offsetMs": 19600,
+          "tone": "warning"
+        },
+        {
+          "id": "cf_evt_ccec6975-386",
+          "eventType": "adjudication_completed",
+          "phase": "adjudication",
+          "title": "Winner selected",
+          "description": "Winning branch: cf_branch_58f540b8-5c4.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161623000,
+          "offsetMs": 21000,
+          "tone": "success"
+        },
+        {
+          "id": "cf_evt_d24a2a31-790",
+          "eventType": "adjudication_started",
+          "phase": "adjudication",
+          "title": "Adjudication started",
+          "description": "Decision mode: score_then_truth_court.",
+          "branchId": null,
+          "branchLabel": null,
+          "createdAt": 1775161623000,
+          "offsetMs": 22400,
+          "tone": "neutral"
+        },
+        {
+          "id": "cf_evt_eb07fee6-d24",
+          "eventType": "branch_completed",
+          "phase": "execution",
+          "title": "Baseline finished",
+          "description": "Baseline ended with status failed.",
+          "branchId": "cf_branch_fb8cccf7-ef3",
+          "branchLabel": "Baseline",
+          "createdAt": 1775161623000,
+          "offsetMs": 23800,
+          "tone": "success"
+        }
+      ]
+    },
+    "shareCard": {
+      "headline": "Bridge outage response: Aggressive wins",
+      "kicker": "Fork reality. Let futures compete. Promote the strongest path.",
+      "body": "Aggressive won 4 readonly branches on evidence, risk, latency, and cost.",
+      "scoreline": "Aggressive 15% | Verify First 15%",
+      "bullets": [
+        "Winner: Aggressive",
+        "Evidence coverage: 0%",
+        "Risk penalty: 50%"
+      ],
+      "xPost": "Reality Fork: Bridge outage response\n\nAggressive beat Verify First across 4 readonly futures.\nEvidence 0% | Risk 50% | Score 15%\n\nFork reality, let futures compete, promote the strongest path."
+    }
+  }
+}

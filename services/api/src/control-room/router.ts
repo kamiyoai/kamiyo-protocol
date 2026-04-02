@@ -1,18 +1,12 @@
 import { createHash, randomUUID } from 'crypto';
 import { Router, Request, Response } from 'express';
 import db from '../db';
-import {
-  READONLY_TASK_EXECUTOR_ALLOWED_TOOLS,
-} from '../task-executor';
-import {
-  executeSwarmRun,
-  getSwarmRunDetail,
-  getTeamMembers,
-  type ExecuteSwarmRunResult,
-} from '../swarm/service';
+import { READONLY_TASK_EXECUTOR_ALLOWED_TOOLS } from '../task-executor';
+import { executeSwarmRun, getTeamMembers, type ExecuteSwarmRunResult } from '../swarm/service';
 import type { SwarmDagPlan } from '../swarm/types';
 import { adjudicateBranches } from './adjudication';
-import { appendCaseEvent, listCaseEvents } from './events';
+import { loadControlRoomCaseDetail } from './detail';
+import { appendCaseEvent } from './events';
 import { buildControlRoomBranchPlans } from './policies';
 import { computeReuseKey, dependencyHash, findReusableReadonlyNode } from './reuse';
 import { scoreBranches } from './scoring';
@@ -30,7 +24,9 @@ function sha256Hex(input: string): string {
 }
 
 function isTeamOwner(teamId: string, wallet: string): boolean {
-  const team = db.prepare('SELECT owner_wallet FROM swarm_teams WHERE id = ?').get(teamId) as { owner_wallet: string | null } | undefined;
+  const team = db.prepare('SELECT owner_wallet FROM swarm_teams WHERE id = ?').get(teamId) as
+    | { owner_wallet: string | null }
+    | undefined;
   if (!team) return false;
   if (!team.owner_wallet) return true;
   return team.owner_wallet === wallet;
@@ -62,7 +58,9 @@ function controlRoomSourceFromBody(body: unknown): ControlRoomSource {
     rawType !== 'observatory_escrow' &&
     rawType !== 'manual_evidence'
   ) {
-    throw new Error('source.type must be observatory_session, observatory_escrow, or manual_evidence');
+    throw new Error(
+      'source.type must be observatory_session, observatory_escrow, or manual_evidence'
+    );
   }
 
   return {
@@ -76,11 +74,6 @@ function controlRoomDecisionModeFromBody(value: unknown): ControlRoomDecisionMod
   return 'score_then_truth_court';
 }
 
-function parseJson<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  return JSON.parse(raw) as T;
-}
-
 function nowUnix(): number {
   return Math.floor(Date.now() / 1000);
 }
@@ -91,7 +84,7 @@ function syntheticFailedRun(params: {
   error: string;
 }): ExecuteSwarmRunResult {
   const nodes = Object.fromEntries(
-    params.plan.nodes.map((node) => [
+    params.plan.nodes.map(node => [
       node.id,
       {
         status: 'failed',
@@ -123,76 +116,42 @@ function syntheticFailedRun(params: {
 }
 
 function loadCaseRow(teamId: string, caseId: string) {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT *
     FROM counterfactual_cases
     WHERE id = ? AND team_id = ?
-  `).get(caseId, teamId) as any;
+  `
+    )
+    .get(caseId, teamId) as any;
 }
 
 function loadBranches(caseId: string) {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT *
     FROM counterfactual_branches
     WHERE case_id = ?
     ORDER BY created_at ASC, id ASC
-  `).all(caseId) as any[];
+  `
+    )
+    .all(caseId) as any[];
 }
 
-function loadCaseDetail(teamId: string, caseId: string) {
-  const row = loadCaseRow(teamId, caseId);
-  if (!row) return null;
-
-  const branches = loadBranches(caseId);
-  return {
-    caseId: row.id,
-    id: row.id,
-    teamId: row.team_id,
-    mission: row.mission,
-    status: row.status,
-    decisionMode: row.decision_mode,
-    snapshotHash: row.snapshot_hash,
-    source: {
-      type: row.snapshot_source_type,
-      ref: row.snapshot_source_ref ?? null,
-    },
-    winnerBranchId: row.winner_branch_id ?? null,
-    promotedRunId: row.promoted_run_id ?? null,
-    error: row.error ?? null,
-    createdByWallet: row.created_by_wallet ?? null,
-    createdAt: row.created_at * 1000,
-    completedAt: row.completed_at ? row.completed_at * 1000 : null,
-    snapshot: JSON.parse(row.snapshot_json),
-    branches: branches.map((branch) => {
-      const branchPlan = JSON.parse(branch.plan_json) as ControlRoomBranchPlan;
-      return {
-        branchId: branch.id,
-        policyPackId: branch.policy_pack_id,
-        branchKind: branch.branch_kind,
-        status: branch.status,
-        swarmRunId: branch.swarm_run_id ?? null,
-        resultHash: branch.result_hash ?? null,
-        plan: branchPlan.plan,
-        maxParallel: branchPlan.maxParallel,
-        failFast: branchPlan.failFast,
-        scorecard: parseJson(branch.scorecard_json),
-        committee: parseJson(branch.committee_json),
-        run: branch.swarm_run_id ? getSwarmRunDetail(teamId, branch.swarm_run_id) : null,
-        createdAt: branch.created_at * 1000,
-        completedAt: branch.completed_at ? branch.completed_at * 1000 : null,
-      };
-    }),
-    events: listCaseEvents(caseId),
-  };
-}
-
-function updateCaseStatus(caseId: string, status: ControlRoomCaseStatus, fields: {
-  winnerBranchId?: string | null;
-  promotedRunId?: string | null;
-  error?: string | null;
-  completedAt?: boolean;
-} = {}): void {
-  db.prepare(`
+function updateCaseStatus(
+  caseId: string,
+  status: ControlRoomCaseStatus,
+  fields: {
+    winnerBranchId?: string | null;
+    promotedRunId?: string | null;
+    error?: string | null;
+    completedAt?: boolean;
+  } = {}
+): void {
+  db.prepare(
+    `
     UPDATE counterfactual_cases
     SET
       status = ?,
@@ -202,7 +161,8 @@ function updateCaseStatus(caseId: string, status: ControlRoomCaseStatus, fields:
       completed_at = CASE WHEN ? = 1 THEN unixepoch() ELSE completed_at END,
       updated_at = unixepoch()
     WHERE id = ?
-  `).run(
+  `
+  ).run(
     status,
     fields.winnerBranchId ?? null,
     fields.promotedRunId ?? null,
@@ -230,7 +190,9 @@ router.post('/cases', async (req: Request, res: Response) => {
   try {
     source = controlRoomSourceFromBody(req.body?.snapshotSource);
   } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : 'invalid snapshot source' });
+    res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'invalid snapshot source' });
     return;
   }
 
@@ -250,14 +212,16 @@ router.post('/cases', async (req: Request, res: Response) => {
     });
 
     const caseId = `cf_case_${randomUUID().slice(0, 12)}`;
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO counterfactual_cases (
         id, team_id, mission, snapshot_json, snapshot_hash,
         snapshot_source_type, snapshot_source_ref, decision_mode, status,
         created_by_wallet, created_at, updated_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'captured', ?, ?, ?)
-    `).run(
+    `
+    ).run(
       caseId,
       teamId,
       mission,
@@ -288,9 +252,11 @@ router.post('/cases', async (req: Request, res: Response) => {
       },
     });
 
-    res.status(201).json(loadCaseDetail(teamId, caseId));
+    res.status(201).json(loadControlRoomCaseDetail(teamId, caseId));
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'snapshot capture failed' });
+    res
+      .status(500)
+      .json({ error: error instanceof Error ? error.message : 'snapshot capture failed' });
   }
 });
 
@@ -298,16 +264,20 @@ router.get('/cases', (req: Request, res: Response) => {
   const teamId = req.params.id;
   const limit = Math.max(1, Math.min(parseInt(req.query.limit as string, 10) || 20, 100));
   const offset = Math.max(0, parseInt(req.query.offset as string, 10) || 0);
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT id, mission, status, decision_mode, snapshot_hash, snapshot_source_type, snapshot_source_ref, winner_branch_id, promoted_run_id, error, created_at, completed_at
     FROM counterfactual_cases
     WHERE team_id = ?
     ORDER BY created_at DESC
     LIMIT ? OFFSET ?
-  `).all(teamId, limit, offset) as Array<any>;
+  `
+    )
+    .all(teamId, limit, offset) as Array<any>;
 
   res.json({
-    cases: rows.map((row) => ({
+    cases: rows.map(row => ({
       caseId: row.id,
       id: row.id,
       mission: row.mission,
@@ -327,7 +297,7 @@ router.get('/cases', (req: Request, res: Response) => {
 });
 
 router.get('/cases/:caseId', (req: Request, res: Response) => {
-  const detail = loadCaseDetail(req.params.id, req.params.caseId);
+  const detail = loadControlRoomCaseDetail(req.params.id, req.params.caseId);
   if (!detail) {
     res.status(404).json({ error: 'Case not found' });
     return;
@@ -376,7 +346,7 @@ router.get('/cases/:caseId/stream', (req: Request, res: Response) => {
   res.on('close', close);
 
   const tick = () => {
-    const detail = loadCaseDetail(teamId, caseId);
+    const detail = loadControlRoomCaseDetail(teamId, caseId);
     if (!detail) {
       send('error', { error: 'Case not found' });
       closeSoon();
@@ -440,12 +410,14 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
 
     for (const branchPlan of branchPlans) {
       const branchId = `cf_branch_${randomUUID().slice(0, 12)}`;
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO counterfactual_branches (
           id, case_id, policy_pack_id, branch_kind, status, plan_json, created_at, updated_at
         )
         VALUES (?, ?, ?, ?, 'planned', ?, ?, ?)
-      `).run(
+      `
+      ).run(
         branchId,
         caseId,
         branchPlan.policyPackId,
@@ -475,11 +447,13 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
       const branchPlan = JSON.parse(branchRow.plan_json) as ControlRoomBranchPlan;
       const branchId = branchRow.id as string;
 
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE counterfactual_branches
         SET status = 'running', updated_at = unixepoch()
         WHERE id = ?
-      `).run(branchId);
+      `
+      ).run(branchId);
 
       appendCaseEvent({
         caseId,
@@ -541,11 +515,13 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
         });
 
         const branchStatus = result.status === 'completed' ? 'completed' : 'failed';
-        db.prepare(`
+        db.prepare(
+          `
           UPDATE counterfactual_branches
           SET swarm_run_id = ?, status = ?, result_hash = ?, completed_at = unixepoch(), updated_at = unixepoch()
           WHERE id = ?
-        `).run(branchId, result.runId, branchStatus, result.hashes.resultsSha256, branchId);
+        `
+        ).run(branchId, result.runId, branchStatus, result.hashes.resultsSha256, branchId);
 
         appendCaseEvent({
           caseId,
@@ -576,11 +552,13 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
           error: error instanceof Error ? error.message : 'readonly branch failed',
         });
 
-        db.prepare(`
+        db.prepare(
+          `
           UPDATE counterfactual_branches
           SET status = 'failed', result_hash = ?, completed_at = unixepoch(), updated_at = unixepoch()
           WHERE id = ?
-        `).run(synthetic.hashes.resultsSha256, branchId);
+        `
+        ).run(synthetic.hashes.resultsSha256, branchId);
 
         appendCaseEvent({
           caseId,
@@ -607,21 +585,25 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
     }
 
     const scorecards = scoreBranches({ snapshot, branches: branchSummaries });
-    const scorecardByBranchId = new Map(scorecards.map((scorecard) => [scorecard.branchId, scorecard]));
+    const scorecardByBranchId = new Map(
+      scorecards.map(scorecard => [scorecard.branchId, scorecard])
+    );
 
     for (const scorecard of scorecards) {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE counterfactual_branches
         SET scorecard_json = ?, updated_at = unixepoch()
         WHERE id = ?
-      `).run(JSON.stringify(scorecard), scorecard.branchId);
+      `
+      ).run(JSON.stringify(scorecard), scorecard.branchId);
     }
 
     appendCaseEvent({
       caseId,
       eventType: 'scoring_completed',
       payload: {
-        branches: scorecards.map((scorecard) => ({
+        branches: scorecards.map(scorecard => ({
           branchId: scorecard.branchId,
           finalScore: scorecard.finalScore,
         })),
@@ -648,11 +630,13 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
     });
 
     if (adjudication.committee) {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE counterfactual_branches
         SET committee_json = ?, updated_at = unixepoch()
         WHERE id = ?
-      `).run(JSON.stringify(adjudication.committee), adjudication.winnerBranchId);
+      `
+      ).run(JSON.stringify(adjudication.committee), adjudication.winnerBranchId);
     }
 
     appendCaseEvent({
@@ -667,7 +651,7 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
       error: null,
     });
 
-    res.json(loadCaseDetail(teamId, caseId));
+    res.json(loadControlRoomCaseDetail(teamId, caseId));
   } catch (error) {
     updateCaseStatus(caseId, 'failed', {
       completedAt: true,
@@ -680,7 +664,9 @@ router.post('/cases/:caseId/run', async (req: Request, res: Response) => {
         error: error instanceof Error ? error.message : 'case execution failed',
       },
     });
-    res.status(500).json({ error: error instanceof Error ? error.message : 'case execution failed' });
+    res
+      .status(500)
+      .json({ error: error instanceof Error ? error.message : 'case execution failed' });
   }
 });
 
@@ -705,11 +691,15 @@ router.post('/cases/:caseId/promote', async (req: Request, res: Response) => {
   }
 
   const mode = req.body?.mode === 'manual' ? 'manual' : 'execute';
-  const branchRow = db.prepare(`
+  const branchRow = db
+    .prepare(
+      `
     SELECT *
     FROM counterfactual_branches
     WHERE id = ? AND case_id = ?
-  `).get(branchId, caseId) as any;
+  `
+    )
+    .get(branchId, caseId) as any;
 
   if (!branchRow) {
     res.status(404).json({ error: 'Branch not found' });
@@ -734,7 +724,7 @@ router.post('/cases/:caseId/promote', async (req: Request, res: Response) => {
       eventType: 'promotion_completed',
       payload: { mode, promotedRunId: null },
     });
-    res.json(loadCaseDetail(teamId, caseId));
+    res.json(loadControlRoomCaseDetail(teamId, caseId));
     return;
   }
 
@@ -777,7 +767,7 @@ router.post('/cases/:caseId/promote', async (req: Request, res: Response) => {
       },
     });
 
-    res.json(loadCaseDetail(teamId, caseId));
+    res.json(loadControlRoomCaseDetail(teamId, caseId));
   } catch (error) {
     updateCaseStatus(caseId, 'failed', {
       error: error instanceof Error ? error.message : 'promotion failed',
