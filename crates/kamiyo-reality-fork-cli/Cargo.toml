@@ -1,19 +1,36 @@
 [package]
 name = "kamiyo-reality-fork-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
-description = "Native launcher for the KAMIYO Reality Fork CLI."
+description = "Native CLI for KAMIYO Reality Fork — repo-aware launch stress tests."
 readme = "README.md"
 repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
 homepage = "https://github.com/kamiyo.ai/"
 keywords = ["kamiyo", "cli", "reality-fork", "relay44"]
 categories = ["command-line-utilities"]
-include = [
-    "Cargo.toml",
-    "README.md",
-    "src/**/*.rs",
-    "assets/reality-fork-cli.mjs",
-]
+
+[[bin]]
+name = "reality-fork"
+path = "src/main.rs"
 
 [workspace]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+walkdir = "2"
+colored = "3"
+notify = { version = "7", features = ["macos_kqueue"] }
+notify-debouncer-mini = "0.5"
+open = "5"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+
+[profile.release]
+strip = true
+lto = "fat"
+codegen-units = 1
+opt-level = "z"
