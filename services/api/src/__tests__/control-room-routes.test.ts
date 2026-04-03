@@ -6,17 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { sign } from 'jsonwebtoken';
 
-const {
-  anthropicCreateMock,
-  initializeMock,
-  publishKirokuDropMock,
-  emitFairscaleFusionEventMock,
-} = vi.hoisted(() => ({
-  anthropicCreateMock: vi.fn(),
-  initializeMock: vi.fn(async () => {}),
-  publishKirokuDropMock: vi.fn(async () => ({ ok: false, skipped: true })),
-  emitFairscaleFusionEventMock: vi.fn(async () => {}),
-}));
+const { anthropicCreateMock, initializeMock, publishKirokuDropMock, emitFairscaleFusionEventMock } =
+  vi.hoisted(() => ({
+    anthropicCreateMock: vi.fn(),
+    initializeMock: vi.fn(async () => {}),
+    publishKirokuDropMock: vi.fn(async () => ({ ok: false, skipped: true })),
+    emitFairscaleFusionEventMock: vi.fn(async () => {}),
+  }));
 
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class Anthropic {
@@ -34,8 +30,10 @@ vi.mock('../fairscale-fusion-emitter', () => ({
   emitFairscaleFusionEvent: emitFairscaleFusionEventMock,
 }));
 
-function startServer(app: express.Express): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  return new Promise((resolve) => {
+function startServer(
+  app: express.Express
+): Promise<{ baseUrl: string; close: () => Promise<void> }> {
+  return new Promise(resolve => {
     const server = http.createServer(app);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
@@ -44,11 +42,30 @@ function startServer(app: express.Express): Promise<{ baseUrl: string; close: ()
       }
       resolve({
         baseUrl: `http://127.0.0.1:${address.port}`,
-        close: () => new Promise((done) => server.close(() => done())),
+        close: () => new Promise(done => server.close(() => done())),
       });
     });
   });
 }
+
+async function readJson<T>(res: Response): Promise<T> {
+  return res.json() as Promise<T>;
+}
+
+type CreatedCaseResponse = {
+  caseId: string;
+};
+
+type CompletedCaseResponse = {
+  status: string;
+  winnerBranchId: string | null;
+  branches: unknown[];
+};
+
+type PromotedCaseResponse = {
+  status: string;
+  promotedRunId: string | null;
+};
 
 describe('control-room routes', () => {
   let tempDataDir = '';
@@ -153,28 +170,30 @@ describe('control-room routes', () => {
     const { default: hiveTeamsRoutes } = await import('../api/routes/hive-teams');
 
     const now = Math.floor(Date.now() / 1000);
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO swarm_teams (id, name, currency, daily_limit, pool_balance, owner_wallet, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run('team-1', 'Test Team', 'USD', 1000, 1000, 'wallet-1', now, now);
+    `
+    ).run('team-1', 'Test Team', 'USD', 1000, 1000, 'wallet-1', now, now);
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO swarm_team_members (id, team_id, agent_id, role, draw_limit, added_at)
       VALUES
       ('mem-a', 'team-1', 'agent-a', 'research', 10, ?),
       ('mem-b', 'team-1', 'agent-b', 'ops', 10, ?)
-    `).run(now, now);
+    `
+    ).run(now, now);
 
     const app = express();
     app.use(express.json());
     app.use('/api/hive-teams', hiveTeamsRoutes);
     appServer = await startServer(app);
 
-    const token = sign(
-      { wallet: 'wallet-1', tier: 'pro', balance: 1_000_000 },
-      'test-jwt-secret',
-      { expiresIn: '1h' }
-    );
+    const token = sign({ wallet: 'wallet-1', tier: 'pro', balance: 1_000_000 }, 'test-jwt-secret', {
+      expiresIn: '1h',
+    });
     const headers = {
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
@@ -192,8 +211,8 @@ describe('control-room routes', () => {
       }),
     });
     expect(createRes.status).toBe(201);
-    const created = await createRes.json();
-    const caseId = created.caseId as string;
+    const created = await readJson<CreatedCaseResponse>(createRes);
+    const caseId = created.caseId;
 
     const baselinePlan = {
       mode: 'dag',
@@ -220,16 +239,19 @@ describe('control-room routes', () => {
       { headers: { authorization: `Bearer ${token}` } }
     );
 
-    const runRes = await fetch(`${appServer.baseUrl}/api/hive-teams/team-1/control-room/cases/${caseId}/run`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        baselinePlan,
-        maxParallel: 3,
-      }),
-    });
+    const runRes = await fetch(
+      `${appServer.baseUrl}/api/hive-teams/team-1/control-room/cases/${caseId}/run`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          baselinePlan,
+          maxParallel: 3,
+        }),
+      }
+    );
     expect(runRes.status).toBe(200);
-    const completed = await runRes.json();
+    const completed = await readJson<CompletedCaseResponse>(runRes);
 
     expect(completed.status).toBe('ready');
     expect(completed.winnerBranchId).toBeTruthy();
@@ -240,16 +262,19 @@ describe('control-room routes', () => {
     expect(streamRes.headers.get('content-type')).toContain('text/event-stream');
     await streamRes.body?.cancel();
 
-    const promoteRes = await fetch(`${appServer.baseUrl}/api/hive-teams/team-1/control-room/cases/${caseId}/promote`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        branchId: completed.winnerBranchId,
-        mode: 'execute',
-      }),
-    });
+    const promoteRes = await fetch(
+      `${appServer.baseUrl}/api/hive-teams/team-1/control-room/cases/${caseId}/promote`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          branchId: completed.winnerBranchId,
+          mode: 'execute',
+        }),
+      }
+    );
     expect(promoteRes.status).toBe(200);
-    const promoted = await promoteRes.json();
+    const promoted = await readJson<PromotedCaseResponse>(promoteRes);
 
     expect(promoted.status).toBe('promoted');
     expect(promoted.promotedRunId).toBeTruthy();

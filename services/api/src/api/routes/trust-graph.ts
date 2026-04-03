@@ -632,7 +632,9 @@ router.get('/', async (req: Request, res: Response) => {
       graphCache = null;
     }
 
-    const { nodes, edges, source } = await getCachedGraph();
+    const cachedGraph = await getCachedGraph();
+    const { source } = cachedGraph;
+    let { nodes, edges } = cachedGraph;
 
     // Filter by center node and depth if specified
     if (center) {

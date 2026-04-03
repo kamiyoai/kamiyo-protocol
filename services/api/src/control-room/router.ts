@@ -319,11 +319,6 @@ router.get('/cases/:caseId/stream', (req: Request, res: Response) => {
 
   let closed = false;
   const seenIds = new Set<string>();
-  const pollInterval = setInterval(tick, 1000);
-  const heartbeatInterval = setInterval(() => {
-    if (closed) return;
-    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
-  }, 15_000);
 
   const send = (event: string, data: unknown) => {
     if (closed) return;
@@ -364,6 +359,12 @@ router.get('/cases/:caseId/stream', (req: Request, res: Response) => {
       closeSoon();
     }
   };
+
+  const pollInterval = setInterval(tick, 1000);
+  const heartbeatInterval = setInterval(() => {
+    if (closed) return;
+    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+  }, 15_000);
 
   tick();
 });

@@ -35,7 +35,9 @@ function canonicalize(value: unknown): string {
 }
 
 function isTeamOwner(teamId: string, wallet: string): boolean {
-  const team = db.prepare('SELECT owner_wallet FROM swarm_teams WHERE id = ?').get(teamId) as { owner_wallet: string | null } | undefined;
+  const team = db.prepare('SELECT owner_wallet FROM swarm_teams WHERE id = ?').get(teamId) as
+    | { owner_wallet: string | null }
+    | undefined;
   if (!team) return false;
   if (!team.owner_wallet) return true;
   return team.owner_wallet === wallet;
@@ -94,7 +96,9 @@ router.post('/run', async (req: Request, res: Response) => {
   const idempotencyKeyRaw =
     typeof req.body?.idempotencyKey === 'string'
       ? req.body.idempotencyKey
-      : (typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : '');
+      : typeof req.headers['idempotency-key'] === 'string'
+        ? req.headers['idempotency-key']
+        : '';
   const idempotencyKey = idempotencyKeyRaw.trim().slice(0, 128) || null;
 
   if (!mission) {
@@ -165,11 +169,15 @@ router.post('/runs/:runId/retry', async (req: Request, res: Response) => {
   const mode = (typeof req.body?.mode === 'string' ? req.body.mode : '').trim();
   const retryMode = mode === 'all' ? 'all' : 'incomplete';
 
-  const previous = db.prepare(`
+  const previous = db
+    .prepare(
+      `
     SELECT id, team_id, requested_by_wallet, mission, plan_json, status, max_parallel, fail_fast
     FROM swarm_runs
     WHERE id = ? AND team_id = ?
-  `).get(runId, teamId) as any;
+  `
+    )
+    .get(runId, teamId) as any;
 
   if (!previous) {
     res.status(404).json({ error: 'Run not found' });
@@ -186,12 +194,23 @@ router.post('/runs/:runId/retry', async (req: Request, res: Response) => {
     return;
   }
 
-  const plan = sanitizeDagPlan(JSON.parse(previous.plan_json), members, previous.mission, { maxNodes: 24 });
-  const previousNodes = db.prepare(`
+  const plan = sanitizeDagPlan(JSON.parse(previous.plan_json), members, previous.mission, {
+    maxNodes: 24,
+  });
+  const previousNodes = db
+    .prepare(
+      `
     SELECT node_id, status, output_json, amount_drawn
     FROM swarm_run_nodes
     WHERE run_id = ?
-  `).all(runId) as Array<{ node_id: string; status: string; output_json: string | null; amount_drawn: number }>;
+  `
+    )
+    .all(runId) as Array<{
+    node_id: string;
+    status: string;
+    output_json: string | null;
+    amount_drawn: number;
+  }>;
 
   const seededNodes: SeededNode[] = [];
   if (retryMode === 'incomplete') {
@@ -206,7 +225,7 @@ router.post('/runs/:runId/retry', async (req: Request, res: Response) => {
   }
 
   const maxParallelRequested =
-    typeof req.body?.maxParallel === 'number' ? req.body.maxParallel : previous.max_parallel ?? 4;
+    typeof req.body?.maxParallel === 'number' ? req.body.maxParallel : (previous.max_parallel ?? 4);
   const maxParallel = clampMaxParallel(maxParallelRequested);
   const failFast = req.body?.failFast === undefined ? !!previous.fail_fast : !!req.body.failFast;
 
@@ -268,15 +287,6 @@ router.get('/runs/:runId/stream', (req: Request, res: Response) => {
   if (typeof flushHeaders === 'function') flushHeaders.call(res);
 
   let closed = false;
-  const pollInterval = setInterval(tick, 1000);
-  const heartbeatInterval = setInterval(() => {
-    if (closed) return;
-    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
-  }, 15_000);
-  const hardTimeout = setTimeout(() => {
-    send('error', { error: 'Stream timeout' });
-    close();
-  }, swarmRuntimeConfig.runTimeoutMs + 60_000);
   let lastSha = '';
 
   const send = (event: string, data: unknown) => {
@@ -319,6 +329,16 @@ router.get('/runs/:runId/stream', (req: Request, res: Response) => {
       closeSoon();
     }
   };
+
+  const pollInterval = setInterval(tick, 1000);
+  const heartbeatInterval = setInterval(() => {
+    if (closed) return;
+    res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+  }, 15_000);
+  const hardTimeout = setTimeout(() => {
+    send('error', { error: 'Stream timeout' });
+    close();
+  }, swarmRuntimeConfig.runTimeoutMs + 60_000);
 
   tick();
 });
