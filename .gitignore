@@ -81,6 +81,9 @@ native/*/fuzz/fuzz_*
 .parcel-cache
 .pnp.*
 
+# ── Reality Fork run artifacts ───────────────────────────────────────────────
+.reality-fork/
+
 # ── Agent / tool scratchpads ─────────────────────────────────────────────────
 .forge/
 .claude/
