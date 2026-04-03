@@ -20,7 +20,7 @@
     "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "1.95.8",
     "bs58": "^6.0.0",
-    "hono": "^4.6.0",
+    "hono": "^4.12.10",
     "pg": "^8.18.0",
     "tweetnacl": "^1.0.3",
     "zod": "^3.23.0"
