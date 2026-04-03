@@ -18,7 +18,7 @@
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/settlement": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@solana/web3.js": "^1.98.0",
     "twitter-api-v2": "^1.29.0"
   },

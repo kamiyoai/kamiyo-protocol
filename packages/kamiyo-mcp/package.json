@@ -79,7 +79,7 @@
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/cdp": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.21.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.0",
     "borsh": "^2.0.0",

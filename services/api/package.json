@@ -32,7 +32,7 @@
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/meishi": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.25.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@oobe-protocol-labs/synapse-sap-sdk": "0.4.1",
     "@sentry/node": "^10.40.0",
     "@solana/web3.js": "^1.98.0",
