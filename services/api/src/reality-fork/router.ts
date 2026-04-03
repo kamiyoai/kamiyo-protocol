@@ -168,6 +168,7 @@ router.get('/projects/:projectId/stream', (req: Request, res: Response) => {
 
   const flushHeaders = (res as Response & { flushHeaders?: () => void }).flushHeaders;
   if (typeof flushHeaders === 'function') flushHeaders.call(res);
+  res.write(': connected\n\n');
 
   let closed = false;
   const pollInterval = setInterval(tick, 250);
@@ -190,7 +191,7 @@ router.get('/projects/:projectId/stream', (req: Request, res: Response) => {
     res.end();
   };
 
-  const closeSoon = () => setTimeout(close, 0);
+  const closeSoon = () => setTimeout(close, 25);
 
   const tick = () => {
     const project = getProjectDetail(projectId);
@@ -220,7 +221,7 @@ router.get('/projects/:projectId/stream', (req: Request, res: Response) => {
   };
   req.on('aborted', close);
   res.on('close', close);
-  tick();
+  setTimeout(tick, 0);
 });
 
 router.get('/publications/:slug', (req: Request, res: Response) => {
