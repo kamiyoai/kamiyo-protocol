@@ -22,7 +22,12 @@ import {
   verifyRealityForkInternalSeedToken,
 } from './quotas';
 import { getRealityForkProjectOps, getRealityForkUsageOps } from './ops';
-import type { CreateRealityForkEvidenceInput, RealityForkJobKind } from './types';
+import type {
+  CreateRealityForkEvidenceInput,
+  RealityForkEvidenceKind,
+  RealityForkJobKind,
+  RealityForkSourceType,
+} from './types';
 
 const router = Router();
 const upload = multer({
@@ -102,6 +107,39 @@ function parseString(value: unknown): string | undefined {
 function parseStringList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.map(entry => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean);
+}
+
+const EVIDENCE_KINDS: readonly RealityForkEvidenceKind[] = [
+  'upload',
+  'document',
+  'source',
+  'pasted_text',
+  'note',
+  'dataset',
+];
+
+const SOURCE_TYPES: readonly RealityForkSourceType[] = [
+  'pdf',
+  'docx',
+  'text',
+  'markdown',
+  'html',
+  'url',
+  'x_thread',
+  'reddit_thread',
+  'polymarket_market',
+];
+
+function parseEvidenceKind(value: unknown): RealityForkEvidenceKind | undefined {
+  return typeof value === 'string' && EVIDENCE_KINDS.includes(value as RealityForkEvidenceKind)
+    ? (value as RealityForkEvidenceKind)
+    : undefined;
+}
+
+function parseSourceType(value: unknown): RealityForkSourceType | undefined {
+  return typeof value === 'string' && SOURCE_TYPES.includes(value as RealityForkSourceType)
+    ? (value as RealityForkSourceType)
+    : undefined;
 }
 
 function clientIp(req: Request): string | null {
@@ -292,8 +330,8 @@ function parseInternalSeedEvidence(
 
     return {
       title,
-      kind: typeof candidate.kind === 'string' ? candidate.kind : undefined,
-      sourceType: typeof candidate.sourceType === 'string' ? candidate.sourceType : undefined,
+      kind: parseEvidenceKind(candidate.kind),
+      sourceType: parseSourceType(candidate.sourceType),
       sourceLabel:
         parseString(candidate.sourceLabel) ??
         parseString(candidate.reason) ??
