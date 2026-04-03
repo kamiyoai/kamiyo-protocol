@@ -4,51 +4,28 @@
 [![Kani](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml/badge.svg?branch=main)](https://github.com/kamiyo-ai/kamiyo-protocol/actions/workflows/kani.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-![kamiyo-protocol](https://github.com/user-attachments/assets/707baf74-fdb8-451e-8bc2-931afb143d2a)
+KAMIYO Protocol is the core open-source repository for KAMIYO.
 
-Open-source rails for Kizuna, KAMIYO's payment layer for autonomous agents.
+Kizuna is the protocol's agentic trust and settlement layer. It provides trust signals, payment verification, settlement flows, funding controls, and operator surfaces for AI agents. Reality Fork is the newest product built on top of these rails; this repository contains the underlying protocol, services, SDKs, and reference applications rather than a product-specific app.
 
-Kizuna is the repo default. The broader platform stays in the monorepo, but it now hangs off the Kizuna spine instead of competing with it.
+## Repository Scope
 
-## What This Repo Is For
-
-Kizuna gives agents a controlled way to pay for work over open rails:
-
-- enterprise lane: prefunded, policy-limited approvals
-- crypto-fast lane: overcollateralized approvals with health checks
-- shared settlement, funding, repayment, and audit surfaces
-- open protocol interfaces with a closed hosted kernel for production decisioning
-
-This repository contains the open parts of that stack:
-
-- x402 verification and settlement rails
-- Kizuna account, funding, collateral, and repayment APIs
-- wallet mandate and control-plane services
-- client SDKs and settlement packages
-- operator and onboarding surfaces
-- module integrations that spend through Kizuna
-
-## Repo Taxonomy
-
-The workspace is intentionally split into three layers.
-
-| Tier | What belongs here | Current examples |
-|---|---|---|
-| `core` | Default production path for Kizuna | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api` (Kizuna slice), `packages/kamiyo-x402-client`, `packages/kamiyo-settlement`, `packages/kamiyo-meishi`, `apps/cdp-onboarding` |
-| `module` | Kizuna-powered runtimes, apps, and orchestration layers | `services/kyoshin`, `apps/keiro`, `packages/kamiyo-openclaw`, `packages/kamiyo-hive`, `packages/kamiyo-agents` |
-| `legacy` | Retained but non-default integrations, demos, and contract tracks | FairScale fusion surfaces, trust-graph/paranet/PoCH-heavy routes, oracle/deploy tracks, old demos, contract-specific workflows |
-
-The source of truth for these groupings lives in `config/workspace-groups.json`.
+| Area | Purpose | Primary paths |
+| --- | --- | --- |
+| Kizuna core services | Verification, settlement, funding, repayment, operator APIs | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api`, `apps/cdp-onboarding` |
+| Trust infrastructure | Durable trust-event ingest, reads, replay, and service runtime | `services/trust-layer-service`, `crates/kamiyo-trust-layer` |
+| Identity and compliance | Passport, mandate, and compliance surfaces | `packages/kamiyo-meishi`, `services/meishi-compliance` |
+| Client and integration packages | SDKs, settlement libraries, and agent-facing integrations | `packages/` |
+| On-chain and proof systems | Solana programs, contracts, zero-knowledge components, and circuits | `programs/`, `contracts/`, `crates/kamiyo-zk`, `circuits/`, `noir/` |
 
 ## Quick Start
 
-### Prerequisites
+### Requirements
 
 - Node.js 20+
 - pnpm 9+
-- Rust stable + Cargo
-- Solana CLI 2.x
-- Anchor CLI 0.31.x
+- Rust stable
+- Solana CLI 2.x and Anchor CLI 0.31.x for on-chain work
 
 ### Install
 
@@ -58,90 +35,46 @@ cd kamiyo-protocol
 pnpm install
 ```
 
-### Default Kizuna Commands
+### Common Commands
 
 ```bash
 pnpm run build
 pnpm run test
 pnpm run lint:check
-pnpm run smoke:companion:route-ownership
 ```
 
-Those commands now target the Kizuna core only.
+The root defaults target the Kizuna core workspace. For module, legacy, and on-chain commands, see [BUILD.md](BUILD.md).
 
-### Non-default Workspace Commands
+## Key Components
 
-```bash
-pnpm run build:modules
-pnpm run test:modules
-pnpm run build:legacy
-pnpm run test:legacy
-pnpm run build:program
-pnpm run test:onchain
-```
-
-## Core Services
-
-### x402 Facilitator
-
-Primary Kizuna protocol edge for verify and settle.
-
-- x402 verify/settle
-- Kizuna account APIs
-- enterprise prefund controls
-- crypto-fast collateralized approvals
-- billable settlement event emission
-
-Docs: `services/x402-facilitator/README.md`
-
-### Wallet Control Plane
-
-Mandate, funding, and collateral control surface.
-
-- agent onboarding
-- mandate limits
-- linked end-user wallet controls
-- Kizuna funding and collateral support
-
-Docs: `services/wallet-control-plane/README.md`
-
-### Companion API
-
-Broader API service with Kizuna-facing credits, billing, and repayment interfaces, plus retained legacy routes during the cutover window.
-
-Docs: `services/api/README.md`
-
-## Kizuna-Powered Modules
-
-These stay in the repo, but they no longer define the product story.
-
-- `Kyoshin`: execution runtime that spends and settles through Kizuna
-- `Keiro`: client surface for agent identity, wallet, and Kizuna account state
-- `OpenClaw`, Hive, and agent packages: orchestration and integration layers on top of Kizuna rails
-- `Meishi`: compliance and policy input into Kizuna underwriting
+- [x402 Facilitator](services/x402-facilitator/README.md): verification, settlement, funding locks, collateralized approvals, and repayment flows
+- [Wallet Control Plane](services/wallet-control-plane/README.md): mandates, linked wallets, enterprise funding limits, and collateral checks
+- [Companion API](services/api/README.md): ledger, billing, integration, and protocol API surfaces
+- [Trust Layer Service](services/trust-layer-service/README.md): durable trust-event ingest, subject-state reads, replay tooling, and Kafka-backed delivery
+- [Meishi Compliance](services/meishi-compliance/README.md): identity and compliance services around Meishi passports
+- [CDP Onboarding](apps/cdp-onboarding/README.md): reference operator app for Kizuna account setup and control-plane actions
 
 ## Documentation
 
-- Build and local setup: `BUILD.md`
-- Development workflows: `DEVELOPMENT.md`
-- Kizuna-first architecture: `ARCHITECTURE.md`
-- Companion ownership and cutover runbook: `services/api/ROUTE_OWNERSHIP.md`
-- Kizuna staged cutover: `docs/kizuna-cutover-plan.md`
-- Kizuna narrative timeline: `docs/kizuna-narrative-timeline.md`
-- Kizuna X calendar: `docs/kizuna-x-posts-calendar.md`
-- Contributor guide: `CONTRIBUTING.md`
-- Security policy: `SECURITY.md`
-- Governance model: `GOVERNANCE.md`
-- Support channels: `SUPPORT.md`
+- [Architecture](ARCHITECTURE.md)
+- [Build Guide](BUILD.md)
+- [Development Guide](DEVELOPMENT.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- [Governance](GOVERNANCE.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+- [Support](SUPPORT.md)
+
+Service- and package-specific documentation lives alongside each component under `services/`, `packages/`, `apps/`, and `crates/`.
 
 ## Contributing
 
-Contributions are welcome. Default changes should strengthen the Kizuna core path first. Use module or legacy lanes only when the work is not part of the core payment spine.
+Contributions are welcome. Keep changes focused, add tests for behavior changes, and update documentation when interfaces or workflows change. Start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Security
+## Support
 
-Report vulnerabilities privately via the process in `SECURITY.md`.
+Use GitHub Issues for bugs and feature requests. Do not open public issues for security problems; follow [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
