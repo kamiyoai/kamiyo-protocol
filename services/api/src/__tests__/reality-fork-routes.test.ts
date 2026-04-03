@@ -265,7 +265,8 @@ describe('reality-fork routes', () => {
       }
     );
     expect(blockedPublishResponse.status).toBe(429);
-    expect((await blockedPublishResponse.json()).error).toMatch(/published report/i);
+    const blockedPublishPayload = (await blockedPublishResponse.json()) as Record<string, any>;
+    expect(blockedPublishPayload.error).toMatch(/published report/i);
 
     const thirdCreateResponse = await fetch(`${server.baseUrl}/api/reality-fork/projects`, {
       method: 'POST',
@@ -293,7 +294,8 @@ describe('reality-fork routes', () => {
       }),
     });
     expect(fourthCreateResponse.status).toBe(429);
-    expect((await fourthCreateResponse.json()).error).toMatch(/project quota|project limit/i);
+    const fourthCreatePayload = (await fourthCreateResponse.json()) as Record<string, any>;
+    expect(fourthCreatePayload.error).toMatch(/project quota|project limit/i);
 
     const listedAgainResponse = await fetch(`${server.baseUrl}/api/reality-fork`);
     expect(listedAgainResponse.status).toBe(200);

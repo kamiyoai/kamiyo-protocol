@@ -260,6 +260,9 @@ export function getRealityForkUsageOps(clientIp: string | null) {
     `
     )
     .all() as Array<{ event_type: string; count: number }>;
+  const spendRows = db
+    .prepare(`SELECT id FROM reality_fork_projects ORDER BY created_at ASC`)
+    .all() as Array<{ id: string }>;
 
   return {
     quotas: {
@@ -304,10 +307,7 @@ export function getRealityForkUsageOps(clientIp: string | null) {
         events.map(event => [event.event_type, event.count])
       ) as Record<string, number>,
       actualSimulatedSpend: round(
-        db
-          .prepare(`SELECT id FROM reality_fork_projects ORDER BY created_at ASC`)
-          .all()
-          .reduce((sum, row) => sum + sumSimulationSpend((row as { id: string }).id), 0)
+        spendRows.reduce<number>((sum, row) => sum + sumSimulationSpend(row.id), 0)
       ),
     },
     retention: getRealityForkRetentionSummary(),
