@@ -37,7 +37,17 @@ fn format_html_citation(repo: &RepoContext, citation: &str) -> String {
 }
 
 pub fn render_decision_markdown(run: &LaunchRun) -> String {
-    let branch = &run.branches[0];
+    let fallback_branch = Branch {
+        id: crate::types::BranchId::NarrowLaunch,
+        label: "Unknown".into(),
+        stance: "Unknown".into(),
+        score: 0.0,
+        summary: String::new(),
+        advantages: vec![],
+        risks: vec![],
+        next_moves: vec![],
+    };
+    let branch = run.branches.first().unwrap_or(&fallback_branch);
 
     let scoreboard: String = run
         .axes
@@ -150,14 +160,24 @@ Thread:
         readiness = percent(run.verdict.readiness),
         actions = run.actions.join("\n- "),
         announcement = run.posts.announcement,
-        thread0 = run.posts.thread[0],
-        thread1 = run.posts.thread[1],
-        thread2 = run.posts.thread[2],
+        thread0 = run.posts.thread.first().map(|s| s.as_str()).unwrap_or(""),
+        thread1 = run.posts.thread.get(1).map(|s| s.as_str()).unwrap_or(""),
+        thread2 = run.posts.thread.get(2).map(|s| s.as_str()).unwrap_or(""),
     )
 }
 
 pub fn render_report_html(run: &LaunchRun) -> String {
-    let winner = &run.branches[0];
+    let fallback_branch = Branch {
+        id: crate::types::BranchId::NarrowLaunch,
+        label: "Unknown".into(),
+        stance: "Unknown".into(),
+        score: 0.0,
+        summary: String::new(),
+        advantages: vec![],
+        risks: vec![],
+        next_moves: vec![],
+    };
+    let winner = run.branches.first().unwrap_or(&fallback_branch);
 
     let signals_html: String = run
         .signals

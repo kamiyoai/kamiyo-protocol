@@ -4,6 +4,14 @@ use regex::Regex;
 
 use crate::types::*;
 
+macro_rules! regex {
+    ($pat:expr) => {{
+        static RE: once_cell::sync::Lazy<Regex> =
+            once_cell::sync::Lazy::new(|| Regex::new($pat).unwrap());
+        &*RE
+    }};
+}
+
 fn clamp(v: f64) -> f64 {
     v.clamp(0.0, 1.0)
 }
@@ -143,7 +151,7 @@ pub fn derive_repo_scores(repo: &RepoContext) -> RepoSignals {
     let has_local_non_curl = repo
         .local_run_commands
         .iter()
-        .any(|c| !Regex::new(r"(?i)^curl\b").unwrap().is_match(c));
+        .any(|c| !regex!(r"(?i)^curl\b").is_match(c));
     let has_fixtures_or_examples = !repo.fixtures.is_empty() || !repo.examples.is_empty();
     let local_mode_score = if has_local_non_curl
         && (has_fixtures_or_examples
@@ -163,11 +171,8 @@ pub fn derive_repo_scores(repo: &RepoContext) -> RepoSignals {
     ]
     .join(" ");
 
-    let outcome_re = Regex::new(r"(?i)\b(launch|ship|deploy|review|simulate|stress-test|decision|workflow|agent|builder|artifact|report|pr|spec)\b").unwrap();
-    let outcome_hits = outcome_re.find_iter(&doc_text).count();
-
-    let artifact_text_re = Regex::new(r"(?i)\b(report|artifact|decision|trace|html|markdown)\b").unwrap();
-    let artifact_text_hits = artifact_text_re.find_iter(&doc_text).count();
+    let outcome_hits = regex!(r"(?i)\b(launch|ship|deploy|review|simulate|stress-test|decision|workflow|agent|builder|artifact|report|pr|spec)\b").find_iter(&doc_text).count();
+    let artifact_text_hits = regex!(r"(?i)\b(report|artifact|decision|trace|html|markdown)\b").find_iter(&doc_text).count();
 
     let example_score = clamp((repo.examples.len() + repo.fixtures.len()) as f64 / 6.0);
 
@@ -210,11 +215,11 @@ pub fn derive_repo_scores(repo: &RepoContext) -> RepoSignals {
     let mentions_cargo = repo
         .install_commands
         .iter()
-        .any(|c| Regex::new(r"(?i)^cargo install\b").unwrap().is_match(c));
+        .any(|c| regex!(r"(?i)^cargo install\b").is_match(c));
     let mentions_node = repo
         .runtime_notes
         .iter()
-        .any(|n| Regex::new(r"(?i)Node\.js|node 20|nodejs").unwrap().is_match(n));
+        .any(|n| regex!(r"(?i)Node\.js|node 20|nodejs").is_match(n));
     let split_runtime_penalty = if mentions_cargo && mentions_node {
         0.24
     } else {
@@ -320,7 +325,7 @@ pub fn build_actions(axes: &[Axis]) -> Vec<String> {
     };
 
     let mut sorted = axes.to_vec();
-    sorted.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().then(a.id.label().cmp(b.id.label())));
+    sorted.sort_by(|a, b| a.score.total_cmp(&b.score).then(a.id.label().cmp(b.id.label())));
 
     let weakest: Vec<String> = sorted
         .iter()
@@ -399,8 +404,7 @@ pub fn build_branches(
 
     branches.sort_by(|a, b| {
         b.score
-            .partial_cmp(&a.score)
-            .unwrap()
+            .total_cmp(&a.score)
             .then(a.id.order().cmp(&b.id.order()))
     });
     branches
@@ -504,7 +508,7 @@ fn build_single_branch(
 
 pub fn verdict_reason(branch: &Branch, axes: &[Axis], actions: &[String]) -> String {
     let mut by_score_desc = axes.to_vec();
-    by_score_desc.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap().then(a.id.label().cmp(b.id.label())));
+    by_score_desc.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.id.label().cmp(b.id.label())));
     let strengths: Vec<String> = by_score_desc
         .iter()
         .take(2)
@@ -512,17 +516,22 @@ pub fn verdict_reason(branch: &Branch, axes: &[Axis], actions: &[String]) -> Str
         .collect();
 
     let mut by_score_asc = axes.to_vec();
-    by_score_asc.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().then(a.id.label().cmp(b.id.label())));
+    by_score_asc.sort_by(|a, b| a.score.total_cmp(&b.score).then(a.id.label().cmp(b.id.label())));
     let weakest: Vec<String> = by_score_asc
         .iter()
         .take(2)
         .map(|a| a.id.label().to_lowercase())
         .collect();
 
+    let s0 = strengths.first().map(|s| s.as_str()).unwrap_or("immediacy");
+    let s1 = strengths.get(1).map(|s| s.as_str()).unwrap_or("proof");
+    let w0 = weakest.first().map(|s| s.as_str()).unwrap_or("clarity");
+    let w1 = weakest.get(1).map(|s| s.as_str()).unwrap_or("distribution");
+
     match branch.id {
         BranchId::ShipNow => format!(
             "The weakest outward-facing axis is strong enough to support a broad launch, and the repo already shows real {} and {}.",
-            strengths[0], strengths[1]
+            s0, s1
         ),
         BranchId::NarrowLaunch => format!(
             "The core engine is credible, but the strongest external story is still one flagship workflow. {}",
@@ -530,11 +539,11 @@ pub fn verdict_reason(branch: &Branch, axes: &[Axis], actions: &[String]) -> Str
         ),
         BranchId::DelayForProof => format!(
             "The current repo is still too weak on {} and {} for a broad public push. Shipping now would create more confusion than pull.",
-            weakest[0], weakest[1]
+            w0, w1
         ),
         BranchId::ParkIt => format!(
             "The wedge is not sharp enough yet. The repo is still weakest on {} and {}, so launch work would mostly be noise.",
-            weakest[0], weakest[1]
+            w0, w1
         ),
     }
 }
@@ -795,8 +804,7 @@ pub fn build_signals(
 
     signals.sort_by(|a, b| {
         b.weight
-            .partial_cmp(&a.weight)
-            .unwrap()
+            .total_cmp(&a.weight)
             .then(a.id.cmp(&b.id))
     });
     signals
@@ -809,7 +817,7 @@ pub fn build_posts(
     axes: &[Axis],
 ) -> Posts {
     let mut by_score_desc = axes.to_vec();
-    by_score_desc.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap().then(a.id.label().cmp(b.id.label())));
+    by_score_desc.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.id.label().cmp(b.id.label())));
     let top_axes: Vec<String> = by_score_desc
         .iter()
         .take(2)
@@ -817,7 +825,7 @@ pub fn build_posts(
         .collect();
 
     let mut by_score_asc = axes.to_vec();
-    by_score_asc.sort_by(|a, b| a.score.partial_cmp(&b.score).unwrap().then(a.id.label().cmp(b.id.label())));
+    by_score_asc.sort_by(|a, b| a.score.total_cmp(&b.score).then(a.id.label().cmp(b.id.label())));
     let weak_axes: Vec<String> = by_score_asc
         .iter()
         .take(2)
@@ -844,7 +852,7 @@ pub fn build_posts(
             top_axes.join(" | "),
             weak_axes.join(" | ")
         )),
-        trim_post(&format!("Next move: {}", branch.next_moves[0])),
+        trim_post(&format!("Next move: {}", branch.next_moves.first().map(|s| s.as_str()).unwrap_or("Ship the strongest artifact path first."))),
     ];
 
     Posts {
@@ -862,7 +870,7 @@ pub fn create_launch_run_with(
     let axes = build_axes(&repo, &scores);
     let actions = build_actions(&axes);
     let branches = build_branches(&axes, &actions, &repo);
-    let winner = &branches[0];
+    let winner = branches.first().expect("branches is always non-empty (4 items)");
     let readiness = average(&axes.iter().map(|a| a.score).collect::<Vec<_>>());
     let reason = verdict_reason(winner, &axes, &actions);
 

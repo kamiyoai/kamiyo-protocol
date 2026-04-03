@@ -8,11 +8,15 @@ mod types;
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{self, Command};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use anyhow::{bail, Context, Result};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use colored::Colorize;
 
 use crate::config::ConfigStore;
@@ -25,20 +29,25 @@ use crate::types::{ArtifactPaths, LaunchRun};
 #[derive(Parser)]
 #[command(
     name = "reality-fork",
-    about = "Native CLI for KAMIYO Reality Fork — repo-aware launch stress tests.",
-    version
+    about = "Native CLI for KAMIYO Reality Fork \u{2014} repo-aware launch stress tests.",
+    version,
+    propagate_version = true
 )]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Output format (table or json)
-    #[arg(long, global = true)]
+    /// Output format
+    #[arg(long, global = true, value_parser = ["table", "json"])]
     output: Option<String>,
 
     /// Suppress non-essential output
     #[arg(long, global = true)]
     quiet: bool,
+
+    /// Show verbose debug output
+    #[arg(long, global = true)]
+    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -48,10 +57,16 @@ enum Commands {
         #[command(subcommand)]
         command: RunCommands,
     },
-    /// Show the config path
+    /// Inspect and manage CLI configuration
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
+    },
+    /// Generate shell completions
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
     },
 }
 
@@ -122,9 +137,9 @@ enum RunCommands {
 
 #[derive(Subcommand)]
 enum ConfigCommands {
-    /// Print the config path
+    /// Print the config file path
     Path,
-    /// Print the current config
+    /// Print the current config as JSON
     Show,
 }
 
@@ -136,28 +151,30 @@ fn default_output_dir(repo_path: &Path, generated_at: &str) -> PathBuf {
         .join(format!("launch-{stamp}"))
 }
 
-fn write_artifacts(run: &LaunchRun, output_dir: &Path) -> ArtifactPaths {
+fn write_artifacts(run: &LaunchRun, output_dir: &Path) -> Result<ArtifactPaths> {
     let dir = output_dir.to_path_buf();
-    fs::create_dir_all(&dir).expect("failed to create output directory");
+    fs::create_dir_all(&dir)
+        .with_context(|| format!("failed to create output directory: {}", dir.display()))?;
 
     let decision = dir.join("decision.md");
     let report = dir.join("report.html");
     let trace = dir.join("trace.json");
 
-    fs::write(&decision, render_decision_markdown(run)).expect("failed to write decision.md");
-    fs::write(&report, render_report_html(run)).expect("failed to write report.html");
-    fs::write(
-        &trace,
-        serde_json::to_string_pretty(run).expect("failed to serialize trace"),
-    )
-    .expect("failed to write trace.json");
+    fs::write(&decision, render_decision_markdown(run))
+        .with_context(|| format!("failed to write {}", decision.display()))?;
+    fs::write(&report, render_report_html(run))
+        .with_context(|| format!("failed to write {}", report.display()))?;
 
-    ArtifactPaths {
+    let trace_json = serde_json::to_string_pretty(run).context("failed to serialize trace")?;
+    fs::write(&trace, trace_json)
+        .with_context(|| format!("failed to write {}", trace.display()))?;
+
+    Ok(ArtifactPaths {
         output_dir: dir.to_string_lossy().to_string(),
         decision_path: decision.to_string_lossy().to_string(),
         report_path: report.to_string_lossy().to_string(),
         trace_path: trace.to_string_lossy().to_string(),
-    }
+    })
 }
 
 fn format_percent(v: f64) -> String {
@@ -165,7 +182,8 @@ fn format_percent(v: f64) -> String {
 }
 
 fn axis_bar(score: f64, width: usize) -> String {
-    let filled = (score * width as f64).round() as usize;
+    let clamped = score.clamp(0.0, 1.0);
+    let filled = (clamped * width as f64).round() as usize;
     let empty = width.saturating_sub(filled);
     "\u{2588}".repeat(filled) + &"\u{2591}".repeat(empty)
 }
@@ -183,18 +201,17 @@ fn render_launch_progress(run: &LaunchRun, artifacts: &ArtifactPaths) {
     let stderr = std::io::stderr();
     let mut w = stderr.lock();
 
-    write!(
+    let _ = write!(
         w,
         "\n  {} {}\n\n",
         "reality fork".dimmed(),
         "\u{5206}\u{5c90}\u{73fe}\u{754c}".magenta()
-    )
-    .ok();
-    write!(w, "  {}  {}\n", "repo".dimmed(), run.repo.name.white()).ok();
-    write!(w, "  {} {}", "files".dimmed(), run.repo.file_count).ok();
+    );
+    let _ = write!(w, "  {}  {}\n", "repo".dimmed(), run.repo.name.white());
+    let _ = write!(w, "  {} {}", "files".dimmed(), run.repo.file_count);
 
     if !run.repo.languages.is_empty() {
-        write!(
+        let _ = write!(
             w,
             " {} {}",
             "\u{00b7}".dimmed(),
@@ -205,20 +222,18 @@ fn render_launch_progress(run: &LaunchRun, artifacts: &ArtifactPaths) {
                 .map(|l| l.name.as_str())
                 .collect::<Vec<_>>()
                 .join(", ")
-        )
-        .ok();
+        );
     }
     if !run.repo.frameworks.is_empty() {
-        write!(
+        let _ = write!(
             w,
             " {} {}",
             "\u{00b7}".dimmed(),
             run.repo.frameworks.join(", ").cyan()
-        )
-        .ok();
+        );
     }
-    writeln!(w).ok();
-    writeln!(w).ok();
+    let _ = writeln!(w);
+    let _ = writeln!(w);
 
     let pad_len = run.axes.iter().map(|a| a.label.len()).max().unwrap_or(0);
     for axis in &run.axes {
@@ -234,52 +249,46 @@ fn render_launch_progress(run: &LaunchRun, artifacts: &ArtifactPaths) {
             (bar.magenta().to_string(), pct.magenta().to_string())
         };
 
-        write!(w, "  {}  {}  {}\n", label.dimmed(), colored_bar, colored_pct).ok();
-        w.flush().ok();
+        let _ = write!(w, "  {}  {}  {}\n", label.dimmed(), colored_bar, colored_pct);
+        let _ = w.flush();
         thread::sleep(Duration::from_millis(60));
     }
 
-    writeln!(w).ok();
-    let verdict_colored = if run.verdict.winner_branch_id == crate::types::BranchId::ShipNow {
-        run.verdict.label.cyan().to_string()
-    } else if run.verdict.winner_branch_id == crate::types::BranchId::NarrowLaunch {
-        run.verdict.label.white().to_string()
-    } else {
-        run.verdict.label.magenta().to_string()
+    let _ = writeln!(w);
+    let verdict_colored = match run.verdict.winner_branch_id {
+        crate::types::BranchId::ShipNow => run.verdict.label.cyan().to_string(),
+        crate::types::BranchId::NarrowLaunch => run.verdict.label.white().to_string(),
+        _ => run.verdict.label.magenta().to_string(),
     };
-    write!(w, "  {verdict_colored}\n").ok();
-    write!(w, "  {}\n", run.verdict.reason.dimmed()).ok();
-    write!(
+    let _ = writeln!(w, "  {verdict_colored}");
+    let _ = writeln!(w, "  {}", run.verdict.reason.dimmed());
+    let _ = write!(
         w,
         "  {} {}\n",
         "readiness".dimmed(),
         format_percent(run.verdict.readiness).cyan()
-    )
-    .ok();
+    );
 
-    writeln!(w).ok();
-    write!(w, "  {}\n", "artifacts".dimmed()).ok();
-    write!(
+    let _ = writeln!(w);
+    let _ = writeln!(w, "  {}", "artifacts".dimmed());
+    let _ = writeln!(
         w,
-        "  {} {}\n",
+        "  {} {}",
         "decision".dimmed(),
         display_path_from_cwd(&artifacts.decision_path)
-    )
-    .ok();
-    write!(
+    );
+    let _ = writeln!(
         w,
-        "  {} {}\n",
+        "  {} {}",
         "report  ".dimmed(),
         display_path_from_cwd(&artifacts.report_path)
-    )
-    .ok();
-    write!(
+    );
+    let _ = writeln!(
         w,
-        "  {} {}\n\n",
+        "  {} {}\n",
         "trace   ".dimmed(),
         display_path_from_cwd(&artifacts.trace_path)
-    )
-    .ok();
+    );
 }
 
 fn open_in_browser(file_path: &str) {
@@ -290,12 +299,11 @@ fn open_in_browser(file_path: &str) {
     } else {
         "xdg-open"
     };
-    Command::new(cmd)
+    let _ = Command::new(cmd)
         .arg(file_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .ok();
+        .stdout(process::Stdio::null())
+        .stderr(process::Stdio::null())
+        .spawn();
 }
 
 fn resolve_trace(arg: &str) -> PathBuf {
@@ -305,11 +313,26 @@ fn resolve_trace(arg: &str) -> PathBuf {
     } else {
         p
     };
-    if p.extension().map(|e| e == "json").unwrap_or(false) {
+    if p.extension().is_some_and(|e| e == "json") {
         p
     } else {
         p.join("trace.json")
     }
+}
+
+fn validate_repo_path(repo: &str) -> Result<PathBuf> {
+    let p = PathBuf::from(repo);
+    let resolved = p.canonicalize().unwrap_or(p);
+    if !resolved.exists() {
+        bail!("repository path does not exist: {}", resolved.display());
+    }
+    if !resolved.is_dir() {
+        bail!(
+            "repository path is not a directory: {}",
+            resolved.display()
+        );
+    }
+    Ok(resolved)
 }
 
 fn cmd_launch(
@@ -321,20 +344,23 @@ fn cmd_launch(
     open: bool,
     output_format: Option<&str>,
     quiet: bool,
-) {
-    let repo_path = PathBuf::from(repo).canonicalize().unwrap_or_else(|_| PathBuf::from(repo));
+) -> Result<()> {
+    let repo_path = validate_repo_path(repo)?;
     let ctx = collect_repo_context(&repo_path, focus);
     let run = create_launch_run_with(ctx, Some(prompt.to_string()), title.map(String::from));
 
     let out_dir = match output_dir {
-        Some(d) => PathBuf::from(d).canonicalize().unwrap_or_else(|_| PathBuf::from(d)),
+        Some(d) => {
+            let p = PathBuf::from(d);
+            p.canonicalize().unwrap_or(p)
+        }
         None => default_output_dir(&repo_path, &run.generated_at),
     };
-    let artifacts = write_artifacts(&run, &out_dir);
+    let artifacts = write_artifacts(&run, &out_dir)?;
 
     if output_format == Some("json") {
         let mut top_axes = run.axes.clone();
-        top_axes.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap().then(a.id.label().cmp(b.id.label())));
+        top_axes.sort_by(|a, b| b.score.total_cmp(&a.score).then(a.id.label().cmp(b.id.label())));
         top_axes.truncate(3);
         let json = serde_json::json!({
             "verdict": run.verdict,
@@ -348,7 +374,7 @@ fn cmd_launch(
                 "tracePath": artifacts.trace_path,
             }
         });
-        println!("{}", serde_json::to_string_pretty(&json).unwrap());
+        println!("{}", serde_json::to_string_pretty(&json)?);
     } else if !quiet {
         render_launch_progress(&run, &artifacts);
     }
@@ -356,51 +382,52 @@ fn cmd_launch(
     if open {
         open_in_browser(&artifacts.report_path);
     }
+
+    Ok(())
 }
 
-fn cmd_diff(before: &str, after: &str, output_dir: Option<&str>, output_format: Option<&str>, quiet: bool) {
+fn cmd_diff(
+    before: &str,
+    after: &str,
+    output_dir: Option<&str>,
+    output_format: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
     let before_path = resolve_trace(before);
     let after_path = resolve_trace(after);
 
+    let before_text = fs::read_to_string(&before_path)
+        .with_context(|| format!("failed to read {}", before_path.display()))?;
+    let after_text = fs::read_to_string(&after_path)
+        .with_context(|| format!("failed to read {}", after_path.display()))?;
+
     let before_run: LaunchRun =
-        serde_json::from_str(&fs::read_to_string(&before_path).expect("failed to read before trace"))
-            .expect("failed to parse before trace");
+        serde_json::from_str(&before_text).context("failed to parse before trace as valid launch run")?;
     let after_run: LaunchRun =
-        serde_json::from_str(&fs::read_to_string(&after_path).expect("failed to read after trace"))
-            .expect("failed to parse after trace");
+        serde_json::from_str(&after_text).context("failed to parse after trace as valid launch run")?;
 
     let diff = diff_launch_runs(&before_run, &after_run);
 
     if output_format == Some("json") {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&diff).unwrap()
-        );
+        println!("{}", serde_json::to_string_pretty(&diff)?);
     } else if !quiet {
         let stderr = std::io::stderr();
         let mut w = stderr.lock();
 
-        write!(
+        let _ = write!(
             w,
             "\n  {} {}\n\n",
             "reality fork".dimmed(),
             "\u{5206}\u{5c90}\u{73fe}\u{754c}".magenta()
-        )
-        .ok();
-        write!(
+        );
+        let _ = write!(
             w,
             "  {} \u{2192} {}\n\n",
             diff.before.generated_at.dimmed(),
             diff.after.generated_at.dimmed()
-        )
-        .ok();
+        );
 
         let r_sign = if diff.readiness_delta > 0.0 { "+" } else { "" };
-        let r_text = format!(
-            "{}{r_sign}{}",
-            "",
-            (diff.readiness_delta * 100.0).round() as i64
-        );
         let r_delta = format!("{r_sign}{}%", (diff.readiness_delta * 100.0).round() as i64);
         let r_colored = if diff.readiness_delta > 0.005 {
             r_delta.cyan().to_string()
@@ -409,29 +436,26 @@ fn cmd_diff(before: &str, after: &str, output_dir: Option<&str>, output_format: 
         } else {
             r_delta.dimmed().to_string()
         };
-        let _ = r_text;
 
-        write!(
+        let _ = write!(
             w,
             "  {} {} \u{2192} {} {}\n",
             "readiness".dimmed(),
             format_percent(diff.before.readiness),
             format_percent(diff.after.readiness),
             r_colored,
-        )
-        .ok();
+        );
 
         if diff.verdict_changed {
-            write!(
+            let _ = write!(
                 w,
                 "  {}   {} \u{2192} {}\n",
                 "verdict".dimmed(),
                 diff.before.verdict_label,
                 diff.after.verdict_label.cyan(),
-            )
-            .ok();
+            );
         }
-        writeln!(w).ok();
+        let _ = writeln!(w);
 
         let pad_len = diff.axes.iter().map(|a| a.label.len()).max().unwrap_or(0);
         for axis in &diff.axes {
@@ -444,24 +468,26 @@ fn cmd_diff(before: &str, after: &str, output_dir: Option<&str>, output_format: 
                 Direction::Flat => format!("\u{2500} {d_text}").dimmed().to_string(),
             };
 
-            write!(
+            let _ = write!(
                 w,
                 "  {}  {:>4} \u{2192} {:>4}  {}\n",
                 label.dimmed(),
                 format_percent(axis.before),
                 format_percent(axis.after),
                 indicator,
-            )
-            .ok();
+            );
         }
-        writeln!(w).ok();
+        let _ = writeln!(w);
     }
 
     if let Some(dir) = output_dir {
         let out = PathBuf::from(dir);
-        fs::create_dir_all(&out).expect("failed to create output dir");
-        fs::write(out.join("diff.md"), render_diff_markdown(&diff)).expect("failed to write diff.md");
-        fs::write(out.join("diff.html"), render_diff_html(&diff)).expect("failed to write diff.html");
+        fs::create_dir_all(&out)
+            .with_context(|| format!("failed to create {}", out.display()))?;
+        fs::write(out.join("diff.md"), render_diff_markdown(&diff))
+            .context("failed to write diff.md")?;
+        fs::write(out.join("diff.html"), render_diff_html(&diff))
+            .context("failed to write diff.html")?;
         if !quiet && output_format != Some("json") {
             eprintln!(
                 "  diff artifacts written to {}",
@@ -469,6 +495,8 @@ fn cmd_diff(before: &str, after: &str, output_dir: Option<&str>, output_format: 
             );
         }
     }
+
+    Ok(())
 }
 
 fn cmd_watch(
@@ -480,14 +508,19 @@ fn cmd_watch(
     open: bool,
     output_format: Option<&str>,
     quiet: bool,
-) {
+) -> Result<()> {
     use notify::Watcher;
     use std::sync::mpsc;
 
+    let repo_path = validate_repo_path(repo)?;
     let (tx, rx) = mpsc::channel();
-    let repo_path = PathBuf::from(repo)
-        .canonicalize()
-        .unwrap_or_else(|_| PathBuf::from(repo));
+
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_flag = shutdown.clone();
+    ctrlc::set_handler(move || {
+        shutdown_flag.store(true, Ordering::SeqCst);
+    })
+    .context("failed to set signal handler")?;
 
     let ignore_dirs: std::collections::HashSet<&str> =
         [".git", ".reality-fork", "node_modules", "dist", "target"]
@@ -496,7 +529,7 @@ fn cmd_watch(
 
     let run_once = |rp: &Path| {
         eprint!("\x1b[2J\x1b[H");
-        cmd_launch(
+        if let Err(e) = cmd_launch(
             &rp.to_string_lossy(),
             focus,
             prompt,
@@ -505,8 +538,10 @@ fn cmd_watch(
             open,
             output_format,
             quiet,
-        );
-        eprintln!("  {}", "watching for changes...".dimmed());
+        ) {
+            eprintln!("  {}", format!("error: {e:#}").red());
+        }
+        eprintln!("  {}", "watching for changes... (ctrl-c to stop)".dimmed());
     };
 
     run_once(&repo_path);
@@ -514,43 +549,53 @@ fn cmd_watch(
     let mut watcher =
         notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| {
             if let Ok(event) = res {
-                let dominated_by_ignored = event.paths.iter().all(|p| {
+                let all_ignored = event.paths.iter().all(|p| {
                     p.components().any(|c| {
                         ignore_dirs.contains(c.as_os_str().to_string_lossy().as_ref())
                     })
                 });
-                if !dominated_by_ignored {
-                    tx.send(()).ok();
+                if !all_ignored {
+                    let _ = tx.send(());
                 }
             }
         })
-        .expect("failed to create file watcher");
+        .context("failed to create file watcher")?;
 
     watcher
         .watch(&repo_path, notify::RecursiveMode::Recursive)
-        .expect("failed to watch repo");
+        .with_context(|| format!("failed to watch {}", repo_path.display()))?;
 
     loop {
-        if rx.recv().is_err() {
+        if shutdown.load(Ordering::SeqCst) {
             break;
         }
-        // debounce
-        thread::sleep(Duration::from_millis(500));
-        while rx.try_recv().is_ok() {}
-        run_once(&repo_path);
+        match rx.recv_timeout(Duration::from_millis(250)) {
+            Ok(()) => {
+                thread::sleep(Duration::from_millis(500));
+                while rx.try_recv().is_ok() {}
+                run_once(&repo_path);
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        }
     }
+
+    Ok(())
 }
 
-fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, quiet: bool) {
+fn cmd_share(
+    output_dir: Option<&str>,
+    repo: &str,
+    output_format: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
     let out_dir = if let Some(d) = output_dir {
         PathBuf::from(d)
     } else {
-        let repo_path = PathBuf::from(repo)
-            .canonicalize()
-            .unwrap_or_else(|_| PathBuf::from(repo));
+        let repo_path = validate_repo_path(repo)?;
         let runs_dir = repo_path.join(".reality-fork").join("runs");
         let mut entries: Vec<String> = fs::read_dir(&runs_dir)
-            .expect(&format!("no runs found in {}", runs_dir.display()))
+            .with_context(|| format!("no runs found in {}", runs_dir.display()))?
             .filter_map(|e| e.ok())
             .map(|e| e.file_name().to_string_lossy().to_string())
             .filter(|e| e.starts_with("launch-"))
@@ -558,8 +603,7 @@ fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, 
         entries.sort();
         entries.reverse();
         if entries.is_empty() {
-            eprintln!("{}", "no launch runs found".red());
-            std::process::exit(1);
+            bail!("no launch runs found in {}", runs_dir.display());
         }
         runs_dir.join(&entries[0])
     };
@@ -567,25 +611,19 @@ fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, 
     let decision = out_dir.join("decision.md");
     let trace = out_dir.join("trace.json");
 
-    for f in [&decision, &trace] {
-        if !f.exists() {
-            eprintln!("{}", format!("missing artifact: {}", f.display()).red());
-            std::process::exit(1);
-        }
+    if !decision.exists() {
+        bail!("missing artifact: {}", decision.display());
+    }
+    if !trace.exists() {
+        bail!("missing artifact: {}", trace.display());
     }
 
     let result = Command::new("gh")
-        .args([
-            "gist",
-            "create",
-            "--public",
-            "--desc",
-            "Reality Fork launch run",
-        ])
+        .args(["gist", "create", "--public", "--desc", "Reality Fork launch run"])
         .arg(&decision)
         .arg(&trace)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(process::Stdio::piped())
+        .stderr(process::Stdio::piped())
         .output();
 
     match result {
@@ -601,7 +639,6 @@ fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, 
             }
         }
         _ => {
-            // fallback: copy to clipboard
             let content = fs::read_to_string(&decision).unwrap_or_default();
             let clip_cmd = if cfg!(target_os = "macos") {
                 "pbcopy"
@@ -611,7 +648,7 @@ fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, 
                 "xclip"
             };
             let clip_result = Command::new(clip_cmd)
-                .stdin(std::process::Stdio::piped())
+                .stdin(process::Stdio::piped())
                 .spawn()
                 .and_then(|mut child| {
                     if let Some(stdin) = child.stdin.as_mut() {
@@ -631,18 +668,16 @@ fn cmd_share(output_dir: Option<&str>, repo: &str, output_format: Option<&str>, 
                     }
                 }
                 _ => {
-                    eprintln!(
-                        "  {}",
-                        "gh cli not found and clipboard copy failed. install gh: https://cli.github.com"
-                            .red()
-                    );
+                    bail!("gh cli not found and clipboard copy failed. install gh: https://cli.github.com");
                 }
             }
         }
     }
+
+    Ok(())
 }
 
-fn main() {
+fn run() -> Result<()> {
     let cli = Cli::parse();
     let output_format = cli.output.as_deref();
     let quiet = cli.quiet;
@@ -656,25 +691,21 @@ fn main() {
                 title,
                 output_dir,
                 open,
-            } => {
-                cmd_launch(
-                    &repo,
-                    &focus,
-                    &prompt,
-                    title.as_deref(),
-                    output_dir.as_deref(),
-                    open,
-                    output_format,
-                    quiet,
-                );
-            }
+            } => cmd_launch(
+                &repo,
+                &focus,
+                &prompt,
+                title.as_deref(),
+                output_dir.as_deref(),
+                open,
+                output_format,
+                quiet,
+            ),
             RunCommands::Diff {
                 before,
                 after,
                 output_dir,
-            } => {
-                cmd_diff(&before, &after, output_dir.as_deref(), output_format, quiet);
-            }
+            } => cmd_diff(&before, &after, output_dir.as_deref(), output_format, quiet),
             RunCommands::Watch {
                 repo,
                 focus,
@@ -682,34 +713,42 @@ fn main() {
                 title,
                 output_dir,
                 open,
-            } => {
-                cmd_watch(
-                    &repo,
-                    &focus,
-                    &prompt,
-                    title.as_deref(),
-                    output_dir.as_deref(),
-                    open,
-                    output_format,
-                    quiet,
-                );
-            }
+            } => cmd_watch(
+                &repo,
+                &focus,
+                &prompt,
+                title.as_deref(),
+                output_dir.as_deref(),
+                open,
+                output_format,
+                quiet,
+            ),
             RunCommands::Share { output_dir, repo } => {
-                cmd_share(output_dir.as_deref(), &repo, output_format, quiet);
+                cmd_share(output_dir.as_deref(), &repo, output_format, quiet)
             }
         },
         Commands::Config { command } => match command {
             ConfigCommands::Path => {
                 let store = ConfigStore::load();
                 println!("{}", store.config_path().display());
+                Ok(())
             }
             ConfigCommands::Show => {
                 let store = ConfigStore::load();
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&store.config).unwrap()
-                );
+                println!("{}", serde_json::to_string_pretty(&store.config)?);
+                Ok(())
             }
         },
+        Commands::Completions { shell } => {
+            generate(shell, &mut Cli::command(), "reality-fork", &mut std::io::stdout());
+            Ok(())
+        }
+    }
+}
+
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("{} {err:#}", "error:".red().bold());
+        process::exit(1);
     }
 }

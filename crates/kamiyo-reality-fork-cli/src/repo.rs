@@ -7,6 +7,14 @@ use walkdir::WalkDir;
 
 use crate::types::{GitContext, Language, RepoContext};
 
+macro_rules! regex {
+    ($pat:expr) => {{
+        static RE: once_cell::sync::Lazy<Regex> =
+            once_cell::sync::Lazy::new(|| Regex::new($pat).unwrap());
+        &*RE
+    }};
+}
+
 const MAX_DOC_BYTES: u64 = 24_000;
 const MAX_DOC_FILES: usize = 10;
 
@@ -120,55 +128,55 @@ fn list_repo_files(root: &Path) -> Vec<String> {
 }
 
 fn is_doc_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)(README|CHANGELOG)(\.[^.]+)?\.md$").is_match(p)
-        || lazy_regex(r"(?i)^docs/.+\.md$").is_match(p)
+    regex!(r"(?i)(^|/)(README|CHANGELOG)(\.[^.]+)?\.md$").is_match(p)
+        || regex!(r"(?i)^docs/.+\.md$").is_match(p)
 }
 
 fn is_test_path(p: &str) -> bool {
-    lazy_regex(r"(^|/)__tests__/").is_match(p)
-        || lazy_regex(r"(?i)\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|rs|py|go|java|kt)$").is_match(p)
+    regex!(r"(^|/)__tests__/").is_match(p)
+        || regex!(r"(?i)\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|rs|py|go|java|kt)$").is_match(p)
 }
 
 fn is_example_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)(examples?|samples?|demos?)/").is_match(p)
+    regex!(r"(?i)(^|/)(examples?|samples?|demos?)/").is_match(p)
 }
 
 fn is_fixture_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)fixtures/").is_match(p)
+    regex!(r"(?i)(^|/)fixtures/").is_match(p)
 }
 
 fn is_manifest_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)(package\.json|Cargo\.toml|pyproject\.toml|go\.mod)$").is_match(p)
+    regex!(r"(?i)(^|/)(package\.json|Cargo\.toml|pyproject\.toml|go\.mod)$").is_match(p)
 }
 
 fn is_lock_path(p: &str) -> bool {
-    lazy_regex(
-        r"(?i)(^|/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|poetry\.lock|uv\.lock|go\.sum)$",
+    regex!(
+        r"(?i)(^|/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|poetry\.lock|uv\.lock|go\.sum)$"
     )
     .is_match(p)
 }
 
 fn is_ci_path(p: &str) -> bool {
-    lazy_regex(r"(?i)^\.github/workflows/.+\.(yml|yaml)$").is_match(p)
-        || lazy_regex(r"(?i)^\.gitlab-ci\.yml$").is_match(p)
-        || lazy_regex(r"(?i)^\.circleci/").is_match(p)
+    regex!(r"(?i)^\.github/workflows/.+\.(yml|yaml)$").is_match(p)
+        || regex!(r"(?i)^\.gitlab-ci\.yml$").is_match(p)
+        || regex!(r"(?i)^\.circleci/").is_match(p)
 }
 
 fn is_env_example_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)\.env(\.[^.]+)?\.example$").is_match(p)
-        || lazy_regex(r"(?i)\.env\.example$").is_match(p)
+    regex!(r"(?i)(^|/)\.env(\.[^.]+)?\.example$").is_match(p)
+        || regex!(r"(?i)\.env\.example$").is_match(p)
 }
 
 fn is_license_path(p: &str) -> bool {
-    lazy_regex(r"(?i)(^|/)LICENSE(\.[^.]+)?$").is_match(p)
+    regex!(r"(?i)(^|/)LICENSE(\.[^.]+)?$").is_match(p)
 }
 
 fn is_asset_path(p: &str) -> bool {
-    lazy_regex(
-        r"(?i)(^|/)(assets?|screenshots?|static|public|reports?)/\S+\.(png|jpe?g|gif|svg|webp|html)$",
+    regex!(
+        r"(?i)(^|/)(assets?|screenshots?|static|public|reports?)/\S+\.(png|jpe?g|gif|svg|webp|html)$"
     )
     .is_match(p)
-        || lazy_regex(r"(?i)(report|decision|trace)\.(html|md|json)$").is_match(p)
+        || regex!(r"(?i)(report|decision|trace)\.(html|md|json)$").is_match(p)
 }
 
 fn is_root_support_path(p: &str) -> bool {
@@ -183,35 +191,32 @@ fn is_root_support_path(p: &str) -> bool {
 
 pub fn detect_frameworks(files: &[String]) -> Vec<String> {
     let mut found = Vec::new();
-    let has = |pat: &str| {
-        let re = Regex::new(pat).unwrap();
-        files.iter().any(|f| re.is_match(f))
-    };
+    let has = |re: &Regex| files.iter().any(|f| re.is_match(f));
 
-    if has(r"(?i)(^|/)Anchor\.toml$") {
+    if has(regex!(r"(?i)(^|/)Anchor\.toml$")) {
         found.push("solana-anchor".into());
-    } else if has(r"(^|/)programs/.*/src/lib\.rs$") {
+    } else if has(regex!(r"(^|/)programs/.*/src/lib\.rs$")) {
         found.push("solana-native".into());
     }
-    if has(r"(?i)(^|/)foundry\.toml$") {
+    if has(regex!(r"(?i)(^|/)foundry\.toml$")) {
         found.push("foundry".into());
     }
-    if has(r"(?i)(^|/)hardhat\.config\.(ts|js|cjs|mjs)$") {
+    if has(regex!(r"(?i)(^|/)hardhat\.config\.(ts|js|cjs|mjs)$")) {
         found.push("hardhat".into());
     }
-    if has(r"(?i)(^|/)next\.config\.(ts|js|cjs|mjs)$") {
+    if has(regex!(r"(?i)(^|/)next\.config\.(ts|js|cjs|mjs)$")) {
         found.push("nextjs".into());
     }
-    if has(r"(?i)(^|/)Dockerfile$") {
+    if has(regex!(r"(?i)(^|/)Dockerfile$")) {
         found.push("docker".into());
     }
-    if has(r"(?i)(^|/)turbo\.json$") {
+    if has(regex!(r"(?i)(^|/)turbo\.json$")) {
         found.push("turborepo".into());
     }
-    if has(r"(?i)(^|/)nx\.json$") {
+    if has(regex!(r"(?i)(^|/)nx\.json$")) {
         found.push("nx".into());
     }
-    if has(r"(?i)(^|/)\.github/workflows/.+\.ya?ml$") {
+    if has(regex!(r"(?i)(^|/)\.github/workflows/.+\.ya?ml$")) {
         found.push("github-actions".into());
     }
 
@@ -219,13 +224,13 @@ pub fn detect_frameworks(files: &[String]) -> Vec<String> {
 }
 
 fn rank_doc_path(p: &str) -> u8 {
-    if lazy_regex(r"(?i)^README(\.[^.]+)?\.md$").is_match(p) {
+    if regex!(r"(?i)^README(\.[^.]+)?\.md$").is_match(p) {
         0
-    } else if lazy_regex(r"(?i)^CHANGELOG(\.[^.]+)?\.md$").is_match(p) {
+    } else if regex!(r"(?i)^CHANGELOG(\.[^.]+)?\.md$").is_match(p) {
         1
-    } else if lazy_regex(r"(?i)/README(\.[^.]+)?\.md$").is_match(p) {
+    } else if regex!(r"(?i)/README(\.[^.]+)?\.md$").is_match(p) {
         2
-    } else if lazy_regex(r"(?i)^docs/").is_match(p) {
+    } else if regex!(r"(?i)^docs/").is_match(p) {
         3
     } else {
         4
@@ -262,7 +267,7 @@ fn first_paragraph(text: &str) -> Option<String> {
 }
 
 fn extract_code_blocks(text: &str) -> Vec<String> {
-    let re = Regex::new(r"```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```").unwrap();
+    let re = regex!(r"```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```");
     re.captures_iter(text)
         .filter_map(|cap| cap.get(1).map(|m| m.as_str().to_string()))
         .collect()
@@ -283,10 +288,9 @@ fn extract_commands(docs: &[DocSource]) -> CommandSignals {
     let mut runtime = Vec::new();
     let mut artifact = Vec::new();
 
-    let install_re = Regex::new(r"(?i)^(cargo install|brew install|go install|pip install|uv tool install|npm install -g|pnpm add -g|pnpm dlx|npx)\b").unwrap();
-    let run_re =
-        Regex::new(r"(?i)(^| )(reality-fork|kamiyo-reality-fork-cli)\b").unwrap();
-    let cargo_run_re = Regex::new(r"(?i)^(cargo run|npm run|pnpm run)\b").unwrap();
+    let install_re = regex!(r"(?i)^(cargo install|brew install|go install|pip install|uv tool install|npm install -g|pnpm add -g|pnpm dlx|npx)\b");
+    let run_re = regex!(r"(?i)(^| )(reality-fork|kamiyo-reality-fork-cli)\b");
+    let cargo_run_re = regex!(r"(?i)^(cargo run|npm run|pnpm run)\b");
 
     for doc in docs {
         for block in extract_code_blocks(&doc.text) {
@@ -309,18 +313,18 @@ fn extract_commands(docs: &[DocSource]) -> CommandSignals {
             if line.is_empty() {
                 continue;
             }
-            if lazy_regex(r"(?i)/api/|remote api|expects a reality fork api|base-url")
+            if regex!(r"(?i)/api/|remote api|expects a reality fork api|base-url")
                 .is_match(&line)
             {
                 remote_dep.push(format!("{}: {}", doc.path, line));
             }
-            if lazy_regex(r"(?i)(Node\.js|node 20|nodejs|cargo install|brew install)")
+            if regex!(r"(?i)(Node\.js|node 20|nodejs|cargo install|brew install)")
                 .is_match(&line)
             {
                 runtime.push(format!("{}: {}", doc.path, line));
             }
-            if lazy_regex(
-                r"(?i)(report\.html|decision\.md|trace\.json|artifact|html report|markdown)",
+            if regex!(
+                r"(?i)(report\.html|decision\.md|trace\.json|artifact|html report|markdown)"
             )
             .is_match(&line)
             {
@@ -397,8 +401,7 @@ fn derive_web_url(remote_url: &str) -> Option<String> {
     if clean.starts_with("https://") || clean.starts_with("http://") {
         return Some(clean.trim_end_matches(".git").to_string());
     }
-    let re = Regex::new(r"^(?:ssh://)?git@([^:/]+)[:/]([^/]+/[^/]+)$").unwrap();
-    let caps = re.captures(clean)?;
+    let caps = regex!(r"^(?:ssh://)?git@([^:/]+)[:/]([^/]+/[^/]+)$").captures(clean)?;
     let host = caps.get(1)?.as_str();
     let repo = caps.get(2)?.as_str();
     if host == "github.com" || host.starts_with("github") {
@@ -421,8 +424,7 @@ fn repo_name_from_signals(
         }
     }
     for doc in docs {
-        let re = Regex::new(r"(?m)^#\s+(.+)$").unwrap();
-        if let Some(cap) = re.captures(&doc.text) {
+        if let Some(cap) = regex!(r"(?m)^#\s+(.+)$").captures(&doc.text) {
             return cap[1].trim().replace('`', "");
         }
     }
@@ -610,7 +612,7 @@ pub fn collect_repo_context(root: &Path, requested_focus: &[String]) -> RepoCont
 
     let readme_path = docs
         .iter()
-        .find(|f| lazy_regex(r"(?i)^README(\.[^.]+)?\.md$").is_match(f))
+        .find(|f| regex!(r"(?i)^README(\.[^.]+)?\.md$").is_match(f))
         .cloned();
     let readme_text = readme_path.as_ref().and_then(|rp| {
         doc_sources
@@ -658,6 +660,3 @@ pub fn collect_repo_context(root: &Path, requested_focus: &[String]) -> RepoCont
     }
 }
 
-fn lazy_regex(pattern: &str) -> Regex {
-    Regex::new(pattern).unwrap()
-}
