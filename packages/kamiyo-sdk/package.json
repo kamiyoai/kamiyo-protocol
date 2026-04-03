@@ -34,7 +34,7 @@
     "jest": "^30.2.0",
     "ts-jest": "^29.0.0",
     "typedoc": "^0.28.17",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   },
   "files": [
     "dist/**/*",

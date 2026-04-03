@@ -21,7 +21,7 @@
   "devDependencies": {
     "@types/node": "^20.19.27",
     "jest": "^30.2.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   },
   "files": [
     "dist/**/*"

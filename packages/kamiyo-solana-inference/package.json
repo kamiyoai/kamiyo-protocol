@@ -23,7 +23,7 @@
     "@solana/web3.js": "^1.98.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "typescript": "^5.9.3",
     "@types/node": "^20.0.0"
   },
   "peerDependencies": {
