@@ -22,7 +22,7 @@
   "author": "KAMIYO",
   "license": "MIT",
   "dependencies": {
-    "@switchboard-xyz/on-demand": "^1.0.0"
+    "@switchboard-xyz/on-demand": "^3.9.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
