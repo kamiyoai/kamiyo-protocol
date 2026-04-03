@@ -23,7 +23,7 @@
     "@lucid-agents/a2a": "^0.6.2",
     "@lucid-agents/types": "^1.7.0",
     "x402-fetch": "^0.7.3",
-    "zod": "^4.1.12"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

@@ -30,7 +30,7 @@
   "author": "KAMIYO <dev@kamiyo.ai>",
   "dependencies": {
     "@kamiyo/hive": "workspace:*",
-    "zod": "^3.23.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
