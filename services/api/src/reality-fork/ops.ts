@@ -3,9 +3,20 @@ import { getProjectDetail } from './service';
 import {
   getRealityForkProjectQuotaUsage,
   getRealityForkQuotaConfig,
+  getRealityForkQuotaState,
   getRealityForkQuotaUsage,
 } from './quotas';
 import { getRealityForkRetentionSummary } from './retention';
+
+type ProjectDetail = NonNullable<ReturnType<typeof getProjectDetail>>;
+type ProjectStageName = 'ingest' | 'extraction' | 'simulation' | 'report';
+
+type ProjectStageTiming = {
+  startedAt: number | null;
+  completedAt: number | null;
+  durationMs: number | null;
+  status: 'missing' | 'running' | 'completed';
+};
 
 type ProjectTelemetry = {
   eventCount: number;
@@ -19,8 +30,48 @@ type ProjectTelemetry = {
     latestError: string | null;
     lastCompletedAt: number | null;
   };
+  stageTimings: Record<ProjectStageName, ProjectStageTiming>;
   lastEventAt: number | null;
 };
+
+type ProjectStorageBreakdown = {
+  totalBlobBytes: number;
+  inputBlobBytes: number;
+  uploadBytes: number;
+  directEvidenceBytes: number;
+  generatedArtifactBytes: number;
+  extractionArtifactBytes: number;
+  simulationArtifactBytes: number;
+  reportArtifactBytes: number;
+  publicationArtifactBytes: number;
+  blobBudgetBytes: number;
+  blobBudgetRemaining: number;
+};
+
+type ProjectCostBreakdown = {
+  byStage: Record<
+    ProjectStageName,
+    {
+      estimatedUsd: number;
+      actualUsd: number | null;
+    }
+  >;
+  runtimeUnits: number;
+  estimated: {
+    modelUsd: number;
+    publishUsd: number;
+    totalUsd: number;
+  };
+  actual: {
+    simulatedSpend: number;
+    winnerSpend: number | null;
+    totalUsd: number;
+  };
+};
+
+function round(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
 
 function sumSimulationSpend(projectId: string): number {
   const rows = db
@@ -45,14 +96,14 @@ function sumSimulationSpend(projectId: string): number {
   }, 0);
 }
 
-function round(value: number): number {
-  return Math.round(value * 1000) / 1000;
+function sumBlobBytesByQuery(sql: string, params: unknown[]): number {
+  const row = db.prepare(sql).get(...params) as { total_bytes: number } | undefined;
+  return row?.total_bytes ?? 0;
 }
 
 function estimateProjectBlobBytes(projectId: string): number {
-  const row = db
-    .prepare(
-      `
+  return sumBlobBytesByQuery(
+    `
       SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
       FROM reality_fork_blobs
       WHERE id IN (
@@ -74,19 +125,14 @@ function estimateProjectBlobBytes(projectId: string): number {
         UNION
         SELECT bundle_blob_id FROM reality_fork_publications WHERE project_id = ? AND bundle_blob_id IS NOT NULL
       )
-    `
-    )
-    .get(projectId, projectId, projectId, projectId, projectId, projectId, projectId) as
-    | { total_bytes: number }
-    | undefined;
-
-  return row?.total_bytes ?? 0;
+    `,
+    [projectId, projectId, projectId, projectId, projectId, projectId, projectId]
+  );
 }
 
 function estimateUploadBytes(projectId: string): number {
-  const row = db
-    .prepare(
-      `
+  return sumBlobBytesByQuery(
+    `
       SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
       FROM reality_fork_uploads uploads
       WHERE uploads.id IN (
@@ -94,16 +140,160 @@ function estimateUploadBytes(projectId: string): number {
         FROM reality_fork_evidence
         WHERE project_id = ? AND upload_id IS NOT NULL
       )
-    `
-    )
-    .get(projectId) as { total_bytes: number } | undefined;
-
-  return row?.total_bytes ?? 0;
+    `,
+    [projectId]
+  );
 }
 
-function buildProjectTelemetry(
-  project: NonNullable<ReturnType<typeof getProjectDetail>>
-): ProjectTelemetry {
+function estimateDirectEvidenceBytes(projectId: string): number {
+  return sumBlobBytesByQuery(
+    `
+      SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
+      FROM reality_fork_blobs
+      WHERE id IN (
+        SELECT blob_id
+        FROM reality_fork_evidence
+        WHERE project_id = ? AND upload_id IS NULL AND blob_id IS NOT NULL
+      )
+    `,
+    [projectId]
+  );
+}
+
+function estimateArtifactBytes(
+  table: 'reality_fork_extractions' | 'reality_fork_simulations',
+  projectId: string
+): number {
+  return sumBlobBytesByQuery(
+    `
+      SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
+      FROM reality_fork_blobs
+      WHERE id IN (
+        SELECT artifact_blob_id
+        FROM ${table}
+        WHERE project_id = ? AND artifact_blob_id IS NOT NULL
+      )
+    `,
+    [projectId]
+  );
+}
+
+function estimateReportBytes(projectId: string): number {
+  return sumBlobBytesByQuery(
+    `
+      SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
+      FROM reality_fork_blobs
+      WHERE id IN (
+        SELECT markdown_blob_id FROM reality_fork_reports WHERE project_id = ? AND markdown_blob_id IS NOT NULL
+        UNION
+        SELECT html_blob_id FROM reality_fork_reports WHERE project_id = ? AND html_blob_id IS NOT NULL
+      )
+    `,
+    [projectId, projectId]
+  );
+}
+
+function estimatePublicationBytes(projectId: string): number {
+  return sumBlobBytesByQuery(
+    `
+      SELECT COALESCE(SUM(size_bytes), 0) AS total_bytes
+      FROM reality_fork_blobs
+      WHERE id IN (
+        SELECT bundle_blob_id
+        FROM reality_fork_publications
+        WHERE project_id = ? AND bundle_blob_id IS NOT NULL
+      )
+    `,
+    [projectId]
+  );
+}
+
+function buildProjectStorageBreakdown(
+  projectId: string,
+  blobBudgetBytes: number
+): ProjectStorageBreakdown {
+  const totalBlobBytes = estimateProjectBlobBytes(projectId);
+  const uploadBytes = estimateUploadBytes(projectId);
+  const directEvidenceBytes = estimateDirectEvidenceBytes(projectId);
+  const extractionArtifactBytes = estimateArtifactBytes('reality_fork_extractions', projectId);
+  const simulationArtifactBytes = estimateArtifactBytes('reality_fork_simulations', projectId);
+  const reportArtifactBytes = estimateReportBytes(projectId);
+  const publicationArtifactBytes = estimatePublicationBytes(projectId);
+  const inputBlobBytes = uploadBytes + directEvidenceBytes;
+  const generatedArtifactBytes =
+    extractionArtifactBytes +
+    simulationArtifactBytes +
+    reportArtifactBytes +
+    publicationArtifactBytes;
+
+  return {
+    totalBlobBytes,
+    inputBlobBytes,
+    uploadBytes,
+    directEvidenceBytes,
+    generatedArtifactBytes,
+    extractionArtifactBytes,
+    simulationArtifactBytes,
+    reportArtifactBytes,
+    publicationArtifactBytes,
+    blobBudgetBytes,
+    blobBudgetRemaining: Math.max(0, blobBudgetBytes - totalBlobBytes),
+  };
+}
+
+function findLatestEvent(
+  project: ProjectDetail,
+  jobId: string | null,
+  eventType: string
+): ProjectDetail['events'][number] | null {
+  const scopedEvents = jobId
+    ? project.events.filter(event => event.jobId === jobId && event.eventType === eventType)
+    : project.events.filter(event => event.eventType === eventType);
+  return scopedEvents.at(-1) ?? null;
+}
+
+function buildStageTiming(
+  startedAt: number | null,
+  completedAt: number | null
+): ProjectStageTiming {
+  return {
+    startedAt,
+    completedAt,
+    durationMs: startedAt != null && completedAt != null ? Math.max(0, completedAt - startedAt) : null,
+    status: completedAt != null ? 'completed' : startedAt != null ? 'running' : 'missing',
+  };
+}
+
+function buildProjectStageTimings(project: ProjectDetail): Record<ProjectStageName, ProjectStageTiming> {
+  const latestFullJob =
+    project.jobs
+      .filter(job => job.kind === 'full')
+      .sort((left, right) => right.createdAt - left.createdAt)[0] ?? null;
+  const jobId = latestFullJob?.id ?? null;
+  const jobStartedAt = latestFullJob?.startedAt ?? null;
+  const jobCompletedAt = latestFullJob?.completedAt ?? null;
+
+  const ingestStarted = findLatestEvent(project, jobId, 'ingest_started')?.createdAt ?? jobStartedAt;
+  const ingestCompleted = findLatestEvent(project, jobId, 'ingest_completed')?.createdAt ?? null;
+  const extractionStarted =
+    findLatestEvent(project, jobId, 'extraction_started')?.createdAt ?? ingestCompleted;
+  const extractionCompleted = findLatestEvent(project, jobId, 'extraction_completed')?.createdAt ?? null;
+  const simulationStarted = extractionCompleted;
+  const simulationCompleted = findLatestEvent(project, jobId, 'simulation_completed')?.createdAt ?? null;
+  const reportStarted = simulationCompleted;
+  const reportCompleted =
+    findLatestEvent(project, jobId, 'report_completed')?.createdAt ??
+    (latestFullJob?.status === 'completed' ? jobCompletedAt : null);
+
+  return {
+    ingest: buildStageTiming(ingestStarted, ingestCompleted),
+    extraction: buildStageTiming(extractionStarted, extractionCompleted),
+    simulation: buildStageTiming(simulationStarted, simulationCompleted),
+    report: buildStageTiming(reportStarted, reportCompleted),
+  };
+}
+
+function buildProjectTelemetry(project: ProjectDetail): ProjectTelemetry {
   const eventsByType = project.events.reduce<Record<string, number>>((out, event) => {
     out[event.eventType] = (out[event.eventType] ?? 0) + 1;
     return out;
@@ -125,31 +315,93 @@ function buildProjectTelemetry(
           .sort((left, right) => (right.completedAt ?? 0) - (left.completedAt ?? 0))[0]
           ?.completedAt ?? null,
     },
+    stageTimings: buildProjectStageTimings(project),
     lastEventAt: project.events.at(-1)?.createdAt ?? null,
   };
 }
 
-export function getRealityForkProjectOps(projectId: string) {
+function buildProjectCostBreakdown(
+  project: ProjectDetail,
+  storage: ProjectStorageBreakdown
+): ProjectCostBreakdown {
+  const evidenceCount = project.evidence.length;
+  const chunkCount = project.chunks.length;
+  const claimCount = project.claims.length;
+  const scenarioInputCount = project.scenarioInputs.length;
+  const runtimeUnits =
+    project.simulationConfig.activeAgents *
+    project.simulationConfig.rounds *
+    project.simulationConfig.lanes.length;
+  const ingestUsd = round(
+    evidenceCount * 0.02 + (storage.inputBlobBytes / (1024 * 1024)) * 0.0015
+  );
+  const extractionUsd = round(
+    evidenceCount * 0.05 + chunkCount * 0.008 + claimCount * 0.014
+  );
+  const simulationUsd = round(
+    project.simulationConfig.lanes.length *
+      (project.simulationConfig.rounds * 0.03 + project.simulationConfig.activeAgents * 0.02) +
+      project.simulationConfig.representedPopulation * 0.002
+  );
+  const reportUsd = round(scenarioInputCount * 0.04 + 0.18);
+  const publishUsd = round(
+    0.02 + (storage.publicationArtifactBytes / (1024 * 1024)) * 0.0025
+  );
+  const simulatedSpend = round(sumSimulationSpend(project.id));
+  const winnerSpend =
+    project.simulations.find(
+      simulation => simulation.hypothesisId === project.decision?.winnerHypothesisId
+    )?.scorecard?.metrics.totalSpent ?? null;
+
+  return {
+    byStage: {
+      ingest: { estimatedUsd: ingestUsd, actualUsd: null },
+      extraction: { estimatedUsd: extractionUsd, actualUsd: null },
+      simulation: { estimatedUsd: simulationUsd, actualUsd: simulatedSpend },
+      report: { estimatedUsd: reportUsd, actualUsd: null },
+    },
+    runtimeUnits,
+    estimated: {
+      modelUsd: round(ingestUsd + extractionUsd + simulationUsd + reportUsd),
+      publishUsd,
+      totalUsd: round(ingestUsd + extractionUsd + simulationUsd + reportUsd + publishUsd),
+    },
+    actual: {
+      simulatedSpend,
+      winnerSpend: winnerSpend == null ? null : round(winnerSpend),
+      totalUsd: simulatedSpend,
+    },
+  };
+}
+
+function buildProjectWarningFlags(project: ProjectDetail, telemetry: ProjectTelemetry): string[] {
+  const flags = new Set<string>();
+
+  if (project.warnings.length > 0) flags.add('project_warning_present');
+  if (project.evidence.some(evidence => evidence.warning)) flags.add('evidence_warning_present');
+  if (telemetry.jobs.failed > 0) flags.add('job_failure_present');
+  if (Object.values(telemetry.stageTimings).some(stage => stage.status === 'missing')) {
+    flags.add('stage_timing_incomplete');
+  }
+
+  return [...flags];
+}
+
+export function getRealityForkProjectOps(projectId: string, clientIp: string | null = null) {
   const project = getProjectDetail(projectId);
   if (!project) return null;
 
   const quotaConfig = getRealityForkQuotaConfig();
   const quotaUsage = getRealityForkProjectQuotaUsage(projectId);
-  const totalBlobBytes = estimateProjectBlobBytes(projectId);
-  const uploadBytes = estimateUploadBytes(projectId);
-  const simulatedSpend = sumSimulationSpend(projectId);
-  const winnerSpend =
-    project.simulations.find(
-      simulation => simulation.hypothesisId === project.decision?.winnerHypothesisId
-    )?.scorecard?.metrics.totalSpent ?? null;
-  const runtimeUnits =
-    project.simulationConfig.activeAgents *
-    project.simulationConfig.rounds *
-    project.simulationConfig.lanes.length;
-  const estimatedModelUsd = round(
-    runtimeUnits * 0.0016 + project.stats.evidenceCount * 0.004 + project.stats.chunkCount * 0.0009
-  );
-  const estimatedPublishUsd = round(0.02 + (totalBlobBytes / (1024 * 1024)) * 0.0025);
+  const quotaState = getRealityForkQuotaState({
+    clientIp: clientIp ?? project.createdByIp,
+    projectId,
+    config: quotaConfig,
+  });
+  const storage = buildProjectStorageBreakdown(projectId, quotaConfig.projectBlobBytes);
+  const cost = buildProjectCostBreakdown(project, storage);
+  const telemetry = buildProjectTelemetry(project);
+  const warningFlags = [...new Set([...buildProjectWarningFlags(project, telemetry), ...quotaState.warningFlags])];
 
   return {
     projectId: project.id,
@@ -166,27 +418,16 @@ export function getRealityForkProjectOps(projectId: string) {
           quotaConfig.publishJobsPerProjectPerDay - quotaUsage.publishJobsToday
         ),
       },
+      state: quotaState,
     },
-    storage: {
-      totalBlobBytes,
-      uploadBytes,
-      generatedArtifactBytes: Math.max(0, totalBlobBytes - uploadBytes),
-      blobBudgetBytes: quotaConfig.projectBlobBytes,
-      blobBudgetRemaining: Math.max(0, quotaConfig.projectBlobBytes - totalBlobBytes),
+    storage,
+    cost,
+    telemetry,
+    warnings: {
+      project: project.warnings,
+      quota: quotaState.warnings,
+      warningFlags,
     },
-    cost: {
-      estimated: {
-        runtimeUnits,
-        modelUsd: estimatedModelUsd,
-        publishUsd: estimatedPublishUsd,
-        totalUsd: round(estimatedModelUsd + estimatedPublishUsd),
-      },
-      actual: {
-        simulatedSpend: round(simulatedSpend),
-        winnerSpend: winnerSpend == null ? null : round(winnerSpend),
-      },
-    },
-    telemetry: buildProjectTelemetry(project),
     retention: {
       terminal: project.status === 'published' || project.status === 'failed',
       eventRetentionDays: 14,
@@ -198,6 +439,7 @@ export function getRealityForkProjectOps(projectId: string) {
 export function getRealityForkUsageOps(clientIp: string | null) {
   const quotaConfig = getRealityForkQuotaConfig();
   const quotaUsage = getRealityForkQuotaUsage(clientIp);
+  const quotaState = getRealityForkQuotaState({ clientIp, config: quotaConfig });
   const projectCounts = db
     .prepare(
       `
@@ -283,6 +525,7 @@ export function getRealityForkUsageOps(clientIp: string | null) {
           ),
         },
       },
+      state: quotaState,
     },
     telemetry: {
       projects: {
@@ -303,12 +546,17 @@ export function getRealityForkUsageOps(clientIp: string | null) {
         uploadCount: uploads.upload_count,
         uploadBytes: uploads.upload_bytes,
       },
-      eventsByType: Object.fromEntries(
-        events.map(event => [event.event_type, event.count])
-      ) as Record<string, number>,
+      eventsByType: Object.fromEntries(events.map(event => [event.event_type, event.count])) as Record<
+        string,
+        number
+      >,
       actualSimulatedSpend: round(
         spendRows.reduce<number>((sum, row) => sum + sumSimulationSpend(row.id), 0)
       ),
+    },
+    warnings: {
+      quota: quotaState.warnings,
+      warningFlags: quotaState.warningFlags,
     },
     retention: getRealityForkRetentionSummary(),
   };

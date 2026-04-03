@@ -37,21 +37,57 @@ export type StoredBlob = {
 };
 
 export class FileSystemBlobStore {
-  constructor(private readonly rootDir = ROOT_DIR) {
-    ensureDir(this.rootDir);
-    ensureDir(path.join(this.rootDir, 'blobs'));
+  private readonly storageRoot: string;
+  private readonly blobsRoot: string;
+
+  constructor(rootDir = ROOT_DIR) {
+    this.storageRoot = path.resolve(rootDir);
+    this.blobsRoot = path.join(this.storageRoot, 'blobs');
+    ensureDir(this.storageRoot);
+    ensureDir(this.blobsRoot);
+  }
+
+  private resolveStoragePath(storageKey: string): string {
+    const normalizedKey = path.normalize(storageKey).replace(/^(\.\.(\/|\\|$))+/, '');
+    if (!normalizedKey || normalizedKey.startsWith('..') || path.isAbsolute(normalizedKey)) {
+      throw new Error('invalid blob storage key');
+    }
+
+    const fullPath = path.resolve(this.storageRoot, normalizedKey);
+    const rootPrefix = `${this.storageRoot}${path.sep}`;
+    if (fullPath !== this.storageRoot && !fullPath.startsWith(rootPrefix)) {
+      throw new Error('blob path escaped storage root');
+    }
+    if (fullPath !== this.blobsRoot && !fullPath.startsWith(`${this.blobsRoot}${path.sep}`)) {
+      throw new Error('blob path must stay inside blobs root');
+    }
+
+    return fullPath;
+  }
+
+  private pruneEmptyParents(startPath: string): void {
+    let current = path.dirname(startPath);
+    while (current.startsWith(this.blobsRoot) && current !== this.blobsRoot) {
+      try {
+        if (fs.readdirSync(current).length > 0) break;
+        fs.rmdirSync(current);
+      } catch {
+        break;
+      }
+      current = path.dirname(current);
+    }
   }
 
   put(input: { data: Buffer; mimeType?: string | null; fileName?: string | null }): StoredBlob {
     const sha256 = createHash('sha256').update(input.data).digest('hex');
     const ext = extensionFor(input);
     const storageKey = path.join('blobs', sha256.slice(0, 2), `${sha256}${ext}`);
-    const fullPath = path.join(this.rootDir, storageKey);
+    const fullPath = this.resolveStoragePath(storageKey);
     ensureDir(path.dirname(fullPath));
 
     if (!fs.existsSync(fullPath)) {
       const tempPath = `${fullPath}.${randomUUID()}.tmp`;
-      fs.writeFileSync(tempPath, input.data);
+      fs.writeFileSync(tempPath, input.data, { flag: 'wx', mode: 0o600 });
       fs.renameSync(tempPath, fullPath);
     }
 
@@ -66,7 +102,7 @@ export class FileSystemBlobStore {
   }
 
   read(storageKey: string): Buffer {
-    return fs.readFileSync(path.join(this.rootDir, storageKey));
+    return fs.readFileSync(this.resolveStoragePath(storageKey));
   }
 
   readText(storageKey: string): string {
@@ -74,8 +110,9 @@ export class FileSystemBlobStore {
   }
 
   delete(storageKey: string): void {
-    const fullPath = path.join(this.rootDir, storageKey);
+    const fullPath = this.resolveStoragePath(storageKey);
     fs.rmSync(fullPath, { force: true });
+    this.pruneEmptyParents(fullPath);
   }
 }
 

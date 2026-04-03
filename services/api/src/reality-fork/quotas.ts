@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import db from '../db';
 import type { RealityForkJobKind } from './types';
 
@@ -34,6 +36,54 @@ export type RealityForkQuotaUsage = {
   projectsToday: number;
   activeProjects: number;
   publicationsToday: number;
+};
+
+export type RealityForkProjectQuotaUsage = {
+  evidenceCount: number;
+  blobBytes: number;
+  fullJobsToday: number;
+  publishJobsToday: number;
+};
+
+export type RealityForkQuotaMeter = {
+  limit: number;
+  usage: number;
+  remaining: number;
+  ratio: number;
+  status: 'ok' | 'warning' | 'exceeded';
+};
+
+export type RealityForkQuotaWarningFlag =
+  | 'client_projects_near_limit'
+  | 'client_active_projects_near_limit'
+  | 'client_publications_near_limit'
+  | 'client_uploads_near_limit'
+  | 'client_upload_bytes_near_limit'
+  | 'project_evidence_near_limit'
+  | 'project_blob_bytes_near_limit'
+  | 'project_full_jobs_near_limit'
+  | 'project_publish_jobs_near_limit';
+
+export type RealityForkQuotaState = {
+  evaluatedAt: number;
+  windowStart: number;
+  clientKey: string | null;
+  warningThreshold: number;
+  warnings: string[];
+  warningFlags: RealityForkQuotaWarningFlag[];
+  client: {
+    projectsToday: RealityForkQuotaMeter;
+    activeProjects: RealityForkQuotaMeter;
+    publicationsToday: RealityForkQuotaMeter;
+    uploadsToday: RealityForkQuotaMeter;
+    uploadBytesToday: RealityForkQuotaMeter;
+  };
+  project: {
+    evidence: RealityForkQuotaMeter;
+    blobBytes: RealityForkQuotaMeter;
+    fullJobsToday: RealityForkQuotaMeter;
+    publishJobsToday: RealityForkQuotaMeter;
+  } | null;
 };
 
 export class RealityForkQuotaError extends Error {
@@ -85,12 +135,59 @@ function startOfDayUnix(nowMs: number): number {
   return Math.floor(date.getTime() / 1000);
 }
 
+function roundRatio(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
 function normalizeClientKey(clientIp: string | null): string | null {
   if (!clientIp) return null;
   const trimmed = clientIp.trim();
   if (!trimmed) return null;
   if (trimmed.startsWith('::ffff:')) return trimmed.slice(7);
   return trimmed;
+}
+
+function normalizeBearerToken(authorization: string | undefined): string | null {
+  if (typeof authorization !== 'string') return null;
+  const trimmed = authorization.trim();
+  if (!trimmed) return null;
+  if (!/^Bearer\s+/i.test(trimmed)) return null;
+  return trimmed.replace(/^Bearer\s+/i, '').trim() || null;
+}
+
+function safeTokenEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function buildQuotaMeter(
+  limit: number,
+  usage: number,
+  warningThreshold: number
+): RealityForkQuotaMeter {
+  const remaining = Math.max(0, limit - usage);
+  const ratio = limit > 0 ? roundRatio(usage / limit) : 0;
+  return {
+    limit,
+    usage,
+    remaining,
+    ratio,
+    status: usage >= limit ? 'exceeded' : ratio >= warningThreshold ? 'warning' : 'ok',
+  };
+}
+
+function pushMeterWarning(
+  warnings: string[],
+  warningFlags: RealityForkQuotaWarningFlag[],
+  meter: RealityForkQuotaMeter,
+  flag: RealityForkQuotaWarningFlag,
+  message: string
+): void {
+  if (meter.status !== 'warning' && meter.status !== 'exceeded') return;
+  warningFlags.push(flag);
+  warnings.push(message);
 }
 
 function countInlineEvidence(input: ProjectDraftLike): number {
@@ -262,19 +359,181 @@ export function getRealityForkQuotaUsage(
   };
 }
 
-export function getRealityForkProjectQuotaUsage(projectId: string): {
-  evidenceCount: number;
-  blobBytes: number;
-  fullJobsToday: number;
-  publishJobsToday: number;
-} {
-  const windowStart = startOfDayUnix(Date.now());
+export function getRealityForkProjectQuotaUsage(
+  projectId: string,
+  options: { nowMs?: number } = {}
+): RealityForkProjectQuotaUsage {
+  const windowStart = startOfDayUnix(options.nowMs ?? Date.now());
   return {
     evidenceCount: evidenceCount(projectId),
     blobBytes: estimateIncomingBlobBytes(projectId),
     fullJobsToday: jobCountForWindow(projectId, 'full', windowStart),
     publishJobsToday: jobCountForWindow(projectId, 'publish', windowStart),
   };
+}
+
+export function getRealityForkQuotaState(params: {
+  clientIp: string | null;
+  projectId?: string | null;
+  config?: RealityForkQuotaConfig;
+  nowMs?: number;
+  warningThreshold?: number;
+}): RealityForkQuotaState {
+  const nowMs = params.nowMs ?? Date.now();
+  const config = params.config ?? getRealityForkQuotaConfig();
+  const warningThreshold = Math.min(Math.max(params.warningThreshold ?? 0.8, 0.5), 0.98);
+  const clientUsage = getRealityForkQuotaUsage(params.clientIp, { nowMs });
+  const projectUsage =
+    typeof params.projectId === 'string' && params.projectId.trim()
+      ? getRealityForkProjectQuotaUsage(params.projectId, { nowMs })
+      : null;
+  const warnings: string[] = [];
+  const warningFlags: RealityForkQuotaWarningFlag[] = [];
+
+  const state: RealityForkQuotaState = {
+    evaluatedAt: nowMs,
+    windowStart: clientUsage.windowStart,
+    clientKey: clientUsage.clientKey,
+    warningThreshold,
+    warnings,
+    warningFlags,
+    client: {
+      projectsToday: buildQuotaMeter(
+        config.projectsPerDayPerIp,
+        clientUsage.projectsToday,
+        warningThreshold
+      ),
+      activeProjects: buildQuotaMeter(
+        config.activeProjectsPerIp,
+        clientUsage.activeProjects,
+        warningThreshold
+      ),
+      publicationsToday: buildQuotaMeter(
+        config.publicationsPerDayPerIp,
+        clientUsage.publicationsToday,
+        warningThreshold
+      ),
+      uploadsToday: buildQuotaMeter(
+        config.uploadsPerDayPerIp,
+        clientUsage.uploadsToday,
+        warningThreshold
+      ),
+      uploadBytesToday: buildQuotaMeter(
+        config.uploadBytesPerDayPerIp,
+        clientUsage.uploadBytesToday,
+        warningThreshold
+      ),
+    },
+    project: projectUsage
+      ? {
+          evidence: buildQuotaMeter(
+            config.evidencePerProject,
+            projectUsage.evidenceCount,
+            warningThreshold
+          ),
+          blobBytes: buildQuotaMeter(
+            config.projectBlobBytes,
+            projectUsage.blobBytes,
+            warningThreshold
+          ),
+          fullJobsToday: buildQuotaMeter(
+            config.fullJobsPerProjectPerDay,
+            projectUsage.fullJobsToday,
+            warningThreshold
+          ),
+          publishJobsToday: buildQuotaMeter(
+            config.publishJobsPerProjectPerDay,
+            projectUsage.publishJobsToday,
+            warningThreshold
+          ),
+        }
+      : null,
+  };
+
+  pushMeterWarning(
+    warnings,
+    warningFlags,
+    state.client.projectsToday,
+    'client_projects_near_limit',
+    `Project quota is ${state.client.projectsToday.remaining} away from the daily IP limit.`
+  );
+  pushMeterWarning(
+    warnings,
+    warningFlags,
+    state.client.activeProjects,
+    'client_active_projects_near_limit',
+    `Active project capacity is down to ${state.client.activeProjects.remaining} for this IP.`
+  );
+  pushMeterWarning(
+    warnings,
+    warningFlags,
+    state.client.publicationsToday,
+    'client_publications_near_limit',
+    `Publication capacity is down to ${state.client.publicationsToday.remaining} for this IP today.`
+  );
+  pushMeterWarning(
+    warnings,
+    warningFlags,
+    state.client.uploadsToday,
+    'client_uploads_near_limit',
+    `Upload quota is ${state.client.uploadsToday.remaining} away from the daily IP limit.`
+  );
+  pushMeterWarning(
+    warnings,
+    warningFlags,
+    state.client.uploadBytesToday,
+    'client_upload_bytes_near_limit',
+    `Upload byte quota has ${state.client.uploadBytesToday.remaining} bytes remaining today.`
+  );
+
+  if (state.project) {
+    pushMeterWarning(
+      warnings,
+      warningFlags,
+      state.project.evidence,
+      'project_evidence_near_limit',
+      `Project evidence capacity is down to ${state.project.evidence.remaining}.`
+    );
+    pushMeterWarning(
+      warnings,
+      warningFlags,
+      state.project.blobBytes,
+      'project_blob_bytes_near_limit',
+      `Project blob budget has ${state.project.blobBytes.remaining} bytes remaining.`
+    );
+    pushMeterWarning(
+      warnings,
+      warningFlags,
+      state.project.fullJobsToday,
+      'project_full_jobs_near_limit',
+      `Full-run quota has ${state.project.fullJobsToday.remaining} attempt${state.project.fullJobsToday.remaining === 1 ? '' : 's'} remaining today.`
+    );
+    pushMeterWarning(
+      warnings,
+      warningFlags,
+      state.project.publishJobsToday,
+      'project_publish_jobs_near_limit',
+      `Publish quota has ${state.project.publishJobsToday.remaining} attempt${state.project.publishJobsToday.remaining === 1 ? '' : 's'} remaining today.`
+    );
+  }
+
+  return state;
+}
+
+export function realityForkInternalSeedEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return typeof env.REALITY_FORK_INTERNAL_SEED_TOKEN === 'string'
+    ? env.REALITY_FORK_INTERNAL_SEED_TOKEN.trim().length > 0
+    : false;
+}
+
+export function verifyRealityForkInternalSeedToken(
+  authorization: string | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): boolean {
+  const expected = env.REALITY_FORK_INTERNAL_SEED_TOKEN?.trim();
+  const provided = normalizeBearerToken(authorization);
+  if (!expected || !provided) return false;
+  return safeTokenEquals(expected, provided);
 }
 
 export function assertUploadQuota(

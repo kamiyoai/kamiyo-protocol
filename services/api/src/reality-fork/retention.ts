@@ -1,4 +1,5 @@
 import db from '../db';
+import { realityForkBlobStore } from './blob-store';
 
 export type RealityForkRetentionConfig = {
   orphanUploadHours: number;
@@ -10,6 +11,10 @@ export type RealityForkRetentionConfig = {
 export type RealityForkRetentionSummary = {
   evaluatedAt: number;
   orphanUploads: {
+    count: number;
+    oldestCreatedAt: number | null;
+  };
+  orphanBlobs: {
     count: number;
     oldestCreatedAt: number | null;
   };
@@ -29,7 +34,9 @@ export type RealityForkRetentionSummary = {
 
 export type RealityForkRetentionRunResult = {
   deletedUploads: number;
+  deletedBlobs: number;
   deletedProjectEvents: number;
+  skippedBlobDeletes: number;
   summary: RealityForkRetentionSummary;
 };
 
@@ -90,6 +97,45 @@ function oldProjectEventIds(cutoff: number): string[] {
   return rows.map(row => row.id);
 }
 
+type BlobRow = {
+  id: string;
+  storage_key: string;
+};
+
+function orphanBlobRows(cutoff: number): BlobRow[] {
+  return db
+    .prepare(
+      `
+      SELECT blobs.id, blobs.storage_key
+      FROM reality_fork_blobs blobs
+      WHERE blobs.created_at < ?
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_uploads uploads WHERE uploads.blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_evidence evidence WHERE evidence.blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_extractions extractions
+          WHERE extractions.artifact_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_simulations simulations
+          WHERE simulations.artifact_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_reports reports
+          WHERE reports.markdown_blob_id = blobs.id OR reports.html_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_publications publications
+          WHERE publications.bundle_blob_id = blobs.id
+        )
+    `
+    )
+    .all(cutoff) as BlobRow[];
+}
+
 export function getRealityForkRetentionSummary(
   options: { nowMs?: number; config?: RealityForkRetentionConfig } = {}
 ): RealityForkRetentionSummary {
@@ -108,6 +154,37 @@ export function getRealityForkRetentionSummary(
       FROM reality_fork_uploads uploads
       LEFT JOIN reality_fork_evidence evidence ON evidence.upload_id = uploads.id
       WHERE evidence.id IS NULL AND uploads.created_at < ?
+    `
+    )
+    .get(orphanUploadCutoff) as CountRow;
+  const orphanBlobs = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS count, MIN(blobs.created_at) AS oldest_created_at
+      FROM reality_fork_blobs blobs
+      WHERE blobs.created_at < ?
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_uploads uploads WHERE uploads.blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_evidence evidence WHERE evidence.blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_extractions extractions
+          WHERE extractions.artifact_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_simulations simulations
+          WHERE simulations.artifact_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_reports reports
+          WHERE reports.markdown_blob_id = blobs.id OR reports.html_blob_id = blobs.id
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM reality_fork_publications publications
+          WHERE publications.bundle_blob_id = blobs.id
+        )
     `
     )
     .get(orphanUploadCutoff) as CountRow;
@@ -149,6 +226,10 @@ export function getRealityForkRetentionSummary(
         ? orphanUploads.oldest_created_at * 1000
         : null,
     },
+    orphanBlobs: {
+      count: orphanBlobs.count,
+      oldestCreatedAt: orphanBlobs.oldest_created_at ? orphanBlobs.oldest_created_at * 1000 : null,
+    },
     staleDraftProjects: {
       count: staleDraftProjects.count,
       oldestCreatedAt: staleDraftProjects.oldest_created_at
@@ -183,13 +264,24 @@ export function runRealityForkRetention(
   const events = oldProjectEventIds(projectEventCutoff);
 
   let deletedUploads = 0;
+  let deletedBlobs = 0;
   let deletedProjectEvents = 0;
+  let skippedBlobDeletes = 0;
 
   if (uploads.length > 0) {
     const placeholders = uploads.map(() => '?').join(', ');
     deletedUploads = db
       .prepare(`DELETE FROM reality_fork_uploads WHERE id IN (${placeholders})`)
       .run(...uploads).changes;
+  }
+
+  for (const blob of orphanBlobRows(orphanUploadCutoff)) {
+    try {
+      realityForkBlobStore.delete(blob.storage_key);
+      deletedBlobs += db.prepare('DELETE FROM reality_fork_blobs WHERE id = ?').run(blob.id).changes;
+    } catch {
+      skippedBlobDeletes += 1;
+    }
   }
 
   if (events.length > 0) {
@@ -201,7 +293,9 @@ export function runRealityForkRetention(
 
   return {
     deletedUploads,
+    deletedBlobs,
     deletedProjectEvents,
+    skippedBlobDeletes,
     summary: getRealityForkRetentionSummary({ nowMs, config }),
   };
 }
