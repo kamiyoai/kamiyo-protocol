@@ -13,7 +13,16 @@ If your Node binary is not on `PATH`, set `KAMIYO_REALITY_FORK_NODE` before runn
 ## Usage
 
 ```bash
+kamiyo-reality-fork-cli run launch --repo .
 kamiyo-reality-fork-cli doctor
 kamiyo-reality-fork-cli fixtures list
 kamiyo-reality-fork-cli shell
 ```
+
+The flagship workflow writes:
+
+- `decision.md`
+- `report.html`
+- `trace.json`
+
+For monorepos, use `--focus <path...>` to pin the product surface you actually want to score.

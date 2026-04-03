@@ -1,8 +1,44 @@
 # `@kamiyo/reality-fork-cli`
 
-Focused CLI for Reality Fork fixtures and remote project operations.
+Reality Fork is most compelling when it does one job fast:
 
-It keeps the `r44` operator ergonomics that are worth stealing:
+```bash
+reality-fork run launch --repo .
+```
+
+That command inspects a repo, forks the launch decision into competing paths, and writes:
+
+- `decision.md`
+- `report.html`
+- `trace.json`
+
+The rest of the CLI supports that flagship workflow and keeps the useful `r44` operator ergonomics.
+
+## Flagship Flow
+
+```bash
+reality-fork run launch --repo .
+```
+
+For monorepos, pin the product surface explicitly:
+
+```bash
+reality-fork run launch --repo . \
+  --focus packages/kamiyo-reality-fork-cli \
+  --focus packages/kamiyo-reality-fork \
+  --focus crates/kamiyo-reality-fork-cli
+```
+
+The report is meant to answer one hard question quickly:
+
+- should we ship this now
+- should we narrow the launch
+- should we delay for proof
+- should we kill the product push
+
+## Operator Surface
+
+Reality Fork still keeps the parts of `r44` that are actually worth stealing:
 
 - named profiles
 - `doctor`
@@ -14,6 +50,8 @@ It keeps the `r44` operator ergonomics that are worth stealing:
 ## Commands
 
 ```bash
+reality-fork run launch --repo .
+
 reality-fork setup
 reality-fork doctor
 reality-fork profile list

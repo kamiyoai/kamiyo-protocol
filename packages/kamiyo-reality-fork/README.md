@@ -6,7 +6,7 @@ It does three jobs:
 
 - loads bundled fixture scenarios
 - adapts authenticated Companion control-room cases into the public Reality Fork shape
-- provides replay and share-card utilities so apps can render the same scenario in fixture or live mode
+- provides replay, share-card, and launch-report utilities so apps and CLIs can render the same scenario in fixture, live, or repo-analysis mode
 
 The public UI lives in `kamiyo-app`. This package stays in `kamiyo-protocol` because the control-room engine, fixture exports, and canonical public scenario shape are owned here.
 
@@ -14,6 +14,8 @@ The public UI lives in `kamiyo-app`. This package stays in `kamiyo-protocol` bec
 
 - `loadFixtureScenario(id)`
 - `listFixtureScenarios()`
+- `createRealityForkLaunchRun({ repoPath, prompt?, focusPaths? })`
+- `writeRealityForkLaunchArtifacts(run, outputDir)`
 - `createCompanionControlRoomClient(config)`
 - `adaptCompanionCaseToScenario(detail, metadata?)`
 - `createRealityForkFixtureBundle(detail, metadata?)`

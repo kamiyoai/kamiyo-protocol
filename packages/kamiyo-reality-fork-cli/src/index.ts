@@ -7,11 +7,15 @@ import { createInterface } from 'node:readline/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import {
+  createRealityForkLaunchRun,
   createRealityForkStudioClient,
+  defaultRealityForkLaunchOutputDir,
   fixtureDirectory,
   listFixtureScenarios,
   loadFixtureScenario,
+  writeRealityForkLaunchArtifacts,
   type CreateRealityForkProjectInput,
+  type RealityForkLaunchRun,
   type RealityForkProjectDetail,
   type RealityForkProjectEvent,
   type RealityForkProjectRecord,
@@ -310,6 +314,64 @@ function sessionLogCheck(store: ConfigStore): { status: string; details: string 
   }
 }
 
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function displayPathFromCwd(filePath: string): string {
+  const relative = path.relative(process.cwd(), filePath);
+  if (!relative || relative.startsWith('..')) {
+    return filePath;
+  }
+  return relative;
+}
+
+function printLaunchRunSummary(
+  run: RealityForkLaunchRun,
+  artifacts: {
+    outputDir: string;
+    decisionPath: string;
+    reportPath: string;
+    tracePath: string;
+  },
+  output: OutputFormat
+): void {
+  if (output === 'json') {
+    print(
+      {
+        verdict: run.verdict,
+        topAxes: run.axes
+          .slice()
+          .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+          .slice(0, 3),
+        actions: run.actions,
+        posts: run.posts,
+        artifacts,
+      },
+      output
+    );
+    return;
+  }
+
+  info(chalk.bold(run.verdict.label));
+  dim(
+    `launch readiness ${formatPercent(run.verdict.readiness)} | winner ${formatPercent(run.verdict.score)}`
+  );
+  info(run.verdict.reason);
+  info(
+    `strongest axes: ${run.axes
+      .slice()
+      .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+      .slice(0, 3)
+      .map(axis => `${axis.label} ${formatPercent(axis.score)}`)
+      .join(' | ')}`
+  );
+  info('artifacts:');
+  info(`decision ${displayPathFromCwd(artifacts.decisionPath)}`);
+  info(`report   ${displayPathFromCwd(artifacts.reportPath)}`);
+  info(`trace    ${displayPathFromCwd(artifacts.tracePath)}`);
+}
+
 async function waitForJob(projectId: string, jobId: string, effective: EffectiveInvocation) {
   const client = createClient(effective.apiUrl);
   let lastStage = '';
@@ -448,7 +510,7 @@ function buildProgram(state: RunState): Command {
 
   program
     .name(rootProgramName())
-    .description('Focused CLI for Reality Fork fixtures and remote project operations')
+    .description('Repo-aware CLI for launch stress tests, fixtures, and remote project operations')
     .option('--api-url <url>', 'Reality Fork API base URL')
     .option('--profile <name>', 'Profile name')
     .addOption(jsonOption)
@@ -590,6 +652,39 @@ function buildProgram(state: RunState): Command {
         profile.output = value;
         store.save();
         success(`profile '${effective.profile}' output updated`);
+      })
+    );
+
+  const run = program.command('run').description('Run local repo-aware Reality Fork workflows');
+  run
+    .command('launch')
+    .option('--repo <path>', 'Repository path', '.')
+    .option('--focus <path...>', 'Limit analysis to specific subpaths inside the repo')
+    .option('--prompt <text>', 'Launch question', 'Should we ship this now?')
+    .option('--title <text>', 'Report title')
+    .option('--output-dir <path>', 'Directory for decision.md, report.html, and trace.json')
+    .description('Stress-test a repo launch and emit shareable artifacts')
+    .action(
+      wrapAction(state, 'run launch', async ({ effective }, [options]) => {
+        const launchOptions = (options ?? {}) as {
+          repo?: string;
+          focus?: string[];
+          prompt?: string;
+          title?: string;
+          outputDir?: string;
+        };
+        const repoPath = path.resolve(launchOptions.repo || '.');
+        const runResult = await createRealityForkLaunchRun({
+          repoPath,
+          focusPaths: Array.isArray(launchOptions.focus) ? launchOptions.focus : undefined,
+          prompt: launchOptions.prompt,
+          title: launchOptions.title,
+        });
+        const outputDir = launchOptions.outputDir
+          ? path.resolve(launchOptions.outputDir)
+          : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
+        const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
+        printLaunchRunSummary(runResult, artifacts, effective.output);
       })
     );
 
