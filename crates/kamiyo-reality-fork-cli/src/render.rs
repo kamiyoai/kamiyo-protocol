@@ -286,7 +286,7 @@ pub fn render_report_html(run: &LaunchRun) -> String {
 </article>"#,
                 label = escape_html(a.id.label()),
                 score = percent(a.score),
-                width = (a.score * 100.0).round() as i64,
+                width = (a.score.clamp(0.0, 1.0) * 100.0).round() as i64,
                 summary = escape_html(&a.summary),
             )
         })

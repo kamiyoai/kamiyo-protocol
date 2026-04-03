@@ -7,14 +7,6 @@ use walkdir::WalkDir;
 
 use crate::types::{GitContext, Language, RepoContext};
 
-macro_rules! regex {
-    ($pat:expr) => {{
-        static RE: once_cell::sync::Lazy<Regex> =
-            once_cell::sync::Lazy::new(|| Regex::new($pat).unwrap());
-        &*RE
-    }};
-}
-
 const MAX_DOC_BYTES: u64 = 24_000;
 const MAX_DOC_FILES: usize = 10;
 

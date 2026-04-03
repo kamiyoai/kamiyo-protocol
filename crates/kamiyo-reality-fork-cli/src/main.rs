@@ -1,8 +1,17 @@
+macro_rules! regex {
+    ($pat:expr) => {{
+        static RE: once_cell::sync::Lazy<regex::Regex> =
+            once_cell::sync::Lazy::new(|| regex::Regex::new($pat).unwrap());
+        &*RE
+    }};
+}
+
 mod config;
 mod diff;
 mod render;
 mod repo;
 mod scoring;
+mod solana;
 mod types;
 
 use std::fs;
@@ -24,6 +33,9 @@ use crate::diff::{diff_launch_runs, render_diff_html, render_diff_markdown, Dire
 use crate::render::{render_decision_markdown, render_report_html};
 use crate::repo::collect_repo_context;
 use crate::scoring::{create_launch_run_with, percent};
+use crate::solana::{
+    AgentType as SolanaAgentType, SolanaRpc,
+};
 use crate::types::{ArtifactPaths, LaunchRun};
 
 #[derive(Parser)]
@@ -48,6 +60,10 @@ struct Cli {
     /// Show verbose debug output
     #[arg(long, global = true)]
     verbose: bool,
+
+    /// Solana cluster (devnet, mainnet, localnet, or RPC URL)
+    #[arg(long, global = true, default_value = "devnet")]
+    cluster: String,
 }
 
 #[derive(Subcommand)]
@@ -56,6 +72,11 @@ enum Commands {
     Run {
         #[command(subcommand)]
         command: RunCommands,
+    },
+    /// Interact with on-chain KAMIYO agents
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommands,
     },
     /// Inspect and manage CLI configuration
     Config {
@@ -132,6 +153,46 @@ enum RunCommands {
         /// Repository path (used to find latest run)
         #[arg(long, default_value = ".")]
         repo: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum AgentCommands {
+    /// Fetch and display an agent's on-chain identity
+    Info {
+        /// Agent owner address (base58)
+        owner: String,
+    },
+    /// List escrows for an agent
+    Escrows {
+        /// Agent owner address (base58)
+        owner: String,
+    },
+    /// Create a new agent on-chain
+    Create {
+        /// Agent name (1-32 characters)
+        #[arg(long)]
+        name: String,
+        /// Agent type: trading, service, oracle, custom
+        #[arg(long, rename_all = "lower", default_value = "service")]
+        r#type: String,
+        /// Stake amount in SOL (minimum 0.1)
+        #[arg(long)]
+        stake: f64,
+        /// Path to Solana keypair JSON file
+        #[arg(long, default_value = "~/.config/solana/id.json")]
+        keypair: String,
+    },
+    /// Deactivate your agent and reclaim stake
+    Deactivate {
+        /// Path to Solana keypair JSON file
+        #[arg(long, default_value = "~/.config/solana/id.json")]
+        keypair: String,
+    },
+    /// Show the agent PDA for an owner address
+    Pda {
+        /// Owner address (base58)
+        owner: String,
     },
 }
 
@@ -639,7 +700,8 @@ fn cmd_share(
             }
         }
         _ => {
-            let content = fs::read_to_string(&decision).unwrap_or_default();
+            let content = fs::read_to_string(&decision)
+                .with_context(|| format!("failed to read {}", decision.display()))?;
             let clip_cmd = if cfg!(target_os = "macos") {
                 "pbcopy"
             } else if cfg!(target_os = "windows") {
@@ -677,12 +739,221 @@ fn cmd_share(
     Ok(())
 }
 
+fn cmd_agent_info(
+    owner_str: &str,
+    cluster: &str,
+    output_format: Option<&str>,
+) -> Result<()> {
+    let owner: crate::solana::Pubkey = owner_str
+        .parse()
+        .context("invalid owner address")?;
+    let rpc = SolanaRpc::new(cluster);
+    let agent = rpc.get_agent(&owner)?;
+
+    if output_format == Some("json") {
+        println!("{}", serde_json::to_string_pretty(&agent)?);
+        return Ok(());
+    }
+
+    let stderr = std::io::stderr();
+    let mut w = stderr.lock();
+
+    let status = if agent.is_active {
+        "active".cyan().to_string()
+    } else {
+        "inactive".magenta().to_string()
+    };
+
+    let rep_pct = format!("{} / 1000", agent.reputation);
+    let rep_colored = if agent.reputation >= 700 {
+        rep_pct.cyan().to_string()
+    } else if agent.reputation >= 400 {
+        rep_pct.white().to_string()
+    } else {
+        rep_pct.magenta().to_string()
+    };
+
+    let _ = write!(w, "\n  {} {}\n\n", "agent".dimmed(), "\u{9b42}".magenta());
+    let _ = writeln!(w, "  {}       {}", "name".dimmed(), agent.name.white());
+    let _ = writeln!(w, "  {}       {}", "type".dimmed(), agent.agent_type.label());
+    let _ = writeln!(w, "  {}     {}", "status".dimmed(), status);
+    let _ = writeln!(w);
+    let _ = writeln!(w, "  {} {}", "reputation".dimmed(), rep_colored);
+    let _ = writeln!(w, "  {}      {}", "stake".dimmed(), solana::format_sol(agent.stake_amount).cyan());
+    let _ = writeln!(w);
+    let _ = writeln!(
+        w,
+        "  {}    {} total \u{00b7} {} successful \u{00b7} {} disputed",
+        "escrows".dimmed(),
+        agent.total_escrows,
+        agent.successful_escrows,
+        agent.disputed_escrows,
+    );
+    let _ = writeln!(w);
+    let _ = writeln!(w, "  {}    {}", "created".dimmed(), solana::format_timestamp(agent.created_at));
+    let _ = writeln!(w, "  {}     {}", "active".dimmed(), solana::format_timestamp(agent.last_active));
+    let _ = writeln!(w);
+    let _ = writeln!(w, "  {}      {}", "owner".dimmed(), agent.owner);
+    let _ = writeln!(w, "  {}        {}", "pda".dimmed(), agent.pda);
+    let _ = writeln!(w, "  {}    {}\n", "cluster".dimmed(), solana::cluster_label(cluster).dimmed());
+
+    Ok(())
+}
+
+fn cmd_agent_escrows(
+    owner_str: &str,
+    cluster: &str,
+    output_format: Option<&str>,
+) -> Result<()> {
+    let owner: crate::solana::Pubkey = owner_str
+        .parse()
+        .context("invalid owner address")?;
+    let rpc = SolanaRpc::new(cluster);
+    let (pda, _) = solana::agent_pda(&owner)?;
+    let escrows = rpc.get_escrows_for_agent(&pda)?;
+
+    if output_format == Some("json") {
+        println!("{}", serde_json::to_string_pretty(&escrows)?);
+        return Ok(());
+    }
+
+    let stderr = std::io::stderr();
+    let mut w = stderr.lock();
+
+    let _ = write!(w, "\n  {} {}\n\n", "agent".dimmed(), "\u{9b42} escrows".magenta());
+
+    if escrows.is_empty() {
+        let _ = writeln!(w, "  {}\n", "no escrows found".dimmed());
+        return Ok(());
+    }
+
+    for e in &escrows {
+        let status_colored = match e.status {
+            solana::EscrowStatus::Active => e.status.label().cyan().to_string(),
+            solana::EscrowStatus::Released => e.status.label().green().to_string(),
+            solana::EscrowStatus::Disputed => e.status.label().magenta().to_string(),
+            solana::EscrowStatus::Resolved => e.status.label().white().to_string(),
+        };
+
+        let quality = e
+            .quality_score
+            .map(|q| format!("quality: {q}"))
+            .unwrap_or_default();
+
+        let _ = writeln!(
+            w,
+            "  {}  {:>10}  {}  {}  {}",
+            e.transaction_id.dimmed(),
+            status_colored,
+            solana::format_sol(e.amount),
+            solana::format_timestamp(e.created_at).dimmed(),
+            quality.dimmed(),
+        );
+    }
+    let _ = writeln!(w);
+
+    Ok(())
+}
+
+fn cmd_agent_create(
+    name: &str,
+    agent_type_str: &str,
+    stake_sol: f64,
+    keypair_path: &str,
+    cluster: &str,
+    quiet: bool,
+) -> Result<()> {
+    let agent_type: SolanaAgentType = agent_type_str.parse()?;
+    if !stake_sol.is_finite() || stake_sol < 0.0 {
+        bail!("invalid stake amount: {stake_sol}");
+    }
+    let stake_lamports = (stake_sol * 1e9) as u64;
+
+    let (signing_key, owner) = solana::load_keypair(keypair_path)?;
+    let rpc = SolanaRpc::new(cluster);
+    let (pda, _) = solana::agent_pda(&owner)?;
+
+    if !quiet {
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+        let _ = write!(w, "\n  {} {}\n\n", "agent".dimmed(), "\u{9b42} creating...".magenta());
+        let _ = writeln!(w, "  {}       {}", "name".dimmed(), name);
+        let _ = writeln!(w, "  {}       {}", "type".dimmed(), agent_type.label());
+        let _ = writeln!(w, "  {}      {}", "stake".dimmed(), solana::format_sol(stake_lamports));
+        let _ = writeln!(w, "  {}      {}", "owner".dimmed(), owner);
+        let _ = writeln!(w, "  {}        {}", "pda".dimmed(), pda);
+        let _ = writeln!(w, "  {}    {}", "cluster".dimmed(), solana::cluster_label(cluster));
+        let _ = writeln!(w);
+    }
+
+    let sig = solana::create_agent_tx(&rpc, &signing_key, &owner, name, agent_type, stake_lamports)?;
+
+    if !quiet {
+        eprintln!("  {}  {}\n", "tx".green(), sig);
+    } else {
+        println!("{sig}");
+    }
+
+    Ok(())
+}
+
+fn cmd_agent_deactivate(
+    keypair_path: &str,
+    cluster: &str,
+    quiet: bool,
+) -> Result<()> {
+    let (signing_key, owner) = solana::load_keypair(keypair_path)?;
+    let rpc = SolanaRpc::new(cluster);
+
+    if !quiet {
+        let (pda, _) = solana::agent_pda(&owner)?;
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+        let _ = write!(w, "\n  {} {}\n\n", "agent".dimmed(), "\u{9b42} deactivating...".magenta());
+        let _ = writeln!(w, "  {}      {}", "owner".dimmed(), owner);
+        let _ = writeln!(w, "  {}        {}", "pda".dimmed(), pda);
+        let _ = writeln!(w, "  {}    {}", "cluster".dimmed(), solana::cluster_label(cluster));
+        let _ = writeln!(w);
+    }
+
+    let sig = solana::deactivate_agent_tx(&rpc, &signing_key, &owner)?;
+
+    if !quiet {
+        eprintln!("  {}  {}\n", "tx".green(), sig);
+    } else {
+        println!("{sig}");
+    }
+
+    Ok(())
+}
+
+fn cmd_agent_pda(owner_str: &str) -> Result<()> {
+    let owner: crate::solana::Pubkey = owner_str
+        .parse()
+        .context("invalid owner address")?;
+    let (pda, bump) = solana::agent_pda(&owner)?;
+    println!("{pda} (bump: {bump})");
+    Ok(())
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
     let output_format = cli.output.as_deref();
     let quiet = cli.quiet;
+    let cluster = &cli.cluster;
 
     match cli.command {
+        Commands::Agent { command } => match command {
+            AgentCommands::Info { owner } => cmd_agent_info(&owner, cluster, output_format),
+            AgentCommands::Escrows { owner } => cmd_agent_escrows(&owner, cluster, output_format),
+            AgentCommands::Create { name, r#type, stake, keypair } => {
+                cmd_agent_create(&name, &r#type, stake, &keypair, cluster, quiet)
+            }
+            AgentCommands::Deactivate { keypair } => {
+                cmd_agent_deactivate(&keypair, cluster, quiet)
+            }
+            AgentCommands::Pda { owner } => cmd_agent_pda(&owner),
+        },
         Commands::Run { command } => match command {
             RunCommands::Launch {
                 repo,

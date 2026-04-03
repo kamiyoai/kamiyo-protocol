@@ -37,6 +37,33 @@ The flagship workflow writes:
 
 For monorepos, use `--focus <path...>` to pin the product surface you want to score.
 
+## Agent Commands
+
+Interact with on-chain KAMIYO agents directly from the CLI.
+
+```bash
+# query an agent by owner address
+reality-fork agent info <owner-pubkey>
+
+# list escrows for an agent
+reality-fork agent escrows <owner-pubkey>
+
+# derive the agent PDA for an owner
+reality-fork agent pda <owner-pubkey>
+
+# create a new agent on-chain (devnet)
+reality-fork agent create --name "my-agent" --type trading --stake 0.1
+
+# create on mainnet with custom keypair
+reality-fork --cluster mainnet agent create --name "prod-agent" --type service --stake 1.0 --keypair ~/keys/agent.json
+
+# deactivate an agent and reclaim stake
+reality-fork agent deactivate --keypair ~/.config/solana/id.json
+```
+
+Use `--cluster` to target devnet (default), mainnet, localnet, or any RPC URL.
+All read commands support `--output json` for machine-readable output.
+
 ## Output
 
 ```

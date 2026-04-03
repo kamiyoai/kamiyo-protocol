@@ -88,7 +88,9 @@ impl ConfigStore {
 
     pub fn save(&self) {
         ensure_private_dir(&self.dir_path);
-        let json = serde_json::to_string_pretty(&self.config).unwrap();
+        let Ok(json) = serde_json::to_string_pretty(&self.config) else {
+            return;
+        };
         fs::write(&self.file_path, json).ok();
         #[cfg(unix)]
         {

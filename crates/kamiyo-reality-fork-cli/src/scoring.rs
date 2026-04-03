@@ -1,16 +1,6 @@
 use std::path::Path;
 
-use regex::Regex;
-
 use crate::types::*;
-
-macro_rules! regex {
-    ($pat:expr) => {{
-        static RE: once_cell::sync::Lazy<Regex> =
-            once_cell::sync::Lazy::new(|| Regex::new($pat).unwrap());
-        &*RE
-    }};
-}
 
 fn clamp(v: f64) -> f64 {
     v.clamp(0.0, 1.0)
@@ -687,7 +677,7 @@ pub fn build_signals(
             signal_type: SignalType::Risk,
             axis: AxisId::Immediacy,
             statement: "Advanced flows still depend on a separate API surface.".into(),
-            detail: compact_text(&repo.remote_dependency_notes[0], 180),
+            detail: compact_text(repo.remote_dependency_notes.first().unwrap_or(&String::new()), 180),
             weight: 0.93,
             citations: sample(
                 &repo
@@ -870,7 +860,7 @@ pub fn create_launch_run_with(
     let axes = build_axes(&repo, &scores);
     let actions = build_actions(&axes);
     let branches = build_branches(&axes, &actions, &repo);
-    let winner = branches.first().expect("branches is always non-empty (4 items)");
+    let winner = &branches[0]; // always 4 branches from build_branches
     let readiness = average(&axes.iter().map(|a| a.score).collect::<Vec<_>>());
     let reason = verdict_reason(winner, &axes, &actions);
 
