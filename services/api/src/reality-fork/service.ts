@@ -257,6 +257,19 @@ type KeywordCount = {
   count: number;
 };
 
+type StoredReportPayload = {
+  version: 2;
+  sections: RealityForkReportSection[];
+  executiveSummary: RealityForkReport['executiveSummary'];
+  evidenceSummary: RealityForkReport['evidenceSummary'];
+  claims: RealityForkReport['claims'];
+  laneSummaries: RealityForkReport['laneSummaries'];
+  scenarioComparison: RealityForkReport['scenarioComparison'];
+  winningRationale: RealityForkReport['winningRationale'];
+  socialCard: RealityForkReport['socialCard'];
+  quality: RealityForkReport['quality'];
+};
+
 const stopWords = new Set([
   'about',
   'after',
@@ -428,8 +441,47 @@ function normalizeEntityKey(label: string): string {
   return label
     .trim()
     .replace(/\s+/g, ' ')
+    .replace(/[“”"'.:,;()[\]{}]+/g, '')
+    .replace(/\b(the|a|an)\b/gi, '')
+    .replace(/\b('s|s')\b/gi, '')
     .replace(/^[@#$]+/, '')
+    .replace(/[^a-zA-Z0-9\s/-]+/g, '')
     .toLowerCase();
+}
+
+function normalizeEntityAlias(label: string): string {
+  return normalizeEntityKey(label)
+    .replace(/\b(token|tokens|market|markets|team|teams)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function canonicalizeEntityLabel(label: string): string {
+  const trimmed = label.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return label;
+  if (trimmed.startsWith('$') || trimmed.startsWith('@') || trimmed.startsWith('#')) {
+    return trimmed;
+  }
+  if (trimmed === trimmed.toUpperCase()) return trimmed;
+  return trimmed
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function isUsefulEntityLabel(label: string): boolean {
+  const normalized = normalizeEntityAlias(label);
+  if (normalized.length < 3) return false;
+  if (stopWords.has(normalized)) return false;
+  if (/^(report|reports|update|updates|source|sources|claim|claims|market|markets)$/i.test(normalized)) {
+    return false;
+  }
+  return true;
+}
+
+function claimSnippet(text: string, max = 160): string {
+  return compactText(text.replace(/\s+/g, ' ').trim(), max);
 }
 
 function sentenceSignalScore(
@@ -810,6 +862,7 @@ function mapClaim(row: ClaimRow): RealityForkClaim {
     sentiment: row.sentiment,
     confidence: row.confidence,
     evidenceRefs: parseJson<string[]>(row.evidence_refs_json, []),
+    snippet: claimSnippet(row.text),
     entityIds: parseJson<string[]>(row.entity_ids_json, []),
     createdAt: row.created_at * 1000,
   };
@@ -929,6 +982,41 @@ function mapReport(row: ReportRow, store = realityForkBlobStore): RealityForkRep
     sections: parseJson<RealityForkReportSection[]>(row.sections_json, []),
     metrics: parseJson<Record<string, number>>(row.metrics_json, {}),
     decision: parseJson<RealityForkDecision | null>(row.decision_json, null),
+    executiveSummary: { body: '', citations: [] },
+    evidenceSummary: {
+      body: '',
+      sourceCount: 0,
+      chunkCount: 0,
+      entityCount: 0,
+      claimCount: 0,
+      degradedSourceCount: 0,
+      citations: [],
+    },
+    claims: [],
+    laneSummaries: [],
+    scenarioComparison: [],
+    winningRationale: {
+      title: '',
+      body: '',
+      citations: [],
+      runnerUpTitle: null,
+    },
+    socialCard: {
+      title: row.headline,
+      winningScenario: null,
+      summary: row.summary,
+      evidenceCount: 0,
+      laneCount: 0,
+      rounds: 0,
+      publishedAt: null,
+    },
+    quality: {
+      citedClaimCount: 0,
+      distinctEntityCount: 0,
+      laneDivergence: 0,
+      launchReady: false,
+      blockers: [],
+    },
     createdAt: row.created_at * 1000,
   };
 }
@@ -1716,10 +1804,16 @@ function extractStructuredArtifacts(
         /(?:\$[A-Z0-9]{2,10}|@[A-Za-z0-9_]+|#[A-Za-z0-9_]+|[A-Z]{2,}(?:-[A-Z]{2,})?|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/g
       ) ?? [];
     const uniqueMatches = [
-      ...new Set(matches.map(item => item.trim()).filter(item => item.length > 2)),
+      ...new Set(
+        matches
+          .map(item => item.trim())
+          .filter(item => item.length > 2)
+          .filter(isUsefulEntityLabel)
+          .map(canonicalizeEntityLabel)
+      ),
     ].slice(0, 16);
     for (const label of uniqueMatches) {
-      const key = normalizeEntityKey(label);
+      const key = normalizeEntityAlias(label);
       const existing = entityMap.get(key);
       if (existing) {
         existing.mentionCount += 1;
@@ -1732,7 +1826,7 @@ function extractStructuredArtifacts(
       entityMap.set(key, {
         id: `rf_ent_${sha256(`${project.id}:${label}`).slice(0, 12)}`,
         projectId: project.id,
-        label,
+        label: canonicalizeEntityLabel(label),
         category: inferEntityCategory(label),
         aliases: [],
         mentionCount: 1,
@@ -1750,7 +1844,7 @@ function extractStructuredArtifacts(
       const topic = inferClaimTopic(sentence, promptKeywords, uniqueMatches);
       const entityIds = uniqueMatches
         .filter(label => sentence.includes(label))
-        .map(label => entityMap.get(normalizeEntityKey(label))?.id)
+        .map(label => entityMap.get(normalizeEntityAlias(label))?.id)
         .filter((value): value is string => Boolean(value));
       const promptHits = promptKeywords.filter(keyword =>
         sentence.toLowerCase().includes(keyword)
@@ -1767,6 +1861,7 @@ function extractStructuredArtifacts(
           0.99
         ),
         evidenceRefs: [chunk.id],
+        snippet: claimSnippet(sentence),
         entityIds,
         createdAt: Date.now(),
       });
@@ -1863,25 +1958,63 @@ function buildLaneRounds(
           evidenceRefs,
           weight: 1,
         } as RealityForkScenarioInput);
+      const laneClaims = claims.filter(claim => {
+        const touchesTopic =
+          claim.topic === activeTopic.topic ||
+          claim.text.toLowerCase().includes(activeTopic.topic.toLowerCase());
+        if (lane === 'market_lane') {
+          return (
+            touchesTopic ||
+            /\b(price|volume|odds|liquidity|treasury|unlock|market|token|yield|basis)\b/i.test(
+              claim.text
+            )
+          );
+        }
+        if (lane === 'reddit_lane') {
+          return touchesTopic || claim.sentiment < 0;
+        }
+        return touchesTopic || claim.sentiment > 0;
+      });
+      const focusedClaims = laneClaims.length > 0 ? laneClaims : claims.slice(0, 6);
+      const focusedBalance = focusedClaims.reduce(
+        (sum, claim) => sum + claim.sentiment * claim.confidence,
+        0
+      );
+      const leadClaim =
+        focusedClaims
+          .slice()
+          .sort(
+            (left, right) =>
+              Math.abs(right.sentiment * right.confidence) -
+              Math.abs(left.sentiment * left.confidence)
+          )[0] ?? null;
       const drift = stableNoise(`${project.id}:${lane}:${roundIndex}`) - 0.5;
       sentiment = clamp(
-        sentiment + drift * laneWeights[lane].volatility + balance * 0.015,
+        sentiment +
+          drift * laneWeights[lane].volatility +
+          balance * 0.01 +
+          focusedBalance * (lane === 'market_lane' ? 0.028 : lane === 'reddit_lane' ? 0.018 : 0.024),
         0.05,
         0.95
       );
       conviction = clamp(
-        conviction + drift * 0.07 + laneWeights[lane].evidenceBias * 0.01,
+        conviction +
+          drift * 0.07 +
+          laneWeights[lane].evidenceBias * 0.01 +
+          focusedClaims.length * (lane === 'reddit_lane' ? 0.004 : 0.003),
         0.05,
         0.99
       );
       salience = clamp(
         salience +
           Math.abs(drift) * 0.06 +
-          scenarioInputs[roundIndex % Math.max(scenarioInputs.length, 1)]?.weight * 0.004 || 0,
+          (scenarioInputs[roundIndex % Math.max(scenarioInputs.length, 1)]?.weight ?? 0) * 0.004 +
+          Math.min(focusedClaims.length, 5) * 0.012,
         0.05,
         0.99
       );
 
+      const narrativeFocus = leadClaim?.snippet ?? activeTopic.summary;
       laneRounds.push({
         id: `rf_lane_${sha256(`${project.id}:${lane}:${roundIndex}`).slice(0, 12)}`,
         projectId: project.id,
@@ -1892,10 +2025,10 @@ function buildLaneRounds(
         salience: round(salience),
         summary:
           lane === 'market_lane'
-            ? `Round ${roundIndex}: markets repriced "${activeTopic.topic}" to ${Math.round(sentiment * 100)} implied odds with ${Math.round(conviction * 100)} confidence.`
+            ? `Round ${roundIndex}: market pricing repriced "${activeTopic.topic}" around ${Math.round(sentiment * 100)} implied odds as traders focused on ${narrativeFocus}.`
             : lane === 'reddit_lane'
-              ? `Round ${roundIndex}: Reddit consensus on "${activeTopic.topic}" settled at ${Math.round(sentiment * 100)} sentiment with ${Math.round(salience * 100)} salience.`
-              : `Round ${roundIndex}: X momentum around "${activeTopic.topic}" moved to ${Math.round(sentiment * 100)} sentiment with ${Math.round(conviction * 100)} conviction.`,
+              ? `Round ${roundIndex}: Reddit hardened around "${activeTopic.topic}" at ${Math.round(sentiment * 100)} sentiment while long-form discussion concentrated on ${narrativeFocus}.`
+              : `Round ${roundIndex}: X momentum moved "${activeTopic.topic}" to ${Math.round(sentiment * 100)} sentiment as the timeline amplified ${narrativeFocus}.`,
         evidenceRefs: (activeTopic.evidenceRefs.length > 0
           ? activeTopic.evidenceRefs
           : evidenceRefs
@@ -2270,6 +2403,162 @@ function citationLabelsFromRefs(
     .slice(0, 8);
 }
 
+function citationSnippetsFromRefs(
+  refs: string[],
+  evidence: RealityForkEvidence[],
+  chunks: RealityForkChunk[]
+): Array<{
+  ref: string;
+  label: string;
+  snippet: string;
+}> {
+  const evidenceById = new Map(evidence.map(item => [item.id, item]));
+  const chunkById = new Map(chunks.map(item => [item.id, item]));
+  return [...new Set(refs)]
+    .map(ref => {
+      const chunk = chunkById.get(ref);
+      if (!chunk) {
+        return {
+          ref,
+          label: ref,
+          snippet: ref,
+        };
+      }
+      const source = evidenceById.get(chunk.evidenceId)?.title ?? 'Source';
+      return {
+        ref,
+        label: source,
+        snippet: claimSnippet(chunk.content, 120),
+      };
+    })
+    .slice(0, 8);
+}
+
+function laneLabel(lane: RealityForkLaneId): string {
+  switch (lane) {
+    case 'market_lane':
+      return 'Markets';
+    case 'reddit_lane':
+      return 'Reddit';
+    default:
+      return 'X';
+  }
+}
+
+function reportClaims(params: {
+  claims: RealityForkClaim[];
+  entities: RealityForkEntity[];
+  evidence: RealityForkEvidence[];
+  chunks: RealityForkChunk[];
+}): RealityForkReport['claims'] {
+  const entityById = new Map(params.entities.map(entity => [entity.id, entity]));
+  return params.claims.slice(0, 8).map(claim => ({
+    id: claim.id,
+    topic: claim.topic,
+    text: claim.text,
+    confidence: claim.confidence,
+    sentiment: claim.sentiment,
+    snippet: claim.snippet,
+    evidenceRefs: claim.evidenceRefs,
+    citations: citationLabelsFromRefs(claim.evidenceRefs, params.evidence, params.chunks),
+    entityLabels: claim.entityIds
+      .map(entityId => entityById.get(entityId)?.label)
+      .filter((value): value is string => Boolean(value)),
+  }));
+}
+
+function reportLaneSummaries(params: {
+  lanes: RealityForkLaneId[];
+  laneRounds: RealityForkLaneRound[];
+  evidence: RealityForkEvidence[];
+  chunks: RealityForkChunk[];
+}): RealityForkReport['laneSummaries'] {
+  return params.lanes.map(lane => {
+    const rounds = params.laneRounds.filter(round => round.lane === lane);
+    const opening = rounds[0];
+    const closing = rounds.at(-1);
+    const label = laneLabel(lane);
+    if (!opening || !closing) {
+      return {
+        lane,
+        label,
+        narrative: `${label} did not capture usable round data.`,
+        openingSentiment: 0,
+        closingSentiment: 0,
+        conviction: 0,
+        salience: 0,
+        citations: [],
+      };
+    }
+    const delta = round(closing.sentiment - opening.sentiment);
+    const narrative =
+      lane === 'market_lane'
+        ? `${label} repriced from ${Math.round(opening.sentiment * 100)} to ${Math.round(closing.sentiment * 100)} implied odds as conviction settled at ${Math.round(closing.conviction * 100)}.`
+        : lane === 'reddit_lane'
+          ? `${label} moved from ${Math.round(opening.sentiment * 100)} to ${Math.round(closing.sentiment * 100)} sentiment while salience finished at ${Math.round(closing.salience * 100)}.`
+          : `${label} accelerated from ${Math.round(opening.sentiment * 100)} to ${Math.round(closing.sentiment * 100)} sentiment with ${Math.round(closing.conviction * 100)} conviction.`;
+    return {
+      lane,
+      label,
+      narrative: delta === 0 ? `${narrative} The lane stayed effectively flat.` : narrative,
+      openingSentiment: opening.sentiment,
+      closingSentiment: closing.sentiment,
+      conviction: closing.conviction,
+      salience: closing.salience,
+      citations: citationLabelsFromRefs(closing.evidenceRefs, params.evidence, params.chunks),
+    };
+  });
+}
+
+function reportScenarioComparison(params: {
+  simulations: RealityForkSimulation[];
+  decision: RealityForkDecision;
+}): RealityForkReport['scenarioComparison'] {
+  const winnerId = params.decision.winnerSimulationId;
+  return params.simulations
+    .slice()
+    .sort((left, right) => right.probability - left.probability)
+    .map(simulation => ({
+      simulationId: simulation.id,
+      hypothesisId: simulation.hypothesisId,
+      title: simulation.title,
+      stance: simulation.stance,
+      outcome: simulation.outcome,
+      probability: simulation.probability,
+      confidence: simulation.confidence,
+      impactScore: simulation.impactScore,
+      evidenceCount: simulation.rationale.evidenceIds.length,
+      drivers: simulation.rationale.drivers.slice(0, 3),
+      riskFlags: simulation.scorecard?.riskFlags ?? [],
+      isWinner: simulation.id === winnerId,
+    }));
+}
+
+function reportQuality(params: {
+  claims: RealityForkClaim[];
+  entities: RealityForkEntity[];
+  laneSummaries: RealityForkReport['laneSummaries'];
+}): RealityForkReport['quality'] {
+  const citedClaimCount = params.claims.filter(claim => claim.evidenceRefs.length > 0).length;
+  const distinctEntityCount = params.entities.length;
+  const sentiments = params.laneSummaries.map(item => item.closingSentiment);
+  const laneDivergence =
+    sentiments.length > 1
+      ? round(Math.max(...sentiments) - Math.min(...sentiments))
+      : 0;
+  const blockers: string[] = [];
+  if (citedClaimCount < 4) blockers.push('citation coverage is too thin for a flagship launch report');
+  if (distinctEntityCount < 5) blockers.push('entity extraction did not produce enough distinct actors');
+  if (laneDivergence < 0.08) blockers.push('lane outcomes are too similar to demonstrate scenario separation');
+  return {
+    citedClaimCount,
+    distinctEntityCount,
+    laneDivergence,
+    launchReady: blockers.length === 0,
+    blockers,
+  };
+}
+
 function bulletList(items: string[]): string {
   return items.map(item => `- ${item}`).join('\n');
 }
@@ -2301,6 +2590,14 @@ function buildStudioReport(params: {
   summary: string;
   sections: RealityForkReportSection[];
   metrics: Record<string, number>;
+  executiveSummary: RealityForkReport['executiveSummary'];
+  evidenceSummary: RealityForkReport['evidenceSummary'];
+  claims: RealityForkReport['claims'];
+  laneSummaries: RealityForkReport['laneSummaries'];
+  scenarioComparison: RealityForkReport['scenarioComparison'];
+  winningRationale: RealityForkReport['winningRationale'];
+  socialCard: RealityForkReport['socialCard'];
+  quality: RealityForkReport['quality'];
   markdownBlob: RealityForkBlob;
   htmlBlob: RealityForkBlob;
 } {
@@ -2318,6 +2615,27 @@ function buildStudioReport(params: {
     scenarioInputCount: params.scenarioInputs.length,
   });
   const degradedEvidence = params.evidence.filter(item => item.warning);
+  const detailedClaims = reportClaims({
+    claims: params.claims,
+    entities: params.entities,
+    evidence: params.evidence,
+    chunks: params.chunks,
+  });
+  const laneSummaries = reportLaneSummaries({
+    lanes: params.project.simulationConfig.lanes,
+    laneRounds: params.laneRounds,
+    evidence: params.evidence,
+    chunks: params.chunks,
+  });
+  const scenarioComparison = reportScenarioComparison({
+    simulations: params.simulations,
+    decision: params.decision,
+  });
+  const quality = reportQuality({
+    claims: params.claims,
+    entities: params.entities,
+    laneSummaries,
+  });
   const summary = winner
     ? `${winner.title} leads after ${params.project.simulationConfig.rounds} rounds across ${params.project.simulationConfig.lanes.length} lanes. ${params.evidence.length} sources produced ${params.claims.length} claims and ${params.entities.length} entities for review.`
     : 'No leading scenario was produced from the current evidence set.';
@@ -2329,16 +2647,6 @@ function buildStudioReport(params: {
     params.simulations
       .filter(simulation => simulation.id !== winner?.id)
       .sort((left, right) => right.probability - left.probability)[0] ?? null;
-  const laneSummaries = params.project.simulationConfig.lanes.map(lane => {
-    const rounds = params.laneRounds.filter(round => round.lane === lane);
-    const opening = rounds[0];
-    const closing = rounds.at(-1);
-    const label = lane === 'market_lane' ? 'Markets' : lane === 'reddit_lane' ? 'Reddit' : 'X';
-    if (!opening || !closing) return `${label}: no lane data captured.`;
-    const delta = Math.round((closing.sentiment - opening.sentiment) * 100);
-    const driftWord = delta > 4 ? 'strengthened' : delta < -4 ? 'softened' : 'held steady';
-    return `${label}: ${driftWord} around "${params.scenarioInputs.find(input => closing.evidenceRefs.some(ref => input.evidenceRefs.includes(ref)))?.topic ?? 'core evidence'}" (${Math.round(closing.sentiment * 100)} sentiment, ${Math.round(closing.conviction * 100)} conviction).`;
-  });
   const winnerCitations = citationLabelsFromRefs(
     winner?.rationale.evidenceIds ?? [],
     params.evidence,
@@ -2348,14 +2656,60 @@ function buildStudioReport(params: {
     degradedEvidence.length > 0
       ? `${degradedEvidence.length} source${degradedEvidence.length === 1 ? '' : 's'} degraded during ingest.`
       : 'All sources produced extractable text.';
+  const executiveSummary = {
+    body: [summary, winnerScenario].join('\n'),
+    citations: winnerCitations,
+  };
+  const evidenceSummary = {
+    body: [
+      `${params.evidence.length} source${params.evidence.length === 1 ? '' : 's'} produced ${params.chunks.length} normalized evidence chunk${params.chunks.length === 1 ? '' : 's'}.`,
+      `${params.claims.length} claims and ${params.entities.length} entities were retained for comparison.`,
+      degradedSummary,
+    ].join('\n'),
+    sourceCount: params.evidence.length,
+    chunkCount: params.chunks.length,
+    entityCount: params.entities.length,
+    claimCount: params.claims.length,
+    degradedSourceCount: degradedEvidence.length,
+    citations: citationLabelsFromRefs(
+      params.claims.slice(0, 4).flatMap(claim => claim.evidenceRefs),
+      params.evidence,
+      params.chunks
+    ),
+  };
+  const winningRationale = {
+    title: winner?.title ?? 'No winning scenario',
+    body: [
+      winner
+        ? `${winner.title} leads because ${params.decision.winnerReason ?? 'it retained the strongest balance of evidence.'}`
+        : 'No winner was selected.',
+      runnerUp
+        ? `${runnerUp.title} remained the closest alternative at ${Math.round(runnerUp.probability * 100)}% probability.`
+        : null,
+      topTopics.length > 0 ? `Highest-salience topics: ${topTopics.join(', ')}.` : null,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join('\n'),
+    citations: winnerCitations,
+    runnerUpTitle: runnerUp?.title ?? null,
+  };
+  const socialCard = {
+    title: params.project.title,
+    winningScenario: winner?.title ?? null,
+    summary: winner?.outcome ?? summary,
+    evidenceCount: params.evidence.length,
+    laneCount: params.project.simulationConfig.lanes.length,
+    rounds: params.project.simulationConfig.rounds,
+    publishedAt: null,
+  };
 
   const sections: RealityForkReportSection[] = [
     {
       id: 'executive-summary',
       key: 'executive_summary',
       title: 'Executive summary',
-      body: [summary, winnerScenario].join('\n'),
-      citations: winnerCitations,
+      body: executiveSummary.body,
+      citations: executiveSummary.citations,
     },
     {
       id: 'evidence-base',
@@ -2367,11 +2721,7 @@ function buildStudioReport(params: {
         `${params.claims.length} claims and ${params.entities.length} entities extracted`,
         degradedSummary,
       ]),
-      citations: citationLabelsFromRefs(
-        params.claims.slice(0, 4).flatMap(claim => claim.evidenceRefs),
-        params.evidence,
-        params.chunks
-      ),
+      citations: evidenceSummary.citations,
     },
     {
       id: 'entity-graph',
@@ -2397,15 +2747,9 @@ function buildStudioReport(params: {
       key: 'key_claims',
       title: 'Key claims',
       body: bulletList(
-        params.claims
-          .slice(0, 6)
-          .map(claim => `${claim.text} (${Math.round(claim.confidence * 100)}% confidence)`)
+        detailedClaims.map(claim => `${claim.text} (${Math.round(claim.confidence * 100)}% confidence)`)
       ),
-      citations: citationLabelsFromRefs(
-        params.claims.slice(0, 6).flatMap(claim => claim.evidenceRefs),
-        params.evidence,
-        params.chunks
-      ),
+      citations: detailedClaims.flatMap(claim => claim.citations).slice(0, 8),
     },
     {
       id: 'scenario-map',
@@ -2430,29 +2774,15 @@ function buildStudioReport(params: {
       id: 'lane-narrative',
       key: 'lane_narrative',
       title: 'Platform lane narrative',
-      body: bulletList(laneSummaries),
-      citations: citationLabelsFromRefs(
-        params.laneRounds.slice(-6).flatMap(round => round.evidenceRefs),
-        params.evidence,
-        params.chunks
-      ),
+      body: bulletList(laneSummaries.map(item => `${item.label}: ${item.narrative}`)),
+      citations: laneSummaries.flatMap(item => item.citations).slice(0, 8),
     },
     {
       id: 'decision-rationale',
       key: 'decision_rationale',
       title: 'Decision rationale',
-      body: bulletList(
-        [
-          winner
-            ? `${winner.title} leads because ${params.decision.winnerReason ?? 'it retained the strongest balance of evidence.'}`
-            : 'No winner was selected.',
-          runnerUp
-            ? `${runnerUp.title} remained the closest alternative at ${Math.round(runnerUp.probability * 100)}% probability.`
-            : null,
-          topTopics.length > 0 ? `Highest-salience topics: ${topTopics.join(', ')}.` : null,
-        ].filter((value): value is string => Boolean(value))
-      ),
-      citations: winnerCitations,
+      body: bulletList(winningRationale.body.split('\n').filter(Boolean)),
+      citations: winningRationale.citations,
     },
     {
       id: 'recommendation',
@@ -2510,7 +2840,19 @@ function buildStudioReport(params: {
       simulationCount: params.simulations.length,
       citationCount: sections.reduce((total, section) => total + section.citations.length, 0),
       estimatedCostUsd,
+      citedClaimCount: quality.citedClaimCount,
+      distinctEntityCount: quality.distinctEntityCount,
+      laneDivergence: quality.laneDivergence,
+      launchReady: quality.launchReady ? 1 : 0,
     },
+    executiveSummary,
+    evidenceSummary,
+    claims: detailedClaims,
+    laneSummaries,
+    scenarioComparison,
+    winningRationale,
+    socialCard,
+    quality,
     markdownBlob: createArtifactBlob(
       markdown,
       `${params.project.slug}-report.md`,
@@ -2526,6 +2868,113 @@ function buildStudioReport(params: {
   };
 }
 
+function enrichReport(params: {
+  report: RealityForkReport;
+  project: RealityForkProject;
+  evidence: RealityForkEvidence[];
+  chunks: RealityForkChunk[];
+  entities: RealityForkEntity[];
+  claims: RealityForkClaim[];
+  scenarioInputs: RealityForkScenarioInput[];
+  laneRounds: RealityForkLaneRound[];
+  simulations: RealityForkSimulation[];
+  publishedAt?: number | null;
+}): RealityForkReport {
+  const decision = params.report.decision;
+  if (!decision) return params.report;
+
+  const winner =
+    params.simulations.find(simulation => simulation.hypothesisId === decision.winnerHypothesisId) ??
+    params.simulations[0] ??
+    null;
+  const runnerUp =
+    params.simulations
+      .filter(simulation => simulation.id !== winner?.id)
+      .sort((left, right) => right.probability - left.probability)[0] ?? null;
+  const summary = params.report.summary;
+  const winnerCitations = citationLabelsFromRefs(
+    winner?.rationale.evidenceIds ?? [],
+    params.evidence,
+    params.chunks
+  );
+  const degradedSourceCount = params.evidence.filter(item => item.warning).length;
+  const claims = reportClaims({
+    claims: params.claims,
+    entities: params.entities,
+    evidence: params.evidence,
+    chunks: params.chunks,
+  });
+  const laneSummaries = reportLaneSummaries({
+    lanes: params.project.simulationConfig.lanes,
+    laneRounds: params.laneRounds,
+    evidence: params.evidence,
+    chunks: params.chunks,
+  });
+  const scenarioComparison = reportScenarioComparison({
+    simulations: params.simulations,
+    decision,
+  });
+  const quality = reportQuality({
+    claims: params.claims,
+    entities: params.entities,
+    laneSummaries,
+  });
+  const topTopics = params.scenarioInputs.slice(0, 4).map(input => input.topic);
+  const winningRationale = {
+    title: winner?.title ?? 'No winning scenario',
+    body: [
+      winner
+        ? `${winner.title} leads because ${decision.winnerReason ?? 'it retained the strongest balance of evidence.'}`
+        : 'No winner was selected.',
+      runnerUp
+        ? `${runnerUp.title} remained the closest alternative at ${Math.round(runnerUp.probability * 100)}% probability.`
+        : null,
+      topTopics.length > 0 ? `Highest-salience topics: ${topTopics.join(', ')}.` : null,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join('\n'),
+    citations: winnerCitations,
+    runnerUpTitle: runnerUp?.title ?? null,
+  };
+
+  return {
+    ...params.report,
+    executiveSummary: {
+      body: params.report.sections.find(section => section.key === 'executive_summary')?.body ?? summary,
+      citations: winnerCitations,
+    },
+    evidenceSummary: {
+      body:
+        params.report.sections.find(section => section.key === 'evidence_base')?.body ??
+        `${params.evidence.length} sources, ${params.claims.length} claims, ${params.entities.length} entities.`,
+      sourceCount: params.evidence.length,
+      chunkCount: params.chunks.length,
+      entityCount: params.entities.length,
+      claimCount: params.claims.length,
+      degradedSourceCount,
+      citations: citationLabelsFromRefs(
+        params.claims.slice(0, 4).flatMap(claim => claim.evidenceRefs),
+        params.evidence,
+        params.chunks
+      ),
+    },
+    claims,
+    laneSummaries,
+    scenarioComparison,
+    winningRationale,
+    socialCard: {
+      title: params.project.title,
+      winningScenario: winner?.title ?? null,
+      summary: winner?.outcome ?? summary,
+      evidenceCount: params.evidence.length,
+      laneCount: params.project.simulationConfig.lanes.length,
+      rounds: params.project.simulationConfig.rounds,
+      publishedAt: params.publishedAt ? new Date(params.publishedAt).toISOString() : null,
+    },
+    quality,
+  };
+}
+
 function createPublicationBundleV2(params: {
   project: RealityForkProject;
   report: RealityForkReport;
@@ -2538,6 +2987,19 @@ function createPublicationBundleV2(params: {
   store?: FileSystemBlobStore;
 }) {
   const slug = uniquePublicationSlug(params.project.slug);
+  const publishedAt = Date.now();
+  const report = enrichReport({
+    report: params.report,
+    project: params.project,
+    evidence: params.evidence,
+    chunks: listChunks(params.project.id),
+    entities: params.entities,
+    claims: params.claims,
+    scenarioInputs: params.scenarioInputs,
+    laneRounds: params.laneRounds,
+    simulations: params.simulations,
+    publishedAt,
+  });
   const manifest = {
     version: 2,
     project: {
@@ -2548,13 +3010,21 @@ function createPublicationBundleV2(params: {
       simulationConfig: params.project.simulationConfig,
     },
     report: {
-      id: params.report.id,
-      headline: params.report.headline,
-      summary: params.report.summary,
-      markdown: params.report.markdown,
-      html: params.report.html,
-      sections: params.report.sections,
-      decision: params.report.decision,
+      id: report.id,
+      headline: report.headline,
+      summary: report.summary,
+      markdown: report.markdown,
+      html: report.html,
+      sections: report.sections,
+      decision: report.decision,
+      executiveSummary: report.executiveSummary,
+      evidenceSummary: report.evidenceSummary,
+      claims: report.claims,
+      laneSummaries: report.laneSummaries,
+      scenarioComparison: report.scenarioComparison,
+      winningRationale: report.winningRationale,
+      socialCard: report.socialCard,
+      quality: report.quality,
     },
     evidence: params.evidence,
     entities: params.entities,
@@ -2562,7 +3032,7 @@ function createPublicationBundleV2(params: {
     scenarioInputs: params.scenarioInputs,
     laneRounds: params.laneRounds,
     simulations: params.simulations,
-    publishedAt: new Date().toISOString(),
+    publishedAt: new Date(publishedAt).toISOString(),
   };
   const bundleBlob = createArtifactBlob(
     JSON.stringify(manifest, null, 2),
@@ -2573,7 +3043,7 @@ function createPublicationBundleV2(params: {
   return {
     slug,
     title: params.project.title,
-    summary: params.report.summary,
+    summary: report.summary,
     manifest,
     bundleBlob,
   };
@@ -2821,12 +3291,6 @@ async function runFullJob(
     claimCount: structured.claims.length,
     scenarioInputCount: structured.scenarioInputs.length,
   });
-  const warnings = buildProjectWarnings({
-    evidence,
-    estimatedCostUsd,
-    claimCount: structured.claims.length,
-    scenarioInputCount: structured.scenarioInputs.length,
-  });
   const reportDraft = buildStudioReport({
     project,
     evidence,
@@ -2839,6 +3303,17 @@ async function runFullJob(
     decision: scored.decision,
     store,
   });
+  const warnings = [
+    ...buildProjectWarnings({
+      evidence,
+      estimatedCostUsd,
+      claimCount: structured.claims.length,
+      scenarioInputCount: structured.scenarioInputs.length,
+    }),
+    ...reportDraft.quality.blockers.map(
+      blocker => `Launch-quality gate: ${blocker}.`
+    ),
+  ];
 
   const reportId = `rf_report_${randomUUID().slice(0, 12)}`;
   db.prepare(
@@ -3391,21 +3866,41 @@ export function getProjectDetail(
   if (!project) return null;
 
   const evidence = listEvidenceRows(projectId).map(mapEvidence);
+  const chunks = listChunks(projectId);
+  const entities = listEntities(projectId);
+  const claims = listClaims(projectId);
+  const scenarioInputs = listScenarioInputs(projectId);
+  const laneRounds = listLaneRounds(projectId);
+  const simulations = listSimulations(projectId);
   const report = loadReportById(project.latestReportId, store);
+  const publication = loadPublicationById(project.latestPublicationId, store);
   return {
     ...project,
     uploads: listUploads(projectId),
     evidence,
-    chunks: listChunks(projectId),
-    entities: listEntities(projectId),
-    claims: listClaims(projectId),
-    scenarioInputs: listScenarioInputs(projectId),
+    chunks,
+    entities,
+    claims,
+    scenarioInputs,
     extractions: listExtractions(projectId),
-    laneRounds: listLaneRounds(projectId),
-    simulations: listSimulations(projectId),
+    laneRounds,
+    simulations,
     decision: report?.decision ?? null,
-    report,
-    publication: loadPublicationById(project.latestPublicationId, store),
+    report: report
+      ? enrichReport({
+          report,
+          project,
+          evidence,
+          chunks,
+          entities,
+          claims,
+          scenarioInputs,
+          laneRounds,
+          simulations,
+          publishedAt: publication?.publishedAt ?? null,
+        })
+      : null,
+    publication,
     jobs: listJobs(projectId),
     events: listProjectEvents(projectId),
   };

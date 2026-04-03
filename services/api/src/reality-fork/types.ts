@@ -138,6 +138,7 @@ export type RealityForkClaim = {
   sentiment: number;
   confidence: number;
   evidenceRefs: string[];
+  snippet: string;
   entityIds: string[];
   createdAt: number;
 };
@@ -236,6 +237,62 @@ export type RealityForkReportSection = {
   citations: string[];
 };
 
+export type RealityForkReportClaim = {
+  id: string;
+  topic: string;
+  text: string;
+  confidence: number;
+  sentiment: number;
+  snippet: string;
+  evidenceRefs: string[];
+  citations: string[];
+  entityLabels: string[];
+};
+
+export type RealityForkReportLaneSummary = {
+  lane: RealityForkLaneId;
+  label: string;
+  narrative: string;
+  openingSentiment: number;
+  closingSentiment: number;
+  conviction: number;
+  salience: number;
+  citations: string[];
+};
+
+export type RealityForkReportScenarioComparison = {
+  simulationId: string;
+  hypothesisId: RealityForkHypothesisId;
+  title: string;
+  stance: RealityForkSimulationStance;
+  outcome: string;
+  probability: number;
+  confidence: number;
+  impactScore: number;
+  evidenceCount: number;
+  drivers: string[];
+  riskFlags: string[];
+  isWinner: boolean;
+};
+
+export type RealityForkReportQuality = {
+  citedClaimCount: number;
+  distinctEntityCount: number;
+  laneDivergence: number;
+  launchReady: boolean;
+  blockers: string[];
+};
+
+export type RealityForkReportSocialCard = {
+  title: string;
+  winningScenario: string | null;
+  summary: string;
+  evidenceCount: number;
+  laneCount: number;
+  rounds: number;
+  publishedAt: string | null;
+};
+
 export type RealityForkReport = {
   id: string;
   projectId: string;
@@ -249,6 +306,30 @@ export type RealityForkReport = {
   sections: RealityForkReportSection[];
   metrics: Record<string, number>;
   decision: RealityForkDecision | null;
+  executiveSummary: {
+    body: string;
+    citations: string[];
+  };
+  evidenceSummary: {
+    body: string;
+    sourceCount: number;
+    chunkCount: number;
+    entityCount: number;
+    claimCount: number;
+    degradedSourceCount: number;
+    citations: string[];
+  };
+  claims: RealityForkReportClaim[];
+  laneSummaries: RealityForkReportLaneSummary[];
+  scenarioComparison: RealityForkReportScenarioComparison[];
+  winningRationale: {
+    title: string;
+    body: string;
+    citations: string[];
+    runnerUpTitle: string | null;
+  };
+  socialCard: RealityForkReportSocialCard;
+  quality: RealityForkReportQuality;
   createdAt: number;
 };
 

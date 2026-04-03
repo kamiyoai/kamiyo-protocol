@@ -153,6 +153,14 @@ describe('reality-fork routes', () => {
     expect(project.report.markdown).toContain('## Recommended action');
     expect(project.report.markdown).toContain('Estimated pipeline spend: $');
     expect(project.report.metrics.estimatedCostUsd).toBeGreaterThan(0);
+    expect(project.report.executiveSummary.body).toContain('leads after');
+    expect(project.report.evidenceSummary.sourceCount).toBe(2);
+    expect(project.report.claims.length).toBeGreaterThan(0);
+    expect(project.report.claims[0].snippet).toBeTruthy();
+    expect(project.report.laneSummaries).toHaveLength(3);
+    expect(project.report.scenarioComparison).toHaveLength(4);
+    expect(project.report.socialCard.title).toBe('Bridge rollback decision');
+    expect(typeof project.report.quality.launchReady).toBe('boolean');
 
     const publishResponse = await fetch(
       `${server.baseUrl}/api/reality-fork/projects/${projectId}/publish`,
@@ -182,6 +190,9 @@ describe('reality-fork routes', () => {
     expect(publication.bundle.project.title).toBe('Bridge rollback decision');
     expect(publication.bundle.report.markdown).toContain('## Recommended action');
     expect(publication.bundle.report.decision.winnerHypothesisId).toBeTruthy();
+    expect(publication.bundle.report.executiveSummary.body).toContain('leads after');
+    expect(publication.bundle.report.socialCard.winningScenario).toBeTruthy();
+    expect(publication.bundle.report.quality).toBeTruthy();
 
     const publicationAliasResponse = await fetch(
       `${server.baseUrl}/api/reality-fork/p/${publishedProject.publication.slug}`
