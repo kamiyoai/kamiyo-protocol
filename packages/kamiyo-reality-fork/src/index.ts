@@ -4,4 +4,5 @@ export * from './companion';
 export * from './fixtures';
 export * from './replay';
 export * from './share-card';
+export * from './studio';
 export * from './validate';

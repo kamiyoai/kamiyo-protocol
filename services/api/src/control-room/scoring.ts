@@ -31,6 +31,14 @@ function collectArtifactIds(snapshot: CounterfactualSnapshot): string[] {
     }
   }
 
+  const manualEvidence = snapshot.manualEvidence as Record<string, unknown> | null;
+  const artifactRefs = manualEvidence?.artifactRefs;
+  if (Array.isArray(artifactRefs)) {
+    for (const ref of artifactRefs) {
+      if (typeof ref === 'string' && ref.trim()) ids.add(ref.trim());
+    }
+  }
+
   return Array.from(ids).sort();
 }
 
@@ -72,7 +80,7 @@ export function summarizeBranchRisk(result: ExecuteSwarmRunResult): BranchRiskSu
   const sortedFlags = Array.from(flags).sort();
   return {
     flags: sortedFlags,
-    highRiskFlags: sortedFlags.filter((flag) => flag !== 'mutating_tool_attempt'),
+    highRiskFlags: sortedFlags.filter(flag => flag !== 'mutating_tool_attempt'),
   };
 }
 
@@ -83,7 +91,7 @@ function inverseNormalize(values: number[]): number[] {
     return values.map(() => 1);
   }
 
-  return values.map((value) => round(1 - (value - min) / (max - min)));
+  return values.map(value => round(1 - (value - min) / (max - min)));
 }
 
 export function scoreBranches(params: {
@@ -93,14 +101,16 @@ export function scoreBranches(params: {
   const artifactIds = collectArtifactIds(params.snapshot);
   const artifactIdSet = new Set(artifactIds);
 
-  const latencyScores = inverseNormalize(params.branches.map((branch) => branch.result.timingMs.duration));
-  const costScores = inverseNormalize(params.branches.map((branch) => branch.result.totals.spent));
+  const latencyScores = inverseNormalize(
+    params.branches.map(branch => branch.result.timingMs.duration)
+  );
+  const costScores = inverseNormalize(params.branches.map(branch => branch.result.totals.spent));
 
   return params.branches.map((branch, index) => {
     const nodes = Object.values(branch.result.nodes) as Array<any>;
     const totalNodes = nodes.length;
-    const completedNodes = nodes.filter((node) => node?.status === 'completed').length;
-    const failedNodes = nodes.filter((node) => node?.status === 'failed').length;
+    const completedNodes = nodes.filter(node => node?.status === 'completed').length;
+    const failedNodes = nodes.filter(node => node?.status === 'failed').length;
     const completionScore = totalNodes === 0 ? 0 : round(completedNodes / totalNodes);
 
     const evidenceRefs = new Set<string>();
@@ -109,9 +119,8 @@ export function scoreBranches(params: {
       scanEvidenceRefs(node?.output?.output ?? null, artifactIdSet, evidenceRefs);
     }
 
-    const evidenceCoverage = artifactIds.length === 0
-      ? 0
-      : round(evidenceRefs.size / artifactIds.length);
+    const evidenceCoverage =
+      artifactIds.length === 0 ? 0 : round(evidenceRefs.size / artifactIds.length);
 
     const risk = summarizeBranchRisk(branch.result);
     const failedNodeRate = totalNodes === 0 ? 0 : failedNodes / totalNodes;
@@ -128,10 +137,10 @@ export function scoreBranches(params: {
     const finalScore = round(
       clamp(
         0.35 * completionScore +
-          0.30 * evidenceCoverage +
-          0.20 * latencyScores[index] +
+          0.3 * evidenceCoverage +
+          0.2 * latencyScores[index] +
           0.15 * costScores[index] -
-          0.40 * riskPenalty,
+          0.4 * riskPenalty,
         0,
         1
       )
