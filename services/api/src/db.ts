@@ -286,22 +286,31 @@ export function getOrCreateUser(id: string, platform: string): User {
 }
 
 export function updateUserWallet(userId: string, wallet: string): void {
-  db.prepare('UPDATE users SET wallet = ?, updated_at = unixepoch() WHERE id = ?').run(wallet, userId);
+  db.prepare('UPDATE users SET wallet = ?, updated_at = unixepoch() WHERE id = ?').run(
+    wallet,
+    userId
+  );
 }
 
 export function updateUserTier(userId: string, tier: string, expiresAt: number): void {
-  db.prepare('UPDATE users SET tier = ?, tier_expires_at = ?, updated_at = unixepoch() WHERE id = ?')
-    .run(tier, expiresAt, userId);
+  db.prepare(
+    'UPDATE users SET tier = ?, tier_expires_at = ?, updated_at = unixepoch() WHERE id = ?'
+  ).run(tier, expiresAt, userId);
 }
 
 export function getUserTier(userId: string): { tier: string; expired: boolean } {
-  const user = db.prepare('SELECT tier, tier_expires_at FROM users WHERE id = ?').get(userId) as User | undefined;
+  const user = db.prepare('SELECT tier, tier_expires_at FROM users WHERE id = ?').get(userId) as
+    | User
+    | undefined;
   if (!user) return { tier: 'free', expired: false };
 
   const now = Math.floor(Date.now() / 1000);
   if (user.tier !== 'free' && user.tier_expires_at && user.tier_expires_at < now) {
     // Tier expired, downgrade to free
-    db.prepare('UPDATE users SET tier = ?, tier_expires_at = NULL WHERE id = ?').run('free', userId);
+    db.prepare('UPDATE users SET tier = ?, tier_expires_at = NULL WHERE id = ?').run(
+      'free',
+      userId
+    );
     return { tier: 'free', expired: true };
   }
 
@@ -310,18 +319,26 @@ export function getUserTier(userId: string): { tier: string; expired: boolean } 
 
 // Conversation operations
 export function getConversationHistory(userId: string, limit = 20): Message[] {
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT role, content FROM conversations
     WHERE user_id = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(userId, limit) as Message[];
+  `
+    )
+    .all(userId, limit) as Message[];
 
   return rows.reverse();
 }
 
 export function addMessage(userId: string, role: 'user' | 'assistant', content: string): void {
-  db.prepare('INSERT INTO conversations (user_id, role, content) VALUES (?, ?, ?)').run(userId, role, content);
+  db.prepare('INSERT INTO conversations (user_id, role, content) VALUES (?, ?, ?)').run(
+    userId,
+    role,
+    content
+  );
 }
 
 export function clearConversationHistory(userId: string): void {
@@ -330,7 +347,9 @@ export function clearConversationHistory(userId: string): void {
 
 // Session operations
 export function startSession(userId: string, escrowTx?: string): number {
-  const result = db.prepare('INSERT INTO sessions (user_id, escrow_tx) VALUES (?, ?)').run(userId, escrowTx || null);
+  const result = db
+    .prepare('INSERT INTO sessions (user_id, escrow_tx) VALUES (?, ?)')
+    .run(userId, escrowTx || null);
   return result.lastInsertRowid as number;
 }
 
@@ -347,7 +366,10 @@ export function rateSession(sessionId: number, rating: number): void {
 }
 
 export function getActiveSession(userId: string): Session | null {
-  return db.prepare('SELECT * FROM sessions WHERE user_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1')
+  return db
+    .prepare(
+      'SELECT * FROM sessions WHERE user_id = ? AND ended_at IS NULL ORDER BY started_at DESC LIMIT 1'
+    )
     .get(userId) as Session | null;
 }
 
@@ -356,9 +378,16 @@ export function releaseEscrow(sessionId: number): void {
 }
 
 // Payment operations
-export function recordPayment(userId: string, txSignature: string, amountLamports: number, tier: string, durationDays: number): void {
-  db.prepare('INSERT INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days) VALUES (?, ?, ?, ?, ?)')
-    .run(userId, txSignature, amountLamports, tier, durationDays);
+export function recordPayment(
+  userId: string,
+  txSignature: string,
+  amountLamports: number,
+  tier: string,
+  durationDays: number
+): void {
+  db.prepare(
+    'INSERT INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days) VALUES (?, ?, ?, ?, ?)'
+  ).run(userId, txSignature, amountLamports, tier, durationDays);
 }
 
 export function paymentExists(txSignature: string): boolean {
@@ -368,11 +397,21 @@ export function paymentExists(txSignature: string): boolean {
 
 // Atomic payment record - prevents race conditions
 // Returns true if payment was recorded, false if it already existed
-export function tryRecordPayment(userId: string, txSignature: string, amountLamports: number, tier: string, durationDays: number): boolean {
-  const result = db.prepare(`
+export function tryRecordPayment(
+  userId: string,
+  txSignature: string,
+  amountLamports: number,
+  tier: string,
+  durationDays: number
+): boolean {
+  const result = db
+    .prepare(
+      `
     INSERT OR IGNORE INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days)
     VALUES (?, ?, ?, ?, ?)
-  `).run(userId, txSignature, amountLamports, tier, durationDays);
+  `
+    )
+    .run(userId, txSignature, amountLamports, tier, durationDays);
 
   return result.changes > 0;
 }
@@ -394,10 +433,14 @@ export function processPaymentTransaction(
 ): boolean {
   return db.transaction(() => {
     // Try to record the payment first
-    const result = db.prepare(`
+    const result = db
+      .prepare(
+        `
       INSERT OR IGNORE INTO payments (user_id, tx_signature, amount_lamports, tier, duration_days)
       VALUES (?, ?, ?, ?, ?)
-    `).run(userId, txSignature, amountLamports, tier, durationDays);
+    `
+      )
+      .run(userId, txSignature, amountLamports, tier, durationDays);
 
     if (result.changes === 0) {
       // Transaction already processed
@@ -405,22 +448,31 @@ export function processPaymentTransaction(
     }
 
     // Update user tier
-    db.prepare('UPDATE users SET tier = ?, tier_expires_at = ?, updated_at = unixepoch() WHERE id = ?')
-      .run(tier, expiresAt, userId);
+    db.prepare(
+      'UPDATE users SET tier = ?, tier_expires_at = ?, updated_at = unixepoch() WHERE id = ?'
+    ).run(tier, expiresAt, userId);
 
     return true;
   })();
 }
 
 // Stats
-export function getUserStats(userId: string): { totalSessions: number; avgRating: number | null; totalMessages: number } {
-  const stats = db.prepare(`
+export function getUserStats(userId: string): {
+  totalSessions: number;
+  avgRating: number | null;
+  totalMessages: number;
+} {
+  const stats = db
+    .prepare(
+      `
     SELECT
       COUNT(*) as totalSessions,
       AVG(rating) as avgRating,
       SUM(message_count) as totalMessages
     FROM sessions WHERE user_id = ?
-  `).get(userId) as { totalSessions: number; avgRating: number | null; totalMessages: number };
+  `
+    )
+    .get(userId) as { totalSessions: number; avgRating: number | null; totalMessages: number };
 
   return stats;
 }
@@ -435,35 +487,49 @@ export function recordEscrowSession(
   tier: string,
   txSignature?: string
 ): number {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     INSERT INTO escrow_sessions (user_id, wallet, session_id, escrow_pda, amount_lamports, tier, tx_signature, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
-  `).run(userId, wallet, sessionId, escrowPda, amountLamports, tier, txSignature || null);
+  `
+    )
+    .run(userId, wallet, sessionId, escrowPda, amountLamports, tier, txSignature || null);
   return result.lastInsertRowid as number;
 }
 
 export function getEscrowSession(sessionId: string): EscrowSession | null {
-  return db.prepare('SELECT * FROM escrow_sessions WHERE session_id = ?').get(sessionId) as EscrowSession | null;
+  return db
+    .prepare('SELECT * FROM escrow_sessions WHERE session_id = ?')
+    .get(sessionId) as EscrowSession | null;
 }
 
 export function getActiveEscrowByWallet(wallet: string): EscrowSession | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM escrow_sessions
     WHERE wallet = ? AND status = 'active'
     ORDER BY created_at DESC LIMIT 1
-  `).get(wallet) as EscrowSession | null;
+  `
+    )
+    .get(wallet) as EscrowSession | null;
 }
 
 export function getActiveEscrowByUser(userId: string): EscrowSession | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM escrow_sessions
     WHERE user_id = ? AND status = 'active'
     ORDER BY created_at DESC LIMIT 1
-  `).get(userId) as EscrowSession | null;
+  `
+    )
+    .get(userId) as EscrowSession | null;
 }
 
 const VALID_ESCROW_STATUSES = ['pending', 'active', 'released', 'refunded'] as const;
-type EscrowStatus = typeof VALID_ESCROW_STATUSES[number];
+type EscrowStatus = (typeof VALID_ESCROW_STATUSES)[number];
 
 function isValidEscrowStatus(status: string): status is EscrowStatus {
   return VALID_ESCROW_STATUSES.includes(status as EscrowStatus);
@@ -479,33 +545,42 @@ export function updateEscrowStatus(
     throw new Error(`Invalid escrow status: ${status}`);
   }
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE escrow_sessions
     SET status = ?, rating = ?, released_at = unixepoch()
     WHERE session_id = ?
-  `).run(status, rating || null, sessionId);
+  `
+  ).run(status, rating || null, sessionId);
 }
 
 export function getPendingEscrows(olderThanDays: number = 7): EscrowSession[] {
-  const cutoff = Math.floor(Date.now() / 1000) - (olderThanDays * 24 * 60 * 60);
-  return db.prepare(`
+  const cutoff = Math.floor(Date.now() / 1000) - olderThanDays * 24 * 60 * 60;
+  return db
+    .prepare(
+      `
     SELECT * FROM escrow_sessions
     WHERE status = 'active' AND created_at < ?
-  `).all(cutoff) as EscrowSession[];
+  `
+    )
+    .all(cutoff) as EscrowSession[];
 }
 
 // Daily message count operations (persistent)
 export function getDailyMessageCount(userId: string, date: string): number {
-  const row = db.prepare('SELECT count FROM daily_message_counts WHERE user_id = ? AND date = ?')
+  const row = db
+    .prepare('SELECT count FROM daily_message_counts WHERE user_id = ? AND date = ?')
     .get(userId, date) as { count: number } | undefined;
   return row?.count || 0;
 }
 
 export function incrementDailyMessageCount(userId: string, date: string): number {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO daily_message_counts (user_id, date, count) VALUES (?, ?, 1)
     ON CONFLICT(user_id, date) DO UPDATE SET count = count + 1
-  `).run(userId, date);
+  `
+  ).run(userId, date);
 
   return getDailyMessageCount(userId, date);
 }
@@ -530,28 +605,34 @@ export function markProcessed(tweetId: string): void {
 }
 
 export function cleanupOldProcessedTweets(daysToKeep: number = 7): void {
-  const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
+  const cutoff = Math.floor(Date.now() / 1000) - daysToKeep * 24 * 60 * 60;
   db.prepare('DELETE FROM processed_tweets WHERE processed_at < ?').run(cutoff);
 }
 
 // Conversation tracking (prevent multiple replies in same thread)
 export function hasRepliedToConversation(conversationId: string): boolean {
-  const row = db.prepare('SELECT 1 FROM replied_conversations WHERE conversation_id = ?').get(conversationId);
+  const row = db
+    .prepare('SELECT 1 FROM replied_conversations WHERE conversation_id = ?')
+    .get(conversationId);
   return !!row;
 }
 
 export function markConversationReplied(conversationId: string): void {
-  db.prepare('INSERT OR IGNORE INTO replied_conversations (conversation_id) VALUES (?)').run(conversationId);
+  db.prepare('INSERT OR IGNORE INTO replied_conversations (conversation_id) VALUES (?)').run(
+    conversationId
+  );
 }
 
 export function cleanupOldConversations(daysToKeep: number = 7): void {
-  const cutoff = Math.floor(Date.now() / 1000) - (daysToKeep * 24 * 60 * 60);
+  const cutoff = Math.floor(Date.now() / 1000) - daysToKeep * 24 * 60 * 60;
   db.prepare('DELETE FROM replied_conversations WHERE replied_at < ?').run(cutoff);
 }
 
 // Bot state (persist lastSeenId across restarts)
 export function getBotState(key: string): string | null {
-  const row = db.prepare('SELECT value FROM bot_state WHERE key = ?').get(key) as { value: string } | undefined;
+  const row = db.prepare('SELECT value FROM bot_state WHERE key = ?').get(key) as
+    | { value: string }
+    | undefined;
   return row?.value || null;
 }
 
@@ -579,38 +660,52 @@ export function storeWalletChallenge(
   expiresAt: number
 ): void {
   // Replace any existing challenge for this user/wallet pair
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO wallet_challenges (user_id, wallet, nonce, message, expires_at, verified)
     VALUES (?, ?, ?, ?, ?, 0)
-  `).run(userId, wallet, nonce, message, Math.floor(expiresAt / 1000));
+  `
+  ).run(userId, wallet, nonce, message, Math.floor(expiresAt / 1000));
 }
 
 export function getWalletChallenge(userId: string, wallet: string): WalletChallengeRecord | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM wallet_challenges
     WHERE user_id = ? AND wallet = ? AND verified = 0
-  `).get(userId, wallet) as WalletChallengeRecord | null;
+  `
+    )
+    .get(userId, wallet) as WalletChallengeRecord | null;
 }
 
 export function getPendingChallengeForUser(userId: string): WalletChallengeRecord | null {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM wallet_challenges
     WHERE user_id = ? AND verified = 0
     ORDER BY created_at DESC LIMIT 1
-  `).get(userId) as WalletChallengeRecord | null;
+  `
+    )
+    .get(userId) as WalletChallengeRecord | null;
 }
 
 export function markChallengeVerified(userId: string, wallet: string): void {
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE wallet_challenges
     SET verified = 1
     WHERE user_id = ? AND wallet = ?
-  `).run(userId, wallet);
+  `
+  ).run(userId, wallet);
 }
 
 export function cleanupExpiredChallenges(): number {
   const now = Math.floor(Date.now() / 1000);
-  const result = db.prepare('DELETE FROM wallet_challenges WHERE expires_at < ? AND verified = 0').run(now);
+  const result = db
+    .prepare('DELETE FROM wallet_challenges WHERE expires_at < ? AND verified = 0')
+    .run(now);
   return result.changes;
 }
 
@@ -625,7 +720,9 @@ export interface ApiRateLimitEntry {
 
 export function getApiRateLimit(wallet: string): ApiRateLimitEntry | null {
   const now = Date.now();
-  const row = db.prepare('SELECT * FROM api_rate_limits WHERE wallet = ?').get(wallet) as ApiRateLimitEntry | undefined;
+  const row = db.prepare('SELECT * FROM api_rate_limits WHERE wallet = ?').get(wallet) as
+    | ApiRateLimitEntry
+    | undefined;
 
   if (!row) return null;
 
@@ -643,11 +740,13 @@ export function getApiRateLimit(wallet: string): ApiRateLimitEntry | null {
   }
 
   if (needsUpdate) {
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE api_rate_limits
       SET minute_count = ?, minute_reset_at = ?, day_count = ?, day_reset_at = ?
       WHERE wallet = ?
-    `).run(row.minute_count, row.minute_reset_at, row.day_count, row.day_reset_at, wallet);
+    `
+    ).run(row.minute_count, row.minute_reset_at, row.day_count, row.day_reset_at, wallet);
   }
 
   return row;
@@ -660,11 +759,13 @@ export function incrementApiRateLimit(wallet: string): ApiRateLimitEntry {
   if (existing) {
     existing.minute_count++;
     existing.day_count++;
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE api_rate_limits
       SET minute_count = ?, day_count = ?
       WHERE wallet = ?
-    `).run(existing.minute_count, existing.day_count, wallet);
+    `
+    ).run(existing.minute_count, existing.day_count, wallet);
     return existing;
   }
 
@@ -677,10 +778,12 @@ export function incrementApiRateLimit(wallet: string): ApiRateLimitEntry {
     day_reset_at: now + 86400000,
   };
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO api_rate_limits (wallet, minute_count, minute_reset_at, day_count, day_reset_at)
     VALUES (?, ?, ?, ?, ?)
-  `).run(wallet, entry.minute_count, entry.minute_reset_at, entry.day_count, entry.day_reset_at);
+  `
+  ).run(wallet, entry.minute_count, entry.minute_reset_at, entry.day_count, entry.day_reset_at);
 
   return entry;
 }
@@ -699,13 +802,18 @@ const LOOKUP_RATE_WINDOW = 60000; // 1 minute
 
 export function isLookupRateLimited(userId: string): boolean {
   const now = Date.now();
-  const row = db.prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?').get(userId) as { count: number; reset_at: number } | undefined;
+  const row = db
+    .prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?')
+    .get(userId) as { count: number; reset_at: number } | undefined;
 
   if (!row) return false;
 
   // Reset if window expired
   if (row.reset_at < now) {
-    db.prepare('UPDATE lookup_rate_limits SET count = 0, reset_at = ? WHERE user_id = ?').run(now + LOOKUP_RATE_WINDOW, userId);
+    db.prepare('UPDATE lookup_rate_limits SET count = 0, reset_at = ? WHERE user_id = ?').run(
+      now + LOOKUP_RATE_WINDOW,
+      userId
+    );
     return false;
   }
 
@@ -714,16 +822,24 @@ export function isLookupRateLimited(userId: string): boolean {
 
 export function incrementLookupCount(userId: string): void {
   const now = Date.now();
-  const row = db.prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?').get(userId) as { count: number; reset_at: number } | undefined;
+  const row = db
+    .prepare('SELECT count, reset_at FROM lookup_rate_limits WHERE user_id = ?')
+    .get(userId) as { count: number; reset_at: number } | undefined;
 
   if (!row) {
-    db.prepare('INSERT INTO lookup_rate_limits (user_id, count, reset_at) VALUES (?, 1, ?)').run(userId, now + LOOKUP_RATE_WINDOW);
+    db.prepare('INSERT INTO lookup_rate_limits (user_id, count, reset_at) VALUES (?, 1, ?)').run(
+      userId,
+      now + LOOKUP_RATE_WINDOW
+    );
     return;
   }
 
   if (row.reset_at < now) {
     // Window expired, reset
-    db.prepare('UPDATE lookup_rate_limits SET count = 1, reset_at = ? WHERE user_id = ?').run(now + LOOKUP_RATE_WINDOW, userId);
+    db.prepare('UPDATE lookup_rate_limits SET count = 1, reset_at = ? WHERE user_id = ?').run(
+      now + LOOKUP_RATE_WINDOW,
+      userId
+    );
   } else {
     // Increment count
     db.prepare('UPDATE lookup_rate_limits SET count = count + 1 WHERE user_id = ?').run(userId);
@@ -766,19 +882,39 @@ export function storeHiveSignal(
   magnitude: number,
   stakeAmount: string
 ): number {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     INSERT INTO swarmteams_signals (tweet_id, commitment, nullifier, proof_a, proof_b, proof_c, signal_type, direction, confidence, magnitude, stake_amount)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(tweetId, commitment, nullifier, proofA, proofB, proofC, signalType, direction, confidence, magnitude, stakeAmount);
+  `
+    )
+    .run(
+      tweetId,
+      commitment,
+      nullifier,
+      proofA,
+      proofB,
+      proofC,
+      signalType,
+      direction,
+      confidence,
+      magnitude,
+      stakeAmount
+    );
   return result.lastInsertRowid as number;
 }
 
 export function getHiveSignalByTweet(tweetId: string): HiveSignal | null {
-  return db.prepare('SELECT * FROM swarmteams_signals WHERE tweet_id = ?').get(tweetId) as HiveSignal | null;
+  return db
+    .prepare('SELECT * FROM swarmteams_signals WHERE tweet_id = ?')
+    .get(tweetId) as HiveSignal | null;
 }
 
 export function getHiveSignalByCommitment(commitment: string): HiveSignal | null {
-  return db.prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?').get(commitment) as HiveSignal | null;
+  return db
+    .prepare('SELECT * FROM swarmteams_signals WHERE commitment = ?')
+    .get(commitment) as HiveSignal | null;
 }
 
 export function markHiveSignalRevealed(id: number): void {
@@ -786,11 +922,15 @@ export function markHiveSignalRevealed(id: number): void {
 }
 
 export function getRecentHiveSignals(limit = 100): HiveSignal[] {
-  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as HiveSignal[];
+  return db
+    .prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?')
+    .all(limit) as HiveSignal[];
 }
 
 export function getHiveSignals(limit = 10): HiveSignal[] {
-  return db.prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?').all(limit) as HiveSignal[];
+  return db
+    .prepare('SELECT * FROM swarmteams_signals ORDER BY created_at DESC LIMIT ?')
+    .all(limit) as HiveSignal[];
 }
 
 export function getHiveStats(): {
@@ -806,17 +946,53 @@ export function getHiveStats(): {
   avgMagnitude: number;
   last24h: number;
 } {
-  const total = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals').get() as { count: number }).count;
-  const long = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 1').get() as { count: number }).count;
-  const short = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 0').get() as { count: number }).count;
-  const neutral = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 2').get() as { count: number }).count;
-  const sentiment = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 0').get() as { count: number }).count;
-  const technical = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 1').get() as { count: number }).count;
-  const onChain = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 2').get() as { count: number }).count;
-  const news = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 3').get() as { count: number }).count;
-  const avgs = db.prepare('SELECT AVG(confidence) as avgConf, AVG(magnitude) as avgMag FROM swarmteams_signals').get() as { avgConf: number | null; avgMag: number | null };
+  const total = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals').get() as { count: number }
+  ).count;
+  const long = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 1').get() as {
+      count: number;
+    }
+  ).count;
+  const short = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 0').get() as {
+      count: number;
+    }
+  ).count;
+  const neutral = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE direction = 2').get() as {
+      count: number;
+    }
+  ).count;
+  const sentiment = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 0').get() as {
+      count: number;
+    }
+  ).count;
+  const technical = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 1').get() as {
+      count: number;
+    }
+  ).count;
+  const onChain = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 2').get() as {
+      count: number;
+    }
+  ).count;
+  const news = (
+    db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE signal_type = 3').get() as {
+      count: number;
+    }
+  ).count;
+  const avgs = db
+    .prepare('SELECT AVG(confidence) as avgConf, AVG(magnitude) as avgMag FROM swarmteams_signals')
+    .get() as { avgConf: number | null; avgMag: number | null };
   const dayAgo = Math.floor(Date.now() / 1000) - 86400;
-  const last24h = (db.prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE created_at > ?').get(dayAgo) as { count: number }).count;
+  const last24h = (
+    db
+      .prepare('SELECT COUNT(*) as count FROM swarmteams_signals WHERE created_at > ?')
+      .get(dayAgo) as { count: number }
+  ).count;
 
   return {
     total,
@@ -839,13 +1015,17 @@ const PROOF_RATE_WINDOW = 60000; // 1 minute
 
 export function isProofRateLimited(key = 'global'): boolean {
   const now = Date.now();
-  const row = db.prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+  const row = db
+    .prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?')
+    .get(key) as { count: number; window_start: number } | undefined;
 
   if (!row) return false;
 
   // Reset if window expired
   if (row.window_start + PROOF_RATE_WINDOW < now) {
-    db.prepare('UPDATE swarmteams_proof_rate_limits SET count = 0, window_start = ? WHERE key = ?').run(now, key);
+    db.prepare(
+      'UPDATE swarmteams_proof_rate_limits SET count = 0, window_start = ? WHERE key = ?'
+    ).run(now, key);
     return false;
   }
 
@@ -854,16 +1034,22 @@ export function isProofRateLimited(key = 'global'): boolean {
 
 export function incrementProofCount(key = 'global'): void {
   const now = Date.now();
-  const row = db.prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?').get(key) as { count: number; window_start: number } | undefined;
+  const row = db
+    .prepare('SELECT count, window_start FROM swarmteams_proof_rate_limits WHERE key = ?')
+    .get(key) as { count: number; window_start: number } | undefined;
 
   if (!row) {
-    db.prepare('INSERT INTO swarmteams_proof_rate_limits (key, count, window_start) VALUES (?, 1, ?)').run(key, now);
+    db.prepare(
+      'INSERT INTO swarmteams_proof_rate_limits (key, count, window_start) VALUES (?, 1, ?)'
+    ).run(key, now);
     return;
   }
 
   if (row.window_start + PROOF_RATE_WINDOW < now) {
     // Window expired, reset
-    db.prepare('UPDATE swarmteams_proof_rate_limits SET count = 1, window_start = ? WHERE key = ?').run(now, key);
+    db.prepare(
+      'UPDATE swarmteams_proof_rate_limits SET count = 1, window_start = ? WHERE key = ?'
+    ).run(now, key);
   } else {
     // Increment count
     db.prepare('UPDATE swarmteams_proof_rate_limits SET count = count + 1 WHERE key = ?').run(key);
@@ -917,15 +1103,23 @@ export function getTipRateLimitInfo(senderId: string): TipRateLimitInfo {
   const hourStart = now - TIP_HOURLY_WINDOW;
   const dayStart = now - TIP_DAILY_WINDOW;
 
-  const hourly = db.prepare(`
+  const hourly = db
+    .prepare(
+      `
     SELECT COUNT(*) as count FROM pending_tips
     WHERE sender_id = ? AND created_at > ?
-  `).get(senderId, hourStart) as { count: number };
+  `
+    )
+    .get(senderId, hourStart) as { count: number };
 
-  const daily = db.prepare(`
+  const daily = db
+    .prepare(
+      `
     SELECT COUNT(*) as count FROM pending_tips
     WHERE sender_id = ? AND created_at > ?
-  `).get(senderId, dayStart) as { count: number };
+  `
+    )
+    .get(senderId, dayStart) as { count: number };
 
   return {
     limited: hourly.count >= TIP_HOURLY_LIMIT || daily.count >= TIP_DAILY_LIMIT,
@@ -949,11 +1143,23 @@ export function createPendingTip(
   token: string,
   tweetId?: string
 ): number {
-  const expiresAt = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 days
-  const result = db.prepare(`
+  const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60; // 7 days
+  const result = db
+    .prepare(
+      `
     INSERT INTO pending_tips (sender_id, sender_wallet, recipient_username, amount_lamports, token, tweet_id, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(senderId, senderWallet, recipientUsername.toLowerCase(), amountLamports, token, tweetId || null, expiresAt);
+  `
+    )
+    .run(
+      senderId,
+      senderWallet,
+      recipientUsername.toLowerCase(),
+      amountLamports,
+      token,
+      tweetId || null,
+      expiresAt
+    );
   return result.lastInsertRowid as number;
 }
 
@@ -962,19 +1168,27 @@ export function getPendingTip(tipId: number): PendingTip | null {
 }
 
 export function getPendingTipsForRecipient(recipientUsername: string): PendingTip[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM pending_tips
     WHERE recipient_username = ? AND status = 'pending' AND expires_at > unixepoch()
     ORDER BY created_at DESC
-  `).all(recipientUsername.toLowerCase()) as PendingTip[];
+  `
+    )
+    .all(recipientUsername.toLowerCase()) as PendingTip[];
 }
 
 export function getPendingTipsBySender(senderId: string): PendingTip[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM pending_tips
     WHERE sender_id = ? AND status = 'pending' AND expires_at > unixepoch()
     ORDER BY created_at DESC
-  `).all(senderId) as PendingTip[];
+  `
+    )
+    .all(senderId) as PendingTip[];
 }
 
 export function updatePendingTipRecipientId(tipId: number, recipientId: string): void {
@@ -982,11 +1196,13 @@ export function updatePendingTipRecipientId(tipId: number, recipientId: string):
 }
 
 export function markTipClaimed(tipId: number, txSignature: string): void {
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE pending_tips
     SET status = 'claimed', tx_signature = ?, claimed_at = unixepoch()
     WHERE id = ?
-  `).run(txSignature, tipId);
+  `
+  ).run(txSignature, tipId);
 }
 
 export function markTipCancelled(tipId: number): void {
@@ -994,11 +1210,15 @@ export function markTipCancelled(tipId: number): void {
 }
 
 export function markExpiredTips(): number {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     UPDATE pending_tips
     SET status = 'expired'
     WHERE status = 'pending' AND expires_at < unixepoch()
-  `).run();
+  `
+    )
+    .run();
   return result.changes;
 }
 
@@ -1011,20 +1231,28 @@ export function recordTipHistory(
   txSignature: string,
   tweetId?: string
 ): number {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     INSERT INTO tip_history (sender_id, recipient_id, amount_lamports, token, tx_signature, tweet_id)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(senderId, recipientId, amountLamports, token, txSignature, tweetId || null);
+  `
+    )
+    .run(senderId, recipientId, amountLamports, token, txSignature, tweetId || null);
   return result.lastInsertRowid as number;
 }
 
 export function getTipHistoryForUser(userId: string, limit = 20): TipHistoryEntry[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM tip_history
     WHERE sender_id = ? OR recipient_id = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(userId, userId, limit) as TipHistoryEntry[];
+  `
+    )
+    .all(userId, userId, limit) as TipHistoryEntry[];
 }
 
 export function getTipStats(userId: string): {
@@ -1033,15 +1261,23 @@ export function getTipStats(userId: string): {
   tipsSent: number;
   tipsReceived: number;
 } {
-  const sent = db.prepare(`
+  const sent = db
+    .prepare(
+      `
     SELECT COUNT(*) as count, COALESCE(SUM(amount_lamports), 0) as total
     FROM tip_history WHERE sender_id = ?
-  `).get(userId) as { count: number; total: number };
+  `
+    )
+    .get(userId) as { count: number; total: number };
 
-  const received = db.prepare(`
+  const received = db
+    .prepare(
+      `
     SELECT COUNT(*) as count, COALESCE(SUM(amount_lamports), 0) as total
     FROM tip_history WHERE recipient_id = ?
-  `).get(userId) as { count: number; total: number };
+  `
+    )
+    .get(userId) as { count: number; total: number };
 
   return {
     totalSent: sent.total,
@@ -1134,29 +1370,37 @@ export function depositCredits(
   creditAmountMicro: number
 ): boolean {
   return db.transaction(() => {
-    const existing = db.prepare('SELECT 1 FROM credit_deposits WHERE tx_signature = ?').get(txSignature);
+    const existing = db
+      .prepare('SELECT 1 FROM credit_deposits WHERE tx_signature = ?')
+      .get(txSignature);
     if (existing) return false;
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_deposits (wallet, tx_signature, kamiyo_amount, credit_amount_micro, rate_used)
       VALUES (?, ?, ?, ?, ?)
-    `).run(wallet, txSignature, kamiyoAmount, creditAmountMicro, String(KAMIYO_TO_CREDIT_RATE));
+    `
+    ).run(wallet, txSignature, kamiyoAmount, creditAmountMicro, String(KAMIYO_TO_CREDIT_RATE));
 
     const account = getCreditAccount(wallet);
     if (account) {
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE credits
         SET balance_micro = balance_micro + ?,
             total_deposited_micro = total_deposited_micro + ?,
             last_deposit_at = unixepoch(),
             updated_at = unixepoch()
         WHERE wallet = ?
-      `).run(creditAmountMicro, creditAmountMicro, wallet);
+      `
+      ).run(creditAmountMicro, creditAmountMicro, wallet);
     } else {
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO credits (wallet, balance_micro, total_deposited_micro, last_deposit_at)
         VALUES (?, ?, ?, unixepoch())
-      `).run(wallet, creditAmountMicro, creditAmountMicro);
+      `
+      ).run(wallet, creditAmountMicro, creditAmountMicro);
     }
 
     return true;
@@ -1175,18 +1419,22 @@ export function deductCredits(
       return false;
     }
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE credits
       SET balance_micro = balance_micro - ?,
           total_spent_micro = total_spent_micro + ?,
           updated_at = unixepoch()
       WHERE wallet = ?
-    `).run(amountMicro, amountMicro, wallet);
+    `
+    ).run(amountMicro, amountMicro, wallet);
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_usage (wallet, endpoint, amount_micro, description)
       VALUES (?, ?, ?, ?)
-    `).run(wallet, endpoint, amountMicro, description || null);
+    `
+    ).run(wallet, endpoint, amountMicro, description || null);
 
     return true;
   })();
@@ -1198,21 +1446,29 @@ export function isDepositProcessed(txSignature: string): boolean {
 }
 
 export function getCreditDeposits(wallet: string, limit = 20): CreditDeposit[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM credit_deposits
     WHERE wallet = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(wallet, limit) as CreditDeposit[];
+  `
+    )
+    .all(wallet, limit) as CreditDeposit[];
 }
 
 export function getCreditUsage(wallet: string, limit = 50): CreditUsage[] {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
     SELECT * FROM credit_usage
     WHERE wallet = ?
     ORDER BY created_at DESC
     LIMIT ?
-  `).all(wallet, limit) as CreditUsage[];
+  `
+    )
+    .all(wallet, limit) as CreditUsage[];
 }
 
 export function getCreditStats(): {
@@ -1221,18 +1477,26 @@ export function getCreditStats(): {
   totalSpentMicro: number;
   activeAccounts: number;
 } {
-  const totals = db.prepare(`
+  const totals = db
+    .prepare(
+      `
     SELECT
       COUNT(*) as totalAccounts,
       COALESCE(SUM(total_deposited_micro), 0) as totalDepositedMicro,
       COALESCE(SUM(total_spent_micro), 0) as totalSpentMicro
     FROM credits
-  `).get() as { totalAccounts: number; totalDepositedMicro: number; totalSpentMicro: number };
+  `
+    )
+    .get() as { totalAccounts: number; totalDepositedMicro: number; totalSpentMicro: number };
 
   const dayAgo = Math.floor(Date.now() / 1000) - 86400;
-  const active = db.prepare(`
+  const active = db
+    .prepare(
+      `
     SELECT COUNT(DISTINCT wallet) as count FROM credit_usage WHERE created_at > ?
-  `).get(dayAgo) as { count: number };
+  `
+    )
+    .get(dayAgo) as { count: number };
 
   return {
     ...totals,
@@ -1461,6 +1725,304 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_counterfactual_case_events_case_created
     ON counterfactual_case_events(case_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_blobs (
+    id TEXT PRIMARY KEY,
+    sha256 TEXT NOT NULL UNIQUE,
+    storage_key TEXT NOT NULL,
+    mime_type TEXT,
+    file_name TEXT,
+    size_bytes INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS reality_fork_uploads (
+    id TEXT PRIMARY KEY,
+    blob_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT,
+    size_bytes INTEGER NOT NULL,
+    source_type TEXT NOT NULL,
+    created_by_ip TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (blob_id) REFERENCES reality_fork_blobs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_uploads_ip_created
+    ON reality_fork_uploads(created_by_ip, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_projects (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    claim TEXT NOT NULL,
+    description TEXT,
+    tags_json TEXT NOT NULL DEFAULT '[]',
+    simulation_config_json TEXT NOT NULL DEFAULT '{}',
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    decision_mode TEXT NOT NULL DEFAULT 'score_then_truth_court',
+    created_by_ip TEXT,
+    status TEXT NOT NULL,
+    current_job_id TEXT,
+    latest_report_id TEXT,
+    latest_publication_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    published_at INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_projects_created
+    ON reality_fork_projects(created_at);
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_projects_status
+    ON reality_fork_projects(status);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_evidence (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    source_type TEXT NOT NULL DEFAULT 'text',
+    source_label TEXT,
+    source_url TEXT,
+    mime_type TEXT,
+    blob_id TEXT,
+    upload_id TEXT,
+    status TEXT NOT NULL DEFAULT 'uploaded',
+    warning TEXT,
+    content_text TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER DEFAULT (unixepoch()),
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (blob_id) REFERENCES reality_fork_blobs(id),
+    FOREIGN KEY (upload_id) REFERENCES reality_fork_uploads(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_evidence_project_created
+    ON reality_fork_evidence(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_document_chunks (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    chunk_index INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    char_start INTEGER NOT NULL,
+    char_end INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (evidence_id) REFERENCES reality_fork_evidence(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_document_chunks_project_created
+    ON reality_fork_document_chunks(project_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_document_chunks_evidence
+    ON reality_fork_document_chunks(evidence_id, chunk_index);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_extractions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    evidence_id TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    keywords_json TEXT NOT NULL,
+    facts_json TEXT NOT NULL,
+    artifact_blob_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (evidence_id) REFERENCES reality_fork_evidence(id),
+    FOREIGN KEY (artifact_blob_id) REFERENCES reality_fork_blobs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_extractions_project_created
+    ON reality_fork_extractions(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_entities (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    category TEXT NOT NULL,
+    aliases_json TEXT NOT NULL DEFAULT '[]',
+    mention_count INTEGER NOT NULL DEFAULT 0,
+    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_entities_project_created
+    ON reality_fork_entities(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_claims (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    sentiment REAL NOT NULL,
+    confidence REAL NOT NULL,
+    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+    entity_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_claims_project_created
+    ON reality_fork_claims(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_entity_relationships (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    source_entity_id TEXT NOT NULL,
+    target_entity_id TEXT NOT NULL,
+    weight REAL NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_entity_relationships_project_created
+    ON reality_fork_entity_relationships(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_artifact_citations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    artifact_type TEXT NOT NULL,
+    artifact_id TEXT NOT NULL,
+    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_artifact_citations_project_created
+    ON reality_fork_artifact_citations(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_scenario_inputs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    topic TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+    weight REAL NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_scenario_inputs_project_created
+    ON reality_fork_scenario_inputs(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_simulations (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    hypothesis_id TEXT NOT NULL DEFAULT 'status_quo',
+    stance TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    probability REAL NOT NULL,
+    confidence REAL NOT NULL,
+    impact_score REAL NOT NULL,
+    rationale_json TEXT NOT NULL,
+    lane_outlook_json TEXT NOT NULL DEFAULT '{}',
+    scorecard_json TEXT,
+    artifact_blob_id TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (artifact_blob_id) REFERENCES reality_fork_blobs(id),
+    UNIQUE(project_id, slug)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_simulations_project_created
+    ON reality_fork_simulations(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_lane_rounds (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    lane TEXT NOT NULL,
+    round INTEGER NOT NULL,
+    sentiment REAL NOT NULL,
+    conviction REAL NOT NULL,
+    salience REAL NOT NULL,
+    summary TEXT NOT NULL,
+    evidence_refs_json TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_lane_rounds_project_round
+    ON reality_fork_lane_rounds(project_id, lane, round);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_reports (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    markdown_blob_id TEXT,
+    html_blob_id TEXT,
+    sections_json TEXT NOT NULL DEFAULT '[]',
+    decision_json TEXT,
+    metrics_json TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (markdown_blob_id) REFERENCES reality_fork_blobs(id),
+    FOREIGN KEY (html_blob_id) REFERENCES reality_fork_blobs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_reports_project_created
+    ON reality_fork_reports(project_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_publications (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    report_id TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    manifest_json TEXT NOT NULL,
+    bundle_blob_id TEXT,
+    status TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    published_at INTEGER NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (report_id) REFERENCES reality_fork_reports(id),
+    FOREIGN KEY (bundle_blob_id) REFERENCES reality_fork_blobs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_publications_project_published
+    ON reality_fork_publications(project_id, published_at);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_jobs (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    current_stage TEXT NOT NULL,
+    progress REAL NOT NULL DEFAULT 0,
+    error TEXT,
+    result_json TEXT,
+    created_at INTEGER DEFAULT (unixepoch()),
+    started_at INTEGER,
+    completed_at INTEGER,
+    updated_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_jobs_project_created
+    ON reality_fork_jobs(project_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_jobs_project_status
+    ON reality_fork_jobs(project_id, status);
+
+  CREATE TABLE IF NOT EXISTS reality_fork_project_events (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    job_id TEXT,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch()),
+    FOREIGN KEY (project_id) REFERENCES reality_fork_projects(id),
+    FOREIGN KEY (job_id) REFERENCES reality_fork_jobs(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_reality_fork_project_events_project_created
+    ON reality_fork_project_events(project_id, created_at);
 `);
 
 // Migration: add owner_wallet column if it doesn't exist
@@ -1515,17 +2077,47 @@ try {
 }
 
 try {
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key)');
+  db.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_swarm_runs_team_idempotency ON swarm_runs(team_id, idempotency_key)'
+  );
 } catch {
   // Ignore
 }
 
 try {
   db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_runs_case ON swarm_runs(counterfactual_case_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_runs_branch ON swarm_runs(counterfactual_branch_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_reuse ON swarm_run_nodes(run_id, reuse_key)');
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_swarm_runs_branch ON swarm_runs(counterfactual_branch_id)'
+  );
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_reuse ON swarm_run_nodes(run_id, reuse_key)'
+  );
 } catch {
   // Ignore
+}
+
+for (const statement of [
+  'ALTER TABLE reality_fork_projects ADD COLUMN prompt TEXT',
+  "ALTER TABLE reality_fork_projects ADD COLUMN simulation_config_json TEXT NOT NULL DEFAULT '{}'",
+  "ALTER TABLE reality_fork_projects ADD COLUMN warnings_json TEXT NOT NULL DEFAULT '[]'",
+  "ALTER TABLE reality_fork_projects ADD COLUMN decision_mode TEXT NOT NULL DEFAULT 'score_then_truth_court'",
+  'ALTER TABLE reality_fork_projects ADD COLUMN created_by_ip TEXT',
+  "ALTER TABLE reality_fork_evidence ADD COLUMN source_type TEXT NOT NULL DEFAULT 'text'",
+  'ALTER TABLE reality_fork_evidence ADD COLUMN upload_id TEXT',
+  "ALTER TABLE reality_fork_evidence ADD COLUMN status TEXT NOT NULL DEFAULT 'uploaded'",
+  'ALTER TABLE reality_fork_evidence ADD COLUMN warning TEXT',
+  "ALTER TABLE reality_fork_simulations ADD COLUMN hypothesis_id TEXT NOT NULL DEFAULT 'status_quo'",
+  "ALTER TABLE reality_fork_simulations ADD COLUMN lane_outlook_json TEXT NOT NULL DEFAULT '{}'",
+  'ALTER TABLE reality_fork_simulations ADD COLUMN scorecard_json TEXT',
+  'ALTER TABLE reality_fork_reports ADD COLUMN html_blob_id TEXT',
+  "ALTER TABLE reality_fork_reports ADD COLUMN sections_json TEXT NOT NULL DEFAULT '[]'",
+  'ALTER TABLE reality_fork_reports ADD COLUMN decision_json TEXT',
+]) {
+  try {
+    db.exec(statement);
+  } catch {
+    // Column already exists or table not present yet.
+  }
 }
 
 function quoteIdent(value: string): string {
@@ -1536,14 +2128,14 @@ function getTableColumns(table: string): Set<string> {
   const rows = db
     .prepare(`SELECT name FROM pragma_table_info('${table.replaceAll("'", "''")}')`)
     .all() as { name: string }[];
-  return new Set(rows.map((r) => r.name));
+  return new Set(rows.map(r => r.name));
 }
 
 function renameColumnBySuffix(table: string, suffix: string, target: string) {
   const cols = getTableColumns(table);
   if (cols.has(target)) return;
 
-  const legacy = [...cols].find((c) => c.endsWith(suffix));
+  const legacy = [...cols].find(c => c.endsWith(suffix));
   if (!legacy) return;
 
   try {
@@ -1596,10 +2188,12 @@ export function linkWallet(
   message: string
 ): boolean {
   try {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR REPLACE INTO linked_wallets (twitter_id, twitter_username, wallet, signature, message)
       VALUES (?, ?, ?, ?, ?)
-    `).run(twitterId, twitterUsername, wallet, signature, message);
+    `
+    ).run(twitterId, twitterUsername, wallet, signature, message);
     return true;
   } catch {
     return false;
@@ -1607,23 +2201,29 @@ export function linkWallet(
 }
 
 export function getLinkedWallet(twitterId: string): LinkedWallet | null {
-  return db.prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC LIMIT 1')
+  return db
+    .prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC LIMIT 1')
     .get(twitterId) as LinkedWallet | null;
 }
 
 export function getLinkedWallets(twitterId: string): LinkedWallet[] {
-  return db.prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC')
+  return db
+    .prepare('SELECT * FROM linked_wallets WHERE twitter_id = ? ORDER BY linked_at DESC')
     .all(twitterId) as LinkedWallet[];
 }
 
 export function getTwitterIdByWallet(wallet: string): string | null {
-  const row = db.prepare('SELECT twitter_id FROM linked_wallets WHERE wallet = ? ORDER BY linked_at DESC LIMIT 1')
+  const row = db
+    .prepare(
+      'SELECT twitter_id FROM linked_wallets WHERE wallet = ? ORDER BY linked_at DESC LIMIT 1'
+    )
     .get(wallet) as { twitter_id: string } | undefined;
   return row?.twitter_id ?? null;
 }
 
 export function unlinkWallet(twitterId: string, wallet: string): boolean {
-  const result = db.prepare('DELETE FROM linked_wallets WHERE twitter_id = ? AND wallet = ?')
+  const result = db
+    .prepare('DELETE FROM linked_wallets WHERE twitter_id = ? AND wallet = ?')
     .run(twitterId, wallet);
   return result.changes > 0;
 }
@@ -1737,14 +2337,20 @@ export interface McpSession {
 
 // MCP OAuth client operations
 export function getMcpOAuthClient(clientId: string): McpOAuthClient | null {
-  return db.prepare('SELECT * FROM mcp_oauth_clients WHERE client_id = ?').get(clientId) as McpOAuthClient | null;
+  return db
+    .prepare('SELECT * FROM mcp_oauth_clients WHERE client_id = ?')
+    .get(clientId) as McpOAuthClient | null;
 }
 
-export function createMcpOAuthClient(client: Omit<McpOAuthClient, 'created_at' | 'updated_at'>): void {
-  db.prepare(`
+export function createMcpOAuthClient(
+  client: Omit<McpOAuthClient, 'created_at' | 'updated_at'>
+): void {
+  db.prepare(
+    `
     INSERT INTO mcp_oauth_clients (client_id, client_secret_hash, client_name, redirect_uris, grant_types, response_types, scopes, token_endpoint_auth_method, client_secret_expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     client.client_id,
     client.client_secret_hash,
     client.client_name,
@@ -1759,14 +2365,18 @@ export function createMcpOAuthClient(client: Omit<McpOAuthClient, 'created_at' |
 
 // MCP OAuth code operations
 export function getMcpOAuthCode(code: string): McpOAuthCode | null {
-  return db.prepare('SELECT * FROM mcp_oauth_codes WHERE code = ?').get(code) as McpOAuthCode | null;
+  return db
+    .prepare('SELECT * FROM mcp_oauth_codes WHERE code = ?')
+    .get(code) as McpOAuthCode | null;
 }
 
 export function createMcpOAuthCode(codeRecord: Omit<McpOAuthCode, 'created_at'>): void {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO mcp_oauth_codes (code, client_id, redirect_uri, code_challenge, code_challenge_method, scopes, user_wallet, resource, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     codeRecord.code,
     codeRecord.client_id,
     codeRecord.redirect_uri,
@@ -1791,14 +2401,18 @@ export function cleanupExpiredMcpOAuthCodes(): number {
 
 // MCP OAuth token operations
 export function getMcpOAuthToken(tokenHash: string): McpOAuthToken | null {
-  return db.prepare('SELECT * FROM mcp_oauth_tokens WHERE token_hash = ?').get(tokenHash) as McpOAuthToken | null;
+  return db
+    .prepare('SELECT * FROM mcp_oauth_tokens WHERE token_hash = ?')
+    .get(tokenHash) as McpOAuthToken | null;
 }
 
 export function createMcpOAuthToken(token: Omit<McpOAuthToken, 'created_at' | 'revoked'>): void {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO mcp_oauth_tokens (token_hash, token_type, client_id, user_wallet, scopes, resource, expires_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     token.token_hash,
     token.token_type,
     token.client_id,
@@ -1810,7 +2424,10 @@ export function createMcpOAuthToken(token: Omit<McpOAuthToken, 'created_at' | 'r
 }
 
 export function revokeMcpOAuthToken(tokenHash: string, clientId: string): void {
-  db.prepare('UPDATE mcp_oauth_tokens SET revoked = 1 WHERE token_hash = ? AND client_id = ?').run(tokenHash, clientId);
+  db.prepare('UPDATE mcp_oauth_tokens SET revoked = 1 WHERE token_hash = ? AND client_id = ?').run(
+    tokenHash,
+    clientId
+  );
 }
 
 export function cleanupExpiredMcpOAuthTokens(): number {
@@ -1821,18 +2438,26 @@ export function cleanupExpiredMcpOAuthTokens(): number {
 
 // MCP session operations
 export function getMcpSession(sessionId: string): McpSession | null {
-  return db.prepare('SELECT * FROM mcp_sessions WHERE session_id = ?').get(sessionId) as McpSession | null;
+  return db
+    .prepare('SELECT * FROM mcp_sessions WHERE session_id = ?')
+    .get(sessionId) as McpSession | null;
 }
 
-export function createMcpSession(session: Omit<McpSession, 'created_at' | 'last_activity_at'>): void {
-  db.prepare(`
+export function createMcpSession(
+  session: Omit<McpSession, 'created_at' | 'last_activity_at'>
+): void {
+  db.prepare(
+    `
     INSERT INTO mcp_sessions (session_id, client_id, user_wallet)
     VALUES (?, ?, ?)
-  `).run(session.session_id, session.client_id, session.user_wallet);
+  `
+  ).run(session.session_id, session.client_id, session.user_wallet);
 }
 
 export function updateMcpSessionActivity(sessionId: string): void {
-  db.prepare('UPDATE mcp_sessions SET last_activity_at = unixepoch() WHERE session_id = ?').run(sessionId);
+  db.prepare('UPDATE mcp_sessions SET last_activity_at = unixepoch() WHERE session_id = ?').run(
+    sessionId
+  );
 }
 
 export function deleteMcpSession(sessionId: string): void {
@@ -1840,7 +2465,7 @@ export function deleteMcpSession(sessionId: string): void {
 }
 
 export function cleanupOldMcpSessions(olderThanHours: number = 24): number {
-  const cutoff = Math.floor(Date.now() / 1000) - (olderThanHours * 60 * 60);
+  const cutoff = Math.floor(Date.now() / 1000) - olderThanHours * 60 * 60;
   const result = db.prepare('DELETE FROM mcp_sessions WHERE last_activity_at < ?').run(cutoff);
   return result.changes;
 }
@@ -1856,7 +2481,8 @@ db.exec(`
 `);
 
 // Default daily spend cap: $50 USD (in micro units)
-const DEFAULT_DAILY_SPEND_CAP_MICRO = parseInt(process.env.DAILY_SPEND_CAP_USD || '50', 10) * 1_000_000;
+const DEFAULT_DAILY_SPEND_CAP_MICRO =
+  parseInt(process.env.DAILY_SPEND_CAP_USD || '50', 10) * 1_000_000;
 
 export function getDailySpendCapMicro(): number {
   return DEFAULT_DAILY_SPEND_CAP_MICRO;
@@ -1868,21 +2494,27 @@ export function getTodayDate(): string {
 
 export function getDailyApiSpend(date?: string): { spend_micro: number; request_count: number } {
   const targetDate = date || getTodayDate();
-  const row = db.prepare('SELECT spend_micro, request_count FROM daily_api_spend WHERE date = ?')
+  const row = db
+    .prepare('SELECT spend_micro, request_count FROM daily_api_spend WHERE date = ?')
     .get(targetDate) as { spend_micro: number; request_count: number } | undefined;
   return row || { spend_micro: 0, request_count: 0 };
 }
 
-export function incrementDailyApiSpend(costMicro: number): { spend_micro: number; request_count: number } {
+export function incrementDailyApiSpend(costMicro: number): {
+  spend_micro: number;
+  request_count: number;
+} {
   const date = getTodayDate();
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO daily_api_spend (date, spend_micro, request_count)
     VALUES (?, ?, 1)
     ON CONFLICT(date) DO UPDATE SET
       spend_micro = spend_micro + ?,
       request_count = request_count + 1,
       updated_at = unixepoch()
-  `).run(date, costMicro, costMicro);
+  `
+  ).run(date, costMicro, costMicro);
   return getDailyApiSpend(date);
 }
 
