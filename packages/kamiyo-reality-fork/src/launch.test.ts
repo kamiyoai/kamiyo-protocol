@@ -101,7 +101,7 @@ edition = "2021"
     expect(markdown).toContain('## Verdict');
     expect(markdown).toContain('## Scoreboard');
     expect(html).toContain('<html lang="en">');
-    expect(html).toContain('Reality Fork Launch Run');
+    expect(html).toContain('Reality Fork');
     expect(trace.verdict.winnerBranchId).toBeTruthy();
   });
 });

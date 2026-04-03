@@ -83,6 +83,7 @@ export type RealityForkLaunchRepoContext = {
   envExamples: string[];
   licenses: string[];
   assets: string[];
+  frameworks: string[];
   installCommands: string[];
   localRunCommands: string[];
   remoteDependencyNotes: string[];
@@ -160,6 +161,8 @@ type RepoSignals = {
   cleanScore: number;
   licenseScore: number;
   envScore: number;
+  frameworkBonus: number;
+  solanaBonus: number;
   splitRuntimePenalty: number;
   externalDependencyPenalty: number;
 };
@@ -382,6 +385,23 @@ function isAssetPath(relativePath: string): boolean {
       relativePath
     ) || /(report|decision|trace)\.(html|md|json)$/i.test(relativePath)
   );
+}
+
+function detectFrameworks(files: string[]): string[] {
+  const found: string[] = [];
+  const has = (pattern: RegExp) => files.some(f => pattern.test(f));
+
+  if (has(/(^|\/)Anchor\.toml$/)) found.push('solana-anchor');
+  else if (has(/(^|\/)programs\/.*\/src\/lib\.rs$/)) found.push('solana-native');
+  if (has(/(^|\/)foundry\.toml$/)) found.push('foundry');
+  if (has(/(^|\/)hardhat\.config\.(ts|js|cjs|mjs)$/)) found.push('hardhat');
+  if (has(/(^|\/)next\.config\.(ts|js|cjs|mjs)$/)) found.push('nextjs');
+  if (has(/(^|\/)Dockerfile$/i)) found.push('docker');
+  if (has(/(^|\/)turbo\.json$/)) found.push('turborepo');
+  if (has(/(^|\/)nx\.json$/)) found.push('nx');
+  if (has(/(^|\/)\.github\/workflows\/.+\.ya?ml$/)) found.push('github-actions');
+
+  return found;
 }
 
 function isRootSupportPath(relativePath: string): boolean {
@@ -728,6 +748,23 @@ function buildSignals(
       `Found ${repo.licenses.length} license file${repo.licenses.length === 1 ? '' : 's'}.`,
       0.58,
       sample(repo.licenses, 2)
+    );
+  }
+
+  if (repo.frameworks.length > 0) {
+    const solana = repo.frameworks.filter(f => f.startsWith('solana'));
+    const label =
+      solana.length > 0
+        ? `Solana ecosystem detected (${solana.join(', ')})`
+        : `Recognized frameworks: ${repo.frameworks.join(', ')}`;
+    push(
+      'framework-detected',
+      'supporting',
+      'distribution',
+      label,
+      `Detected ${repo.frameworks.length} framework${repo.frameworks.length === 1 ? '' : 's'} from project markers.`,
+      solana.length > 0 ? 0.85 : 0.78,
+      []
     );
   }
 
@@ -1166,16 +1203,16 @@ function renderReportHtml(run: RealityForkLaunchRun): string {
   const signals = run.signals
     .map(signal => {
       const citations = signal.citations.length
-        ? `<div class="signal-citations">${signal.citations
+        ? `<div class="citations">${signal.citations
             .map(citation => formatHtmlCitation(run.repo, citation))
             .join(' ')}</div>`
         : '';
-      return `<article class="signal signal-${signal.type}">
-  <div class="signal-meta">${escapeHtml(signal.type)} · ${escapeHtml(axisLabel(signal.axis))}${
-    signal.inferred ? ' · inference' : ''
-  }</div>
-  <h3>${escapeHtml(signal.statement)}</h3>
-  <p>${escapeHtml(signal.detail)}</p>
+      const borderClass =
+        signal.type === 'supporting' ? 'card-good' : signal.type === 'risk' ? 'card-bad' : '';
+      return `<article class="card ${borderClass}">
+  <p class="label">${escapeHtml(signal.type)} \u00b7 ${escapeHtml(axisLabel(signal.axis))}${signal.inferred ? ' \u00b7 inference' : ''}</p>
+  <h3 class="card-title">${escapeHtml(signal.statement)}</h3>
+  <p class="body">${escapeHtml(signal.detail)}</p>
   ${citations}
 </article>`;
     })
@@ -1183,41 +1220,50 @@ function renderReportHtml(run: RealityForkLaunchRun): string {
 
   const branches = run.branches
     .map(
-      branch => `<article class="branch ${branch.id === winner.id ? 'branch-winner' : ''}">
-  <div class="branch-score">${percent(branch.score)}</div>
-  <div class="branch-stance">${escapeHtml(branch.stance)}</div>
-  <h3>${escapeHtml(branch.label)}</h3>
-  <p>${escapeHtml(branch.summary)}</p>
-  <div class="branch-columns">
+      branch => `<article class="card${branch.id === winner.id ? ' card-accent' : ''}">
+  <p class="label${branch.id === winner.id ? ' accent' : ''}">${escapeHtml(branch.stance)}</p>
+  <h3 class="card-heading">${escapeHtml(branch.label)}</h3>
+  ${branch.id === winner.id ? '<span class="badge accent">winner</span>' : `<span class="badge">${percent(branch.score)}</span>`}
+  <p class="body">${escapeHtml(branch.summary)}</p>
+  <details>
+    <summary>Details</summary>
+    <div class="branch-cols">
+      <section>
+        <p class="label">Advantages</p>
+        <ul>${branch.advantages.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      </section>
+      <section>
+        <p class="label">Risks</p>
+        <ul>${branch.risks.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      </section>
+    </div>
     <section>
-      <h4>Advantages</h4>
-      <ul>${branch.advantages.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+      <p class="label">Next moves</p>
+      <ul>${branch.nextMoves.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
     </section>
-    <section>
-      <h4>Risks</h4>
-      <ul>${branch.risks.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-    </section>
-  </div>
-  <section>
-    <h4>Next Moves</h4>
-    <ul>${branch.nextMoves.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
-  </section>
+  </details>
 </article>`
     )
     .join('\n');
 
   const axes = run.axes
     .map(
-      axis => `<article class="axis-card">
-  <div class="axis-header">
-    <h3>${escapeHtml(axisLabel(axis.id))}</h3>
-    <span>${percent(axis.score)}</span>
-  </div>
-  <div class="axis-bar"><span style="width: ${Math.round(axis.score * 100)}%"></span></div>
-  <p>${escapeHtml(axis.summary)}</p>
+      axis => `<article class="card">
+  <p class="label">${escapeHtml(axisLabel(axis.id))}</p>
+  <p class="score">${percent(axis.score)}</p>
+  <div class="bar"><span data-width="${Math.round(axis.score * 100)}%" style="width: 0"></span></div>
+  <p class="body">${escapeHtml(axis.summary)}</p>
 </article>`
     )
     .join('\n');
+
+  const metaItems = [
+    run.repo.name,
+    run.repo.displayPath,
+    run.generatedAt,
+    `readiness ${percent(run.verdict.readiness)}`,
+    ...(run.repo.frameworks.length > 0 ? [run.repo.frameworks.join(', ')] : []),
+  ];
 
   return `<!doctype html>
 <html lang="en">
@@ -1226,32 +1272,16 @@ function renderReportHtml(run: RealityForkLaunchRun): string {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(run.title)}</title>
     <style>
-      :root {
-        --bg: #f4eee1;
-        --bg-alt: #fff8ec;
-        --ink: #1d1913;
-        --muted: #615649;
-        --panel: rgba(255, 251, 242, 0.9);
-        --line: rgba(29, 25, 19, 0.12);
-        --accent: #ce5a2c;
-        --accent-soft: rgba(206, 90, 44, 0.18);
-        --good: #185b37;
-        --bad: #9b2c2c;
-        --shadow: 0 24px 80px rgba(58, 35, 14, 0.12);
-      }
+      @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@200..800&display=swap');
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
 
       body {
-        margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-        background:
-          radial-gradient(circle at top left, rgba(206, 90, 44, 0.16), transparent 32%),
-          radial-gradient(circle at top right, rgba(24, 91, 55, 0.14), transparent 28%),
-          linear-gradient(180deg, var(--bg), var(--bg-alt));
-        color: var(--ink);
+        background: #000;
+        color: #fff;
+        font-family: "Atkinson Hyperlegible Mono", "SF Mono", "Fira Code", Consolas, monospace;
+        font-weight: 300;
+        -webkit-font-smoothing: antialiased;
       }
 
       main {
@@ -1260,365 +1290,391 @@ function renderReportHtml(run: RealityForkLaunchRun): string {
         padding: 48px 0 80px;
       }
 
-      .hero,
-      .section,
-      .posts {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 28px;
-        box-shadow: var(--shadow);
-      }
-
       .hero {
-        padding: 40px;
-        overflow: hidden;
+        border-radius: 32px;
+        border: 1px solid rgba(128,128,128,0.25);
+        background: rgba(0,0,0,0.75);
+        padding: 28px 36px;
         position: relative;
+        overflow: hidden;
       }
 
-      .hero::after {
-        content: "";
-        position: absolute;
-        inset: auto -120px -120px auto;
-        width: 320px;
-        height: 320px;
-        border-radius: 999px;
-        background: linear-gradient(135deg, rgba(206, 90, 44, 0.14), rgba(24, 91, 55, 0.12));
-      }
-
-      .kicker,
-      .signal-meta,
-      .branch-stance,
-      .repo-meta,
-      .axis-header span,
-      .branch-score,
-      .posts code {
-        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+      .gradient-text {
+        background: linear-gradient(135deg, #ff44f5, #4fe9ea);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
 
       .kicker {
-        display: inline-flex;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: var(--accent-soft);
-        color: var(--accent);
-        letter-spacing: 0.08em;
+        font-size: 10px;
         text-transform: uppercase;
-        font-size: 12px;
-      }
-
-      h1,
-      h2,
-      h3,
-      h4,
-      p {
-        margin: 0;
+        letter-spacing: 0.24em;
+        font-weight: 400;
       }
 
       h1 {
-        margin-top: 18px;
-        font-size: clamp(2.5rem, 6vw, 4.8rem);
-        line-height: 0.94;
-        max-width: 11ch;
+        margin-top: 16px;
+        font-size: clamp(1.8rem, 5vw, 2.4rem);
+        font-weight: 200;
+        line-height: 1.15;
+        color: #fff;
+        max-width: 28ch;
       }
 
-      .hero-copy {
-        max-width: 760px;
+      .hero-reason {
+        margin-top: 16px;
+        font-size: 0.875rem;
+        line-height: 1.7;
+        color: #999;
       }
 
-      .hero-copy p {
+      .meta {
         margin-top: 20px;
-        font-size: 1.12rem;
-        line-height: 1.65;
-        color: var(--muted);
-      }
-
-      .hero-grid,
-      .axis-grid,
-      .branch-grid,
-      .signal-grid,
-      .posts-grid {
-        display: grid;
-        gap: 18px;
-      }
-
-      .hero-grid {
-        grid-template-columns: 1.6fr 1fr;
-        margin-top: 32px;
-      }
-
-      .hero-stat,
-      .axis-card,
-      .branch,
-      .signal,
-      .posts article {
-        border: 1px solid var(--line);
-        border-radius: 22px;
-        padding: 22px;
-        background: rgba(255, 255, 255, 0.64);
-      }
-
-      .hero-stat strong {
-        display: block;
-        font-size: 2rem;
-        margin-top: 6px;
-      }
-
-      .hero-stat span,
-      .repo-meta {
-        color: var(--muted);
-      }
-
-      .repo-meta {
-        margin-top: 28px;
         display: flex;
         flex-wrap: wrap;
-        gap: 10px 18px;
-        font-size: 0.9rem;
+        gap: 8px 16px;
+        font-size: 0.8rem;
+        color: #666;
       }
 
-      .section,
-      .posts {
-        margin-top: 22px;
-        padding: 30px;
+      .hero-stats {
+        display: grid;
+        grid-template-columns: 1.6fr 1fr;
+        gap: 16px;
+        margin-top: 24px;
       }
 
-      .section h2,
-      .posts h2 {
-        font-size: 1.75rem;
-        margin-bottom: 18px;
+      .stat-card {
+        border-radius: 16px;
+        border: 1px solid rgba(128,128,128,0.15);
+        background: rgba(0,0,0,0.7);
+        padding: 16px;
       }
 
-      .axis-grid {
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      .stat-card .label { margin-bottom: 8px; }
+
+      .stat-card .value {
+        font-size: 1.25rem;
+        font-weight: 200;
+        color: #fff;
       }
 
-      .axis-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: baseline;
-        gap: 12px;
+      .section {
+        margin-top: 20px;
+        border-radius: 32px;
+        border: 1px solid rgba(128,128,128,0.25);
+        background: rgba(0,0,0,0.75);
+        padding: 28px 36px;
+        opacity: 0;
+        transform: translateY(20px);
+        animation: fadeIn 0.5s ease forwards;
+      }
+      .section:nth-child(2) { animation-delay: 0.08s; }
+      .section:nth-child(3) { animation-delay: 0.16s; }
+      .section:nth-child(4) { animation-delay: 0.24s; }
+      .section:nth-child(5) { animation-delay: 0.32s; }
+      .section:nth-child(6) { animation-delay: 0.40s; }
+      .section:nth-child(7) { animation-delay: 0.48s; }
+
+      @keyframes fadeIn {
+        to { opacity: 1; transform: translateY(0); }
       }
 
-      .axis-bar {
-        height: 10px;
-        border-radius: 999px;
-        background: rgba(29, 25, 19, 0.08);
+      .section-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        color: #4fe9ea;
+        font-weight: 400;
+        margin-bottom: 20px;
+      }
+
+      .grid { display: grid; gap: 16px; }
+      .grid-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+      .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+      .card {
+        border-radius: 28px;
+        border: 1px solid rgba(128,128,128,0.2);
+        background: rgba(0,0,0,0.7);
+        padding: 20px;
+        transition: border-color 0.3s, background 0.3s;
+      }
+      .card:hover { border-color: rgba(128,128,128,0.4); background: #000; }
+
+      .card-accent {
+        border-color: rgba(79,233,234,0.4);
+        background: rgba(0,0,0,0.8);
+      }
+      .card-accent:hover { border-color: rgba(79,233,234,0.6); }
+
+      .card-good { border-color: rgba(79,233,234,0.2); }
+      .card-bad { border-color: rgba(255,68,245,0.2); }
+
+      .label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        color: #666;
+        font-weight: 400;
+      }
+
+      .accent { color: #4fe9ea; }
+
+      .badge {
+        display: inline-block;
+        border-radius: 9999px;
+        border: 1px solid rgba(128,128,128,0.2);
+        padding: 4px 12px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: #999;
+        margin-top: 8px;
+      }
+      .badge.accent { color: #4fe9ea; border-color: rgba(79,233,234,0.3); }
+
+      .card-title {
+        margin-top: 10px;
+        font-size: 1rem;
+        font-weight: 300;
+        color: #fff;
+        line-height: 1.5;
+      }
+
+      .card-heading {
+        margin-top: 8px;
+        font-size: 1.2rem;
+        font-weight: 200;
+        color: #fff;
+      }
+
+      .body {
+        margin-top: 10px;
+        font-size: 0.85rem;
+        line-height: 1.65;
+        color: #999;
+      }
+
+      .score {
+        margin-top: 8px;
+        font-size: 1.1rem;
+        font-weight: 200;
+        color: #fff;
+      }
+
+      .bar {
+        height: 4px;
+        border-radius: 9999px;
+        background: rgba(128,128,128,0.12);
         overflow: hidden;
-        margin: 14px 0;
+        margin: 12px 0;
       }
 
-      .axis-bar span {
+      .bar span {
         display: block;
         height: 100%;
         border-radius: inherit;
-        background: linear-gradient(90deg, #ce5a2c, #185b37);
+        background: linear-gradient(90deg, #4fe9ea, #ff44f5);
+        transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
       }
 
-      .axis-card p,
-      .signal p,
-      .branch p,
-      .posts p {
-        color: var(--muted);
-        line-height: 1.6;
-      }
-
-      .branch-grid {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      }
-
-      .branch {
-        position: relative;
-      }
-
-      .branch-winner {
-        border-color: rgba(206, 90, 44, 0.35);
-        background: linear-gradient(180deg, rgba(206, 90, 44, 0.08), rgba(255, 255, 255, 0.72));
-      }
-
-      .branch-score {
-        color: var(--accent);
-        font-size: 0.85rem;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .branch h3 {
-        margin-top: 8px;
-        font-size: 1.35rem;
-      }
-
-      .branch-columns {
+      .branch-cols {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 18px;
-        margin-top: 18px;
+        gap: 16px;
+        margin-top: 16px;
       }
 
-      .branch section:last-child {
-        margin-top: 18px;
+      details summary {
+        cursor: pointer;
+        margin-top: 14px;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        color: #666;
+        list-style: none;
       }
+      details summary::marker,
+      details summary::-webkit-details-marker { display: none; }
+      details[open] summary { color: #4fe9ea; }
 
       ul {
-        margin: 12px 0 0;
-        padding-left: 18px;
-        color: var(--muted);
-        line-height: 1.6;
+        margin: 10px 0 0;
+        padding-left: 16px;
+        color: #999;
+        font-size: 0.85rem;
+        line-height: 1.65;
       }
 
-      .signal-grid {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      }
-
-      .signal-supporting {
-        border-color: rgba(24, 91, 55, 0.18);
-      }
-
-      .signal-risk {
-        border-color: rgba(155, 44, 44, 0.18);
-      }
-
-      .signal-meta {
-        color: var(--muted);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .signal h3 {
-        margin: 10px 0 8px;
-        font-size: 1.15rem;
-      }
-
-      .signal-citations {
+      .citations {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 14px;
+        gap: 6px;
+        margin-top: 12px;
       }
 
-      a {
-        color: inherit;
-      }
+      a { color: #ff44f5; transition: opacity 0.2s; }
+      a:hover { opacity: 0.8; }
 
       code {
-        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
-        font-size: 0.9em;
-        background: rgba(29, 25, 19, 0.05);
-        padding: 3px 6px;
-        border-radius: 8px;
+        font-family: inherit;
+        font-size: 0.85em;
+        background: rgba(255,255,255,0.04);
+        padding: 2px 6px;
+        border-radius: 6px;
       }
 
-      .posts-grid {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      }
+      .posts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
 
-      .posts article h3 {
-        font-size: 1rem;
-        margin-bottom: 10px;
+      .post-card {
+        border-radius: 28px;
+        border: 1px solid rgba(128,128,128,0.2);
+        background: rgba(0,0,0,0.7);
+        padding: 20px;
+        position: relative;
+        transition: border-color 0.3s;
       }
+      .post-card:hover { border-color: rgba(128,128,128,0.4); }
+      .post-card .label { margin-bottom: 10px; }
+      .post-card .body { margin-top: 0; }
 
-      .actions {
-        display: grid;
-        gap: 12px;
+      .copy-btn {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        cursor: pointer;
+        border: 1px solid rgba(128,128,128,0.2);
+        border-radius: 9999px;
+        background: rgba(0,0,0,0.6);
+        color: #666;
+        padding: 4px 12px;
+        font-family: inherit;
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        transition: color 0.2s, border-color 0.2s;
       }
+      .copy-btn:hover { color: #4fe9ea; border-color: rgba(79,233,234,0.3); }
 
-      .actions article {
-        padding: 16px 18px;
-        border-radius: 18px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.72);
+      .action-card {
+        border-radius: 24px;
+        border: 1px solid rgba(128,128,128,0.15);
+        background: rgba(0,0,0,0.6);
+        padding: 16px 20px;
+        font-size: 0.85rem;
+        color: #ccc;
+        line-height: 1.6;
+        transition: border-color 0.3s;
+      }
+      .action-card:hover { border-color: rgba(128,128,128,0.35); }
+
+      .footer {
+        margin-top: 40px;
+        text-align: center;
+        font-size: 0.75rem;
+        color: #333;
+        letter-spacing: 0.08em;
       }
 
       @media (max-width: 860px) {
-        .hero-grid,
-        .branch-columns {
-          grid-template-columns: 1fr;
-        }
-
-        main {
-          width: min(100vw - 24px, 1120px);
-          padding-top: 24px;
-        }
-
-        .hero,
-        .section,
-        .posts {
-          padding: 22px;
-          border-radius: 22px;
-        }
+        .hero-stats, .branch-cols { grid-template-columns: 1fr; }
+        main { width: min(100vw - 24px, 1120px); padding-top: 24px; }
+        .hero, .section { padding: 20px; border-radius: 24px; }
+        .card { border-radius: 20px; }
       }
     </style>
   </head>
   <body>
     <main>
       <section class="hero">
-        <span class="kicker">Reality Fork Launch Run</span>
-        <div class="hero-copy">
-          <h1>${escapeHtml(winner.label)}</h1>
-          <p>${escapeHtml(run.verdict.reason)}</p>
-          <div class="repo-meta">
-            <span>${escapeHtml(run.repo.name)}</span>
-            <span>${escapeHtml(run.repo.displayPath)}</span>
-            <span>${escapeHtml(run.generatedAt)}</span>
-            <span>readiness ${percent(run.verdict.readiness)}</span>
-          </div>
+        <p class="kicker gradient-text">Reality Fork \u5206\u5c90\u73fe\u754c</p>
+        <h1>${escapeHtml(winner.label)}</h1>
+        <p class="hero-reason">${escapeHtml(run.verdict.reason)}</p>
+        <div class="meta">
+          ${metaItems.map(item => `<span>${escapeHtml(item)}</span>`).join('')}
         </div>
-        <div class="hero-grid">
-          <article class="hero-stat">
-            <span>Prompt</span>
-            <strong>${escapeHtml(run.prompt)}</strong>
+        <div class="hero-stats">
+          <article class="stat-card">
+            <p class="label">Prompt</p>
+            <p class="value">${escapeHtml(run.prompt)}</p>
           </article>
-          <article class="hero-stat">
-            <span>Winner score</span>
-            <strong>${percent(winner.score)}</strong>
+          <article class="stat-card">
+            <p class="label">Winner score</p>
+            <p class="value">${percent(winner.score)}</p>
           </article>
         </div>
       </section>
 
       <section class="section">
-        <h2>Scoreboard</h2>
-        <div class="axis-grid">
+        <p class="section-title">Scoreboard</p>
+        <div class="grid grid-3">
           ${axes}
         </div>
       </section>
 
       <section class="section">
-        <h2>Branches Compared</h2>
-        <div class="branch-grid">
+        <p class="section-title">Branches compared</p>
+        <div class="grid grid-2">
           ${branches}
         </div>
       </section>
 
       <section class="section">
-        <h2>Evidence</h2>
-        <div class="signal-grid">
+        <p class="section-title">Evidence</p>
+        <div class="grid grid-2">
           ${signals}
         </div>
       </section>
 
       <section class="section">
-        <h2>Next Moves</h2>
-        <div class="actions">
-          ${run.actions.map(action => `<article>${escapeHtml(action)}</article>`).join('\n')}
+        <p class="section-title">Next moves</p>
+        <div class="grid">
+          ${run.actions.map(action => `<article class="action-card">${escapeHtml(action)}</article>`).join('\n')}
         </div>
       </section>
 
-      <section class="posts">
-        <h2>Ready Posts</h2>
+      <section class="section">
+        <p class="section-title">Ready posts</p>
         <div class="posts-grid">
-          <article>
-            <h3>Announcement</h3>
-            <p>${escapeHtml(run.posts.announcement)}</p>
+          <article class="post-card">
+            <button class="copy-btn" type="button" data-copy="${escapeHtml(run.posts.announcement)}">copy</button>
+            <p class="label">Announcement</p>
+            <p class="body">${escapeHtml(run.posts.announcement)}</p>
           </article>
-          <article>
-            <h3>Thread</h3>
-            <p>1. ${escapeHtml(run.posts.thread[0])}</p>
-            <p>2. ${escapeHtml(run.posts.thread[1])}</p>
-            <p>3. ${escapeHtml(run.posts.thread[2])}</p>
+          <article class="post-card">
+            <button class="copy-btn" type="button" data-copy="${escapeHtml(run.posts.thread.join('\n'))}">copy</button>
+            <p class="label">Thread</p>
+            <p class="body">1. ${escapeHtml(run.posts.thread[0])}</p>
+            <p class="body">2. ${escapeHtml(run.posts.thread[1])}</p>
+            <p class="body">3. ${escapeHtml(run.posts.thread[2])}</p>
           </article>
         </div>
       </section>
+
+      <p class="footer">KAMIYO \u00b7 Reality Fork</p>
     </main>
+    <script>
+      (function () {
+        var bars = document.querySelectorAll('.bar span[data-width]');
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            bars.forEach(function (bar) { bar.style.width = bar.dataset.width; });
+          });
+        });
+
+        document.querySelectorAll('[data-copy]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            navigator.clipboard.writeText(btn.dataset.copy).then(function () {
+              var prev = btn.textContent;
+              btn.textContent = 'copied';
+              setTimeout(function () { btn.textContent = prev; }, 1200);
+            });
+          });
+        });
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -1722,6 +1778,7 @@ async function collectRepoContext(
     : null;
 
   const name = repoNameFromSignals(rootPath, rawRemoteUrl, docSources);
+  const frameworks = detectFrameworks(allFiles);
 
   return {
     name,
@@ -1740,6 +1797,7 @@ async function collectRepoContext(
     envExamples,
     licenses,
     assets,
+    frameworks,
     installCommands: commandSignals.installCommands,
     localRunCommands: commandSignals.localRunCommands,
     remoteDependencyNotes: commandSignals.remoteDependencyNotes,
@@ -1817,6 +1875,9 @@ function deriveRepoScores(repo: RealityForkLaunchRepoContext): RepoSignals {
   const splitRuntimePenalty = mentionsCargoInstall && mentionsNodeRequirement ? 0.24 : 0;
   const externalDependencyPenalty =
     repo.remoteDependencyNotes.length === 0 ? 0 : localModeScore >= 0.7 ? 0.08 : 0.22;
+  const hasSolana = repo.frameworks.some(f => f.startsWith('solana'));
+  const frameworkBonus = clamp(repo.frameworks.length / 5);
+  const solanaBonus = hasSolana ? 0.12 : 0;
 
   return {
     hasReadme,
@@ -1836,6 +1897,8 @@ function deriveRepoScores(repo: RealityForkLaunchRepoContext): RepoSignals {
     cleanScore,
     licenseScore,
     envScore,
+    frameworkBonus,
+    solanaBonus,
     splitRuntimePenalty,
     externalDependencyPenalty,
   };
@@ -1871,7 +1934,8 @@ function buildAxes(
     0.34 * scores.installScore +
       0.24 * scores.manifestScore +
       0.2 * scores.lockScore +
-      0.22 * scores.changelogScore -
+      0.22 * scores.changelogScore +
+      0.08 * scores.frameworkBonus -
       scores.splitRuntimePenalty
   );
 
@@ -1887,7 +1951,8 @@ function buildAxes(
       0.25 * scores.ciScore +
       0.15 * scores.licenseScore +
       0.15 * scores.cleanScore +
-      0.1 * scores.envScore
+      0.1 * scores.envScore +
+      0.06 * scores.frameworkBonus
   );
 
   return [

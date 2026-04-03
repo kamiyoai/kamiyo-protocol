@@ -6,15 +6,20 @@ import process from 'node:process';
 import { createInterface } from 'node:readline/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import {
   createRealityForkLaunchRun,
   createRealityForkStudioClient,
   defaultRealityForkLaunchOutputDir,
+  diffLaunchRuns,
   fixtureDirectory,
   listFixtureScenarios,
   loadFixtureScenario,
+  renderDiffHtml,
+  renderDiffMarkdown,
   writeRealityForkLaunchArtifacts,
   type CreateRealityForkProjectInput,
+  type RealityForkLaunchArtifactPaths,
   type RealityForkLaunchRun,
   type RealityForkProjectDetail,
   type RealityForkProjectEvent,
@@ -326,50 +331,95 @@ function displayPathFromCwd(filePath: string): string {
   return relative;
 }
 
-function printLaunchRunSummary(
+function printLaunchRunJson(
   run: RealityForkLaunchRun,
-  artifacts: {
-    outputDir: string;
-    decisionPath: string;
-    reportPath: string;
-    tracePath: string;
-  },
-  output: OutputFormat
+  artifacts: RealityForkLaunchArtifactPaths
 ): void {
-  if (output === 'json') {
-    print(
-      {
-        verdict: run.verdict,
-        topAxes: run.axes
-          .slice()
-          .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
-          .slice(0, 3),
-        actions: run.actions,
-        posts: run.posts,
-        artifacts,
-      },
-      output
+  print(
+    {
+      verdict: run.verdict,
+      topAxes: run.axes
+        .slice()
+        .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+        .slice(0, 3),
+      actions: run.actions,
+      posts: run.posts,
+      artifacts,
+    },
+    'json'
+  );
+}
+
+function axisBar(score: number, width = 20): string {
+  const filled = Math.round(score * width);
+  const empty = width - filled;
+  return '\u2588'.repeat(filled) + '\u2591'.repeat(empty);
+}
+
+function axisColor(score: number): (text: string) => string {
+  if (score >= 0.7) return chalk.cyan;
+  if (score >= 0.5) return chalk.white;
+  return chalk.magenta;
+}
+
+function verdictColor(branchId: string): (text: string) => string {
+  if (branchId === 'ship_now') return chalk.cyan;
+  if (branchId === 'narrow_launch') return chalk.white;
+  return chalk.magenta;
+}
+
+async function renderLaunchProgress(
+  run: RealityForkLaunchRun,
+  artifacts: RealityForkLaunchArtifactPaths
+): Promise<void> {
+  const w = process.stderr.write.bind(process.stderr);
+
+  w(`\n  ${chalk.dim('reality fork')} ${chalk.magenta('\u5206\u5c90\u73fe\u754c')}\n\n`);
+  w(`  ${chalk.dim('repo')}  ${chalk.white(run.repo.name)}\n`);
+  w(`  ${chalk.dim('files')} ${run.repo.fileCount}`);
+  if (run.repo.languages.length > 0) {
+    w(
+      ` ${chalk.dim('\u00b7')} ${run.repo.languages
+        .slice(0, 3)
+        .map(l => l.name)
+        .join(', ')}`
     );
-    return;
+  }
+  if (run.repo.frameworks.length > 0) {
+    w(` ${chalk.dim('\u00b7')} ${chalk.cyan(run.repo.frameworks.join(', '))}`);
+  }
+  w('\n\n');
+
+  const padLen = Math.max(...run.axes.map(a => a.label.length));
+  for (const axis of run.axes) {
+    const label = axis.label.padEnd(padLen);
+    const color = axisColor(axis.score);
+    const bar = color(axisBar(axis.score));
+    const pct = color(formatPercent(axis.score).padStart(4));
+    w(`  ${chalk.dim(label)}  ${bar}  ${pct}\n`);
+    await sleep(60);
   }
 
-  info(chalk.bold(run.verdict.label));
-  dim(
-    `launch readiness ${formatPercent(run.verdict.readiness)} | winner ${formatPercent(run.verdict.score)}`
-  );
-  info(run.verdict.reason);
-  info(
-    `strongest axes: ${run.axes
-      .slice()
-      .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
-      .slice(0, 3)
-      .map(axis => `${axis.label} ${formatPercent(axis.score)}`)
-      .join(' | ')}`
-  );
-  info('artifacts:');
-  info(`decision ${displayPathFromCwd(artifacts.decisionPath)}`);
-  info(`report   ${displayPathFromCwd(artifacts.reportPath)}`);
-  info(`trace    ${displayPathFromCwd(artifacts.tracePath)}`);
+  w('\n');
+  const vColor = verdictColor(run.verdict.winnerBranchId);
+  w(`  ${vColor(run.verdict.label)}\n`);
+  w(`  ${chalk.dim(run.verdict.reason)}\n`);
+  w(`  ${chalk.dim('readiness')} ${chalk.cyan(formatPercent(run.verdict.readiness))}\n`);
+
+  w(`\n  ${chalk.dim('artifacts')}\n`);
+  w(`  ${chalk.dim('decision')} ${displayPathFromCwd(artifacts.decisionPath)}\n`);
+  w(`  ${chalk.dim('report')}   ${displayPathFromCwd(artifacts.reportPath)}\n`);
+  w(`  ${chalk.dim('trace')}    ${displayPathFromCwd(artifacts.tracePath)}\n\n`);
+}
+
+function openInBrowser(filePath: string): void {
+  const platform = process.platform;
+  const cmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+  try {
+    execFileSync(cmd, [filePath], { stdio: 'ignore' });
+  } catch {
+    // browser open is best-effort
+  }
 }
 
 async function waitForJob(projectId: string, jobId: string, effective: EffectiveInvocation) {
@@ -663,6 +713,7 @@ function buildProgram(state: RunState): Command {
     .option('--prompt <text>', 'Launch question', 'Should we ship this now?')
     .option('--title <text>', 'Report title')
     .option('--output-dir <path>', 'Directory for decision.md, report.html, and trace.json')
+    .option('--open', 'Open report.html in default browser after run')
     .description('Stress-test a repo launch and emit shareable artifacts')
     .action(
       wrapAction(state, 'run launch', async ({ effective }, [options]) => {
@@ -672,6 +723,7 @@ function buildProgram(state: RunState): Command {
           prompt?: string;
           title?: string;
           outputDir?: string;
+          open?: boolean;
         };
         const repoPath = path.resolve(launchOptions.repo || '.');
         const runResult = await createRealityForkLaunchRun({
@@ -684,7 +736,258 @@ function buildProgram(state: RunState): Command {
           ? path.resolve(launchOptions.outputDir)
           : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
         const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
-        printLaunchRunSummary(runResult, artifacts, effective.output);
+
+        if (effective.output === 'json') {
+          printLaunchRunJson(runResult, artifacts);
+        } else if (!effective.quiet) {
+          await renderLaunchProgress(runResult, artifacts);
+        }
+
+        if (launchOptions.open) {
+          openInBrowser(artifacts.reportPath);
+        }
+      })
+    );
+
+  run
+    .command('diff')
+    .argument('<before>', 'Path to first trace.json or output directory')
+    .argument('<after>', 'Path to second trace.json or output directory')
+    .option('--output-dir <path>', 'Write diff.md and diff.html to this directory')
+    .description('Compare two launch runs and show score deltas')
+    .action(
+      wrapAction(state, 'run diff', async ({ effective }, [beforeArg, afterArg, options]) => {
+        const diffOptions = (options ?? {}) as { outputDir?: string };
+
+        function resolveTrace(arg: unknown): string {
+          const p = path.resolve(String(arg));
+          if (p.endsWith('.json')) return p;
+          return path.join(p, 'trace.json');
+        }
+
+        const beforePath = resolveTrace(beforeArg);
+        const afterPath = resolveTrace(afterArg);
+        const beforeRun = JSON.parse(fs.readFileSync(beforePath, 'utf8')) as RealityForkLaunchRun;
+        const afterRun = JSON.parse(fs.readFileSync(afterPath, 'utf8')) as RealityForkLaunchRun;
+        const diff = diffLaunchRuns(beforeRun, afterRun);
+
+        if (effective.output === 'json') {
+          print(diff, 'json');
+        } else if (!effective.quiet) {
+          const w = process.stderr.write.bind(process.stderr);
+          w(`\n  ${chalk.dim('reality fork')} ${chalk.magenta('\u5206\u5c90\u73fe\u754c')}\n\n`);
+          w(
+            `  ${chalk.dim(diff.before.generatedAt)} \u2192 ${chalk.dim(diff.after.generatedAt)}\n\n`
+          );
+
+          const rColor =
+            diff.readinessDelta > 0.005
+              ? chalk.cyan
+              : diff.readinessDelta < -0.005
+                ? chalk.magenta
+                : chalk.dim;
+          const rSign = diff.readinessDelta > 0 ? '+' : '';
+          w(
+            `  ${chalk.dim('readiness')} ${formatPercent(diff.before.readiness)} \u2192 ${formatPercent(diff.after.readiness)} ${rColor(`${rSign}${Math.round(diff.readinessDelta * 100)}%`)}\n`
+          );
+
+          if (diff.verdictChanged) {
+            w(
+              `  ${chalk.dim('verdict')}   ${diff.before.verdictLabel} \u2192 ${chalk.cyan(diff.after.verdictLabel)}\n`
+            );
+          }
+          w('\n');
+
+          const padLen = Math.max(...diff.axes.map(a => a.label.length));
+          for (const axis of diff.axes) {
+            const label = axis.label.padEnd(padLen);
+            const dSign = axis.delta > 0 ? '+' : '';
+            const dText = `${dSign}${Math.round(axis.delta * 100)}%`;
+            const indicator =
+              axis.direction === 'up'
+                ? chalk.cyan(`\u25b2 ${dText}`)
+                : axis.direction === 'down'
+                  ? chalk.magenta(`\u25bc ${dText}`)
+                  : chalk.dim(`\u2500 ${dText}`);
+            w(
+              `  ${chalk.dim(label)}  ${formatPercent(axis.before).padStart(4)} \u2192 ${formatPercent(axis.after).padStart(4)}  ${indicator}\n`
+            );
+          }
+          w('\n');
+        }
+
+        if (diffOptions.outputDir) {
+          const outDir = path.resolve(diffOptions.outputDir);
+          const { promises: fsp } = await import('node:fs');
+          await fsp.mkdir(outDir, { recursive: true });
+          await fsp.writeFile(path.join(outDir, 'diff.md'), renderDiffMarkdown(diff), 'utf8');
+          await fsp.writeFile(path.join(outDir, 'diff.html'), renderDiffHtml(diff), 'utf8');
+          if (!effective.quiet && effective.output !== 'json') {
+            info(`diff artifacts written to ${displayPathFromCwd(outDir)}`);
+          }
+        }
+      })
+    );
+
+  run
+    .command('watch')
+    .option('--repo <path>', 'Repository path', '.')
+    .option('--focus <path...>', 'Limit analysis to specific subpaths inside the repo')
+    .option('--prompt <text>', 'Launch question', 'Should we ship this now?')
+    .option('--title <text>', 'Report title')
+    .option('--output-dir <path>', 'Directory for artifacts')
+    .option('--open', 'Open report.html after each run')
+    .description('Watch a repo and re-run launch analysis on file changes')
+    .action(
+      wrapAction(state, 'run watch', async ({ effective }, [options]) => {
+        const watchOptions = (options ?? {}) as {
+          repo?: string;
+          focus?: string[];
+          prompt?: string;
+          title?: string;
+          outputDir?: string;
+          open?: boolean;
+        };
+        const repoPath = path.resolve(watchOptions.repo || '.');
+        const { watch } = await import('node:fs');
+
+        let running = false;
+        let queued = false;
+        let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+        async function runOnce() {
+          if (running) {
+            queued = true;
+            return;
+          }
+          running = true;
+          process.stderr.write('\x1b[2J\x1b[H');
+          try {
+            const runResult = await createRealityForkLaunchRun({
+              repoPath,
+              focusPaths: Array.isArray(watchOptions.focus) ? watchOptions.focus : undefined,
+              prompt: watchOptions.prompt,
+              title: watchOptions.title,
+            });
+            const outputDir = watchOptions.outputDir
+              ? path.resolve(watchOptions.outputDir)
+              : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
+            const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
+
+            if (effective.output === 'json') {
+              printLaunchRunJson(runResult, artifacts);
+            } else {
+              await renderLaunchProgress(runResult, artifacts);
+            }
+
+            if (watchOptions.open) openInBrowser(artifacts.reportPath);
+          } catch (err) {
+            error(err instanceof Error ? err.message : 'run failed');
+          }
+          running = false;
+          process.stderr.write(chalk.dim('  watching for changes...\n'));
+          if (queued) {
+            queued = false;
+            runOnce();
+          }
+        }
+
+        const ignoreDirs = new Set(['.git', '.reality-fork', 'node_modules', 'dist', 'target']);
+
+        watch(repoPath, { recursive: true }, (_event, filename) => {
+          if (!filename) return;
+          const first = filename.split(path.sep)[0];
+          if (ignoreDirs.has(first)) return;
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(runOnce, 500);
+        });
+
+        await runOnce();
+
+        await new Promise<void>(resolve => {
+          process.on('SIGINT', () => {
+            resolve();
+          });
+        });
+      })
+    );
+
+  run
+    .command('share')
+    .option('--output-dir <path>', 'Directory containing run artifacts')
+    .option('--repo <path>', 'Repository path (used to find latest run)', '.')
+    .description('Share the latest launch run as a GitHub gist')
+    .action(
+      wrapAction(state, 'run share', async ({ effective }, [options]) => {
+        const shareOptions = (options ?? {}) as { outputDir?: string; repo?: string };
+        const { promises: fsp } = await import('node:fs');
+
+        let outputDir: string;
+        if (shareOptions.outputDir) {
+          outputDir = path.resolve(shareOptions.outputDir);
+        } else {
+          const repoPath = path.resolve(shareOptions.repo || '.');
+          const runsDir = path.join(repoPath, '.reality-fork', 'runs');
+          let entries: string[];
+          try {
+            entries = (await fsp.readdir(runsDir))
+              .filter(e => e.startsWith('launch-'))
+              .sort()
+              .reverse();
+          } catch {
+            throw new Error(`no runs found in ${runsDir}`);
+          }
+          if (entries.length === 0) throw new Error(`no launch runs found in ${runsDir}`);
+          outputDir = path.join(runsDir, entries[0]);
+        }
+
+        const decisionPath = path.join(outputDir, 'decision.md');
+        const tracePath = path.join(outputDir, 'trace.json');
+
+        for (const f of [decisionPath, tracePath]) {
+          try {
+            await fsp.access(f);
+          } catch {
+            throw new Error(`missing artifact: ${f}`);
+          }
+        }
+
+        try {
+          const result = execFileSync(
+            'gh',
+            [
+              'gist',
+              'create',
+              '--public',
+              '--desc',
+              'Reality Fork launch run',
+              decisionPath,
+              tracePath,
+            ],
+            { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+          ).trim();
+
+          if (effective.output === 'json') {
+            print({ gistUrl: result, outputDir }, 'json');
+          } else {
+            success(`gist created: ${result}`);
+          }
+        } catch {
+          const decision = await fsp.readFile(decisionPath, 'utf8');
+          try {
+            const pbcopy =
+              process.platform === 'darwin'
+                ? 'pbcopy'
+                : process.platform === 'win32'
+                  ? 'clip'
+                  : 'xclip';
+            const { execSync } = await import('node:child_process');
+            execSync(pbcopy, { input: decision, stdio: ['pipe', 'ignore', 'ignore'] });
+            success('decision.md copied to clipboard (install gh cli to create gists)');
+          } catch {
+            error('gh cli not found and clipboard copy failed. install gh: https://cli.github.com');
+          }
+        }
       })
     );
 

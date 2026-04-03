@@ -1,6 +1,7 @@
 export * from './types';
 export * from './adapter';
 export * from './companion';
+export * from './diff';
 export * from './fixtures';
 export * from './launch';
 export * from './replay';

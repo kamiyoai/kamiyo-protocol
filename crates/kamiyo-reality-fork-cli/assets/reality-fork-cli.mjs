@@ -3025,13 +3025,14 @@ var require_commander = __commonJS({
   }
 });
 
-// packages/kamiyo-reality-fork-cli/dist/index.js
+// packages/kamiyo-reality-fork-cli/src/index.ts
 import fs5 from "node:fs";
 import path4 from "node:path";
 import process3 from "node:process";
 import { createInterface } from "node:readline/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
+import { execFileSync as execFileSync2 } from "node:child_process";
 
 // packages/kamiyo-reality-fork/dist/index.js
 import { promises as fs } from "fs";
@@ -3041,6 +3042,168 @@ import { execFileSync } from "child_process";
 import { promises as fs2 } from "fs";
 import os from "os";
 import path2 from "path";
+function percent2(value) {
+  return `${Math.round(value * 100)}%`;
+}
+function signedPercent(value) {
+  const p = Math.round(value * 100);
+  if (p > 0) return `+${p}%`;
+  if (p < 0) return `${p}%`;
+  return "0%";
+}
+function arrow(direction) {
+  if (direction === "up") return "\u25B2";
+  if (direction === "down") return "\u25BC";
+  return "\u2500";
+}
+function escapeHtml(value) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function diffLaunchRuns(before, after) {
+  const axisMap = new Map(before.axes.map((a) => [a.id, a]));
+  const axes = after.axes.map((a) => {
+    const prev = axisMap.get(a.id);
+    const beforeScore = prev?.score ?? 0;
+    const delta = a.score - beforeScore;
+    const direction = delta > 5e-3 ? "up" : delta < -5e-3 ? "down" : "flat";
+    return {
+      id: a.id,
+      label: a.label,
+      before: beforeScore,
+      after: a.score,
+      delta,
+      direction
+    };
+  });
+  return {
+    before: {
+      title: before.title,
+      generatedAt: before.generatedAt,
+      readiness: before.verdict.readiness,
+      verdictLabel: before.verdict.label
+    },
+    after: {
+      title: after.title,
+      generatedAt: after.generatedAt,
+      readiness: after.verdict.readiness,
+      verdictLabel: after.verdict.label
+    },
+    readinessDelta: after.verdict.readiness - before.verdict.readiness,
+    verdictChanged: before.verdict.winnerBranchId !== after.verdict.winnerBranchId,
+    axes
+  };
+}
+function renderDiffMarkdown(diff) {
+  const rows = diff.axes.map(
+    (a) => `| ${a.label} | ${percent2(a.before)} | ${percent2(a.after)} | ${signedPercent(a.delta)} ${arrow(a.direction)} |`
+  ).join("\n");
+  const verdictLine = diff.verdictChanged ? `Verdict changed: **${diff.before.verdictLabel}** \u2192 **${diff.after.verdictLabel}**` : `Verdict unchanged: **${diff.after.verdictLabel}**`;
+  return `# Launch Diff
+
+Before: ${diff.before.title} (${diff.before.generatedAt})
+After: ${diff.after.title} (${diff.after.generatedAt})
+
+## Readiness
+
+${percent2(diff.before.readiness)} \u2192 ${percent2(diff.after.readiness)} (${signedPercent(diff.readinessDelta)})
+
+${verdictLine}
+
+## Axes
+
+| Axis | Before | After | Delta |
+| --- | --- | --- | --- |
+${rows}
+`;
+}
+function renderDiffHtml(diff) {
+  const rows = diff.axes.map((a) => {
+    const cls = a.direction === "up" ? "delta-up" : a.direction === "down" ? "delta-down" : "delta-flat";
+    return `<tr>
+  <td>${escapeHtml(a.label)}</td>
+  <td>${percent2(a.before)}</td>
+  <td>${percent2(a.after)}</td>
+  <td class="${cls}">${signedPercent(a.delta)} ${arrow(a.direction)}</td>
+</tr>`;
+  }).join("\n");
+  const verdictLine = diff.verdictChanged ? `<strong>${escapeHtml(diff.before.verdictLabel)}</strong> &rarr; <strong>${escapeHtml(diff.after.verdictLabel)}</strong>` : `<strong>${escapeHtml(diff.after.verdictLabel)}</strong> (unchanged)`;
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Launch Diff</title>
+    <style>
+      :root {
+        --bg: #f4eee1;
+        --ink: #1d1913;
+        --muted: #615649;
+        --panel: rgba(255, 251, 242, 0.9);
+        --line: rgba(29, 25, 19, 0.12);
+        --accent: #ce5a2c;
+        --good: #185b37;
+        --bad: #9b2c2c;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      main {
+        width: min(720px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 48px 0 80px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 28px;
+        margin-top: 22px;
+      }
+      h1 { font-size: 2rem; margin: 0; }
+      h2 { font-size: 1.4rem; margin: 0 0 14px; }
+      .meta { color: var(--muted); font-size: 0.9rem; margin-top: 8px; }
+      .readiness {
+        font-size: 2.4rem;
+        font-weight: bold;
+        font-family: "IBM Plex Mono", Consolas, monospace;
+      }
+      .readiness-delta { color: var(--accent); font-size: 1.2rem; margin-left: 8px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+      th { font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      td { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 0.95rem; }
+      .delta-up { color: var(--good); font-weight: bold; }
+      .delta-down { color: var(--bad); font-weight: bold; }
+      .delta-flat { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Launch Diff</h1>
+      <p class="meta">${escapeHtml(diff.before.generatedAt)} &rarr; ${escapeHtml(diff.after.generatedAt)}</p>
+
+      <div class="card">
+        <h2>Readiness</h2>
+        <span class="readiness">${percent2(diff.before.readiness)} &rarr; ${percent2(diff.after.readiness)}</span>
+        <span class="readiness-delta">${signedPercent(diff.readinessDelta)}</span>
+        <p class="meta" style="margin-top: 14px">${verdictLine}</p>
+      </div>
+
+      <div class="card">
+        <h2>Axes</h2>
+        <table>
+          <thead><tr><th>Axis</th><th>Before</th><th>After</th><th>Delta</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </main>
+  </body>
+</html>`;
+}
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -3198,7 +3361,7 @@ function average(...values) {
   if (values.length === 0) return 0;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
-function percent2(value) {
+function percent3(value) {
   return `${Math.round(value * 100)}%`;
 }
 function sanitizePath(value) {
@@ -3350,7 +3513,9 @@ function isManifestPath(relativePath) {
   return /(^|\/)(package\.json|Cargo\.toml|pyproject\.toml|go\.mod)$/i.test(relativePath);
 }
 function isLockPath(relativePath) {
-  return /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|poetry\.lock|uv\.lock|go\.sum)$/i.test(relativePath);
+  return /(^|\/)(pnpm-lock\.yaml|package-lock\.json|yarn\.lock|Cargo\.lock|poetry\.lock|uv\.lock|go\.sum)$/i.test(
+    relativePath
+  );
 }
 function isCiPath(relativePath) {
   return /^\.github\/workflows\/.+\.(yml|yaml)$/i.test(relativePath) || /^\.gitlab-ci\.yml$/i.test(relativePath) || /^\.circleci\//i.test(relativePath);
@@ -3365,6 +3530,20 @@ function isAssetPath(relativePath) {
   return /(^|\/)(assets?|screenshots?|static|public|reports?)\/.+\.(png|jpe?g|gif|svg|webp|html)$/i.test(
     relativePath
   ) || /(report|decision|trace)\.(html|md|json)$/i.test(relativePath);
+}
+function detectFrameworks(files) {
+  const found = [];
+  const has = (pattern) => files.some((f) => pattern.test(f));
+  if (has(/(^|\/)Anchor\.toml$/)) found.push("solana-anchor");
+  else if (has(/(^|\/)programs\/.*\/src\/lib\.rs$/)) found.push("solana-native");
+  if (has(/(^|\/)foundry\.toml$/)) found.push("foundry");
+  if (has(/(^|\/)hardhat\.config\.(ts|js|cjs|mjs)$/)) found.push("hardhat");
+  if (has(/(^|\/)next\.config\.(ts|js|cjs|mjs)$/)) found.push("nextjs");
+  if (has(/(^|\/)Dockerfile$/i)) found.push("docker");
+  if (has(/(^|\/)turbo\.json$/)) found.push("turborepo");
+  if (has(/(^|\/)nx\.json$/)) found.push("nx");
+  if (has(/(^|\/)\.github\/workflows\/.+\.ya?ml$/)) found.push("github-actions");
+  return found;
 }
 function isRootSupportPath(relativePath) {
   return isCiPath(relativePath) || !relativePath.includes("/") && (isDocPath(relativePath) || isManifestPath(relativePath) || isLockPath(relativePath) || isEnvExamplePath(relativePath) || isLicensePath(relativePath));
@@ -3413,7 +3592,11 @@ async function listRepoFiles(rootPath) {
   }
   const realGitRoot = await fs2.realpath(gitRoot).catch(() => gitRoot);
   const tracked = exec("git", ["-C", rootPath, "ls-files"], rootPath);
-  const others = exec("git", ["-C", rootPath, "ls-files", "--others", "--exclude-standard"], rootPath);
+  const others = exec(
+    "git",
+    ["-C", rootPath, "ls-files", "--others", "--exclude-standard"],
+    rootPath
+  );
   const gitPrefix = path2.relative(realGitRoot, realRootPath).replace(/\\/g, "/").replace(/^$/, "");
   return unique([...tracked ? tracked.split("\n") : [], ...others ? others.split("\n") : []]).map((item) => item.trim()).filter(Boolean).filter((item) => {
     if (!gitPrefix) return true;
@@ -3445,7 +3628,9 @@ function extractCommands(docs) {
       for (const rawLine of block.split("\n")) {
         const line = rawLine.trim();
         if (!line || line.startsWith("#")) continue;
-        if (/^(cargo install|brew install|go install|pip install|uv tool install|npm install -g|pnpm add -g|pnpm dlx|npx)\b/i.test(line)) {
+        if (/^(cargo install|brew install|go install|pip install|uv tool install|npm install -g|pnpm add -g|pnpm dlx|npx)\b/i.test(
+          line
+        )) {
           installCommands.push(line);
         }
         if (/(^| )(reality-fork|kamiyo-reality-fork-cli)\b/i.test(line) || /^(cargo run|npm run|pnpm run)\b/i.test(line)) {
@@ -3615,6 +3800,19 @@ function buildSignals(repo, scores, axes) {
       sample(repo.licenses, 2)
     );
   }
+  if (repo.frameworks.length > 0) {
+    const solana = repo.frameworks.filter((f) => f.startsWith("solana"));
+    const label = solana.length > 0 ? `Solana ecosystem detected (${solana.join(", ")})` : `Recognized frameworks: ${repo.frameworks.join(", ")}`;
+    push(
+      "framework-detected",
+      "supporting",
+      "distribution",
+      label,
+      `Detected ${repo.frameworks.length} framework${repo.frameworks.length === 1 ? "" : "s"} from project markers.`,
+      solana.length > 0 ? 0.85 : 0.78,
+      []
+    );
+  }
   if (repo.remoteDependencyNotes.length > 0) {
     push(
       "remote-dependency",
@@ -3623,7 +3821,10 @@ function buildSignals(repo, scores, axes) {
       "Advanced flows still depend on a separate API surface.",
       compactText2(repo.remoteDependencyNotes[0], 180),
       0.93,
-      sample(repo.remoteDependencyNotes.map((note) => note.split(": ")[0]), 3)
+      sample(
+        repo.remoteDependencyNotes.map((note) => note.split(": ")[0]),
+        3
+      )
     );
   }
   if (scores.splitRuntimePenalty > 0) {
@@ -3634,7 +3835,10 @@ function buildSignals(repo, scores, axes) {
       "The public install path still exposes multi-runtime friction.",
       "The docs mention Cargo install and a Node runtime requirement together.",
       0.89,
-      sample(repo.runtimeNotes.map((note) => note.split(": ")[0]), 3)
+      sample(
+        repo.runtimeNotes.map((note) => note.split(": ")[0]),
+        3
+      )
     );
   }
   if (repo.git.changedFiles.length > 0) {
@@ -3687,7 +3891,9 @@ function buildSignals(repo, scores, axes) {
       true
     );
   }
-  return signals.sort((left, right) => right.weight - left.weight || left.id.localeCompare(right.id));
+  return signals.sort(
+    (left, right) => right.weight - left.weight || left.id.localeCompare(right.id)
+  );
 }
 function buildActions(axes) {
   const actionsByAxis = {
@@ -3733,12 +3939,12 @@ function buildBranches2(axes, actions, repo) {
       score: branchScores.ship_now,
       summary: "Launch the full current surface now and learn in public without another major packaging pass.",
       advantages: [
-        `Immediacy is already at ${percent2(scores.immediacy)}.`,
-        `Trust and proof together average ${percent2(average(scores.trust, scores.proof))}.`,
+        `Immediacy is already at ${percent3(scores.immediacy)}.`,
+        `Trust and proof together average ${percent3(average(scores.trust, scores.proof))}.`,
         "You get real external signal immediately instead of optimizing in a vacuum."
       ],
       risks: [
-        `The weakest go-to-market axis is still only ${percent2(weakestGoToMarket)}.`,
+        `The weakest go-to-market axis is still only ${percent3(weakestGoToMarket)}.`,
         "You will spend launch energy explaining the product instead of showing one impossible-to-miss use case."
       ],
       nextMoves: [
@@ -3754,7 +3960,7 @@ function buildBranches2(axes, actions, repo) {
       score: branchScores.narrow_launch,
       summary: "Make one repo-native workflow the product, and demote everything else to supporting machinery.",
       advantages: [
-        `Core strength is already ${percent2(strength)} across immediacy, proof, and trust.`,
+        `Core strength is already ${percent3(strength)} across immediacy, proof, and trust.`,
         "You can force the public story to match the strongest technical surface.",
         "The HTML, Markdown, and JSON artifact path becomes the thing people remember and share."
       ],
@@ -3837,8 +4043,8 @@ function verdictReason(branch, axes, actions) {
   }
 }
 function buildPosts(repo, branch, verdict, axes) {
-  const topAxes = axes.slice().sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, 2).map((axis) => `${axisLabel(axis.id)} ${percent2(axis.score)}`);
-  const weakAxes = axes.slice().sort((left, right) => left.score - right.score || left.id.localeCompare(right.id)).slice(0, 2).map((axis) => `${axisLabel(axis.id)} ${percent2(axis.score)}`);
+  const topAxes = axes.slice().sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, 2).map((axis) => `${axisLabel(axis.id)} ${percent3(axis.score)}`);
+  const weakAxes = axes.slice().sort((left, right) => left.score - right.score || left.id.localeCompare(right.id)).slice(0, 2).map((axis) => `${axisLabel(axis.id)} ${percent3(axis.score)}`);
   return {
     announcement: trimPost(
       [
@@ -3849,7 +4055,7 @@ function buildPosts(repo, branch, verdict, axes) {
     ),
     thread: [
       trimPost(
-        `Reality Fork scored ${repo.name} at ${percent2(verdict.readiness)} launch readiness. Verdict: ${branch.label}.`
+        `Reality Fork scored ${repo.name} at ${percent3(verdict.readiness)} launch readiness. Verdict: ${branch.label}.`
       ),
       trimPost(`Strongest signals: ${topAxes.join(" | ")}. Weakest: ${weakAxes.join(" | ")}.`),
       trimPost(`Next move: ${branch.nextMoves[0]}`)
@@ -3866,21 +4072,21 @@ function formatMarkdownCitation(repo, citation) {
   if (!link) return `\`${citation}\``;
   return `[\`${citation}\`](${link})`;
 }
-function escapeHtml(value) {
+function escapeHtml2(value) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 function formatHtmlCitation(repo, citation) {
   const link = citationLink(repo, citation);
-  if (!link) return `<code>${escapeHtml(citation)}</code>`;
-  return `<a href="${escapeHtml(link)}"><code>${escapeHtml(citation)}</code></a>`;
+  if (!link) return `<code>${escapeHtml2(citation)}</code>`;
+  return `<a href="${escapeHtml2(link)}"><code>${escapeHtml2(citation)}</code></a>`;
 }
 function renderDecisionMarkdown(run) {
   const branch = run.branches[0];
-  const scoreboard = run.axes.map((axis) => `| ${axisLabel(axis.id)} | ${percent2(axis.score)} | ${axis.summary} |`).join("\n");
+  const scoreboard = run.axes.map((axis) => `| ${axisLabel(axis.id)} | ${percent3(axis.score)} | ${axis.summary} |`).join("\n");
   const branchSections = run.branches.map(
     (item) => `### ${item.label}
 
-Score: ${percent2(item.score)}
+Score: ${percent3(item.score)}
 
 ${item.summary}
 
@@ -3914,7 +4120,7 @@ Prompt: ${run.prompt}
 
 ${run.verdict.reason}
 
-Launch readiness: ${percent2(run.verdict.readiness)}
+Launch readiness: ${percent3(run.verdict.readiness)}
 
 ## Scoreboard
 
@@ -3952,42 +4158,45 @@ function renderReportHtml(run) {
   const signals = run.signals.map((signal) => {
     const citations = signal.citations.length ? `<div class="signal-citations">${signal.citations.map((citation) => formatHtmlCitation(run.repo, citation)).join(" ")}</div>` : "";
     return `<article class="signal signal-${signal.type}">
-  <div class="signal-meta">${escapeHtml(signal.type)} \xB7 ${escapeHtml(axisLabel(signal.axis))}${signal.inferred ? " \xB7 inference" : ""}</div>
-  <h3>${escapeHtml(signal.statement)}</h3>
-  <p>${escapeHtml(signal.detail)}</p>
+  <div class="signal-meta">${escapeHtml2(signal.type)} \xB7 ${escapeHtml2(axisLabel(signal.axis))}${signal.inferred ? " \xB7 inference" : ""}</div>
+  <h3>${escapeHtml2(signal.statement)}</h3>
+  <p>${escapeHtml2(signal.detail)}</p>
   ${citations}
 </article>`;
   }).join("\n");
   const branches = run.branches.map(
     (branch) => `<article class="branch ${branch.id === winner.id ? "branch-winner" : ""}">
-  <div class="branch-score">${percent2(branch.score)}</div>
-  <div class="branch-stance">${escapeHtml(branch.stance)}</div>
-  <h3>${escapeHtml(branch.label)}</h3>
-  <p>${escapeHtml(branch.summary)}</p>
-  <div class="branch-columns">
+  <div class="branch-score">${percent3(branch.score)}</div>
+  <div class="branch-stance">${escapeHtml2(branch.stance)}</div>
+  <h3>${escapeHtml2(branch.label)}</h3>
+  <p>${escapeHtml2(branch.summary)}</p>
+  <details open>
+    <summary>Details</summary>
+    <div class="branch-columns">
+      <section>
+        <h4>Advantages</h4>
+        <ul>${branch.advantages.map((item) => `<li>${escapeHtml2(item)}</li>`).join("")}</ul>
+      </section>
+      <section>
+        <h4>Risks</h4>
+        <ul>${branch.risks.map((item) => `<li>${escapeHtml2(item)}</li>`).join("")}</ul>
+      </section>
+    </div>
     <section>
-      <h4>Advantages</h4>
-      <ul>${branch.advantages.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      <h4>Next Moves</h4>
+      <ul>${branch.nextMoves.map((item) => `<li>${escapeHtml2(item)}</li>`).join("")}</ul>
     </section>
-    <section>
-      <h4>Risks</h4>
-      <ul>${branch.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-    </section>
-  </div>
-  <section>
-    <h4>Next Moves</h4>
-    <ul>${branch.nextMoves.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-  </section>
+  </details>
 </article>`
   ).join("\n");
   const axes = run.axes.map(
     (axis) => `<article class="axis-card">
   <div class="axis-header">
-    <h3>${escapeHtml(axisLabel(axis.id))}</h3>
-    <span>${percent2(axis.score)}</span>
+    <h3>${escapeHtml2(axisLabel(axis.id))}</h3>
+    <span>${percent3(axis.score)}</span>
   </div>
-  <div class="axis-bar"><span style="width: ${Math.round(axis.score * 100)}%"></span></div>
-  <p>${escapeHtml(axis.summary)}</p>
+  <div class="axis-bar"><span data-width="${Math.round(axis.score * 100)}%" style="width: 0"></span></div>
+  <p>${escapeHtml2(axis.summary)}</p>
 </article>`
   ).join("\n");
   return `<!doctype html>
@@ -3995,7 +4204,7 @@ function renderReportHtml(run) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${escapeHtml(run.title)}</title>
+    <title>${escapeHtml2(run.title)}</title>
     <style>
       :root {
         --bg: #f4eee1;
@@ -4009,11 +4218,25 @@ function renderReportHtml(run) {
         --good: #185b37;
         --bad: #9b2c2c;
         --shadow: 0 24px 80px rgba(58, 35, 14, 0.12);
+        --card-bg: rgba(255, 255, 255, 0.64);
       }
 
-      * {
-        box-sizing: border-box;
+      html.dark {
+        --bg: #141210;
+        --bg-alt: #1a1714;
+        --ink: #e8e0d4;
+        --muted: #9a8e80;
+        --panel: rgba(28, 24, 20, 0.92);
+        --line: rgba(232, 224, 212, 0.1);
+        --accent: #e8784a;
+        --accent-soft: rgba(232, 120, 74, 0.16);
+        --good: #3db872;
+        --bad: #e25a5a;
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+        --card-bg: rgba(255, 255, 255, 0.04);
       }
+
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -4023,6 +4246,7 @@ function renderReportHtml(run) {
           radial-gradient(circle at top right, rgba(24, 91, 55, 0.14), transparent 28%),
           linear-gradient(180deg, var(--bg), var(--bg-alt));
         color: var(--ink);
+        transition: background 0.3s, color 0.3s;
       }
 
       main {
@@ -4031,13 +4255,12 @@ function renderReportHtml(run) {
         padding: 48px 0 80px;
       }
 
-      .hero,
-      .section,
-      .posts {
+      .hero, .section, .posts {
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 28px;
         box-shadow: var(--shadow);
+        transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
       }
 
       .hero {
@@ -4056,13 +4279,8 @@ function renderReportHtml(run) {
         background: linear-gradient(135deg, rgba(206, 90, 44, 0.14), rgba(24, 91, 55, 0.12));
       }
 
-      .kicker,
-      .signal-meta,
-      .branch-stance,
-      .repo-meta,
-      .axis-header span,
-      .branch-score,
-      .posts code {
+      .mono, .kicker, .signal-meta, .branch-stance, .repo-meta,
+      .axis-header span, .branch-score, .posts code, .btn {
         font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
       }
 
@@ -4077,13 +4295,27 @@ function renderReportHtml(run) {
         font-size: 12px;
       }
 
-      h1,
-      h2,
-      h3,
-      h4,
-      p {
-        margin: 0;
+      .hero-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
       }
+
+      .btn {
+        cursor: pointer;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--card-bg);
+        color: var(--muted);
+        padding: 6px 14px;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        transition: background 0.2s, color 0.2s;
+      }
+      .btn:hover { color: var(--ink); }
+
+      h1, h2, h3, h4, p { margin: 0; }
 
       h1 {
         margin-top: 18px;
@@ -4092,9 +4324,7 @@ function renderReportHtml(run) {
         max-width: 11ch;
       }
 
-      .hero-copy {
-        max-width: 760px;
-      }
+      .hero-copy { max-width: 760px; }
 
       .hero-copy p {
         margin-top: 20px;
@@ -4103,11 +4333,7 @@ function renderReportHtml(run) {
         color: var(--muted);
       }
 
-      .hero-grid,
-      .axis-grid,
-      .branch-grid,
-      .signal-grid,
-      .posts-grid {
+      .hero-grid, .axis-grid, .branch-grid, .signal-grid, .posts-grid {
         display: grid;
         gap: 18px;
       }
@@ -4117,15 +4343,12 @@ function renderReportHtml(run) {
         margin-top: 32px;
       }
 
-      .hero-stat,
-      .axis-card,
-      .branch,
-      .signal,
-      .posts article {
+      .hero-stat, .axis-card, .branch, .signal, .posts article {
         border: 1px solid var(--line);
         border-radius: 22px;
         padding: 22px;
-        background: rgba(255, 255, 255, 0.64);
+        background: var(--card-bg);
+        transition: background 0.3s, border-color 0.3s;
       }
 
       .hero-stat strong {
@@ -4134,10 +4357,7 @@ function renderReportHtml(run) {
         margin-top: 6px;
       }
 
-      .hero-stat span,
-      .repo-meta {
-        color: var(--muted);
-      }
+      .hero-stat span, .repo-meta { color: var(--muted); }
 
       .repo-meta {
         margin-top: 28px;
@@ -4147,14 +4367,24 @@ function renderReportHtml(run) {
         font-size: 0.9rem;
       }
 
-      .section,
-      .posts {
+      .section, .posts {
         margin-top: 22px;
         padding: 30px;
+        opacity: 0;
+        transform: translateY(24px);
+        animation: fadeInUp 0.5s ease forwards;
+      }
+      .section:nth-child(2) { animation-delay: 0.1s; }
+      .section:nth-child(3) { animation-delay: 0.2s; }
+      .section:nth-child(4) { animation-delay: 0.3s; }
+      .section:nth-child(5) { animation-delay: 0.4s; }
+      .posts { animation-delay: 0.5s; }
+
+      @keyframes fadeInUp {
+        to { opacity: 1; transform: translateY(0); }
       }
 
-      .section h2,
-      .posts h2 {
+      .section h2, .posts h2 {
         font-size: 1.75rem;
         margin-bottom: 18px;
       }
@@ -4177,18 +4407,17 @@ function renderReportHtml(run) {
         overflow: hidden;
         margin: 14px 0;
       }
+      html.dark .axis-bar { background: rgba(232, 224, 212, 0.08); }
 
       .axis-bar span {
         display: block;
         height: 100%;
         border-radius: inherit;
-        background: linear-gradient(90deg, #ce5a2c, #185b37);
+        background: linear-gradient(90deg, var(--accent), var(--good));
+        transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
       }
 
-      .axis-card p,
-      .signal p,
-      .branch p,
-      .posts p {
+      .axis-card p, .signal p, .branch p, .posts p {
         color: var(--muted);
         line-height: 1.6;
       }
@@ -4197,13 +4426,11 @@ function renderReportHtml(run) {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
 
-      .branch {
-        position: relative;
-      }
+      .branch { position: relative; }
 
       .branch-winner {
         border-color: rgba(206, 90, 44, 0.35);
-        background: linear-gradient(180deg, rgba(206, 90, 44, 0.08), rgba(255, 255, 255, 0.72));
+        background: linear-gradient(180deg, rgba(206, 90, 44, 0.08), var(--card-bg));
       }
 
       .branch-score {
@@ -4213,10 +4440,7 @@ function renderReportHtml(run) {
         text-transform: uppercase;
       }
 
-      .branch h3 {
-        margin-top: 8px;
-        font-size: 1.35rem;
-      }
+      .branch h3 { margin-top: 8px; font-size: 1.35rem; }
 
       .branch-columns {
         display: grid;
@@ -4225,9 +4449,15 @@ function renderReportHtml(run) {
         margin-top: 18px;
       }
 
-      .branch section:last-child {
-        margin-top: 18px;
+      .branch section:last-child { margin-top: 18px; }
+
+      details summary {
+        cursor: pointer;
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.9rem;
       }
+      details summary::marker { color: var(--accent); }
 
       ul {
         margin: 12px 0 0;
@@ -4240,13 +4470,8 @@ function renderReportHtml(run) {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
 
-      .signal-supporting {
-        border-color: rgba(24, 91, 55, 0.18);
-      }
-
-      .signal-risk {
-        border-color: rgba(155, 44, 44, 0.18);
-      }
+      .signal-supporting { border-color: rgba(24, 91, 55, 0.18); }
+      .signal-risk { border-color: rgba(155, 44, 44, 0.18); }
 
       .signal-meta {
         color: var(--muted);
@@ -4255,10 +4480,7 @@ function renderReportHtml(run) {
         letter-spacing: 0.08em;
       }
 
-      .signal h3 {
-        margin: 10px 0 8px;
-        font-size: 1.15rem;
-      }
+      .signal h3 { margin: 10px 0 8px; font-size: 1.15rem; }
 
       .signal-citations {
         display: flex;
@@ -4267,9 +4489,7 @@ function renderReportHtml(run) {
         margin-top: 14px;
       }
 
-      a {
-        color: inherit;
-      }
+      a { color: inherit; }
 
       code {
         font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
@@ -4278,70 +4498,63 @@ function renderReportHtml(run) {
         padding: 3px 6px;
         border-radius: 8px;
       }
+      html.dark code { background: rgba(232, 224, 212, 0.06); }
 
       .posts-grid {
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       }
 
-      .posts article h3 {
-        font-size: 1rem;
-        margin-bottom: 10px;
+      .posts article { position: relative; }
+      .posts article h3 { font-size: 1rem; margin-bottom: 10px; }
+
+      .copy-btn {
+        position: absolute;
+        top: 14px;
+        right: 14px;
       }
 
-      .actions {
-        display: grid;
-        gap: 12px;
-      }
+      .actions { display: grid; gap: 12px; }
 
       .actions article {
         padding: 16px 18px;
         border-radius: 18px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.72);
+        background: var(--card-bg);
+        transition: background 0.3s, border-color 0.3s;
       }
 
       @media (max-width: 860px) {
-        .hero-grid,
-        .branch-columns {
-          grid-template-columns: 1fr;
-        }
-
-        main {
-          width: min(100vw - 24px, 1120px);
-          padding-top: 24px;
-        }
-
-        .hero,
-        .section,
-        .posts {
-          padding: 22px;
-          border-radius: 22px;
-        }
+        .hero-grid, .branch-columns { grid-template-columns: 1fr; }
+        main { width: min(100vw - 24px, 1120px); padding-top: 24px; }
+        .hero, .section, .posts { padding: 22px; border-radius: 22px; }
       }
     </style>
   </head>
   <body>
     <main>
       <section class="hero">
-        <span class="kicker">Reality Fork Launch Run</span>
+        <div class="hero-bar">
+          <span class="kicker">Reality Fork Launch Run</span>
+          <button class="btn" id="theme-toggle" type="button">dark mode</button>
+        </div>
         <div class="hero-copy">
-          <h1>${escapeHtml(winner.label)}</h1>
-          <p>${escapeHtml(run.verdict.reason)}</p>
+          <h1>${escapeHtml2(winner.label)}</h1>
+          <p>${escapeHtml2(run.verdict.reason)}</p>
           <div class="repo-meta">
-            <span>${escapeHtml(run.repo.name)}</span>
-            <span>${escapeHtml(run.repo.displayPath)}</span>
-            <span>${escapeHtml(run.generatedAt)}</span>
-            <span>readiness ${percent2(run.verdict.readiness)}</span>
+            <span>${escapeHtml2(run.repo.name)}</span>
+            <span>${escapeHtml2(run.repo.displayPath)}</span>
+            <span>${escapeHtml2(run.generatedAt)}</span>
+            <span>readiness ${percent3(run.verdict.readiness)}</span>
           </div>
         </div>
         <div class="hero-grid">
           <article class="hero-stat">
             <span>Prompt</span>
-            <strong>${escapeHtml(run.prompt)}</strong>
+            <strong>${escapeHtml2(run.prompt)}</strong>
           </article>
           <article class="hero-stat">
             <span>Winner score</span>
-            <strong>${percent2(winner.score)}</strong>
+            <strong>${percent3(winner.score)}</strong>
           </article>
         </div>
       </section>
@@ -4370,7 +4583,7 @@ function renderReportHtml(run) {
       <section class="section">
         <h2>Next Moves</h2>
         <div class="actions">
-          ${run.actions.map((action) => `<article>${escapeHtml(action)}</article>`).join("\n")}
+          ${run.actions.map((action) => `<article>${escapeHtml2(action)}</article>`).join("\n")}
         </div>
       </section>
 
@@ -4378,18 +4591,56 @@ function renderReportHtml(run) {
         <h2>Ready Posts</h2>
         <div class="posts-grid">
           <article>
+            <button class="btn copy-btn" type="button" data-copy="${escapeHtml2(run.posts.announcement)}">copy</button>
             <h3>Announcement</h3>
-            <p>${escapeHtml(run.posts.announcement)}</p>
+            <p>${escapeHtml2(run.posts.announcement)}</p>
           </article>
           <article>
+            <button class="btn copy-btn" type="button" data-copy="${escapeHtml2(run.posts.thread.join("\n"))}">copy</button>
             <h3>Thread</h3>
-            <p>1. ${escapeHtml(run.posts.thread[0])}</p>
-            <p>2. ${escapeHtml(run.posts.thread[1])}</p>
-            <p>3. ${escapeHtml(run.posts.thread[2])}</p>
+            <p>1. ${escapeHtml2(run.posts.thread[0])}</p>
+            <p>2. ${escapeHtml2(run.posts.thread[1])}</p>
+            <p>3. ${escapeHtml2(run.posts.thread[2])}</p>
           </article>
         </div>
       </section>
     </main>
+    <script>
+      (function () {
+        var bars = document.querySelectorAll('.axis-bar span[data-width]');
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            bars.forEach(function (bar) { bar.style.width = bar.dataset.width; });
+          });
+        });
+
+        var toggle = document.getElementById('theme-toggle');
+        function applyTheme(dark) {
+          document.documentElement.classList.toggle('dark', dark);
+          toggle.textContent = dark ? 'light mode' : 'dark mode';
+          try { localStorage.setItem('rf-theme', dark ? 'dark' : 'light'); } catch (_) {}
+        }
+        try {
+          var saved = localStorage.getItem('rf-theme');
+          if (saved === 'dark') applyTheme(true);
+          else if (!saved && matchMedia('(prefers-color-scheme: dark)').matches) applyTheme(true);
+        } catch (_) {}
+        toggle.addEventListener('click', function () {
+          applyTheme(!document.documentElement.classList.contains('dark'));
+        });
+
+        document.querySelectorAll('[data-copy]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var text = btn.dataset.copy;
+            navigator.clipboard.writeText(text).then(function () {
+              var prev = btn.textContent;
+              btn.textContent = 'copied';
+              setTimeout(function () { btn.textContent = prev; }, 1200);
+            });
+          });
+        });
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -4447,14 +4698,11 @@ async function collectRepoContext(rootPath, requestedFocusPaths = []) {
   const rawRemoteUrl = exec("git", ["-C", rootPath, "remote", "get-url", "origin"], rootPath);
   const webUrl = deriveWebUrl(rawRemoteUrl);
   const recentCommits = (exec("git", ["-C", rootPath, "log", "--pretty=%s", "-n", "6"], rootPath) ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
-  const changedFiles = (exec(
-    "git",
-    ["-C", rootPath, "status", "--short", "--untracked-files=normal"],
-    rootPath
-  ) ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const changedFiles = (exec("git", ["-C", rootPath, "status", "--short", "--untracked-files=normal"], rootPath) ?? "").split("\n").map((line) => line.trim()).filter(Boolean);
   const readmePath = docs.find((file) => /^README(\.[^.]+)?\.md$/i.test(file)) ?? null;
   const readmeText = readmePath ? docSources.find((source) => source.path === readmePath)?.text ?? null : null;
   const name = repoNameFromSignals(rootPath, rawRemoteUrl, docSources);
+  const frameworks = detectFrameworks(allFiles);
   return {
     name,
     displayPath: sanitizePath(rootPath),
@@ -4472,6 +4720,7 @@ async function collectRepoContext(rootPath, requestedFocusPaths = []) {
     envExamples,
     licenses,
     assets,
+    frameworks,
     installCommands: commandSignals.installCommands,
     localRunCommands: commandSignals.localRunCommands,
     remoteDependencyNotes: commandSignals.remoteDependencyNotes,
@@ -4494,9 +4743,11 @@ function deriveRepoScores(repo) {
   const commandDocsScore = clamp((repo.installCommands.length + repo.localRunCommands.length) / 6);
   const installScore = repo.installCommands.length > 0 ? clamp(0.6 + repo.installCommands.length / 8) : repo.manifests.length > 0 ? 0.35 : 0;
   const localModeScore = repo.localRunCommands.some((command) => !/^curl\b/i.test(command)) && (repo.fixtures.length > 0 || repo.examples.length > 0 || repo.remoteDependencyNotes.length < repo.localRunCommands.length) ? 1 : repo.fixtures.length > 0 || repo.examples.length > 0 ? 0.72 : 0.22;
-  const docText = [repo.readmeExcerpt ?? "", ...repo.artifactNotes, ...repo.remoteDependencyNotes].join(
-    " "
-  );
+  const docText = [
+    repo.readmeExcerpt ?? "",
+    ...repo.artifactNotes,
+    ...repo.remoteDependencyNotes
+  ].join(" ");
   const outcomeHits = (docText.match(
     /\b(launch|ship|deploy|review|simulate|stress-test|decision|workflow|agent|builder|artifact|report|pr|spec)\b/gi
   ) ?? []).length;
@@ -4512,10 +4763,17 @@ function deriveRepoScores(repo) {
   const cleanScore = repo.git.branch === null ? 0.7 : repo.git.changedFiles.length === 0 ? 1 : clamp(1 - repo.git.changedFiles.length / 28);
   const licenseScore = repo.licenses.length > 0 ? 1 : 0;
   const envScore = repo.envExamples.length > 0 ? 1 : 0;
-  const mentionsCargoInstall = repo.installCommands.some((command) => /^cargo install\b/i.test(command));
-  const mentionsNodeRequirement = repo.runtimeNotes.some((note) => /Node\.js|node 20|nodejs/i.test(note));
+  const mentionsCargoInstall = repo.installCommands.some(
+    (command) => /^cargo install\b/i.test(command)
+  );
+  const mentionsNodeRequirement = repo.runtimeNotes.some(
+    (note) => /Node\.js|node 20|nodejs/i.test(note)
+  );
   const splitRuntimePenalty = mentionsCargoInstall && mentionsNodeRequirement ? 0.24 : 0;
   const externalDependencyPenalty = repo.remoteDependencyNotes.length === 0 ? 0 : localModeScore >= 0.7 ? 0.08 : 0.22;
+  const hasSolana = repo.frameworks.some((f) => f.startsWith("solana"));
+  const frameworkBonus = clamp(repo.frameworks.length / 5);
+  const solanaBonus = hasSolana ? 0.12 : 0;
   return {
     hasReadme,
     docsScore,
@@ -4534,6 +4792,8 @@ function deriveRepoScores(repo) {
     cleanScore,
     licenseScore,
     envScore,
+    frameworkBonus,
+    solanaBonus,
     splitRuntimePenalty,
     externalDependencyPenalty
   };
@@ -4549,18 +4809,33 @@ function buildAxes(repo, scores) {
     0.4 * scores.proofScore + 0.25 * scores.ciScore + 0.2 * scores.exampleScore + 0.15 * scores.commitScore
   );
   const distribution = clamp(
-    0.34 * scores.installScore + 0.24 * scores.manifestScore + 0.2 * scores.lockScore + 0.22 * scores.changelogScore - scores.splitRuntimePenalty
+    0.34 * scores.installScore + 0.24 * scores.manifestScore + 0.2 * scores.lockScore + 0.22 * scores.changelogScore + 0.08 * scores.frameworkBonus - scores.splitRuntimePenalty
   );
   const shareability = clamp(
     0.34 * scores.artifactScore + 0.24 * scores.exampleScore + 0.2 * scores.docsScore + 0.22 * scores.commandDocsScore
   );
   const trust = clamp(
-    0.35 * scores.proofScore + 0.25 * scores.ciScore + 0.15 * scores.licenseScore + 0.15 * scores.cleanScore + 0.1 * scores.envScore
+    0.35 * scores.proofScore + 0.25 * scores.ciScore + 0.15 * scores.licenseScore + 0.15 * scores.cleanScore + 0.1 * scores.envScore + 0.06 * scores.frameworkBonus
   );
   return [
-    { id: "immediacy", label: axisLabel("immediacy"), score: immediacy, summary: summarizeAxis("immediacy", immediacy) },
-    { id: "clarity", label: axisLabel("clarity"), score: clarity, summary: summarizeAxis("clarity", clarity) },
-    { id: "proof", label: axisLabel("proof"), score: proof, summary: summarizeAxis("proof", proof) },
+    {
+      id: "immediacy",
+      label: axisLabel("immediacy"),
+      score: immediacy,
+      summary: summarizeAxis("immediacy", immediacy)
+    },
+    {
+      id: "clarity",
+      label: axisLabel("clarity"),
+      score: clarity,
+      summary: summarizeAxis("clarity", clarity)
+    },
+    {
+      id: "proof",
+      label: axisLabel("proof"),
+      score: proof,
+      summary: summarizeAxis("proof", proof)
+    },
     {
       id: "distribution",
       label: axisLabel("distribution"),
@@ -4573,7 +4848,12 @@ function buildAxes(repo, scores) {
       score: shareability,
       summary: summarizeAxis("shareability", shareability)
     },
-    { id: "trust", label: axisLabel("trust"), score: trust, summary: summarizeAxis("trust", trust) }
+    {
+      id: "trust",
+      label: axisLabel("trust"),
+      score: trust,
+      summary: summarizeAxis("trust", trust)
+    }
   ];
 }
 async function createRealityForkLaunchRun(input) {
@@ -5293,7 +5573,7 @@ function firstString() {
   }
 }
 
-// packages/kamiyo-reality-fork-cli/dist/config.js
+// packages/kamiyo-reality-fork-cli/src/config.ts
 import fs3 from "node:fs";
 import os3 from "node:os";
 import path3 from "node:path";
@@ -5410,10 +5690,10 @@ var ConfigStore = class _ConfigStore {
   }
 };
 
-// packages/kamiyo-reality-fork-cli/dist/hooks.js
+// packages/kamiyo-reality-fork-cli/src/hooks.ts
 import { spawnSync } from "node:child_process";
 
-// packages/kamiyo-reality-fork-cli/dist/output.js
+// packages/kamiyo-reality-fork-cli/src/output.ts
 var quiet = false;
 var verbose = false;
 function setQuiet(value) {
@@ -5423,18 +5703,15 @@ function setVerbose(value) {
   verbose = value;
 }
 function banner() {
-  if (quiet)
-    return;
+  if (quiet) return;
   console.log(source_default.bold("Reality Fork CLI"));
 }
 function info(message) {
-  if (quiet)
-    return;
+  if (quiet) return;
   console.log(message);
 }
 function success(message) {
-  if (quiet)
-    return;
+  if (quiet) return;
   console.log(source_default.green(message));
 }
 function warn(message) {
@@ -5444,13 +5721,11 @@ function error(message) {
   console.error(source_default.red(message));
 }
 function dim(message) {
-  if (quiet)
-    return;
+  if (quiet) return;
   console.log(source_default.gray(message));
 }
 function debug(message) {
-  if (!verbose || quiet)
-    return;
+  if (!verbose || quiet) return;
   console.error(source_default.gray(message));
 }
 function print(data, format) {
@@ -5475,13 +5750,11 @@ function print(data, format) {
   }
 }
 
-// packages/kamiyo-reality-fork-cli/dist/hooks.js
+// packages/kamiyo-reality-fork-cli/src/hooks.ts
 function runHooks(config, stage, context, result) {
   for (const hook of config.hooks) {
-    if (!hook.enabled && hook.enabled !== void 0)
-      continue;
-    if (hook.stage !== stage || hook.command !== context.commandPath)
-      continue;
+    if (!hook.enabled && hook.enabled !== void 0) continue;
+    if (hook.stage !== stage || hook.command !== context.commandPath) continue;
     const shell = process.env.SHELL || "/bin/sh";
     const child = spawnSync(shell, ["-lc", hook.run], {
       stdio: ["ignore", "inherit", "inherit"],
@@ -5509,7 +5782,7 @@ function runHooks(config, stage, context, result) {
   }
 }
 
-// packages/kamiyo-reality-fork-cli/dist/sessions.js
+// packages/kamiyo-reality-fork-cli/src/sessions.ts
 import fs4 from "node:fs";
 var SessionLogger = class {
   enabled;
@@ -5519,8 +5792,7 @@ var SessionLogger = class {
     this.filePath = filePath;
   }
   append(entry) {
-    if (!this.enabled)
-      return;
+    if (!this.enabled) return;
     fs4.mkdirSync(requireParent(this.filePath), { recursive: true, mode: 448 });
     fs4.appendFileSync(this.filePath, `${JSON.stringify(entry)}
 `, "utf8");
@@ -5545,7 +5817,7 @@ function requireParent(filePath) {
   return filePath.slice(0, index);
 }
 
-// packages/kamiyo-reality-fork-cli/dist/index.js
+// packages/kamiyo-reality-fork-cli/src/index.ts
 function rootProgramName() {
   return "reality-fork";
 }
@@ -5553,8 +5825,7 @@ function trimSlashes(value) {
   return value.replace(/\/+$/, "");
 }
 function shellQuote(value) {
-  if (!value)
-    return "''";
+  if (!value) return "''";
   if ([...value].every((ch) => /[A-Za-z0-9_.:/-]/.test(ch))) {
     return value;
   }
@@ -5587,7 +5858,11 @@ function canCreateProfile(commandPath) {
   return (/* @__PURE__ */ new Set(["setup", "config set-url", "config set-output"])).has(commandPath);
 }
 function resolveEffectiveInvocation(store, options, defaults, source, commandPath) {
-  const profileName = store.selectedProfileName(options.profile, defaults.profile, canCreateProfile(commandPath));
+  const profileName = store.selectedProfileName(
+    options.profile,
+    defaults.profile,
+    canCreateProfile(commandPath)
+  );
   const profile = store.profile(profileName) ?? store.ensureProfile(profileName);
   return {
     profile: profileName,
@@ -5624,7 +5899,9 @@ function printProjectSummary(project) {
   if (project.description) {
     info(`description: ${project.description}`);
   }
-  info(`evidence ${project.stats.evidenceCount}, simulations ${project.stats.simulationCount}, claims ${project.stats.claimCount}`);
+  info(
+    `evidence ${project.stats.evidenceCount}, simulations ${project.stats.simulationCount}, claims ${project.stats.claimCount}`
+  );
   if (project.decision?.winnerLabel) {
     info(`winner: ${project.decision.winnerLabel}`);
   }
@@ -5745,25 +6022,82 @@ function displayPathFromCwd(filePath) {
   }
   return relative;
 }
-function printLaunchRunSummary(run, artifacts, output) {
-  if (output === "json") {
-    print({
+function printLaunchRunJson(run, artifacts) {
+  print(
+    {
       verdict: run.verdict,
       topAxes: run.axes.slice().sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, 3),
       actions: run.actions,
       posts: run.posts,
       artifacts
-    }, output);
-    return;
+    },
+    "json"
+  );
+}
+function axisBar(score, width = 20) {
+  const filled = Math.round(score * width);
+  const empty = width - filled;
+  return "\u2588".repeat(filled) + "\u2591".repeat(empty);
+}
+function axisColor(score) {
+  if (score >= 0.7) return source_default.green;
+  if (score >= 0.5) return source_default.yellow;
+  return source_default.red;
+}
+function verdictColor(branchId) {
+  if (branchId === "ship_now") return source_default.green;
+  if (branchId === "narrow_launch") return source_default.yellow;
+  return source_default.red;
+}
+async function renderLaunchProgress(run, artifacts) {
+  const w = process3.stderr.write.bind(process3.stderr);
+  w(`
+  ${source_default.dim("repo")}  ${source_default.bold(run.repo.name)}
+`);
+  w(`  ${source_default.dim("files")} ${run.repo.fileCount}`);
+  if (run.repo.languages.length > 0) {
+    w(` ${source_default.dim("\xB7")} ${run.repo.languages.slice(0, 3).map((l) => l.name).join(", ")}`);
   }
-  info(source_default.bold(run.verdict.label));
-  dim(`launch readiness ${formatPercent(run.verdict.readiness)} | winner ${formatPercent(run.verdict.score)}`);
-  info(run.verdict.reason);
-  info(`strongest axes: ${run.axes.slice().sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)).slice(0, 3).map((axis) => `${axis.label} ${formatPercent(axis.score)}`).join(" | ")}`);
-  info("artifacts:");
-  info(`decision ${displayPathFromCwd(artifacts.decisionPath)}`);
-  info(`report   ${displayPathFromCwd(artifacts.reportPath)}`);
-  info(`trace    ${displayPathFromCwd(artifacts.tracePath)}`);
+  if (run.repo.frameworks.length > 0) {
+    w(` ${source_default.dim("\xB7")} ${run.repo.frameworks.join(", ")}`);
+  }
+  w("\n\n");
+  const padLen = Math.max(...run.axes.map((a) => a.label.length));
+  for (const axis of run.axes) {
+    const label = axis.label.padEnd(padLen);
+    const color = axisColor(axis.score);
+    const bar = color(axisBar(axis.score));
+    const pct = color(formatPercent(axis.score).padStart(4));
+    w(`  ${source_default.dim(label)}  ${bar}  ${pct}
+`);
+    await sleep(60);
+  }
+  w("\n");
+  const vColor = verdictColor(run.verdict.winnerBranchId);
+  w(`  ${vColor(source_default.bold(run.verdict.label))}
+`);
+  w(`  ${source_default.dim(run.verdict.reason)}
+`);
+  w(`  ${source_default.dim("readiness")} ${vColor(formatPercent(run.verdict.readiness))}
+`);
+  w(`
+  ${source_default.dim("artifacts")}
+`);
+  w(`  ${source_default.dim("decision")} ${displayPathFromCwd(artifacts.decisionPath)}
+`);
+  w(`  ${source_default.dim("report")}   ${displayPathFromCwd(artifacts.reportPath)}
+`);
+  w(`  ${source_default.dim("trace")}    ${displayPathFromCwd(artifacts.tracePath)}
+
+`);
+}
+function openInBrowser(filePath) {
+  const platform = process3.platform;
+  const cmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
+  try {
+    execFileSync2(cmd, [filePath], { stdio: "ignore" });
+  } catch {
+  }
 }
 async function waitForJob(projectId, jobId, effective) {
   const client = createClient(effective.apiUrl);
@@ -5820,7 +6154,13 @@ function wrapAction(state, commandPath, handler) {
     if (state.source === "session-replay" && commandPath === "session replay") {
       throw new Error("session replay cannot replay another session");
     }
-    const effective = resolveEffectiveInvocation(state.store, command.optsWithGlobals(), state.defaults, state.source, commandPath);
+    const effective = resolveEffectiveInvocation(
+      state.store,
+      command.optsWithGlobals(),
+      state.defaults,
+      state.source,
+      commandPath
+    );
     setQuiet(effective.quiet);
     setVerbose(effective.verbose);
     const context = {
@@ -5877,391 +6217,684 @@ function buildProgram(state) {
   const program2 = new Command();
   const jsonOption = new Option("--output <format>", "Output format").choices(["table", "json"]);
   program2.name(rootProgramName()).description("Repo-aware CLI for launch stress tests, fixtures, and remote project operations").option("--api-url <url>", "Reality Fork API base URL").option("--profile <name>", "Profile name").addOption(jsonOption).option("--quiet", "Suppress non-essential output").option("--verbose", "Show debug output");
-  program2.command("setup").description("Configure a local profile").action(wrapAction(state, "setup", async ({ store, effective }) => {
-    await setupProfile(store, effective.profile, effective.apiUrl);
-  }));
-  program2.command("doctor").description("Check profile, API reachability, fixtures, and session log health").action(wrapAction(state, "doctor", async ({ store, effective }) => {
-    const checks = await Promise.all([
-      Promise.resolve({
-        name: "profile",
-        status: "ok",
-        details: `profile '${effective.profile}' selected`
-      }),
-      healthCheck(effective.apiUrl).then((result) => ({ name: "health", ...result })),
-      routeCheck(effective.apiUrl).then((result) => ({ name: "route", ...result })),
-      fixtureCheck().then((result) => ({ name: "fixtures", ...result })),
-      Promise.resolve({ name: "session_log", ...sessionLogCheck(store) })
-    ]);
-    print(checks, effective.output);
-  }));
+  program2.command("setup").description("Configure a local profile").action(
+    wrapAction(state, "setup", async ({ store, effective }) => {
+      await setupProfile(store, effective.profile, effective.apiUrl);
+    })
+  );
+  program2.command("doctor").description("Check profile, API reachability, fixtures, and session log health").action(
+    wrapAction(state, "doctor", async ({ store, effective }) => {
+      const checks = await Promise.all([
+        Promise.resolve({
+          name: "profile",
+          status: "ok",
+          details: `profile '${effective.profile}' selected`
+        }),
+        healthCheck(effective.apiUrl).then((result) => ({ name: "health", ...result })),
+        routeCheck(effective.apiUrl).then((result) => ({ name: "route", ...result })),
+        fixtureCheck().then((result) => ({ name: "fixtures", ...result })),
+        Promise.resolve({ name: "session_log", ...sessionLogCheck(store) })
+      ]);
+      print(checks, effective.output);
+    })
+  );
   const profile = program2.command("profile").description("Manage named profiles");
-  profile.command("list").description("List profiles").action(wrapAction(state, "profile list", async ({ store, effective }) => {
-    const rows = Object.entries(store.snapshot.profiles).map(([name, item]) => ({
-      name,
-      active: name === store.snapshot.activeProfile ? "yes" : "",
-      apiUrl: item.apiUrl,
-      output: item.output ?? "table"
-    }));
-    print(rows, effective.output);
-  }));
-  profile.command("show").argument("[name]", "Profile name").description("Show one profile").action(wrapAction(state, "profile show", async ({ store, effective }, [name]) => {
-    const selected = store.selectedProfileName(typeof name === "string" ? name : void 0, effective.profile);
-    const item = store.profile(selected);
-    if (!item) {
-      throw new Error(`profile '${selected}' not found`);
-    }
-    print({
-      name: selected,
-      active: selected === store.snapshot.activeProfile,
-      apiUrl: item.apiUrl,
-      output: item.output ?? "table"
-    }, effective.output);
-  }));
-  profile.command("use").argument("<name>", "Profile name").description("Set the active profile").action(wrapAction(state, "profile use", async ({ store }, [name]) => {
-    if (typeof name !== "string") {
-      throw new Error("profile name is required");
-    }
-    store.setActiveProfile(name);
-    store.save();
-    success(`active profile set to '${name}'`);
-  }));
+  profile.command("list").description("List profiles").action(
+    wrapAction(state, "profile list", async ({ store, effective }) => {
+      const rows = Object.entries(store.snapshot.profiles).map(([name, item]) => ({
+        name,
+        active: name === store.snapshot.activeProfile ? "yes" : "",
+        apiUrl: item.apiUrl,
+        output: item.output ?? "table"
+      }));
+      print(rows, effective.output);
+    })
+  );
+  profile.command("show").argument("[name]", "Profile name").description("Show one profile").action(
+    wrapAction(state, "profile show", async ({ store, effective }, [name]) => {
+      const selected = store.selectedProfileName(
+        typeof name === "string" ? name : void 0,
+        effective.profile
+      );
+      const item = store.profile(selected);
+      if (!item) {
+        throw new Error(`profile '${selected}' not found`);
+      }
+      print(
+        {
+          name: selected,
+          active: selected === store.snapshot.activeProfile,
+          apiUrl: item.apiUrl,
+          output: item.output ?? "table"
+        },
+        effective.output
+      );
+    })
+  );
+  profile.command("use").argument("<name>", "Profile name").description("Set the active profile").action(
+    wrapAction(state, "profile use", async ({ store }, [name]) => {
+      if (typeof name !== "string") {
+        throw new Error("profile name is required");
+      }
+      store.setActiveProfile(name);
+      store.save();
+      success(`active profile set to '${name}'`);
+    })
+  );
   const config = program2.command("config").description("Inspect and update CLI config");
-  config.command("show").description("Print the current config").action(wrapAction(state, "config show", async ({ store, effective }) => {
-    print(store.snapshot, effective.output);
-  }));
-  config.command("path").description("Show the config path").action(wrapAction(state, "config path", async ({ store, effective }) => {
-    print({ configPath: store.configPath }, effective.output);
-  }));
-  config.command("set-url").argument("<url>", "API base URL").description("Set the API URL on a profile").action(wrapAction(state, "config set-url", async ({ store, effective }, [url]) => {
-    if (typeof url !== "string" || !url.trim()) {
-      throw new Error("url is required");
-    }
-    const profile2 = store.ensureProfile(effective.profile);
-    profile2.apiUrl = trimSlashes(url);
-    store.save();
-    success(`profile '${effective.profile}' API URL updated`);
-  }));
-  config.command("set-output").argument("<format>", "table or json").description("Set the default output mode on a profile").action(wrapAction(state, "config set-output", async ({ store, effective }, [value]) => {
-    if (value !== "table" && value !== "json") {
-      throw new Error("format must be 'table' or 'json'");
-    }
-    const profile2 = store.ensureProfile(effective.profile);
-    profile2.output = value;
-    store.save();
-    success(`profile '${effective.profile}' output updated`);
-  }));
+  config.command("show").description("Print the current config").action(
+    wrapAction(state, "config show", async ({ store, effective }) => {
+      print(store.snapshot, effective.output);
+    })
+  );
+  config.command("path").description("Show the config path").action(
+    wrapAction(state, "config path", async ({ store, effective }) => {
+      print({ configPath: store.configPath }, effective.output);
+    })
+  );
+  config.command("set-url").argument("<url>", "API base URL").description("Set the API URL on a profile").action(
+    wrapAction(state, "config set-url", async ({ store, effective }, [url]) => {
+      if (typeof url !== "string" || !url.trim()) {
+        throw new Error("url is required");
+      }
+      const profile2 = store.ensureProfile(effective.profile);
+      profile2.apiUrl = trimSlashes(url);
+      store.save();
+      success(`profile '${effective.profile}' API URL updated`);
+    })
+  );
+  config.command("set-output").argument("<format>", "table or json").description("Set the default output mode on a profile").action(
+    wrapAction(state, "config set-output", async ({ store, effective }, [value]) => {
+      if (value !== "table" && value !== "json") {
+        throw new Error("format must be 'table' or 'json'");
+      }
+      const profile2 = store.ensureProfile(effective.profile);
+      profile2.output = value;
+      store.save();
+      success(`profile '${effective.profile}' output updated`);
+    })
+  );
   const run = program2.command("run").description("Run local repo-aware Reality Fork workflows");
-  run.command("launch").option("--repo <path>", "Repository path", ".").option("--focus <path...>", "Limit analysis to specific subpaths inside the repo").option("--prompt <text>", "Launch question", "Should we ship this now?").option("--title <text>", "Report title").option("--output-dir <path>", "Directory for decision.md, report.html, and trace.json").description("Stress-test a repo launch and emit shareable artifacts").action(wrapAction(state, "run launch", async ({ effective }, [options]) => {
-    const launchOptions = options ?? {};
-    const repoPath = path4.resolve(launchOptions.repo || ".");
-    const runResult = await createRealityForkLaunchRun({
-      repoPath,
-      focusPaths: Array.isArray(launchOptions.focus) ? launchOptions.focus : void 0,
-      prompt: launchOptions.prompt,
-      title: launchOptions.title
-    });
-    const outputDir = launchOptions.outputDir ? path4.resolve(launchOptions.outputDir) : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
-    const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
-    printLaunchRunSummary(runResult, artifacts, effective.output);
-  }));
-  const fixtures = program2.command("fixtures").description("Browse bundled Reality Fork fixtures");
-  fixtures.command("list").description("List fixture scenarios").action(wrapAction(state, "fixtures list", async ({ effective }) => {
-    const items = await listFixtureScenarios();
-    print(effective.output === "json" ? items : buildFixtureTableRows(items), effective.output);
-  }));
-  fixtures.command("show").argument("<id>", "Fixture id or slug").description("Show one fixture scenario").action(wrapAction(state, "fixtures show", async ({ effective }, [id]) => {
-    if (typeof id !== "string") {
-      throw new Error("fixture id is required");
-    }
-    const scenario = await loadFixtureScenario(id);
-    if (effective.output === "json") {
-      print(scenario, effective.output);
-      return;
-    }
-    info(source_default.bold(scenario.title));
-    dim(`${scenario.id} | ${scenario.status} | ${scenario.sourceLabel}`);
-    info(scenario.summary);
-    info(`winner: ${scenario.decision.winnerLabel ?? "\u2014"}`);
-    info(`branches: ${scenario.branches.length} | replay events: ${scenario.replay.events.length}`);
-  }));
-  fixtures.command("replay").argument("<id>", "Fixture id or slug").description("Print the replay timeline for a fixture").action(wrapAction(state, "fixtures replay", async ({ effective }, [id]) => {
-    if (typeof id !== "string") {
-      throw new Error("fixture id is required");
-    }
-    const scenario = await loadFixtureScenario(id);
-    print(effective.output === "json" ? scenario.replay.events : scenario.replay.events.map((event) => ({
-      phase: event.phase,
-      title: event.title,
-      branch: event.branchLabel ?? "\u2014",
-      tone: event.tone
-    })), effective.output);
-  }));
-  const uploads = program2.command("uploads").description("Upload local files to a remote Reality Fork API");
-  uploads.command("add").argument("<paths...>", "File paths").description("Upload files and return upload ids").action(wrapAction(state, "uploads add", async ({ effective }, [pathsArg]) => {
-    const paths = Array.isArray(pathsArg) ? pathsArg : [];
-    if (paths.length === 0) {
-      throw new Error("at least one file path is required");
-    }
-    const formData = new FormData();
-    for (const filePath of paths) {
-      const absolutePath = path4.resolve(String(filePath));
-      const bytes = fs5.readFileSync(absolutePath);
-      formData.append("files", new Blob([bytes], { type: guessMimeType(absolutePath) }), path4.basename(absolutePath));
-    }
-    const result = await createClient(effective.apiUrl).createUploads(formData);
-    print(result.uploads, effective.output);
-  }));
-  const projects = program2.command("projects").description("Operate on remote Reality Fork projects");
-  projects.command("list").description("List projects from the configured API").action(wrapAction(state, "projects list", async ({ effective }) => {
-    const result = await createClient(effective.apiUrl).listProjects();
-    print(effective.output === "json" ? result.projects : buildProjectTableRows(result.projects), effective.output);
-  }));
-  projects.command("get").argument("<projectId>", "Project id").description("Fetch project detail").action(wrapAction(state, "projects get", async ({ effective }, [projectId]) => {
-    if (typeof projectId !== "string") {
-      throw new Error("project id is required");
-    }
-    const project = await createClient(effective.apiUrl).getProject(projectId);
-    if (effective.output === "json") {
-      print(project, effective.output);
-      return;
-    }
-    printProjectSummary(project);
-    const top = latestSimulation(project);
-    if (top) {
-      info(`top simulation: ${top.title} (${top.probability}% / impact ${top.impactScore})`);
-    }
-  }));
-  projects.command("create").description("Create a new project on a remote Reality Fork API").requiredOption("--prompt <prompt>", "Prompt or claim to evaluate").option("--title <title>", "Project title").option("--description <text>", "Project description").option("--tag <tag>", "Attach a tag", (value, acc) => {
-    acc.push(value);
-    return acc;
-  }, []).option("--url <url>", "Attach a URL source", (value, acc) => {
-    acc.push(value);
-    return acc;
-  }, []).option("--file <path>", "Upload a local file", (value, acc) => {
-    acc.push(value);
-    return acc;
-  }, []).option("--text <text>", "Attach pasted text").option("--decision-mode <mode>", "score_only, score_then_truth_court, truth_court_required").option("--wait", "Poll the initial job until it finishes").action(wrapAction(state, "projects create", async ({ effective }, [options]) => {
-    const commandOptions = options;
-    const client = createClient(effective.apiUrl);
-    let uploadIds;
-    if (commandOptions.file.length > 0) {
-      const formData = new FormData();
-      for (const filePath of commandOptions.file) {
-        const absolutePath = path4.resolve(filePath);
-        formData.append("files", new Blob([fs5.readFileSync(absolutePath)], { type: guessMimeType(absolutePath) }), path4.basename(absolutePath));
-      }
-      const uploadResponse = await client.createUploads(formData);
-      uploadIds = uploadResponse.uploads.map((item) => item.id);
-    }
-    const body = {
-      title: commandOptions.title,
-      prompt: commandOptions.prompt,
-      description: commandOptions.description,
-      tags: commandOptions.tag.length > 0 ? commandOptions.tag : void 0,
-      uploadIds,
-      pastedText: commandOptions.text,
-      urls: commandOptions.url.length > 0 ? commandOptions.url : void 0,
-      decisionMode: commandOptions.decisionMode
-    };
-    const created = await client.createProject(body);
-    if (commandOptions.wait) {
-      const finalJob = await waitForJob(created.id, created.initialJob.id, effective);
-      print(effective.output === "json" ? { project: created, job: finalJob } : {
-        projectId: created.id,
-        status: finalJob.status,
-        stage: finalJob.currentStage,
-        progress: finalJob.progress
-      }, effective.output);
-      return;
-    }
-    print(effective.output === "json" ? created : {
-      id: created.id,
-      title: created.title,
-      status: created.status,
-      initialJobId: created.initialJob.id,
-      initialJobStage: created.initialJob.currentStage
-    }, effective.output);
-  }));
-  projects.command("publish").argument("<projectId>", "Project id").option("--wait", "Poll the publish job until it finishes").description("Queue a publish job").action(wrapAction(state, "projects publish", async ({ effective }, [projectId, options]) => {
-    if (typeof projectId !== "string") {
-      throw new Error("project id is required");
-    }
-    const job = await createClient(effective.apiUrl).publish(projectId);
-    if (options.wait) {
-      const finalJob = await waitForJob(projectId, job.id, effective);
-      print(finalJob, effective.output);
-      return;
-    }
-    print(job, effective.output);
-  }));
-  projects.command("retry").argument("<projectId>", "Project id").option("--wait", "Poll the retry job until it finishes").description("Queue a full rerun").action(wrapAction(state, "projects retry", async ({ effective }, [projectId, options]) => {
-    if (typeof projectId !== "string") {
-      throw new Error("project id is required");
-    }
-    const job = await createClient(effective.apiUrl).retry(projectId);
-    if (options.wait) {
-      const finalJob = await waitForJob(projectId, job.id, effective);
-      print(finalJob, effective.output);
-      return;
-    }
-    print(job, effective.output);
-  }));
-  projects.command("watch").argument("<projectId>", "Project id").description("Stream project events until the server closes the stream").action(wrapAction(state, "projects watch", async ({ effective }, [projectId]) => {
-    if (typeof projectId !== "string") {
-      throw new Error("project id is required");
-    }
-    const events = [];
-    for await (const event of createClient(effective.apiUrl).streamProject(projectId)) {
-      events.push(event);
+  run.command("launch").option("--repo <path>", "Repository path", ".").option("--focus <path...>", "Limit analysis to specific subpaths inside the repo").option("--prompt <text>", "Launch question", "Should we ship this now?").option("--title <text>", "Report title").option("--output-dir <path>", "Directory for decision.md, report.html, and trace.json").option("--open", "Open report.html in default browser after run").description("Stress-test a repo launch and emit shareable artifacts").action(
+    wrapAction(state, "run launch", async ({ effective }, [options]) => {
+      const launchOptions = options ?? {};
+      const repoPath = path4.resolve(launchOptions.repo || ".");
+      const runResult = await createRealityForkLaunchRun({
+        repoPath,
+        focusPaths: Array.isArray(launchOptions.focus) ? launchOptions.focus : void 0,
+        prompt: launchOptions.prompt,
+        title: launchOptions.title
+      });
+      const outputDir = launchOptions.outputDir ? path4.resolve(launchOptions.outputDir) : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
+      const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
       if (effective.output === "json") {
-        process3.stdout.write(`${JSON.stringify(event)}
+        printLaunchRunJson(runResult, artifacts);
+      } else if (!effective.quiet) {
+        await renderLaunchProgress(runResult, artifacts);
+      }
+      if (launchOptions.open) {
+        openInBrowser(artifacts.reportPath);
+      }
+    })
+  );
+  run.command("diff").argument("<before>", "Path to first trace.json or output directory").argument("<after>", "Path to second trace.json or output directory").option("--output-dir <path>", "Write diff.md and diff.html to this directory").description("Compare two launch runs and show score deltas").action(
+    wrapAction(state, "run diff", async ({ effective }, [beforeArg, afterArg, options]) => {
+      const diffOptions = options ?? {};
+      function resolveTrace(arg) {
+        const p = path4.resolve(String(arg));
+        if (p.endsWith(".json")) return p;
+        return path4.join(p, "trace.json");
+      }
+      const beforePath = resolveTrace(beforeArg);
+      const afterPath = resolveTrace(afterArg);
+      const beforeRun = JSON.parse(fs5.readFileSync(beforePath, "utf8"));
+      const afterRun = JSON.parse(fs5.readFileSync(afterPath, "utf8"));
+      const diff = diffLaunchRuns(beforeRun, afterRun);
+      if (effective.output === "json") {
+        print(diff, "json");
+      } else if (!effective.quiet) {
+        const w = process3.stderr.write.bind(process3.stderr);
+        w(`
+  ${source_default.bold("Launch Diff")}
 `);
-      } else {
-        info(`${new Date(event.createdAt).toISOString()} ${event.eventType}`);
+        w(`  ${source_default.dim(diff.before.generatedAt)} \u2192 ${source_default.dim(diff.after.generatedAt)}
+
+`);
+        const rColor = diff.readinessDelta > 5e-3 ? source_default.green : diff.readinessDelta < -5e-3 ? source_default.red : source_default.dim;
+        const rSign = diff.readinessDelta > 0 ? "+" : "";
+        w(`  ${source_default.dim("readiness")} ${formatPercent(diff.before.readiness)} \u2192 ${formatPercent(diff.after.readiness)} ${rColor(`${rSign}${Math.round(diff.readinessDelta * 100)}%`)}
+`);
+        if (diff.verdictChanged) {
+          w(`  ${source_default.dim("verdict")}   ${diff.before.verdictLabel} \u2192 ${source_default.bold(diff.after.verdictLabel)}
+`);
+        }
+        w("\n");
+        const padLen = Math.max(...diff.axes.map((a) => a.label.length));
+        for (const axis of diff.axes) {
+          const label = axis.label.padEnd(padLen);
+          const dSign = axis.delta > 0 ? "+" : "";
+          const dText = `${dSign}${Math.round(axis.delta * 100)}%`;
+          const indicator = axis.direction === "up" ? source_default.green(`\u25B2 ${dText}`) : axis.direction === "down" ? source_default.red(`\u25BC ${dText}`) : source_default.dim(`\u2500 ${dText}`);
+          w(`  ${source_default.dim(label)}  ${formatPercent(axis.before).padStart(4)} \u2192 ${formatPercent(axis.after).padStart(4)}  ${indicator}
+`);
+        }
+        w("\n");
       }
-    }
-    if (effective.output === "table") {
-      dim(`stream closed after ${events.length} events`);
-    }
-  }));
-  const workflow = program2.command("workflow").description("Run local declarative workflows");
-  workflow.command("list").description("List configured workflows").action(wrapAction(state, "workflow list", async ({ store, effective }) => {
-    const rows = Object.entries(store.snapshot.workflows).map(([name, item]) => ({
-      name,
-      steps: item.steps.length,
-      description: item.description ?? "\u2014"
-    }));
-    print(rows, effective.output);
-  }));
-  workflow.command("validate").argument("[name]", "Workflow name").description("Validate one workflow or all workflows").action(wrapAction(state, "workflow validate", async ({ store, effective }, [name]) => {
-    const entries = typeof name === "string" ? [[name, store.snapshot.workflows[name]]] : Object.entries(store.snapshot.workflows);
-    if (entries.length === 0) {
-      throw new Error("no workflows configured");
-    }
-    const results = entries.map(([workflowName, workflowDef]) => {
-      if (!workflowDef) {
-        throw new Error(`workflow '${workflowName}' not found`);
-      }
-      const rendered = workflowDef.steps.map((step) => renderWorkflowStep(step, workflowSampleArgs(workflowDef), effective));
-      for (const step of rendered) {
-        const tokens = tokenizeLine(step, store.snapshot.aliases);
-        if (tokens[0] === "workflow" && tokens[1] === "run") {
-          throw new Error(`workflow '${workflowName}' contains nested workflow execution`);
+      if (diffOptions.outputDir) {
+        const outDir = path4.resolve(diffOptions.outputDir);
+        const { promises: fsp } = await import("node:fs");
+        await fsp.mkdir(outDir, { recursive: true });
+        await fsp.writeFile(path4.join(outDir, "diff.md"), renderDiffMarkdown(diff), "utf8");
+        await fsp.writeFile(path4.join(outDir, "diff.html"), renderDiffHtml(diff), "utf8");
+        if (!effective.quiet && effective.output !== "json") {
+          info(`diff artifacts written to ${displayPathFromCwd(outDir)}`);
         }
       }
-      return { name: workflowName, status: "valid", steps: rendered };
-    });
-    print(results, effective.output);
-  }));
-  workflow.command("run").argument("<name>", "Workflow name").argument("[args...]", "Workflow args").option("--dry-run", "Render steps without executing them").description("Render and execute a workflow").action(wrapAction(state, "workflow run", async ({ store, effective, runNested }, [name, workflowArgs, options]) => {
-    if (typeof name !== "string") {
-      throw new Error("workflow name is required");
-    }
-    const workflowDef = store.snapshot.workflows[name];
-    if (!workflowDef) {
-      throw new Error(`workflow '${name}' not found`);
-    }
-    const args = Array.isArray(workflowArgs) ? workflowArgs.map(String) : [];
-    const rendered = workflowDef.steps.map((step) => renderWorkflowStep(step, args, effective));
-    if (options.dryRun) {
-      print(rendered.map((step, index) => ({ step: index + 1, command: step })), effective.output);
-      return;
-    }
-    for (const step of rendered) {
-      dim(`workflow ${name}: ${step}`);
-      await runNested(tokenizeLine(step, store.snapshot.aliases), {
-        source: "workflow",
-        rawInput: step
-      });
-    }
-  }));
-  const session = program2.command("session").description("Export and replay shell sessions");
-  session.command("export").argument("[file]", "Session log path").option("--limit <count>", "Limit number of entries", (value) => parseInt(value, 10)).description("Print the session log").action(wrapAction(state, "session export", async ({ store, effective }, [filePath, options]) => {
-    const entries = readSessionEntries(typeof filePath === "string" && filePath.trim() ? filePath : store.sessionLogPath);
-    const limit = Number.isFinite(options.limit) ? Math.max(0, options.limit || 0) : void 0;
-    const selected = limit ? entries.slice(-limit) : entries;
-    print(selected, effective.output);
-  }));
-  session.command("replay").argument("[file]", "Session log path").option("--execute", "Re-run commands instead of printing them").option("--limit <count>", "Limit number of entries", (value) => parseInt(value, 10)).description("Replay a recorded session").action(wrapAction(state, "session replay", async ({ store, effective, runNested }, [filePath, options]) => {
-    const entries = readSessionEntries(typeof filePath === "string" && filePath.trim() ? filePath : store.sessionLogPath);
-    const limit = Number.isFinite(options.limit) ? Math.max(0, options.limit || 0) : void 0;
-    const selected = limit ? entries.slice(-limit) : entries;
-    if (!options.execute) {
-      print(selected.map((entry) => ({
-        timestamp: entry.timestamp,
-        profile: entry.profile,
-        command: entry.command
-      })), effective.output);
-      return;
-    }
-    for (const entry of selected) {
-      dim(`replay: ${entry.command}`);
-      await runNested(tokenizeLine(entry.command, store.snapshot.aliases), {
-        source: "session-replay",
-        rawInput: entry.command,
-        defaults: {
-          profile: entry.profile,
-          apiUrl: effective.apiUrl,
-          output: effective.output,
-          quiet: effective.quiet,
-          verbose: effective.verbose
+    })
+  );
+  run.command("watch").option("--repo <path>", "Repository path", ".").option("--focus <path...>", "Limit analysis to specific subpaths inside the repo").option("--prompt <text>", "Launch question", "Should we ship this now?").option("--title <text>", "Report title").option("--output-dir <path>", "Directory for artifacts").option("--open", "Open report.html after each run").description("Watch a repo and re-run launch analysis on file changes").action(
+    wrapAction(state, "run watch", async ({ effective }, [options]) => {
+      const watchOptions = options ?? {};
+      const repoPath = path4.resolve(watchOptions.repo || ".");
+      const { watch } = await import("node:fs");
+      let running = false;
+      let queued = false;
+      let debounceTimer = null;
+      async function runOnce() {
+        if (running) {
+          queued = true;
+          return;
         }
-      });
-    }
-  }));
-  program2.command("shell").description("Start the interactive shell").action(wrapAction(state, "shell", async ({ store, effective, runNested }) => {
-    banner();
-    dim("interactive shell");
-    dim("type 'help' for command help, 'exit' to quit");
-    const rl = createInterface({
-      input: process3.stdin,
-      output: process3.stdout,
-      terminal: true,
-      historySize: 200,
-      removeHistoryDuplicates: true
-    });
-    const historyPath = store.historyPath;
-    const existingHistory = fs5.existsSync(historyPath) ? fs5.readFileSync(historyPath, "utf8").split("\n").filter(Boolean) : [];
-    const internal = rl;
-    internal.history = [...existingHistory].reverse();
-    const appendedHistory = [];
-    try {
-      for (; ; ) {
-        const line = (await rl.question(`${rootProgramName()}(${effective.profile})> `)).trim();
-        if (!line)
-          continue;
-        if (line === "exit" || line === "quit")
-          break;
-        appendedHistory.push(line);
-        if (line === "help" || line === "?") {
-          program2.outputHelp();
-          continue;
-        }
-        if (line.startsWith("help ") || line.startsWith("? ")) {
-          const query = line.replace(/^(help|\?)\s+/, "");
-          await runNested([...tokenizeLine(query, store.snapshot.aliases), "--help"], {
-            source: "shell",
-            rawInput: void 0,
-            logSession: false
-          });
-          continue;
-        }
+        running = true;
+        process3.stderr.write("\x1B[2J\x1B[H");
         try {
-          await runNested(tokenizeLine(line, store.snapshot.aliases), {
-            source: "shell",
-            rawInput: line
+          const runResult = await createRealityForkLaunchRun({
+            repoPath,
+            focusPaths: Array.isArray(watchOptions.focus) ? watchOptions.focus : void 0,
+            prompt: watchOptions.prompt,
+            title: watchOptions.title
           });
-        } catch (cause) {
-          error(cause instanceof Error ? cause.message : String(cause));
+          const outputDir = watchOptions.outputDir ? path4.resolve(watchOptions.outputDir) : defaultRealityForkLaunchOutputDir(repoPath, runResult.generatedAt);
+          const artifacts = await writeRealityForkLaunchArtifacts(runResult, outputDir);
+          if (effective.output === "json") {
+            printLaunchRunJson(runResult, artifacts);
+          } else {
+            await renderLaunchProgress(runResult, artifacts);
+          }
+          if (watchOptions.open) openInBrowser(artifacts.reportPath);
+        } catch (err) {
+          error(err instanceof Error ? err.message : "run failed");
+        }
+        running = false;
+        process3.stderr.write(source_default.dim("  watching for changes...\n"));
+        if (queued) {
+          queued = false;
+          runOnce();
         }
       }
-    } finally {
-      rl.close();
-      const nextHistory = [...existingHistory, ...appendedHistory].slice(-500);
-      fs5.mkdirSync(path4.dirname(historyPath), { recursive: true, mode: 448 });
-      fs5.writeFileSync(historyPath, nextHistory.join("\n") + (nextHistory.length > 0 ? "\n" : ""), "utf8");
-    }
-  }));
+      const ignoreDirs = /* @__PURE__ */ new Set([".git", ".reality-fork", "node_modules", "dist", "target"]);
+      watch(repoPath, { recursive: true }, (_event, filename) => {
+        if (!filename) return;
+        const first = filename.split(path4.sep)[0];
+        if (ignoreDirs.has(first)) return;
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(runOnce, 500);
+      });
+      await runOnce();
+      await new Promise((resolve) => {
+        process3.on("SIGINT", () => {
+          resolve();
+        });
+      });
+    })
+  );
+  run.command("share").option("--output-dir <path>", "Directory containing run artifacts").option("--repo <path>", "Repository path (used to find latest run)", ".").description("Share the latest launch run as a GitHub gist").action(
+    wrapAction(state, "run share", async ({ effective }, [options]) => {
+      const shareOptions = options ?? {};
+      const { promises: fsp } = await import("node:fs");
+      let outputDir;
+      if (shareOptions.outputDir) {
+        outputDir = path4.resolve(shareOptions.outputDir);
+      } else {
+        const repoPath = path4.resolve(shareOptions.repo || ".");
+        const runsDir = path4.join(repoPath, ".reality-fork", "runs");
+        let entries;
+        try {
+          entries = (await fsp.readdir(runsDir)).filter((e) => e.startsWith("launch-")).sort().reverse();
+        } catch {
+          throw new Error(`no runs found in ${runsDir}`);
+        }
+        if (entries.length === 0) throw new Error(`no launch runs found in ${runsDir}`);
+        outputDir = path4.join(runsDir, entries[0]);
+      }
+      const decisionPath = path4.join(outputDir, "decision.md");
+      const tracePath = path4.join(outputDir, "trace.json");
+      for (const f of [decisionPath, tracePath]) {
+        try {
+          await fsp.access(f);
+        } catch {
+          throw new Error(`missing artifact: ${f}`);
+        }
+      }
+      try {
+        const result = execFileSync2("gh", [
+          "gist",
+          "create",
+          "--public",
+          "--desc",
+          "Reality Fork launch run",
+          decisionPath,
+          tracePath
+        ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+        if (effective.output === "json") {
+          print({ gistUrl: result, outputDir }, "json");
+        } else {
+          success(`gist created: ${result}`);
+        }
+      } catch {
+        const decision = await fsp.readFile(decisionPath, "utf8");
+        try {
+          const pbcopy = process3.platform === "darwin" ? "pbcopy" : process3.platform === "win32" ? "clip" : "xclip";
+          const { execSync } = await import("node:child_process");
+          execSync(pbcopy, { input: decision, stdio: ["pipe", "ignore", "ignore"] });
+          success("decision.md copied to clipboard (install gh cli to create gists)");
+        } catch {
+          error("gh cli not found and clipboard copy failed. install gh: https://cli.github.com");
+        }
+      }
+    })
+  );
+  const fixtures = program2.command("fixtures").description("Browse bundled Reality Fork fixtures");
+  fixtures.command("list").description("List fixture scenarios").action(
+    wrapAction(state, "fixtures list", async ({ effective }) => {
+      const items = await listFixtureScenarios();
+      print(effective.output === "json" ? items : buildFixtureTableRows(items), effective.output);
+    })
+  );
+  fixtures.command("show").argument("<id>", "Fixture id or slug").description("Show one fixture scenario").action(
+    wrapAction(state, "fixtures show", async ({ effective }, [id]) => {
+      if (typeof id !== "string") {
+        throw new Error("fixture id is required");
+      }
+      const scenario = await loadFixtureScenario(id);
+      if (effective.output === "json") {
+        print(scenario, effective.output);
+        return;
+      }
+      info(source_default.bold(scenario.title));
+      dim(`${scenario.id} | ${scenario.status} | ${scenario.sourceLabel}`);
+      info(scenario.summary);
+      info(`winner: ${scenario.decision.winnerLabel ?? "\u2014"}`);
+      info(
+        `branches: ${scenario.branches.length} | replay events: ${scenario.replay.events.length}`
+      );
+    })
+  );
+  fixtures.command("replay").argument("<id>", "Fixture id or slug").description("Print the replay timeline for a fixture").action(
+    wrapAction(state, "fixtures replay", async ({ effective }, [id]) => {
+      if (typeof id !== "string") {
+        throw new Error("fixture id is required");
+      }
+      const scenario = await loadFixtureScenario(id);
+      print(
+        effective.output === "json" ? scenario.replay.events : scenario.replay.events.map((event) => ({
+          phase: event.phase,
+          title: event.title,
+          branch: event.branchLabel ?? "\u2014",
+          tone: event.tone
+        })),
+        effective.output
+      );
+    })
+  );
+  const uploads = program2.command("uploads").description("Upload local files to a remote Reality Fork API");
+  uploads.command("add").argument("<paths...>", "File paths").description("Upload files and return upload ids").action(
+    wrapAction(state, "uploads add", async ({ effective }, [pathsArg]) => {
+      const paths = Array.isArray(pathsArg) ? pathsArg : [];
+      if (paths.length === 0) {
+        throw new Error("at least one file path is required");
+      }
+      const formData = new FormData();
+      for (const filePath of paths) {
+        const absolutePath = path4.resolve(String(filePath));
+        const bytes = fs5.readFileSync(absolutePath);
+        formData.append(
+          "files",
+          new Blob([bytes], { type: guessMimeType(absolutePath) }),
+          path4.basename(absolutePath)
+        );
+      }
+      const result = await createClient(effective.apiUrl).createUploads(formData);
+      print(result.uploads, effective.output);
+    })
+  );
+  const projects = program2.command("projects").description("Operate on remote Reality Fork projects");
+  projects.command("list").description("List projects from the configured API").action(
+    wrapAction(state, "projects list", async ({ effective }) => {
+      const result = await createClient(effective.apiUrl).listProjects();
+      print(
+        effective.output === "json" ? result.projects : buildProjectTableRows(result.projects),
+        effective.output
+      );
+    })
+  );
+  projects.command("get").argument("<projectId>", "Project id").description("Fetch project detail").action(
+    wrapAction(state, "projects get", async ({ effective }, [projectId]) => {
+      if (typeof projectId !== "string") {
+        throw new Error("project id is required");
+      }
+      const project = await createClient(effective.apiUrl).getProject(projectId);
+      if (effective.output === "json") {
+        print(project, effective.output);
+        return;
+      }
+      printProjectSummary(project);
+      const top = latestSimulation(project);
+      if (top) {
+        info(`top simulation: ${top.title} (${top.probability}% / impact ${top.impactScore})`);
+      }
+    })
+  );
+  projects.command("create").description("Create a new project on a remote Reality Fork API").requiredOption("--prompt <prompt>", "Prompt or claim to evaluate").option("--title <title>", "Project title").option("--description <text>", "Project description").option(
+    "--tag <tag>",
+    "Attach a tag",
+    (value, acc) => {
+      acc.push(value);
+      return acc;
+    },
+    []
+  ).option(
+    "--url <url>",
+    "Attach a URL source",
+    (value, acc) => {
+      acc.push(value);
+      return acc;
+    },
+    []
+  ).option(
+    "--file <path>",
+    "Upload a local file",
+    (value, acc) => {
+      acc.push(value);
+      return acc;
+    },
+    []
+  ).option("--text <text>", "Attach pasted text").option("--decision-mode <mode>", "score_only, score_then_truth_court, truth_court_required").option("--wait", "Poll the initial job until it finishes").action(
+    wrapAction(state, "projects create", async ({ effective }, [options]) => {
+      const commandOptions = options;
+      const client = createClient(effective.apiUrl);
+      let uploadIds;
+      if (commandOptions.file.length > 0) {
+        const formData = new FormData();
+        for (const filePath of commandOptions.file) {
+          const absolutePath = path4.resolve(filePath);
+          formData.append(
+            "files",
+            new Blob([fs5.readFileSync(absolutePath)], { type: guessMimeType(absolutePath) }),
+            path4.basename(absolutePath)
+          );
+        }
+        const uploadResponse = await client.createUploads(formData);
+        uploadIds = uploadResponse.uploads.map(
+          (item) => item.id
+        );
+      }
+      const body = {
+        title: commandOptions.title,
+        prompt: commandOptions.prompt,
+        description: commandOptions.description,
+        tags: commandOptions.tag.length > 0 ? commandOptions.tag : void 0,
+        uploadIds,
+        pastedText: commandOptions.text,
+        urls: commandOptions.url.length > 0 ? commandOptions.url : void 0,
+        decisionMode: commandOptions.decisionMode
+      };
+      const created = await client.createProject(body);
+      if (commandOptions.wait) {
+        const finalJob = await waitForJob(created.id, created.initialJob.id, effective);
+        print(
+          effective.output === "json" ? { project: created, job: finalJob } : {
+            projectId: created.id,
+            status: finalJob.status,
+            stage: finalJob.currentStage,
+            progress: finalJob.progress
+          },
+          effective.output
+        );
+        return;
+      }
+      print(
+        effective.output === "json" ? created : {
+          id: created.id,
+          title: created.title,
+          status: created.status,
+          initialJobId: created.initialJob.id,
+          initialJobStage: created.initialJob.currentStage
+        },
+        effective.output
+      );
+    })
+  );
+  projects.command("publish").argument("<projectId>", "Project id").option("--wait", "Poll the publish job until it finishes").description("Queue a publish job").action(
+    wrapAction(state, "projects publish", async ({ effective }, [projectId, options]) => {
+      if (typeof projectId !== "string") {
+        throw new Error("project id is required");
+      }
+      const job = await createClient(effective.apiUrl).publish(projectId);
+      if (options.wait) {
+        const finalJob = await waitForJob(projectId, job.id, effective);
+        print(finalJob, effective.output);
+        return;
+      }
+      print(job, effective.output);
+    })
+  );
+  projects.command("retry").argument("<projectId>", "Project id").option("--wait", "Poll the retry job until it finishes").description("Queue a full rerun").action(
+    wrapAction(state, "projects retry", async ({ effective }, [projectId, options]) => {
+      if (typeof projectId !== "string") {
+        throw new Error("project id is required");
+      }
+      const job = await createClient(effective.apiUrl).retry(projectId);
+      if (options.wait) {
+        const finalJob = await waitForJob(projectId, job.id, effective);
+        print(finalJob, effective.output);
+        return;
+      }
+      print(job, effective.output);
+    })
+  );
+  projects.command("watch").argument("<projectId>", "Project id").description("Stream project events until the server closes the stream").action(
+    wrapAction(state, "projects watch", async ({ effective }, [projectId]) => {
+      if (typeof projectId !== "string") {
+        throw new Error("project id is required");
+      }
+      const events = [];
+      for await (const event of createClient(effective.apiUrl).streamProject(projectId)) {
+        events.push(event);
+        if (effective.output === "json") {
+          process3.stdout.write(`${JSON.stringify(event)}
+`);
+        } else {
+          info(`${new Date(event.createdAt).toISOString()} ${event.eventType}`);
+        }
+      }
+      if (effective.output === "table") {
+        dim(`stream closed after ${events.length} events`);
+      }
+    })
+  );
+  const workflow = program2.command("workflow").description("Run local declarative workflows");
+  workflow.command("list").description("List configured workflows").action(
+    wrapAction(state, "workflow list", async ({ store, effective }) => {
+      const rows = Object.entries(store.snapshot.workflows).map(([name, item]) => ({
+        name,
+        steps: item.steps.length,
+        description: item.description ?? "\u2014"
+      }));
+      print(rows, effective.output);
+    })
+  );
+  workflow.command("validate").argument("[name]", "Workflow name").description("Validate one workflow or all workflows").action(
+    wrapAction(state, "workflow validate", async ({ store, effective }, [name]) => {
+      const entries = typeof name === "string" ? [[name, store.snapshot.workflows[name]]] : Object.entries(store.snapshot.workflows);
+      if (entries.length === 0) {
+        throw new Error("no workflows configured");
+      }
+      const results = entries.map(([workflowName, workflowDef]) => {
+        if (!workflowDef) {
+          throw new Error(`workflow '${workflowName}' not found`);
+        }
+        const rendered = workflowDef.steps.map(
+          (step) => renderWorkflowStep(step, workflowSampleArgs(workflowDef), effective)
+        );
+        for (const step of rendered) {
+          const tokens = tokenizeLine(step, store.snapshot.aliases);
+          if (tokens[0] === "workflow" && tokens[1] === "run") {
+            throw new Error(`workflow '${workflowName}' contains nested workflow execution`);
+          }
+        }
+        return { name: workflowName, status: "valid", steps: rendered };
+      });
+      print(results, effective.output);
+    })
+  );
+  workflow.command("run").argument("<name>", "Workflow name").argument("[args...]", "Workflow args").option("--dry-run", "Render steps without executing them").description("Render and execute a workflow").action(
+    wrapAction(
+      state,
+      "workflow run",
+      async ({ store, effective, runNested }, [name, workflowArgs, options]) => {
+        if (typeof name !== "string") {
+          throw new Error("workflow name is required");
+        }
+        const workflowDef = store.snapshot.workflows[name];
+        if (!workflowDef) {
+          throw new Error(`workflow '${name}' not found`);
+        }
+        const args = Array.isArray(workflowArgs) ? workflowArgs.map(String) : [];
+        const rendered = workflowDef.steps.map((step) => renderWorkflowStep(step, args, effective));
+        if (options.dryRun) {
+          print(
+            rendered.map((step, index) => ({ step: index + 1, command: step })),
+            effective.output
+          );
+          return;
+        }
+        for (const step of rendered) {
+          dim(`workflow ${name}: ${step}`);
+          await runNested(tokenizeLine(step, store.snapshot.aliases), {
+            source: "workflow",
+            rawInput: step
+          });
+        }
+      }
+    )
+  );
+  const session = program2.command("session").description("Export and replay shell sessions");
+  session.command("export").argument("[file]", "Session log path").option("--limit <count>", "Limit number of entries", (value) => parseInt(value, 10)).description("Print the session log").action(
+    wrapAction(state, "session export", async ({ store, effective }, [filePath, options]) => {
+      const entries = readSessionEntries(
+        typeof filePath === "string" && filePath.trim() ? filePath : store.sessionLogPath
+      );
+      const limit = Number.isFinite(options.limit) ? Math.max(0, options.limit || 0) : void 0;
+      const selected = limit ? entries.slice(-limit) : entries;
+      print(selected, effective.output);
+    })
+  );
+  session.command("replay").argument("[file]", "Session log path").option("--execute", "Re-run commands instead of printing them").option("--limit <count>", "Limit number of entries", (value) => parseInt(value, 10)).description("Replay a recorded session").action(
+    wrapAction(
+      state,
+      "session replay",
+      async ({ store, effective, runNested }, [filePath, options]) => {
+        const entries = readSessionEntries(
+          typeof filePath === "string" && filePath.trim() ? filePath : store.sessionLogPath
+        );
+        const limit = Number.isFinite(options.limit) ? Math.max(0, options.limit || 0) : void 0;
+        const selected = limit ? entries.slice(-limit) : entries;
+        if (!options.execute) {
+          print(
+            selected.map((entry) => ({
+              timestamp: entry.timestamp,
+              profile: entry.profile,
+              command: entry.command
+            })),
+            effective.output
+          );
+          return;
+        }
+        for (const entry of selected) {
+          dim(`replay: ${entry.command}`);
+          await runNested(tokenizeLine(entry.command, store.snapshot.aliases), {
+            source: "session-replay",
+            rawInput: entry.command,
+            defaults: {
+              profile: entry.profile,
+              apiUrl: effective.apiUrl,
+              output: effective.output,
+              quiet: effective.quiet,
+              verbose: effective.verbose
+            }
+          });
+        }
+      }
+    )
+  );
+  program2.command("shell").description("Start the interactive shell").action(
+    wrapAction(state, "shell", async ({ store, effective, runNested }) => {
+      banner();
+      dim("interactive shell");
+      dim("type 'help' for command help, 'exit' to quit");
+      const rl = createInterface({
+        input: process3.stdin,
+        output: process3.stdout,
+        terminal: true,
+        historySize: 200,
+        removeHistoryDuplicates: true
+      });
+      const historyPath = store.historyPath;
+      const existingHistory = fs5.existsSync(historyPath) ? fs5.readFileSync(historyPath, "utf8").split("\n").filter(Boolean) : [];
+      const internal = rl;
+      internal.history = [...existingHistory].reverse();
+      const appendedHistory = [];
+      try {
+        for (; ; ) {
+          const line = (await rl.question(`${rootProgramName()}(${effective.profile})> `)).trim();
+          if (!line) continue;
+          if (line === "exit" || line === "quit") break;
+          appendedHistory.push(line);
+          if (line === "help" || line === "?") {
+            program2.outputHelp();
+            continue;
+          }
+          if (line.startsWith("help ") || line.startsWith("? ")) {
+            const query = line.replace(/^(help|\?)\s+/, "");
+            await runNested([...tokenizeLine(query, store.snapshot.aliases), "--help"], {
+              source: "shell",
+              rawInput: void 0,
+              logSession: false
+            });
+            continue;
+          }
+          try {
+            await runNested(tokenizeLine(line, store.snapshot.aliases), {
+              source: "shell",
+              rawInput: line
+            });
+          } catch (cause) {
+            error(cause instanceof Error ? cause.message : String(cause));
+          }
+        }
+      } finally {
+        rl.close();
+        const nextHistory = [...existingHistory, ...appendedHistory].slice(-500);
+        fs5.mkdirSync(path4.dirname(historyPath), { recursive: true, mode: 448 });
+        fs5.writeFileSync(
+          historyPath,
+          nextHistory.join("\n") + (nextHistory.length > 0 ? "\n" : ""),
+          "utf8"
+        );
+      }
+    })
+  );
   return program2;
 }
 async function main(argv = process3.argv.slice(2)) {
