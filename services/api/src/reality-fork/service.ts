@@ -347,6 +347,16 @@ const hypothesisLabels: Record<RealityForkHypothesisId, string> = {
   backlash: 'Backlash',
   market_shock: 'Market shock',
 };
+const realityForkLimits = {
+  dailyProjectsPerIp: 3,
+  activeProjectsPerIp: 1,
+  dailyPublicationsPerIp: 1,
+  maxProjectUploads: 5,
+  maxProjectUrls: 3,
+  maxProjectUploadBytes: 20 * 1024 * 1024,
+  staleUploadTtlSeconds: 24 * 60 * 60,
+  highEstimatedCostUsd: 7.5,
+} as const;
 
 const queuedJobs: string[] = [];
 let draining = false;
@@ -396,6 +406,12 @@ function previewText(value: string | null): string | null {
   return text.length <= 240 ? text : `${text.slice(0, 237)}...`;
 }
 
+function compactText(value: string, max = 180): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 3)}...`;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -406,6 +422,72 @@ function round(value: number): number {
 
 function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex');
+}
+
+function normalizeEntityKey(label: string): string {
+  return label
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^[@#$]+/, '')
+    .toLowerCase();
+}
+
+function sentenceSignalScore(
+  sentence: string,
+  promptKeywords: string[],
+  entityLabels: string[]
+): number {
+  const lower = sentence.toLowerCase();
+  const promptHits = promptKeywords.filter(keyword => lower.includes(keyword)).length;
+  const entityHits = entityLabels.filter(label => sentence.includes(label)).length;
+  const actionBoost =
+    /(should|must|need to|likely|unlikely|expected|reported|confirmed|priced)/i.test(sentence)
+      ? 0.18
+      : 0;
+  const numericBoost = /\d/.test(sentence) ? 0.14 : 0;
+  return round(
+    clamp(
+      sentenceWeight(sentence) + promptHits * 0.12 + entityHits * 0.08 + actionBoost + numericBoost,
+      0,
+      2.2
+    )
+  );
+}
+
+function rankSentences(
+  sentences: string[],
+  promptKeywords: string[],
+  entityLabels: string[]
+): string[] {
+  return sentences
+    .map(sentence => ({
+      sentence,
+      score: sentenceSignalScore(sentence, promptKeywords, entityLabels),
+    }))
+    .filter(item => item.sentence.length >= 32 && item.score >= 0.5)
+    .sort((left, right) => right.score - left.score || left.sentence.length - right.sentence.length)
+    .map(item => item.sentence);
+}
+
+function inferClaimTopic(
+  sentence: string,
+  promptKeywords: string[],
+  entityLabels: string[]
+): string {
+  const lower = sentence.toLowerCase();
+  const promptMatch = promptKeywords.find(keyword => lower.includes(keyword));
+  if (promptMatch) return promptMatch;
+  const entityMatch = entityLabels.find(label => sentence.includes(label));
+  if (entityMatch) return normalizeEntityKey(entityMatch);
+  return extractKeywords(sentence)[0] ?? 'topic';
+}
+
+function sentimentForSentence(sentence: string): number {
+  const lower = sentence.toLowerCase();
+  const supportingHits = supportWords.filter(word => lower.includes(word)).length;
+  const riskHits = riskWords.filter(word => lower.includes(word)).length;
+  if (supportingHits === riskHits) return 0.1;
+  return supportingHits > riskHits ? 0.75 : -0.75;
 }
 
 function normalizeSimulationConfig(
@@ -565,6 +647,113 @@ function loadBlob(blobId: string | null): RealityForkBlob | null {
     .get(blobId) as BlobRow | undefined;
 
   return row ? mapBlob(row) : null;
+}
+
+function blobReferenceCount(blobId: string): number {
+  const queries = [
+    'SELECT COUNT(*) AS count FROM reality_fork_uploads WHERE blob_id = ?',
+    'SELECT COUNT(*) AS count FROM reality_fork_evidence WHERE blob_id = ?',
+    'SELECT COUNT(*) AS count FROM reality_fork_extractions WHERE artifact_blob_id = ?',
+    'SELECT COUNT(*) AS count FROM reality_fork_simulations WHERE artifact_blob_id = ?',
+    'SELECT COUNT(*) AS count FROM reality_fork_reports WHERE markdown_blob_id = ? OR html_blob_id = ?',
+    'SELECT COUNT(*) AS count FROM reality_fork_publications WHERE bundle_blob_id = ?',
+  ];
+
+  return queries.reduce((total, sql) => {
+    const row = sql.includes('OR html_blob_id')
+      ? (db.prepare(sql).get(blobId, blobId) as { count: number } | undefined)
+      : (db.prepare(sql).get(blobId) as { count: number } | undefined);
+    return total + (row?.count ?? 0);
+  }, 0);
+}
+
+function deleteBlobIfUnreferenced(blobId: string | null, store = realityForkBlobStore): void {
+  if (!blobId) return;
+  if (blobReferenceCount(blobId) > 0) return;
+  const blob = loadBlob(blobId);
+  if (blob) store.delete(blob.storageKey);
+  db.prepare('DELETE FROM reality_fork_blobs WHERE id = ?').run(blobId);
+}
+
+function purgeStaleUploads(store = realityForkBlobStore): number {
+  const cutoff = nowUnix() - realityForkLimits.staleUploadTtlSeconds;
+  const rows = db
+    .prepare(
+      `
+      SELECT uploads.id, uploads.blob_id
+      FROM reality_fork_uploads uploads
+      LEFT JOIN reality_fork_evidence evidence ON evidence.upload_id = uploads.id
+      WHERE evidence.id IS NULL AND uploads.created_at < ?
+    `
+    )
+    .all(cutoff) as Array<{ id: string; blob_id: string }>;
+
+  for (const row of rows) {
+    db.prepare('DELETE FROM reality_fork_uploads WHERE id = ?').run(row.id);
+    deleteBlobIfUnreferenced(row.blob_id, store);
+  }
+
+  return rows.length;
+}
+
+function countProjectsByIpSince(clientIp: string, since: number): number {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS count
+      FROM reality_fork_projects
+      WHERE created_by_ip = ? AND created_at >= ?
+    `
+    )
+    .get(clientIp, since) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
+function countActiveProjectsByIp(clientIp: string): number {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS count
+      FROM reality_fork_projects
+      WHERE created_by_ip = ?
+        AND status IN ('queued', 'processing', 'publishing')
+    `
+    )
+    .get(clientIp) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
+function countPublicationsByIpSince(clientIp: string, since: number): number {
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS count
+      FROM reality_fork_publications publications
+      INNER JOIN reality_fork_projects projects ON projects.id = publications.project_id
+      WHERE projects.created_by_ip = ? AND publications.published_at >= ?
+    `
+    )
+    .get(clientIp, since) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
+function assertProjectCreationQuota(clientIp: string | null | undefined): void {
+  if (!clientIp) return;
+  const since = nowUnix() - 24 * 60 * 60;
+  if (countProjectsByIpSince(clientIp, since) >= realityForkLimits.dailyProjectsPerIp) {
+    throw new Error('project limit reached for this IP in the last 24 hours');
+  }
+  if (countActiveProjectsByIp(clientIp) >= realityForkLimits.activeProjectsPerIp) {
+    throw new Error('an active project is already running for this IP');
+  }
+}
+
+function assertPublicationQuota(clientIp: string | null | undefined): void {
+  if (!clientIp) return;
+  const since = nowUnix() - 24 * 60 * 60;
+  if (countPublicationsByIpSince(clientIp, since) >= realityForkLimits.dailyPublicationsPerIp) {
+    throw new Error('publication limit reached for this IP in the last 24 hours');
+  }
 }
 
 function readBlobText(blobId: string | null, store = realityForkBlobStore): string {
@@ -1113,6 +1302,7 @@ function updateProjectState(
     latestReportId?: string | null;
     latestPublicationId?: string | null;
     publishedAt?: number | null;
+    warnings?: string[] | null;
   }
 ): void {
   db.prepare(
@@ -1124,6 +1314,7 @@ function updateProjectState(
       latest_report_id = CASE WHEN ? = 1 THEN ? ELSE latest_report_id END,
       latest_publication_id = CASE WHEN ? = 1 THEN ? ELSE latest_publication_id END,
       published_at = CASE WHEN ? = 1 THEN ? ELSE published_at END,
+      warnings_json = CASE WHEN ? = 1 THEN ? ELSE warnings_json END,
       updated_at = ?
     WHERE id = ?
   `
@@ -1137,6 +1328,8 @@ function updateProjectState(
     patch.latestPublicationId ?? null,
     Object.prototype.hasOwnProperty.call(patch, 'publishedAt') ? 1 : 0,
     patch.publishedAt ?? null,
+    Object.prototype.hasOwnProperty.call(patch, 'warnings') ? 1 : 0,
+    patch.warnings ? JSON.stringify(patch.warnings) : patch.warnings === null ? '[]' : null,
     nowUnix(),
     projectId
   );
@@ -1200,6 +1393,22 @@ function getJobRow(jobId: string): JobRow | null {
 }
 
 function clearDerivedProjectState(projectId: string): void {
+  const blobIds = db
+    .prepare(
+      `
+      SELECT artifact_blob_id AS blob_id FROM reality_fork_extractions WHERE project_id = ? AND artifact_blob_id IS NOT NULL
+      UNION
+      SELECT artifact_blob_id AS blob_id FROM reality_fork_simulations WHERE project_id = ? AND artifact_blob_id IS NOT NULL
+      UNION
+      SELECT markdown_blob_id AS blob_id FROM reality_fork_reports WHERE project_id = ? AND markdown_blob_id IS NOT NULL
+      UNION
+      SELECT html_blob_id AS blob_id FROM reality_fork_reports WHERE project_id = ? AND html_blob_id IS NOT NULL
+      UNION
+      SELECT bundle_blob_id AS blob_id FROM reality_fork_publications WHERE project_id = ? AND bundle_blob_id IS NOT NULL
+    `
+    )
+    .all(projectId, projectId, projectId, projectId, projectId) as Array<{ blob_id: string }>;
+
   db.prepare('DELETE FROM reality_fork_document_chunks WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM reality_fork_extractions WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM reality_fork_entities WHERE project_id = ?').run(projectId);
@@ -1210,6 +1419,10 @@ function clearDerivedProjectState(projectId: string): void {
   db.prepare('DELETE FROM reality_fork_lane_rounds WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM reality_fork_simulations WHERE project_id = ?').run(projectId);
   db.prepare('DELETE FROM reality_fork_reports WHERE project_id = ?').run(projectId);
+  db.prepare('DELETE FROM reality_fork_publications WHERE project_id = ?').run(projectId);
+  for (const { blob_id } of blobIds) {
+    deleteBlobIfUnreferenced(blob_id);
+  }
   updateProjectState(projectId, {
     latestReportId: null,
     latestPublicationId: null,
@@ -1242,7 +1455,8 @@ function buildExtraction(
   artifactBlob: RealityForkBlob;
 } {
   const text = (evidence.content_text ?? readBlobText(evidence.blob_id, store)).trim();
-  const sentences = splitSentences(text).slice(0, 6);
+  const promptKeywords = extractKeywords(`${evidence.title} ${text}`).slice(0, 6);
+  const sentences = rankSentences(splitSentences(text), promptKeywords, []).slice(0, 6);
   const facts = sentences.map((sentence, index) => ({
     id: `${evidence.id}:fact:${index + 1}`,
     type: classifyFact(sentence),
@@ -1494,21 +1708,25 @@ function extractStructuredArtifacts(
 } {
   const entityMap = new Map<string, RealityForkEntity>();
   const claimCandidates: RealityForkClaim[] = [];
+  const promptKeywords = extractKeywords(`${project.title} ${project.prompt}`).slice(0, 6);
 
   for (const chunk of chunks) {
     const matches =
       chunk.content.match(
-        /(?:\$[A-Z0-9]{2,10}|@[A-Za-z0-9_]+|#[A-Za-z0-9_]+|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/g
+        /(?:\$[A-Z0-9]{2,10}|@[A-Za-z0-9_]+|#[A-Za-z0-9_]+|[A-Z]{2,}(?:-[A-Z]{2,})?|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/g
       ) ?? [];
     const uniqueMatches = [
       ...new Set(matches.map(item => item.trim()).filter(item => item.length > 2)),
     ].slice(0, 16);
     for (const label of uniqueMatches) {
-      const key = label.toLowerCase();
+      const key = normalizeEntityKey(label);
       const existing = entityMap.get(key);
       if (existing) {
         existing.mentionCount += 1;
         if (!existing.evidenceRefs.includes(chunk.id)) existing.evidenceRefs.push(chunk.id);
+        if (label !== existing.label && !existing.aliases.includes(label)) {
+          existing.aliases.push(label);
+        }
         continue;
       }
       entityMap.set(key, {
@@ -1523,22 +1741,31 @@ function extractStructuredArtifacts(
       });
     }
 
-    for (const sentence of splitSentences(chunk.content).slice(0, 4)) {
-      if (sentence.length < 40) continue;
-      const topic = extractKeywords(sentence)[0] ?? uniqueMatches[0] ?? 'topic';
-      const factType = classifyFact(sentence);
-      const sentiment = factType === 'supporting' ? 0.75 : factType === 'risk' ? -0.75 : 0.1;
+    const rankedSentences = rankSentences(
+      splitSentences(chunk.content),
+      promptKeywords,
+      uniqueMatches
+    ).slice(0, 5);
+    for (const sentence of rankedSentences) {
+      const topic = inferClaimTopic(sentence, promptKeywords, uniqueMatches);
       const entityIds = uniqueMatches
         .filter(label => sentence.includes(label))
-        .map(label => entityMap.get(label.toLowerCase())?.id)
+        .map(label => entityMap.get(normalizeEntityKey(label))?.id)
         .filter((value): value is string => Boolean(value));
+      const promptHits = promptKeywords.filter(keyword =>
+        sentence.toLowerCase().includes(keyword)
+      ).length;
       claimCandidates.push({
         id: `rf_claim_${sha256(`${chunk.id}:${sentence}`).slice(0, 12)}`,
         projectId: project.id,
         text: sentence,
         topic,
-        sentiment,
-        confidence: clamp(sentenceWeight(sentence), 0.2, 0.98),
+        sentiment: sentimentForSentence(sentence),
+        confidence: clamp(
+          sentenceWeight(sentence) + entityIds.length * 0.05 + promptHits * 0.06,
+          0.24,
+          0.99
+        ),
         evidenceRefs: [chunk.id],
         entityIds,
         createdAt: Date.now(),
@@ -1547,8 +1774,9 @@ function extractStructuredArtifacts(
   }
 
   const claims = claimCandidates
+    .filter((claim, index, all) => all.findIndex(other => other.text === claim.text) === index)
     .sort((left, right) => right.confidence - left.confidence)
-    .slice(0, 24);
+    .slice(0, 32);
 
   const scenarioBuckets = new Map<string, { summary: string; refs: Set<string>; weight: number }>();
   for (const claim of claims) {
@@ -1562,6 +1790,19 @@ function extractStructuredArtifacts(
     scenarioBuckets.set(claim.topic, bucket);
   }
 
+  for (const keyword of promptKeywords) {
+    if (scenarioBuckets.has(keyword)) continue;
+    const relatedClaims = claims.filter(claim => claim.text.toLowerCase().includes(keyword));
+    if (relatedClaims.length === 0) continue;
+    scenarioBuckets.set(keyword, {
+      summary: compactText(relatedClaims[0]?.text ?? keyword, 180),
+      refs: new Set(relatedClaims.flatMap(claim => claim.evidenceRefs)),
+      weight: round(
+        relatedClaims.reduce((sum, claim) => sum + Math.abs(claim.sentiment) + claim.confidence, 0)
+      ),
+    });
+  }
+
   const scenarioInputs = [...scenarioBuckets.entries()]
     .map(([topic, bucket], index) => ({
       id: `rf_topic_${sha256(`${project.id}:${topic}:${index}`).slice(0, 12)}`,
@@ -1573,7 +1814,7 @@ function extractStructuredArtifacts(
       createdAt: Date.now(),
     }))
     .sort((left, right) => right.weight - left.weight)
-    .slice(0, 8);
+    .slice(0, 10);
 
   return {
     entities: [...entityMap.values()].sort(
@@ -1614,6 +1855,14 @@ function buildLaneRounds(
     );
 
     for (let roundIndex = 1; roundIndex <= project.simulationConfig.rounds; roundIndex += 1) {
+      const activeTopic =
+        scenarioInputs[(roundIndex - 1) % Math.max(scenarioInputs.length, 1)] ??
+        ({
+          topic: 'core evidence',
+          summary: 'Core evidence',
+          evidenceRefs,
+          weight: 1,
+        } as RealityForkScenarioInput);
       const drift = stableNoise(`${project.id}:${lane}:${roundIndex}`) - 0.5;
       sentiment = clamp(
         sentiment + drift * laneWeights[lane].volatility + balance * 0.015,
@@ -1643,9 +1892,14 @@ function buildLaneRounds(
         salience: round(salience),
         summary:
           lane === 'market_lane'
-            ? `Round ${roundIndex}: implied odds moved to ${Math.round(sentiment * 100)} with ${Math.round(conviction * 100)} confidence.`
-            : `Round ${roundIndex}: ${lane.replace('_', ' ')} stabilized around ${Math.round(sentiment * 100)} sentiment and ${Math.round(salience * 100)} salience.`,
-        evidenceRefs: evidenceRefs.slice(0, 8),
+            ? `Round ${roundIndex}: markets repriced "${activeTopic.topic}" to ${Math.round(sentiment * 100)} implied odds with ${Math.round(conviction * 100)} confidence.`
+            : lane === 'reddit_lane'
+              ? `Round ${roundIndex}: Reddit consensus on "${activeTopic.topic}" settled at ${Math.round(sentiment * 100)} sentiment with ${Math.round(salience * 100)} salience.`
+              : `Round ${roundIndex}: X momentum around "${activeTopic.topic}" moved to ${Math.round(sentiment * 100)} sentiment with ${Math.round(conviction * 100)} conviction.`,
+        evidenceRefs: (activeTopic.evidenceRefs.length > 0
+          ? activeTopic.evidenceRefs
+          : evidenceRefs
+        ).slice(0, 8),
         createdAt: Date.now(),
       });
     }
@@ -1999,9 +2253,42 @@ async function scoreSimulationBranches(params: {
   };
 }
 
+function citationLabelsFromRefs(
+  refs: string[],
+  evidence: RealityForkEvidence[],
+  chunks: RealityForkChunk[]
+): string[] {
+  const evidenceById = new Map(evidence.map(item => [item.id, item]));
+  const chunkById = new Map(chunks.map(item => [item.id, item]));
+  return [...new Set(refs)]
+    .map(ref => {
+      const chunk = chunkById.get(ref);
+      if (!chunk) return ref;
+      const source = evidenceById.get(chunk.evidenceId)?.title ?? 'Source';
+      return `${source}: "${compactText(chunk.content, 96)}"`;
+    })
+    .slice(0, 8);
+}
+
+function bulletList(items: string[]): string {
+  return items.map(item => `- ${item}`).join('\n');
+}
+
+function reportBodyToHtml(body: string): string {
+  const lines = body
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+  if (lines.every(line => line.startsWith('- '))) {
+    return `<ul>${lines.map(line => `<li>${line.slice(2)}</li>`).join('')}</ul>`;
+  }
+  return `<p>${body.replace(/\n/g, '<br />')}</p>`;
+}
+
 function buildStudioReport(params: {
   project: RealityForkProject;
   evidence: RealityForkEvidence[];
+  chunks: RealityForkChunk[];
   entities: RealityForkEntity[];
   claims: RealityForkClaim[];
   scenarioInputs: RealityForkScenarioInput[];
@@ -2023,69 +2310,159 @@ function buildStudioReport(params: {
     ) ??
     params.simulations[0] ??
     null;
+  const estimatedCostUsd = estimateProjectCostUsd({
+    simulationConfig: params.project.simulationConfig,
+    evidenceCount: params.evidence.length,
+    chunkCount: params.chunks.length,
+    claimCount: params.claims.length,
+    scenarioInputCount: params.scenarioInputs.length,
+  });
+  const degradedEvidence = params.evidence.filter(item => item.warning);
   const summary = winner
-    ? `${winner.title} leads after ${params.project.simulationConfig.rounds} rounds with ${Math.round(winner.probability * 100)}% probability and ${Math.round(winner.confidence * 100)}% confidence.`
-    : 'No winning hypothesis was produced.';
+    ? `${winner.title} leads after ${params.project.simulationConfig.rounds} rounds across ${params.project.simulationConfig.lanes.length} lanes. ${params.evidence.length} sources produced ${params.claims.length} claims and ${params.entities.length} entities for review.`
+    : 'No leading scenario was produced from the current evidence set.';
+  const topTopics = params.scenarioInputs.slice(0, 4).map(input => input.topic);
+  const winnerScenario = winner
+    ? `${winner.title}: ${winner.outcome} (${Math.round(winner.probability * 100)}% probability, ${Math.round(winner.confidence * 100)}% confidence).`
+    : 'No winning scenario is available.';
+  const runnerUp =
+    params.simulations
+      .filter(simulation => simulation.id !== winner?.id)
+      .sort((left, right) => right.probability - left.probability)[0] ?? null;
+  const laneSummaries = params.project.simulationConfig.lanes.map(lane => {
+    const rounds = params.laneRounds.filter(round => round.lane === lane);
+    const opening = rounds[0];
+    const closing = rounds.at(-1);
+    const label = lane === 'market_lane' ? 'Markets' : lane === 'reddit_lane' ? 'Reddit' : 'X';
+    if (!opening || !closing) return `${label}: no lane data captured.`;
+    const delta = Math.round((closing.sentiment - opening.sentiment) * 100);
+    const driftWord = delta > 4 ? 'strengthened' : delta < -4 ? 'softened' : 'held steady';
+    return `${label}: ${driftWord} around "${params.scenarioInputs.find(input => closing.evidenceRefs.some(ref => input.evidenceRefs.includes(ref)))?.topic ?? 'core evidence'}" (${Math.round(closing.sentiment * 100)} sentiment, ${Math.round(closing.conviction * 100)} conviction).`;
+  });
+  const winnerCitations = citationLabelsFromRefs(
+    winner?.rationale.evidenceIds ?? [],
+    params.evidence,
+    params.chunks
+  );
+  const degradedSummary =
+    degradedEvidence.length > 0
+      ? `${degradedEvidence.length} source${degradedEvidence.length === 1 ? '' : 's'} degraded during ingest.`
+      : 'All sources produced extractable text.';
 
   const sections: RealityForkReportSection[] = [
     {
       id: 'executive-summary',
       key: 'executive_summary',
       title: 'Executive summary',
-      body: summary,
-      citations: winner?.rationale.evidenceIds ?? [],
+      body: [summary, winnerScenario].join('\n'),
+      citations: winnerCitations,
+    },
+    {
+      id: 'evidence-base',
+      key: 'evidence_base',
+      title: 'Evidence base',
+      body: bulletList([
+        `${params.evidence.length} source${params.evidence.length === 1 ? '' : 's'} reviewed`,
+        `${params.chunks.length} normalized evidence chunk${params.chunks.length === 1 ? '' : 's'} generated`,
+        `${params.claims.length} claims and ${params.entities.length} entities extracted`,
+        degradedSummary,
+      ]),
+      citations: citationLabelsFromRefs(
+        params.claims.slice(0, 4).flatMap(claim => claim.evidenceRefs),
+        params.evidence,
+        params.chunks
+      ),
     },
     {
       id: 'entity-graph',
       key: 'entity_graph_summary',
       title: 'Extracted entity graph',
-      body:
-        params.entities
-          .slice(0, 8)
-          .map(entity => `${entity.label} (${entity.category})`)
-          .join(', ') || 'No entities extracted.',
+      body: params.entities.length
+        ? bulletList(
+            params.entities
+              .slice(0, 8)
+              .map(
+                entity => `${entity.label} (${entity.category}, ${entity.mentionCount} mentions)`
+              )
+          )
+        : 'No entities extracted.',
       citations: params.entities
         .slice(0, 6)
         .flatMap(entity => entity.evidenceRefs)
-        .slice(0, 8),
+        .slice(0, 8)
+        .map(ref => citationLabelsFromRefs([ref], params.evidence, params.chunks)[0] ?? ref),
     },
     {
       id: 'key-claims',
       key: 'key_claims',
       title: 'Key claims',
-      body: params.claims
-        .slice(0, 6)
-        .map(claim => `${claim.text} [${claim.evidenceRefs.join(', ')}]`)
-        .join('\n'),
-      citations: params.claims.slice(0, 6).flatMap(claim => claim.evidenceRefs),
+      body: bulletList(
+        params.claims
+          .slice(0, 6)
+          .map(claim => `${claim.text} (${Math.round(claim.confidence * 100)}% confidence)`)
+      ),
+      citations: citationLabelsFromRefs(
+        params.claims.slice(0, 6).flatMap(claim => claim.evidenceRefs),
+        params.evidence,
+        params.chunks
+      ),
+    },
+    {
+      id: 'scenario-map',
+      key: 'scenario_map',
+      title: 'Scenario map',
+      body: bulletList(
+        params.simulations
+          .slice()
+          .sort((left, right) => right.probability - left.probability)
+          .map(
+            simulation =>
+              `${simulation.title}: ${Math.round(simulation.probability * 100)}% probability, ${Math.round(simulation.confidence * 100)}% confidence, ${simulation.outcome}`
+          )
+      ),
+      citations: citationLabelsFromRefs(
+        params.simulations.flatMap(simulation => simulation.rationale.evidenceIds),
+        params.evidence,
+        params.chunks
+      ),
     },
     {
       id: 'lane-narrative',
       key: 'lane_narrative',
       title: 'Platform lane narrative',
-      body: params.project.simulationConfig.lanes
-        .map(lane => {
-          const latest = params.laneRounds.filter(round => round.lane === lane).at(-1);
-          return `${lane.replace('_', ' ')}: ${latest?.summary ?? 'No lane rounds captured.'}`;
-        })
-        .join('\n'),
-      citations: params.laneRounds.slice(-6).flatMap(round => round.evidenceRefs),
+      body: bulletList(laneSummaries),
+      citations: citationLabelsFromRefs(
+        params.laneRounds.slice(-6).flatMap(round => round.evidenceRefs),
+        params.evidence,
+        params.chunks
+      ),
     },
     {
-      id: 'winner-vs-dissent',
-      key: 'winner_vs_dissent',
-      title: 'Winning branch vs dissent',
-      body: winner
-        ? `${winner.title} won because ${params.decision.winnerReason ?? 'it held the strongest balance of evidence.'}`
-        : 'No winner was selected.',
-      citations: winner?.rationale.evidenceIds ?? [],
+      id: 'decision-rationale',
+      key: 'decision_rationale',
+      title: 'Decision rationale',
+      body: bulletList(
+        [
+          winner
+            ? `${winner.title} leads because ${params.decision.winnerReason ?? 'it retained the strongest balance of evidence.'}`
+            : 'No winner was selected.',
+          runnerUp
+            ? `${runnerUp.title} remained the closest alternative at ${Math.round(runnerUp.probability * 100)}% probability.`
+            : null,
+          topTopics.length > 0 ? `Highest-salience topics: ${topTopics.join(', ')}.` : null,
+        ].filter((value): value is string => Boolean(value))
+      ),
+      citations: winnerCitations,
     },
     {
       id: 'recommendation',
       key: 'recommendation',
       title: 'Recommended action',
-      body: winner?.outcome ?? 'Gather more evidence before execution.',
-      citations: winner?.rationale.evidenceIds ?? [],
+      body: [
+        winner?.outcome ?? 'Gather more evidence before execution.',
+        `Estimated pipeline spend: $${estimatedCostUsd.toFixed(2)}.`,
+      ].join('\n'),
+      citations: winnerCitations,
     },
   ];
 
@@ -2110,7 +2487,7 @@ function buildStudioReport(params: {
     `<p>${params.project.prompt}</p>`,
     ...sections.map(
       section =>
-        `<section><h2>${section.title}</h2><p>${section.body.replace(/\n/g, '<br />')}</p>${
+        `<section><h2>${section.title}</h2>${reportBodyToHtml(section.body)}${
           section.citations.length > 0
             ? `<p><strong>Citations:</strong> ${section.citations.join(', ')}</p>`
             : ''
@@ -2125,11 +2502,14 @@ function buildStudioReport(params: {
     sections,
     metrics: {
       evidenceCount: params.evidence.length,
+      degradedEvidenceCount: degradedEvidence.length,
       entityCount: params.entities.length,
       claimCount: params.claims.length,
       scenarioInputCount: params.scenarioInputs.length,
       laneRoundCount: params.laneRounds.length,
       simulationCount: params.simulations.length,
+      citationCount: sections.reduce((total, section) => total + section.citations.length, 0),
+      estimatedCostUsd,
     },
     markdownBlob: createArtifactBlob(
       markdown,
@@ -2204,7 +2584,7 @@ async function runFullJob(
   store = realityForkBlobStore
 ): Promise<Record<string, unknown>> {
   clearDerivedProjectState(job.project_id);
-  updateProjectState(job.project_id, { status: 'processing' });
+  updateProjectState(job.project_id, { status: 'processing', warnings: [] });
 
   const project = getProject(job.project_id);
   if (!project) {
@@ -2434,9 +2814,23 @@ async function runFullJob(
 
   updateJob(job.id, { currentStage: 'report', progress: 0.82 });
   const evidence = hydratedEvidenceRows.map(mapEvidence);
+  const estimatedCostUsd = estimateProjectCostUsd({
+    simulationConfig: project.simulationConfig,
+    evidenceCount: evidence.length,
+    chunkCount: allChunks.length,
+    claimCount: structured.claims.length,
+    scenarioInputCount: structured.scenarioInputs.length,
+  });
+  const warnings = buildProjectWarnings({
+    evidence,
+    estimatedCostUsd,
+    claimCount: structured.claims.length,
+    scenarioInputCount: structured.scenarioInputs.length,
+  });
   const reportDraft = buildStudioReport({
     project,
     evidence,
+    chunks: allChunks,
     entities: structured.entities,
     claims: structured.claims,
     scenarioInputs: structured.scenarioInputs,
@@ -2471,6 +2865,7 @@ async function runFullJob(
   updateProjectState(job.project_id, {
     status: 'ready',
     latestReportId: reportId,
+    warnings,
   });
 
   appendProjectEvent({
@@ -2481,6 +2876,8 @@ async function runFullJob(
       reportId,
       headline: reportDraft.headline,
       winner: scored.decision.winnerHypothesisId,
+      estimatedCostUsd,
+      warningCount: warnings.length,
     },
   });
 
@@ -2672,6 +3069,54 @@ function normalizeTags(tags: unknown): string[] {
   return [...new Set(tags.map(value => String(value).trim()).filter(Boolean))].slice(0, 12);
 }
 
+function estimateProjectCostUsd(params: {
+  simulationConfig: RealityForkSimulationConfig;
+  evidenceCount: number;
+  chunkCount: number;
+  claimCount: number;
+  scenarioInputCount: number;
+}): number {
+  const extractionCost =
+    params.evidenceCount * 0.07 + params.chunkCount * 0.008 + params.claimCount * 0.014;
+  const simulationCost =
+    params.simulationConfig.lanes.length *
+      (params.simulationConfig.rounds * 0.03 + params.simulationConfig.activeAgents * 0.02) +
+    params.simulationConfig.representedPopulation * 0.002;
+  const reportCost = params.scenarioInputCount * 0.04 + 0.18;
+  return round(extractionCost + simulationCost + reportCost);
+}
+
+function buildProjectWarnings(params: {
+  evidence: RealityForkEvidence[];
+  estimatedCostUsd: number;
+  claimCount: number;
+  scenarioInputCount: number;
+}): string[] {
+  const warnings: string[] = [];
+  const degraded = params.evidence.filter(item => item.warning);
+  if (degraded.length > 0) {
+    warnings.push(
+      `${degraded.length} source${degraded.length === 1 ? '' : 's'} degraded during ingest and may weaken citation coverage.`
+    );
+  }
+  if (params.claimCount < 4) {
+    warnings.push(
+      'The evidence set produced only a small claim set, so scenario divergence is limited.'
+    );
+  }
+  if (params.scenarioInputCount < 2) {
+    warnings.push(
+      'Topic coverage is narrow. Add more evidence if you need broader scenario exploration.'
+    );
+  }
+  if (params.estimatedCostUsd >= realityForkLimits.highEstimatedCostUsd) {
+    warnings.push(
+      `Estimated pipeline spend is $${params.estimatedCostUsd.toFixed(2)} for this run.`
+    );
+  }
+  return warnings;
+}
+
 function decodeEvidenceInput(input: CreateRealityForkEvidenceInput): {
   mimeType: string | null;
   buffer: Buffer | null;
@@ -2727,6 +3172,7 @@ export function createUpload(
   },
   store = realityForkBlobStore
 ): RealityForkUpload {
+  purgeStaleUploads(store);
   const blob = persistBlob(
     store.put({
       data: input.data,
@@ -2768,10 +3214,30 @@ export function createProject(
   input: CreateRealityForkProjectInput,
   store = realityForkBlobStore
 ): RealityForkProjectDetail {
+  purgeStaleUploads(store);
+  assertProjectCreationQuota(input.clientIp ?? null);
   const prompt = input.prompt?.trim() || input.claim?.trim() || '';
   const title = input.title?.trim() || titleFromPrompt(prompt);
   const claim = prompt;
   if (!prompt) throw new Error('prompt required');
+  const uploadIds = [...new Set(input.uploadIds ?? [])];
+  const urls = [...new Set((input.urls ?? []).map(value => value.trim()).filter(Boolean))];
+  if (uploadIds.length > realityForkLimits.maxProjectUploads) {
+    throw new Error(`project accepts at most ${realityForkLimits.maxProjectUploads} uploads`);
+  }
+  if (urls.length > realityForkLimits.maxProjectUrls) {
+    throw new Error(`project accepts at most ${realityForkLimits.maxProjectUrls} urls`);
+  }
+
+  const uploads = uploadIds.map(uploadId => {
+    const upload = getUploadRow(uploadId);
+    if (!upload) throw new Error(`upload not found: ${uploadId}`);
+    return upload;
+  });
+  const totalUploadBytes = uploads.reduce((sum, upload) => sum + upload.size_bytes, 0);
+  if (totalUploadBytes > realityForkLimits.maxProjectUploadBytes) {
+    throw new Error('project upload payload exceeds the 20 MB limit');
+  }
 
   const projectId = `rf_proj_${randomUUID().slice(0, 12)}`;
   const slug = uniqueProjectSlug(title);
@@ -2809,9 +3275,7 @@ export function createProject(
     addEvidence(projectId, evidence, store);
   }
 
-  for (const uploadId of input.uploadIds ?? []) {
-    const upload = getUploadRow(uploadId);
-    if (!upload) throw new Error(`upload not found: ${uploadId}`);
+  for (const upload of uploads) {
     addEvidence(
       projectId,
       {
@@ -2840,9 +3304,7 @@ export function createProject(
     );
   }
 
-  for (const rawUrl of input.urls ?? []) {
-    const sourceUrl = rawUrl.trim();
-    if (!sourceUrl) continue;
+  for (const sourceUrl of urls) {
     addEvidence(
       projectId,
       {
@@ -3054,6 +3516,9 @@ export function enqueueProjectJob(
   const project = getProject(projectId);
   if (kind === 'publish' && !loadReportById(project?.latestReportId ?? null, store)) {
     throw new Error('Project has no report to publish');
+  }
+  if (kind === 'publish') {
+    assertPublicationQuota(project?.createdByIp ?? null);
   }
 
   const jobId = `rf_job_${randomUUID().slice(0, 12)}`;

@@ -72,6 +72,11 @@ export class FileSystemBlobStore {
   readText(storageKey: string): string {
     return this.read(storageKey).toString('utf8');
   }
+
+  delete(storageKey: string): void {
+    const fullPath = path.join(this.rootDir, storageKey);
+    fs.rmSync(fullPath, { force: true });
+  }
 }
 
 export const realityForkBlobStore = new FileSystemBlobStore();

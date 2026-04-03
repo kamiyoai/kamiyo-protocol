@@ -147,7 +147,12 @@ describe('reality-fork routes', () => {
     expect(project.decision.winnerHypothesisId).toBeTruthy();
     expect(project.report.markdown).toContain('# Bridge rollback decision');
     expect(project.report.markdown).toContain('## Executive summary');
+    expect(project.report.markdown).toContain('## Evidence base');
+    expect(project.report.markdown).toContain('## Scenario map');
+    expect(project.report.markdown).toContain('## Decision rationale');
     expect(project.report.markdown).toContain('## Recommended action');
+    expect(project.report.markdown).toContain('Estimated pipeline spend: $');
+    expect(project.report.metrics.estimatedCostUsd).toBeGreaterThan(0);
 
     const publishResponse = await fetch(
       `${server.baseUrl}/api/reality-fork/projects/${projectId}/publish`,
@@ -250,10 +255,49 @@ describe('reality-fork routes', () => {
     expect(uploadedProject.entities.length).toBeGreaterThan(0);
     expect(uploadedProject.laneRounds.length).toBe(24);
     expect(uploadedProject.report.markdown).toContain('## Platform lane narrative');
+    expect(uploadedProject.report.markdown).toContain('## Scenario map');
+    expect(uploadedProject.report.metrics.estimatedCostUsd).toBeGreaterThan(0);
+
+    const blockedPublishResponse = await fetch(
+      `${server.baseUrl}/api/reality-fork/projects/${uploadedProjectCreated.id}/publish`,
+      {
+        method: 'POST',
+      }
+    );
+    expect(blockedPublishResponse.status).toBe(429);
+    expect((await blockedPublishResponse.json()).error).toMatch(/published report/i);
+
+    const thirdCreateResponse = await fetch(`${server.baseUrl}/api/reality-fork/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        prompt: 'Should the team defer settlement expansion until external conditions stabilize?',
+        pastedText:
+          'Settlement confidence is stable but still sensitive to timing and external messaging.',
+      }),
+    });
+    expect(thirdCreateResponse.status).toBe(201);
+    const thirdProject = (await thirdCreateResponse.json()) as Record<string, any>;
+    await waitForJob(
+      server.baseUrl,
+      thirdProject.id as string,
+      thirdProject.initialJob.id as string
+    );
+
+    const fourthCreateResponse = await fetch(`${server.baseUrl}/api/reality-fork/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        prompt: 'Should the team add another scenario after the daily quota is already exhausted?',
+        pastedText: 'This request should exceed the daily per-IP project allowance.',
+      }),
+    });
+    expect(fourthCreateResponse.status).toBe(429);
+    expect((await fourthCreateResponse.json()).error).toMatch(/project quota|project limit/i);
 
     const listedAgainResponse = await fetch(`${server.baseUrl}/api/reality-fork`);
     expect(listedAgainResponse.status).toBe(200);
     const listedAgain = (await listedAgainResponse.json()) as Record<string, any>;
-    expect(listedAgain.projects).toHaveLength(3);
+    expect(listedAgain.projects).toHaveLength(4);
   });
 });

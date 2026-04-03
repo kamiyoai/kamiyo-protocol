@@ -11,6 +11,14 @@ import {
   listProjectEvents,
   listProjects,
 } from './service';
+import {
+  assertAddEvidenceQuota,
+  assertCreateProjectQuota,
+  assertEnqueueJobQuota,
+  assertUploadQuota,
+  RealityForkQuotaError,
+} from './quotas';
+import { getRealityForkProjectOps, getRealityForkUsageOps } from './ops';
 
 const router = Router();
 const upload = multer({
@@ -34,8 +42,35 @@ function clientIp(req: Request): string | null {
   return req.ip || null;
 }
 
+function respondForRouteError(res: Response, error: unknown, fallback: string): void {
+  if (error instanceof RealityForkQuotaError) {
+    res.status(error.statusCode).json({
+      error: error.message,
+      code: error.code,
+      details: error.details,
+    });
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : fallback;
+  const status = /not found/i.test(message)
+    ? 404
+    : /required/i.test(message)
+      ? 400
+      : /limit reached|already running|accepts at most/i.test(message)
+        ? 429
+        : /payload exceeds|exceeds the 20 mb/i.test(message)
+          ? 413
+          : 500;
+  res.status(status).json({ error: message });
+}
+
 router.get('/', (_req: Request, res: Response) => {
   res.json({ projects: listProjects() });
+});
+
+router.get('/ops/usage', (req: Request, res: Response) => {
+  res.json(getRealityForkUsageOps(clientIp(req)));
 });
 
 router.post('/uploads', upload.array('files', 5), (req: Request, res: Response) => {
@@ -45,6 +80,11 @@ router.post('/uploads', upload.array('files', 5), (req: Request, res: Response) 
       res.status(400).json({ error: 'at least one file is required' });
       return;
     }
+
+    assertUploadQuota(
+      clientIp(req),
+      files.map(file => ({ size: file.size }))
+    );
 
     const uploads = files.map(file =>
       createUpload({
@@ -57,13 +97,19 @@ router.post('/uploads', upload.array('files', 5), (req: Request, res: Response) 
 
     res.status(201).json({ uploads });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to create uploads';
-    res.status(500).json({ error: message });
+    respondForRouteError(res, error, 'failed to create uploads');
   }
 });
 
 router.post('/projects', (req: Request, res: Response) => {
   try {
+    assertCreateProjectQuota(clientIp(req), {
+      uploadIds: parseStringList(req.body?.uploadIds),
+      urls: parseStringList(req.body?.urls),
+      evidence: Array.isArray(req.body?.evidence) ? req.body.evidence : undefined,
+      pastedText: parseString(req.body?.pastedText),
+    });
+
     const project = createProject({
       title: parseString(req.body?.title),
       prompt: parseString(req.body?.prompt) ?? parseString(req.body?.claim) ?? '',
@@ -77,15 +123,14 @@ router.post('/projects', (req: Request, res: Response) => {
       evidence: Array.isArray(req.body?.evidence) ? req.body.evidence : undefined,
       clientIp: clientIp(req),
     });
+    assertEnqueueJobQuota(project.id, 'full');
     const job = enqueueProjectJob(project.id, 'full');
     res.status(201).json({
       ...getProjectDetail(project.id),
       initialJob: job,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to create project';
-    const status = /required|not found/i.test(message) ? 400 : 500;
-    res.status(status).json({ error: message });
+    respondForRouteError(res, error, 'failed to create project');
   }
 });
 
@@ -98,26 +143,37 @@ router.get('/projects/:projectId', (req: Request, res: Response) => {
   res.json(project);
 });
 
+router.get('/projects/:projectId/ops', (req: Request, res: Response) => {
+  const ops = getRealityForkProjectOps(req.params.projectId);
+  if (!ops) {
+    res.status(404).json({ error: 'Project not found' });
+    return;
+  }
+  res.json(ops);
+});
+
 router.post('/projects/:projectId/evidence', (req: Request, res: Response) => {
   try {
+    assertAddEvidenceQuota(req.params.projectId, {
+      uploadId: parseString(req.body?.uploadId),
+      text: parseString(req.body?.text),
+      contentBase64: parseString(req.body?.contentBase64),
+    });
     const evidence = addEvidence(req.params.projectId, req.body ?? {});
     res.status(201).json(evidence);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to add evidence';
-    const status = /required|not found/i.test(message) ? 400 : 500;
-    res.status(status).json({ error: message });
+    respondForRouteError(res, error, 'failed to add evidence');
   }
 });
 
 router.post('/projects/:projectId/jobs', (req: Request, res: Response) => {
   try {
     const kind = req.body?.kind === 'publish' ? 'publish' : 'full';
+    assertEnqueueJobQuota(req.params.projectId, kind);
     const job = enqueueProjectJob(req.params.projectId, kind);
     res.status(202).json(job);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to queue job';
-    const status = /not found/i.test(message) ? 404 : 400;
-    res.status(status).json({ error: message });
+    respondForRouteError(res, error, 'failed to queue job');
   }
 });
 
@@ -139,23 +195,21 @@ router.get('/projects/:projectId/jobs/:jobId', (req: Request, res: Response) => 
 
 router.post('/projects/:projectId/publish', (req: Request, res: Response) => {
   try {
+    assertEnqueueJobQuota(req.params.projectId, 'publish');
     const job = enqueueProjectJob(req.params.projectId, 'publish');
     res.status(202).json(job);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to queue publish';
-    const status = /not found/i.test(message) ? 404 : 400;
-    res.status(status).json({ error: message });
+    respondForRouteError(res, error, 'failed to queue publish');
   }
 });
 
 router.post('/projects/:projectId/retry', (req: Request, res: Response) => {
   try {
+    assertEnqueueJobQuota(req.params.projectId, 'full');
     const job = enqueueProjectJob(req.params.projectId, 'full');
     res.status(202).json(job);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'failed to retry project';
-    const status = /not found/i.test(message) ? 404 : 400;
-    res.status(status).json({ error: message });
+    respondForRouteError(res, error, 'failed to retry project');
   }
 });
 
