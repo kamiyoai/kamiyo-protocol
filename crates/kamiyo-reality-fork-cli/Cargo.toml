@@ -1,0 +1,19 @@
+[package]
+name = "kamiyo-reality-fork-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native launcher for the KAMIYO Reality Fork CLI."
+readme = "README.md"
+repository = "https://github.com/kamiyo-ai/kamiyo-protocol"
+homepage = "https://github.com/kamiyo.ai/"
+keywords = ["kamiyo", "cli", "reality-fork", "relay44"]
+categories = ["command-line-utilities"]
+include = [
+    "Cargo.toml",
+    "README.md",
+    "src/**/*.rs",
+    "assets/reality-fork-cli.mjs",
+]
+
+[workspace]

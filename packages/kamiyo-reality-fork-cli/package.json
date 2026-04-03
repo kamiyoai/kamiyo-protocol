@@ -1,0 +1,28 @@
+{
+  "name": "@kamiyo/reality-fork-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Focused CLI for Reality Fork fixtures and remote control-room operations.",
+  "license": "MIT",
+  "bin": {
+    "reality-fork": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "pnpm --filter @kamiyo/reality-fork build && rm -rf dist && tsc",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kamiyo/reality-fork": "workspace:*",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "string-argv": "^0.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
+  }
+}
