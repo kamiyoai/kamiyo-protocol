@@ -171,10 +171,6 @@ router.get('/projects/:projectId/stream', (req: Request, res: Response) => {
   res.write(': connected\n\n');
 
   let closed = false;
-  const pollInterval = setInterval(tick, 250);
-  const heartbeatInterval = setInterval(() => {
-    send('ping', { ts: Date.now() });
-  }, 15_000);
   const seenIds = new Set<string>();
 
   const send = (event: string, data: unknown) => {
@@ -219,6 +215,12 @@ router.get('/projects/:projectId/stream', (req: Request, res: Response) => {
       closeSoon();
     }
   };
+
+  const pollInterval = setInterval(tick, 250);
+  const heartbeatInterval = setInterval(() => {
+    send('ping', { ts: Date.now() });
+  }, 15_000);
+
   req.on('aborted', close);
   res.on('close', close);
   setTimeout(tick, 0);

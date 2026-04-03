@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-import pdfParse from 'pdf-parse';
+import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import { load as loadHtml } from 'cheerio';
 import db from '../db';
@@ -1228,8 +1228,7 @@ function createArtifactBlob(
       data: Buffer.from(data, 'utf8'),
       fileName,
       mimeType,
-    }),
-    store
+    })
   );
 }
 
@@ -1311,9 +1310,14 @@ async function extractTextFromBlob(
   }
 
   if (sourceType === 'pdf') {
-    const parsed = await pdfParse(buffer);
-    const text = parsed.text.trim();
-    if (text) return { text, warning: null };
+    const parser = new PDFParse({ data: buffer });
+    try {
+      const parsed = await parser.getText();
+      const text = parsed.text.trim();
+      if (text) return { text, warning: null };
+    } finally {
+      await parser.destroy();
+    }
 
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rf-pdf-'));
     const tempFile = path.join(tempDir, fileName);
@@ -1811,6 +1815,7 @@ async function scoreSimulationBranches(params: {
     hypothesisId: RealityForkHypothesisId;
     slug: string;
     title: string;
+    stance: RealityForkSimulationStance;
     outcome: string;
     probability: number;
     confidence: number;
@@ -2201,7 +2206,7 @@ async function runFullJob(
   clearDerivedProjectState(job.project_id);
   updateProjectState(job.project_id, { status: 'processing' });
 
-  const project = getProject(job.project_id, store);
+  const project = getProject(job.project_id);
   if (!project) {
     throw new Error('Project not found');
   }
@@ -2496,7 +2501,7 @@ async function runPublishJob(
   updateProjectState(job.project_id, { status: 'publishing' });
   updateJob(job.id, { currentStage: 'publish', progress: 0.5 });
 
-  const project = getProject(job.project_id, store);
+  const project = getProject(job.project_id);
   if (!project) {
     throw new Error('Project not found');
   }
@@ -2727,8 +2732,7 @@ export function createUpload(
       data: input.data,
       fileName: input.fileName,
       mimeType: input.mimeType ?? null,
-    }),
-    store
+    })
   );
 
   const uploadId = `rf_upload_${randomUUID().slice(0, 12)}`;
@@ -2975,8 +2979,7 @@ export function addEvidence(
               input.fileName ??
               `${slugify(title)}${decoded.mimeType === 'application/json' ? '.json' : '.txt'}`,
             mimeType: decoded.mimeType,
-          }),
-          store
+          })
         )
       : null;
   const evidenceId = `rf_ev_${randomUUID().slice(0, 12)}`;
