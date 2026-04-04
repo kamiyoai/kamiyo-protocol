@@ -1,0 +1,55 @@
+{
+  "name": "@kamiyo/reality-fork-dkg",
+  "version": "0.1.0",
+  "private": true,
+  "description": "KAMIYO Reality Fork DKG integration - publish and query Reality Fork Knowledge Assets on OriginTrail DKG",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-reality-fork-dkg"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "create-paranet": "tsx scripts/create-paranet.ts"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "peerDependencies": {
+    "dkg.js": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "scripts/**/*"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "keywords": [
+    "kamiyo",
+    "reality-fork",
+    "origintrail",
+    "dkg",
+    "knowledge-assets",
+    "simulation",
+    "hypothesis"
+  ]
+}
