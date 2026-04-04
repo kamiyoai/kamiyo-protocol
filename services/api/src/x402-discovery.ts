@@ -1,10 +1,20 @@
 import { PayAIFacilitator } from '@kamiyo/x402-client';
 
-import { CREDITS_PRICING, getMcpCapability, getX402Capability, resolveX402SupportedNetworks } from './core-capabilities';
-import { getSapAgentUri, getSapHealthEndpoint, getSapMcpEndpoint, getSapPricingEndpoint } from './sap';
+import {
+  CREDITS_PRICING,
+  getMcpCapability,
+  getX402Capability,
+  resolveX402SupportedNetworks,
+} from './core-capabilities';
+import {
+  getSapAgentUri,
+  getSapHealthEndpoint,
+  getSapMcpEndpoint,
+  getSapPricingEndpoint,
+} from './sap';
 
 function getNetworkManifest() {
-  return resolveX402SupportedNetworks().map((network) => ({
+  return resolveX402SupportedNetworks().map(network => ({
     name: network,
     chainId: PayAIFacilitator.getChainId(network),
     usdc: PayAIFacilitator.getUsdcAddress(network),
@@ -47,9 +57,28 @@ export function getX402DiscoveryDocument(baseUrl = getMcpCapability().publicBase
         asset: 'USDC',
         priceUsd: null,
         paymentMode: 'sap',
-        description: 'SAP execution surface for pricing checks, pass-through fetches, and escrow tooling.',
+        description:
+          'SAP execution surface for pricing checks, pass-through fetches, and escrow tooling.',
         pricingEndpoint: getSapPricingEndpoint(baseUrl),
         metadataEndpoint: getSapAgentUri(baseUrl),
+      },
+      {
+        path: '/api/reality-fork/projects',
+        method: 'POST',
+        asset: 'USDC',
+        priceUsd: 0.15,
+        paymentMode: 'direct',
+        description: 'Create Reality Fork project and run LLM-powered intelligence pipeline.',
+        note: 'Free when RF_LLM_ENABLED is false (regex fallback).',
+      },
+      {
+        path: '/api/reality-fork/projects/:projectId/jobs',
+        method: 'POST',
+        asset: 'USDC',
+        priceUsd: 0.15,
+        paymentMode: 'direct',
+        description: 'Queue Reality Fork analysis job (full=$0.15, publish=$0.05).',
+        note: 'Free when RF_LLM_ENABLED is false (regex fallback).',
       },
     ],
     links: {

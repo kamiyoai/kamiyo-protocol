@@ -22,6 +22,16 @@ import {
   verifyRealityForkInternalSeedToken,
 } from './quotas';
 import { getRealityForkProjectOps, getRealityForkUsageOps } from './ops';
+import {
+  getX402Challenge,
+  getX402Gateway,
+  getSupportedX402Networks,
+  getX402PaymentHeader,
+  verifyAndSettleX402Payment,
+} from '../x402-runtime';
+import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits } from '../db';
+import { getBurnService } from '../burn-service';
+import { logger } from '../logger';
 import type {
   CreateRealityForkEvidenceInput,
   RealityForkEvidenceKind,
@@ -37,6 +47,111 @@ const upload = multer({
     fileSize: 20 * 1024 * 1024,
   },
 });
+
+// ── x402 + credits payment gate ──────────────────────────────────────
+const RF_FULL_JOB_PRICE_USD = 0.15;
+const RF_PUBLISH_PRICE_USD = 0.05;
+
+function rfPaymentRequired(): boolean {
+  return process.env.RF_LLM_ENABLED === 'true' && Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
+async function rfPaymentGate(
+  req: Request,
+  res: Response,
+  priceUsd: number,
+  description: string
+): Promise<boolean> {
+  if (!rfPaymentRequired()) return true;
+
+  const walletHeader = req.headers['x-wallet'] as string | undefined;
+  const facilitator = getX402Gateway();
+  const supportedNetworks = getSupportedX402Networks();
+
+  // 1. Try prepaid credits
+  if (walletHeader) {
+    const requiredMicro = usdToCredits(priceUsd);
+    const balanceMicro = getCreditBalance(walletHeader);
+    if (balanceMicro >= requiredMicro) {
+      const deducted = deductCredits(walletHeader, requiredMicro, req.path, description);
+      if (deducted) {
+        const burnService = getBurnService();
+        burnService.recordCreditBurn(walletHeader, req.path, priceUsd);
+        logger.info('RF credits used', {
+          wallet: walletHeader.slice(0, 10) + '...',
+          amount: priceUsd,
+          endpoint: req.path,
+        });
+        return true;
+      }
+    }
+  }
+
+  // 2. Try x402 on-chain payment
+  if (!facilitator) {
+    if (!walletHeader) {
+      res.status(402).json({
+        error: 'Payment required',
+        priceUsd,
+        description,
+        hint: 'Send X-Wallet header with prepaid credits, or x402 payment header.',
+      });
+    } else {
+      res.status(402).json({
+        error: 'Insufficient credits',
+        priceUsd,
+        credits: {
+          wallet: walletHeader.slice(0, 10) + '...',
+          balanceUsd: getCreditBalanceUsd(walletHeader),
+        },
+      });
+    }
+    return false;
+  }
+
+  const paymentHeader = getX402PaymentHeader(req.headers);
+  if (paymentHeader.type === 'missing') {
+    const { body, headers } = getX402Challenge(req.path, priceUsd, description, supportedNetworks);
+    const responseBody: Record<string, unknown> = { ...body };
+    if (walletHeader) {
+      responseBody.credits = {
+        wallet: walletHeader.slice(0, 10) + '...',
+        balanceUsd: getCreditBalanceUsd(walletHeader),
+        requiredUsd: priceUsd,
+      };
+    }
+    Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
+    res.status(402).json(responseBody);
+    return false;
+  }
+
+  const result = await verifyAndSettleX402Payment(
+    paymentHeader,
+    req.path,
+    priceUsd,
+    description,
+    supportedNetworks,
+    { allowSapX402: false }
+  );
+  if (result.ok) {
+    const burnService = getBurnService();
+    burnService.recordX402Burn(result.payment.payer || 'unknown', req.path, priceUsd);
+    logger.info('RF x402 payment settled', {
+      payer: result.payment.payer,
+      network: result.payment.network,
+      amount: priceUsd,
+    });
+    return true;
+  }
+
+  const { body } = getX402Challenge(req.path, priceUsd, description, supportedNetworks);
+  if (result.verifyError) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (body as any).verifyError = result.verifyError;
+  }
+  res.status(402).json(body);
+  return false;
+}
 
 const burstBuckets = new Map<string, number[]>();
 
@@ -78,10 +193,7 @@ function getRouteGuardConfig(env: NodeJS.ProcessEnv = process.env): RouteGuardCo
     projectBurstLimit: parseIntEnv(env.REALITY_FORK_GUARD_PROJECT_BURST_LIMIT, 4),
     evidenceBurstLimit: parseIntEnv(env.REALITY_FORK_GUARD_EVIDENCE_BURST_LIMIT, 12),
     jobBurstLimit: parseIntEnv(env.REALITY_FORK_GUARD_JOB_BURST_LIMIT, 4),
-    jobFailureBreakerThreshold: parseIntEnv(
-      env.REALITY_FORK_JOB_FAILURE_BREAKER_THRESHOLD,
-      2
-    ),
+    jobFailureBreakerThreshold: parseIntEnv(env.REALITY_FORK_JOB_FAILURE_BREAKER_THRESHOLD, 2),
     jobFailureBreakerWindowMs: parseIntEnv(
       env.REALITY_FORK_JOB_FAILURE_BREAKER_WINDOW_MS,
       15 * 60 * 1000
@@ -92,10 +204,7 @@ function getRouteGuardConfig(env: NodeJS.ProcessEnv = process.env): RouteGuardCo
     ),
     internalSeedBurstLimit: parseIntEnv(env.REALITY_FORK_INTERNAL_SEED_BURST_LIMIT, 8),
     internalSeedEvidenceLimit: parseIntEnv(env.REALITY_FORK_INTERNAL_SEED_EVIDENCE_LIMIT, 16),
-    internalSeedTextCharLimit: parseIntEnv(
-      env.REALITY_FORK_INTERNAL_SEED_TEXT_CHAR_LIMIT,
-      120_000
-    ),
+    internalSeedTextCharLimit: parseIntEnv(env.REALITY_FORK_INTERNAL_SEED_TEXT_CHAR_LIMIT, 120_000),
     internalSeedByteLimit: parseIntEnv(env.REALITY_FORK_INTERNAL_SEED_BYTE_LIMIT, 8 * 1024 * 1024),
   };
 }
@@ -165,9 +274,10 @@ function buildProjectEnvelope(projectId: string, clientKey: string | null) {
   };
 }
 
-function quotaStateForContext(clientKey: string | null, projectId?: string): ReturnType<
-  typeof getRealityForkQuotaState
-> {
+function quotaStateForContext(
+  clientKey: string | null,
+  projectId?: string
+): ReturnType<typeof getRealityForkQuotaState> {
   return getRealityForkQuotaState({ clientIp: clientKey, projectId });
 }
 
@@ -249,7 +359,9 @@ function assertProjectCircuitClosed(
   const failures = project.jobs
     .filter(job => job.kind === 'full' && job.status === 'failed')
     .sort((left, right) => right.createdAt - left.createdAt);
-  const recentFailures = failures.filter(job => nowMs - job.createdAt < config.jobFailureBreakerWindowMs);
+  const recentFailures = failures.filter(
+    job => nowMs - job.createdAt < config.jobFailureBreakerWindowMs
+  );
   if (recentFailures.length < config.jobFailureBreakerThreshold) return;
 
   const lastFailureAt =
@@ -333,9 +445,7 @@ function parseInternalSeedEvidence(
       kind: parseEvidenceKind(candidate.kind),
       sourceType: parseSourceType(candidate.sourceType),
       sourceLabel:
-        parseString(candidate.sourceLabel) ??
-        parseString(candidate.reason) ??
-        'launch-team-seed',
+        parseString(candidate.sourceLabel) ?? parseString(candidate.reason) ?? 'launch-team-seed',
       sourceUrl,
       mimeType: parseString(candidate.mimeType),
       text,
@@ -447,8 +557,17 @@ router.post('/uploads', upload.array('files', 5), (req: Request, res: Response) 
   }
 });
 
-router.post('/projects', (req: Request, res: Response) => {
+router.post('/projects', async (req: Request, res: Response) => {
   try {
+    // Payment gate: project creation triggers a full LLM job
+    const paid = await rfPaymentGate(
+      req,
+      res,
+      RF_FULL_JOB_PRICE_USD,
+      'Reality Fork project creation + analysis'
+    );
+    if (!paid) return;
+
     const clientKey = clientIp(req);
     const config = getRouteGuardConfig();
     assertBurstLimit({
@@ -542,9 +661,15 @@ router.post('/projects/:projectId/evidence', (req: Request, res: Response) => {
   }
 });
 
-router.post('/projects/:projectId/jobs', (req: Request, res: Response) => {
+router.post('/projects/:projectId/jobs', async (req: Request, res: Response) => {
   try {
     const kind = req.body?.kind === 'publish' ? 'publish' : 'full';
+    const price = kind === 'publish' ? RF_PUBLISH_PRICE_USD : RF_FULL_JOB_PRICE_USD;
+    const desc =
+      kind === 'publish' ? 'Reality Fork DKG publication' : 'Reality Fork intelligence pipeline';
+    const paid = await rfPaymentGate(req, res, price, desc);
+    if (!paid) return;
+
     const job = queueProjectJob(req.params.projectId, kind, req);
     res.status(202).json({
       ...job,
@@ -577,8 +702,16 @@ router.get('/projects/:projectId/jobs/:jobId', (req: Request, res: Response) => 
   });
 });
 
-router.post('/projects/:projectId/publish', (req: Request, res: Response) => {
+router.post('/projects/:projectId/publish', async (req: Request, res: Response) => {
   try {
+    const paid = await rfPaymentGate(
+      req,
+      res,
+      RF_PUBLISH_PRICE_USD,
+      'Reality Fork DKG publication'
+    );
+    if (!paid) return;
+
     const job = queueProjectJob(req.params.projectId, 'publish', req);
     res.status(202).json({
       ...job,
@@ -592,8 +725,16 @@ router.post('/projects/:projectId/publish', (req: Request, res: Response) => {
   }
 });
 
-router.post('/projects/:projectId/retry', (req: Request, res: Response) => {
+router.post('/projects/:projectId/retry', async (req: Request, res: Response) => {
   try {
+    const paid = await rfPaymentGate(
+      req,
+      res,
+      RF_FULL_JOB_PRICE_USD,
+      'Reality Fork pipeline retry'
+    );
+    if (!paid) return;
+
     const job = queueProjectJob(req.params.projectId, 'full', req);
     res.status(202).json({
       ...job,
@@ -643,7 +784,9 @@ router.post('/internal/projects/:projectId/seed', (req: Request, res: Response) 
       })
     );
 
-    const job = runFullJob ? queueProjectJob(req.params.projectId, 'full', req, { skipQuota: true }) : null;
+    const job = runFullJob
+      ? queueProjectJob(req.params.projectId, 'full', req, { skipQuota: true })
+      : null;
     const envelope = buildProjectEnvelope(req.params.projectId, clientIp(req));
     if (!envelope) {
       res.status(404).json({ error: 'Project not found' });
