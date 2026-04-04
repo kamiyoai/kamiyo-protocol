@@ -6,12 +6,67 @@ import fs from 'node:fs';
 import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import { load as loadHtml } from 'cheerio';
+import Anthropic from '@anthropic-ai/sdk';
 import db from '../db';
 import { FileSystemBlobStore, realityForkBlobStore } from './blob-store';
 import { adjudicateBranches } from '../control-room/adjudication';
 import { scoreBranches } from '../control-room/scoring';
 import type { BranchExecutionSummary, CounterfactualSnapshot } from '../control-room/types';
 import type { ExecuteSwarmRunResult } from '../swarm/service';
+
+// ── LLM + DKG feature flags ──────────────────────────────────────────
+const RF_LLM_ENABLED = process.env.RF_LLM_ENABLED === 'true';
+const RF_DKG_ENABLED = process.env.RF_DKG_ENABLED === 'true';
+const RF_LLM_MODEL = process.env.RF_LLM_MODEL || 'claude-sonnet-4-5-20250514';
+
+let _anthropicClient: Anthropic | null = null;
+function getAnthropicClient(): Anthropic | null {
+  if (_anthropicClient) return _anthropicClient;
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  _anthropicClient = new Anthropic({ apiKey: key });
+  return _anthropicClient;
+}
+
+function parseJSONFromLLM<T>(text: string): T {
+  const trimmed = text.trim();
+  // Try direct parse
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    /* continue */
+  }
+  // Try markdown code block
+  const codeBlock = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (codeBlock?.[1]) {
+    try {
+      return JSON.parse(codeBlock[1].trim()) as T;
+    } catch {
+      /* continue */
+    }
+  }
+  // Try first JSON object or array
+  // eslint-disable-next-line no-useless-escape
+  const firstJson = trimmed.match(/[\[{][\s\S]*[\]}]/);
+  if (firstJson?.[0]) {
+    return JSON.parse(firstJson[0]) as T;
+  }
+  throw new Error('Failed to parse JSON from LLM response');
+}
+
+async function callClaude(prompt: string, systemPrompt: string, maxTokens = 4096): Promise<string> {
+  const client = getAnthropicClient();
+  if (!client) throw new Error('Anthropic client not available');
+  const response = await client.messages.create({
+    model: RF_LLM_MODEL,
+    max_tokens: maxTokens,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const block = response.content[0];
+  if (block.type !== 'text') throw new Error('Unexpected response type from Claude');
+  return block.text;
+}
 import type {
   CreateRealityForkEvidenceInput,
   CreateRealityForkProjectInput,
@@ -223,6 +278,7 @@ type PublicationRow = {
   summary: string;
   manifest_json: string;
   bundle_blob_id: string | null;
+  dkg_report_ual: string | null;
   status: 'published';
   created_at: number;
   published_at: number;
@@ -257,6 +313,7 @@ type KeywordCount = {
   count: number;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type StoredReportPayload = {
   version: 2;
   sections: RealityForkReportSection[];
@@ -474,7 +531,9 @@ function isUsefulEntityLabel(label: string): boolean {
   const normalized = normalizeEntityAlias(label);
   if (normalized.length < 3) return false;
   if (stopWords.has(normalized)) return false;
-  if (/^(report|reports|update|updates|source|sources|claim|claims|market|markets)$/i.test(normalized)) {
+  if (
+    /^(report|reports|update|updates|source|sources|claim|claims|market|markets)$/i.test(normalized)
+  ) {
     return false;
   }
   return true;
@@ -1032,6 +1091,7 @@ function mapPublication(row: PublicationRow, store = realityForkBlobStore): Real
     status: row.status,
     bundleBlobId: row.bundle_blob_id,
     bundle: parseJson<Record<string, unknown>>(readBlobText(row.bundle_blob_id, store), {}),
+    dkgReportUal: row.dkg_report_ual ?? null,
     createdAt: row.created_at * 1000,
     publishedAt: row.published_at * 1000,
   };
@@ -1921,6 +1981,120 @@ function extractStructuredArtifacts(
   };
 }
 
+async function extractStructuredArtifactsLLM(
+  project: RealityForkProject,
+  evidence: RealityForkEvidence[],
+  chunks: RealityForkChunk[]
+): Promise<{
+  entities: RealityForkEntity[];
+  claims: RealityForkClaim[];
+  scenarioInputs: RealityForkScenarioInput[];
+}> {
+  const contextText = chunks
+    .map(c => c.content)
+    .join('\n---\n')
+    .slice(0, 30000);
+  const projectContext = `Project: "${project.title}"\nPrompt: "${project.prompt}"`;
+
+  // 1. Extract entities
+  const entitiesRaw = await callClaude(
+    `${projectContext}\n\nEvidence text:\n${contextText}\n\nExtract all significant entities from this evidence. For each entity provide: label, category (one of: token, protocol, person, organization, location, topic, unknown), description (1 sentence), and aliases (alternate names). Deduplicate by meaning. Return JSON array of objects with fields: label, category, description, aliases (string array). Maximum 40 entities, sorted by importance.`,
+    'You are an expert entity extraction system for intelligence analysis. Return ONLY valid JSON, no markdown or explanation.',
+    4096
+  );
+  const parsedEntities =
+    parseJSONFromLLM<
+      Array<{ label: string; category: string; description?: string; aliases?: string[] }>
+    >(entitiesRaw);
+  const entities: RealityForkEntity[] = parsedEntities.slice(0, 40).map(e => ({
+    id: `rf_ent_${sha256(`${project.id}:${e.label}`).slice(0, 12)}`,
+    projectId: project.id,
+    label: e.label,
+    category: (e.category || 'unknown') as RealityForkEntity['category'],
+    aliases: e.aliases ?? [],
+    mentionCount: chunks.filter(c => c.content.includes(e.label)).length || 1,
+    evidenceRefs: chunks
+      .filter(c => c.content.includes(e.label))
+      .map(c => c.id)
+      .slice(0, 10),
+    createdAt: Date.now(),
+  }));
+
+  // 2. Extract claims
+  const entityLabels = entities
+    .slice(0, 20)
+    .map(e => e.label)
+    .join(', ');
+  const claimsRaw = await callClaude(
+    `${projectContext}\n\nKey entities: ${entityLabels}\n\nEvidence text:\n${contextText}\n\nExtract the most important claims, assertions, and factual statements from this evidence. For each claim provide: text (the claim statement, 1-2 sentences), topic (short keyword), sentiment (-1.0 to 1.0), confidence (0.0 to 1.0), stakes (what's at risk), counterclaim (opposing view if any), entityRefs (array of entity labels mentioned). Return JSON array, max 32 claims, sorted by importance.`,
+    'You are an expert claim extraction system for intelligence analysis. Return ONLY valid JSON, no markdown or explanation.',
+    6144
+  );
+  const parsedClaims =
+    parseJSONFromLLM<
+      Array<{
+        text: string;
+        topic: string;
+        sentiment: number;
+        confidence: number;
+        stakes?: string;
+        counterclaim?: string;
+        entityRefs?: string[];
+      }>
+    >(claimsRaw);
+  const claims: RealityForkClaim[] = parsedClaims.slice(0, 32).map(c => {
+    const entityIds = (c.entityRefs ?? [])
+      .map(ref => entities.find(e => e.label === ref || e.aliases.includes(ref))?.id)
+      .filter((id): id is string => Boolean(id));
+    const matchingChunks = chunks.filter(ch =>
+      ch.content.toLowerCase().includes(c.text.toLowerCase().slice(0, 40))
+    );
+    return {
+      id: `rf_claim_${sha256(`${project.id}:${c.text}`).slice(0, 12)}`,
+      projectId: project.id,
+      text: c.text,
+      topic: c.topic || 'general',
+      sentiment: clamp(c.sentiment ?? 0, -1, 1),
+      confidence: clamp(c.confidence ?? 0.5, 0.1, 0.99),
+      evidenceRefs:
+        matchingChunks.length > 0
+          ? matchingChunks.map(ch => ch.id).slice(0, 5)
+          : ([chunks[0]?.id].filter(Boolean) as string[]),
+      snippet: c.text.slice(0, 200),
+      entityIds,
+      createdAt: Date.now(),
+    };
+  });
+
+  // 3. Extract scenario topics
+  const topicsRaw = await callClaude(
+    `${projectContext}\n\nClaims:\n${claims.map(c => `- [${c.topic}] ${c.text}`).join('\n')}\n\nGroup these claims into 4-10 scenario topic clusters. Each cluster should represent a distinct thematic thread that could drive different future outcomes. For each topic provide: topic (short label), summary (1-2 sentence description), weight (0.0 to 1.0, weights should sum to approximately 1.0). Return JSON array sorted by weight descending.`,
+    'You are an expert scenario analysis system. Return ONLY valid JSON, no markdown or explanation.',
+    2048
+  );
+  const parsedTopics =
+    parseJSONFromLLM<Array<{ topic: string; summary: string; weight: number }>>(topicsRaw);
+  const scenarioInputs: RealityForkScenarioInput[] = parsedTopics.slice(0, 10).map((t, i) => ({
+    id: `rf_topic_${sha256(`${project.id}:${t.topic}:${i}`).slice(0, 12)}`,
+    projectId: project.id,
+    topic: t.topic,
+    summary: t.summary,
+    evidenceRefs: claims
+      .filter(
+        c =>
+          c.topic.toLowerCase().includes(t.topic.toLowerCase()) ||
+          t.summary.toLowerCase().includes(c.topic.toLowerCase())
+      )
+      .flatMap(c => c.evidenceRefs)
+      .filter((v, idx, a) => a.indexOf(v) === idx)
+      .slice(0, 10),
+    weight: round(clamp(t.weight ?? 0.1, 0.01, 1)),
+    createdAt: Date.now(),
+  }));
+
+  return { entities, claims, scenarioInputs };
+}
+
 function buildLaneRounds(
   project: RealityForkProject,
   claims: RealityForkClaim[],
@@ -1993,7 +2167,8 @@ function buildLaneRounds(
         sentiment +
           drift * laneWeights[lane].volatility +
           balance * 0.01 +
-          focusedBalance * (lane === 'market_lane' ? 0.028 : lane === 'reddit_lane' ? 0.018 : 0.024),
+          focusedBalance *
+            (lane === 'market_lane' ? 0.028 : lane === 'reddit_lane' ? 0.018 : 0.024),
         0.05,
         0.95
       );
@@ -2159,6 +2334,87 @@ function buildHypotheses(
         evidenceIds,
         drivers,
       },
+      artifactBlob,
+    };
+  });
+}
+
+async function buildHypothesesLLM(
+  project: RealityForkProject,
+  claims: RealityForkClaim[],
+  laneRounds: RealityForkLaneRound[]
+): Promise<ReturnType<typeof buildHypotheses>> {
+  const claimsSummary = claims
+    .slice(0, 16)
+    .map(c => `- [${c.topic}] (conf=${c.confidence}, sent=${c.sentiment}) ${c.text}`)
+    .join('\n');
+  const laneSummary = project.simulationConfig.lanes
+    .map(lane => {
+      const latest = laneRounds.filter(r => r.lane === lane).at(-1);
+      return `${lane}: sentiment=${latest?.sentiment ?? 0.5}, conviction=${latest?.conviction ?? 0.5}`;
+    })
+    .join('; ');
+  const evidenceIds = [...new Set(claims.flatMap(c => c.evidenceRefs))];
+
+  const raw = await callClaude(
+    `Project: "${project.title}"\nPrompt: "${project.prompt}"\n\nLane state: ${laneSummary}\n\nTop claims:\n${claimsSummary}\n\nGenerate exactly 4 hypotheses about how this situation could unfold. Use these exact IDs: status_quo, accelerant, backlash, market_shock.\n\nFor each hypothesis provide:\n- hypothesisId: one of the 4 IDs above\n- title: compelling 3-6 word title\n- outcome: 2-3 sentence narrative describing what happens and why\n- probability: 0.0-1.0 (must sum to ~1.0 across all 4)\n- confidence: 0.3-0.95 (how certain you are)\n- impactScore: 40-95 (how disruptive)\n- drivers: array of 2-4 key factors driving this outcome\n\nReturn JSON array of 4 objects.`,
+    'You are an expert scenario analyst producing hypothesis forecasts. Return ONLY valid JSON.',
+    4096
+  );
+
+  const parsed = parseJSONFromLLM<
+    Array<{
+      hypothesisId: string;
+      title: string;
+      outcome: string;
+      probability: number;
+      confidence: number;
+      impactScore: number;
+      drivers: string[];
+    }>
+  >(raw);
+
+  // Normalize probabilities to sum=1.0
+  const totalProb = parsed.reduce((s, h) => s + (h.probability || 0.25), 0);
+  const hypothesisIds: RealityForkHypothesisId[] = [
+    'status_quo',
+    'accelerant',
+    'backlash',
+    'market_shock',
+  ];
+
+  return hypothesisIds.map(hid => {
+    const match = parsed.find(p => p.hypothesisId === hid) ?? parsed[hypothesisIds.indexOf(hid)];
+    const prob = round(clamp((match?.probability ?? 0.25) / totalProb, 0.05, 0.95));
+    const conf = round(clamp(match?.confidence ?? 0.5, 0.3, 0.95));
+    const impact = Math.round(clamp(match?.impactScore ?? 60, 40, 95));
+    const drivers = match?.drivers ?? claims.slice(0, 3).map(c => c.text);
+    const latestByLane = new Map<RealityForkLaneId, RealityForkLaneRound>();
+    for (const lane of project.simulationConfig.lanes) {
+      const latest = laneRounds.filter(r => r.lane === lane).at(-1);
+      if (latest) latestByLane.set(lane, latest);
+    }
+    const laneOutlook = {
+      x_lane: round(latestByLane.get('x_lane')?.sentiment ?? 0.5),
+      reddit_lane: round(latestByLane.get('reddit_lane')?.sentiment ?? 0.5),
+      market_lane: round(latestByLane.get('market_lane')?.sentiment ?? 0.5),
+    };
+    const artifactBlob = createArtifactBlob(
+      JSON.stringify({ hypothesisId: hid, laneOutlook, drivers, evidenceIds }, null, 2),
+      `${project.slug}-${hid}.json`,
+      'application/json'
+    );
+    return {
+      hypothesisId: hid,
+      slug: hid,
+      title: match?.title ?? hypothesisLabels[hid],
+      stance: hid as RealityForkSimulationStance,
+      outcome: match?.outcome ?? `The ${hid} scenario unfolds based on current evidence.`,
+      probability: prob,
+      confidence: conf,
+      impactScore: impact,
+      laneOutlook,
+      rationale: { score: prob, evidenceIds, drivers },
       artifactBlob,
     };
   });
@@ -2403,6 +2659,7 @@ function citationLabelsFromRefs(
     .slice(0, 8);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function citationSnippetsFromRefs(
   refs: string[],
   evidence: RealityForkEvidence[],
@@ -2543,13 +2800,14 @@ function reportQuality(params: {
   const distinctEntityCount = params.entities.length;
   const sentiments = params.laneSummaries.map(item => item.closingSentiment);
   const laneDivergence =
-    sentiments.length > 1
-      ? round(Math.max(...sentiments) - Math.min(...sentiments))
-      : 0;
+    sentiments.length > 1 ? round(Math.max(...sentiments) - Math.min(...sentiments)) : 0;
   const blockers: string[] = [];
-  if (citedClaimCount < 4) blockers.push('citation coverage is too thin for a flagship launch report');
-  if (distinctEntityCount < 5) blockers.push('entity extraction did not produce enough distinct actors');
-  if (laneDivergence < 0.08) blockers.push('lane outcomes are too similar to demonstrate scenario separation');
+  if (citedClaimCount < 4)
+    blockers.push('citation coverage is too thin for a flagship launch report');
+  if (distinctEntityCount < 5)
+    blockers.push('entity extraction did not produce enough distinct actors');
+  if (laneDivergence < 0.08)
+    blockers.push('lane outcomes are too similar to demonstrate scenario separation');
   return {
     citedClaimCount,
     distinctEntityCount,
@@ -2574,7 +2832,7 @@ function reportBodyToHtml(body: string): string {
   return `<p>${body.replace(/\n/g, '<br />')}</p>`;
 }
 
-function buildStudioReport(params: {
+async function buildStudioReport(params: {
   project: RealityForkProject;
   evidence: RealityForkEvidence[];
   chunks: RealityForkChunk[];
@@ -2585,7 +2843,7 @@ function buildStudioReport(params: {
   simulations: RealityForkSimulation[];
   decision: RealityForkDecision;
   store?: FileSystemBlobStore;
-}): {
+}): Promise<{
   headline: string;
   summary: string;
   sections: RealityForkReportSection[];
@@ -2600,7 +2858,7 @@ function buildStudioReport(params: {
   quality: RealityForkReport['quality'];
   markdownBlob: RealityForkBlob;
   htmlBlob: RealityForkBlob;
-} {
+}> {
   const winner =
     params.simulations.find(
       simulation => simulation.hypothesisId === params.decision.winnerHypothesisId
@@ -2636,7 +2894,7 @@ function buildStudioReport(params: {
     entities: params.entities,
     laneSummaries,
   });
-  const summary = winner
+  let summary = winner
     ? `${winner.title} leads after ${params.project.simulationConfig.rounds} rounds across ${params.project.simulationConfig.lanes.length} lanes. ${params.evidence.length} sources produced ${params.claims.length} claims and ${params.entities.length} entities for review.`
     : 'No leading scenario was produced from the current evidence set.';
   const topTopics = params.scenarioInputs.slice(0, 4).map(input => input.topic);
@@ -2703,6 +2961,44 @@ function buildStudioReport(params: {
     publishedAt: null,
   };
 
+  let headline = `${params.project.title} report`;
+
+  // LLM narrative enrichment
+  if (RF_LLM_ENABLED && getAnthropicClient()) {
+    try {
+      const claimsSummary = params.claims
+        .slice(0, 12)
+        .map(c => `- ${c.text} (${c.topic}, conf=${c.confidence})`)
+        .join('\n');
+      const simSummary = params.simulations
+        .map(s => `- ${s.title}: ${s.outcome} (${Math.round(s.probability * 100)}%)`)
+        .join('\n');
+      const reportContext = `Project: "${params.project.title}"\nPrompt: "${params.project.prompt}"\n\nKey claims:\n${claimsSummary}\n\nScenarios:\n${simSummary}\n\nWinner: ${winner?.title ?? 'none'} — ${winner?.outcome ?? 'no outcome'}`;
+
+      // Executive summary + headline
+      const esRaw = await callClaude(
+        `${reportContext}\n\nWrite an executive summary for this Reality Fork intelligence report. Provide:\n1. headline: A compelling 8-15 word headline\n2. summary: 2-3 sentence overview\n3. detailed: A 150-300 word executive summary covering key findings, dominant scenario, critical uncertainties, and recommended stance\n\nReturn JSON with fields: headline, summary, detailed`,
+        'You are an elite intelligence analyst writing executive briefings. Return ONLY valid JSON.',
+        2048
+      );
+      const es = parseJSONFromLLM<{ headline: string; summary: string; detailed: string }>(esRaw);
+      headline = es.headline || headline;
+      executiveSummary.body = es.detailed;
+      summary = es.summary;
+
+      // Winning rationale
+      const wrRaw = await callClaude(
+        `${reportContext}\n\nExplain why "${winner?.title ?? 'the winning scenario'}" emerged as the dominant outcome. Cover:\n1. The evidence pattern that supports it\n2. Why alternatives were less compelling\n3. Key risks and blind spots\n\nWrite 100-200 words of analytical prose. Return JSON with field: rationale`,
+        'You are an elite intelligence analyst. Return ONLY valid JSON.',
+        1024
+      );
+      const wr = parseJSONFromLLM<{ rationale: string }>(wrRaw);
+      winningRationale.body = wr.rationale;
+    } catch {
+      // Fall back to deterministic narrative
+    }
+  }
+
   const sections: RealityForkReportSection[] = [
     {
       id: 'executive-summary',
@@ -2747,7 +3043,9 @@ function buildStudioReport(params: {
       key: 'key_claims',
       title: 'Key claims',
       body: bulletList(
-        detailedClaims.map(claim => `${claim.text} (${Math.round(claim.confidence * 100)}% confidence)`)
+        detailedClaims.map(
+          claim => `${claim.text} (${Math.round(claim.confidence * 100)}% confidence)`
+        )
       ),
       citations: detailedClaims.flatMap(claim => claim.citations).slice(0, 8),
     },
@@ -2827,7 +3125,7 @@ function buildStudioReport(params: {
   ].join('');
 
   return {
-    headline: `${params.project.title} report`,
+    headline,
     summary,
     sections,
     metrics: {
@@ -2884,7 +3182,9 @@ function enrichReport(params: {
   if (!decision) return params.report;
 
   const winner =
-    params.simulations.find(simulation => simulation.hypothesisId === decision.winnerHypothesisId) ??
+    params.simulations.find(
+      simulation => simulation.hypothesisId === decision.winnerHypothesisId
+    ) ??
     params.simulations[0] ??
     null;
   const runnerUp =
@@ -2940,7 +3240,9 @@ function enrichReport(params: {
   return {
     ...params.report,
     executiveSummary: {
-      body: params.report.sections.find(section => section.key === 'executive_summary')?.body ?? summary,
+      body:
+        params.report.sections.find(section => section.key === 'executive_summary')?.body ??
+        summary,
       citations: winnerCitations,
     },
     evidenceSummary: {
@@ -3133,11 +3435,32 @@ async function runFullJob(
     );
   }
 
-  const structured = extractStructuredArtifacts(
-    project,
-    hydratedEvidenceRows.map(mapEvidence),
-    allChunks
-  );
+  let structured: {
+    entities: RealityForkEntity[];
+    claims: RealityForkClaim[];
+    scenarioInputs: RealityForkScenarioInput[];
+  };
+  if (RF_LLM_ENABLED && getAnthropicClient()) {
+    try {
+      structured = await extractStructuredArtifactsLLM(
+        project,
+        hydratedEvidenceRows.map(mapEvidence),
+        allChunks
+      );
+    } catch {
+      structured = extractStructuredArtifacts(
+        project,
+        hydratedEvidenceRows.map(mapEvidence),
+        allChunks
+      );
+    }
+  } else {
+    structured = extractStructuredArtifacts(
+      project,
+      hydratedEvidenceRows.map(mapEvidence),
+      allChunks
+    );
+  }
 
   const insertEntity = db.prepare(`
     INSERT INTO reality_fork_entities (
@@ -3232,7 +3555,16 @@ async function runFullJob(
     );
   }
 
-  const hypotheses = buildHypotheses(project, structured.claims, laneRounds);
+  let hypotheses: ReturnType<typeof buildHypotheses>;
+  if (RF_LLM_ENABLED && getAnthropicClient()) {
+    try {
+      hypotheses = await buildHypothesesLLM(project, structured.claims, laneRounds);
+    } catch {
+      hypotheses = buildHypotheses(project, structured.claims, laneRounds);
+    }
+  } else {
+    hypotheses = buildHypotheses(project, structured.claims, laneRounds);
+  }
   const scored = await scoreSimulationBranches({
     project,
     chunks: allChunks,
@@ -3291,7 +3623,7 @@ async function runFullJob(
     claimCount: structured.claims.length,
     scenarioInputCount: structured.scenarioInputs.length,
   });
-  const reportDraft = buildStudioReport({
+  const reportDraft = await buildStudioReport({
     project,
     evidence,
     chunks: allChunks,
@@ -3310,9 +3642,7 @@ async function runFullJob(
       claimCount: structured.claims.length,
       scenarioInputCount: structured.scenarioInputs.length,
     }),
-    ...reportDraft.quality.blockers.map(
-      blocker => `Launch-quality gate: ${blocker}.`
-    ),
+    ...reportDraft.quality.blockers.map(blocker => `Launch-quality gate: ${blocker}.`),
   ];
 
   const reportId = `rf_report_${randomUUID().slice(0, 12)}`;
@@ -3364,6 +3694,53 @@ async function runFullJob(
     simulationIds,
     reportId,
   };
+}
+
+async function publishToDKG(
+  publicationId: string,
+  project: RealityForkProject,
+  report: RealityForkReport,
+  simulations: RealityForkSimulation[]
+): Promise<void> {
+  try {
+    const { getParanetConfig } = await import('../api/routes/_dkg-config');
+    const { createDKGClient } = await import('@kamiyo/agent-paranet');
+    const { RealityForkPublisher } = await import('@kamiyo/reality-fork-dkg');
+
+    const config = getParanetConfig();
+    const dkgClient = await createDKGClient(config);
+    const publisher = new RealityForkPublisher(dkgClient, {
+      paranetUAL: config.paranetUAL ?? '',
+      epochs: config.epochs ?? 12,
+    });
+
+    const winnerHypId =
+      report.decision?.winnerHypothesisId ?? simulations[0]?.hypothesisId ?? 'status_quo';
+    const winner = simulations.find(s => s.hypothesisId === winnerHypId) ?? simulations[0];
+    const reportResult = await publisher.publishReport({
+      projectId: project.id,
+      projectName: project.title,
+      description: report.summary,
+      hypothesisCount: simulations.length,
+      laneCount: project.simulationConfig.lanes.length,
+      simulationRounds: project.simulationConfig.rounds,
+      winnerHypothesisId: winnerHypId,
+      probability: winner?.probability ?? 0.5,
+      impactScore: winner?.impactScore ?? 50,
+      evidenceCount: report.evidenceSummary?.sourceCount ?? 0,
+      reportHash: sha256(report.id),
+      createdAt: new Date(report.createdAt).toISOString(),
+    });
+
+    if (reportResult.success && reportResult.ual) {
+      db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
+        reportResult.ual,
+        publicationId
+      );
+    }
+  } catch {
+    // DKG publish failure is non-fatal
+  }
 }
 
 async function runPublishJob(
@@ -3432,6 +3809,13 @@ async function runPublishJob(
       slug: publicationBundle.slug,
     },
   });
+
+  // DKG publishing (fire-and-forget)
+  if (RF_DKG_ENABLED) {
+    publishToDKG(publicationId, project, report, listSimulations(job.project_id)).catch(() => {
+      // DKG publish failures never block publication
+    });
+  }
 
   return {
     publicationId,

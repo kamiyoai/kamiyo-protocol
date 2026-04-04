@@ -615,6 +615,7 @@ export type RealityForkProjectPublication = {
   status: 'published';
   bundleBlobId: string | null;
   bundle: Record<string, unknown>;
+  dkgReportUal: string | null;
   createdAt: number;
   publishedAt: number;
 };

@@ -2112,6 +2112,7 @@ for (const statement of [
   'ALTER TABLE reality_fork_reports ADD COLUMN html_blob_id TEXT',
   "ALTER TABLE reality_fork_reports ADD COLUMN sections_json TEXT NOT NULL DEFAULT '[]'",
   'ALTER TABLE reality_fork_reports ADD COLUMN decision_json TEXT',
+  'ALTER TABLE reality_fork_publications ADD COLUMN dkg_report_ual TEXT DEFAULT NULL',
 ]) {
   try {
     db.exec(statement);
