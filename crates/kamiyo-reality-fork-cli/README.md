@@ -64,6 +64,32 @@ reality-fork agent deactivate --keypair ~/.config/solana/id.json
 Use `--cluster` to target devnet (default), mainnet, localnet, or any RPC URL.
 All read commands support `--output json` for machine-readable output.
 
+## Configuration
+
+Persist defaults so you don't have to pass flags every time.
+
+```bash
+# set default cluster
+reality-fork config set cluster mainnet
+
+# set default output format
+reality-fork config set output json
+
+# set default keypair path
+reality-fork config set keypair ~/keys/agent.json
+
+# view current config
+reality-fork config show
+
+# remove a default
+reality-fork config unset cluster
+
+# show config file location
+reality-fork config path
+```
+
+Config is stored at `~/.config/kamiyo/reality-fork-cli/config.json`. CLI flags always override config defaults.
+
 ## Output
 
 ```

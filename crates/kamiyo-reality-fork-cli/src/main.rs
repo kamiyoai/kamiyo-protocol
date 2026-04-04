@@ -202,6 +202,18 @@ enum ConfigCommands {
     Path,
     /// Print the current config as JSON
     Show,
+    /// Set a default config value (cluster, output, keypair)
+    Set {
+        /// Config key
+        key: String,
+        /// Config value
+        value: String,
+    },
+    /// Remove a default config value
+    Unset {
+        /// Config key
+        key: String,
+    },
 }
 
 fn default_output_dir(repo_path: &Path, generated_at: &str) -> PathBuf {
@@ -938,19 +950,38 @@ fn cmd_agent_pda(owner_str: &str) -> Result<()> {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-    let output_format = cli.output.as_deref();
+    let store = ConfigStore::load();
+    let profile = store.active_profile();
+
+    let output_format = cli.output.as_deref()
+        .or(profile.output.as_deref());
     let quiet = cli.quiet;
-    let cluster = &cli.cluster;
+    let cluster_flag = cli.cluster;
+    let cluster = if cluster_flag == "devnet" {
+        profile.cluster.as_deref().unwrap_or("devnet")
+    } else {
+        &cluster_flag
+    };
 
     match cli.command {
         Commands::Agent { command } => match command {
             AgentCommands::Info { owner } => cmd_agent_info(&owner, cluster, output_format),
             AgentCommands::Escrows { owner } => cmd_agent_escrows(&owner, cluster, output_format),
             AgentCommands::Create { name, r#type, stake, keypair } => {
-                cmd_agent_create(&name, &r#type, stake, &keypair, cluster, quiet)
+                let kp = if keypair == "~/.config/solana/id.json" {
+                    profile.keypair.as_deref().unwrap_or(&keypair)
+                } else {
+                    &keypair
+                };
+                cmd_agent_create(&name, &r#type, stake, kp, cluster, quiet)
             }
             AgentCommands::Deactivate { keypair } => {
-                cmd_agent_deactivate(&keypair, cluster, quiet)
+                let kp = if keypair == "~/.config/solana/id.json" {
+                    profile.keypair.as_deref().unwrap_or(&keypair)
+                } else {
+                    &keypair
+                };
+                cmd_agent_deactivate(kp, cluster, quiet)
             }
             AgentCommands::Pda { owner } => cmd_agent_pda(&owner),
         },
@@ -1000,13 +1031,31 @@ fn run() -> Result<()> {
         },
         Commands::Config { command } => match command {
             ConfigCommands::Path => {
-                let store = ConfigStore::load();
                 println!("{}", store.config_path().display());
                 Ok(())
             }
             ConfigCommands::Show => {
-                let store = ConfigStore::load();
                 println!("{}", serde_json::to_string_pretty(&store.config)?);
+                Ok(())
+            }
+            ConfigCommands::Set { key, value } => {
+                let mut store = store;
+                store.set_profile_field(&key, &value)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                store.save();
+                if !quiet {
+                    eprintln!("  {} {} = {}", "set".green(), key, value);
+                }
+                Ok(())
+            }
+            ConfigCommands::Unset { key } => {
+                let mut store = store;
+                store.unset_profile_field(&key)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?;
+                store.save();
+                if !quiet {
+                    eprintln!("  {} {}", "unset".green(), key);
+                }
                 Ok(())
             }
         },
