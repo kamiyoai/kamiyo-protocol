@@ -652,3 +652,107 @@ pub fn collect_repo_context(root: &Path, requested_focus: &[String]) -> RepoCont
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detect_no_frameworks() {
+        let files: Vec<String> = vec!["src/main.rs".into(), "Cargo.toml".into()];
+        assert!(detect_frameworks(&files).is_empty());
+    }
+
+    #[test]
+    fn detect_anchor() {
+        let files = vec!["Anchor.toml".into(), "programs/foo/src/lib.rs".into()];
+        let fw = detect_frameworks(&files);
+        assert!(fw.contains(&"solana-anchor".to_string()));
+        assert!(!fw.contains(&"solana-native".to_string()));
+    }
+
+    #[test]
+    fn detect_solana_native_without_anchor() {
+        let files = vec!["programs/foo/src/lib.rs".into()];
+        let fw = detect_frameworks(&files);
+        assert!(fw.contains(&"solana-native".to_string()));
+    }
+
+    #[test]
+    fn detect_foundry() {
+        let files = vec!["foundry.toml".into()];
+        assert!(detect_frameworks(&files).contains(&"foundry".to_string()));
+    }
+
+    #[test]
+    fn detect_hardhat() {
+        let files = vec!["hardhat.config.ts".into()];
+        assert!(detect_frameworks(&files).contains(&"hardhat".to_string()));
+    }
+
+    #[test]
+    fn detect_nextjs() {
+        let files = vec!["next.config.js".into()];
+        assert!(detect_frameworks(&files).contains(&"nextjs".to_string()));
+    }
+
+    #[test]
+    fn detect_docker() {
+        let files = vec!["Dockerfile".into()];
+        assert!(detect_frameworks(&files).contains(&"docker".to_string()));
+    }
+
+    #[test]
+    fn detect_turborepo() {
+        let files = vec!["turbo.json".into()];
+        assert!(detect_frameworks(&files).contains(&"turborepo".to_string()));
+    }
+
+    #[test]
+    fn detect_nx() {
+        let files = vec!["nx.json".into()];
+        assert!(detect_frameworks(&files).contains(&"nx".to_string()));
+    }
+
+    #[test]
+    fn detect_github_actions() {
+        let files = vec![".github/workflows/ci.yml".into()];
+        assert!(detect_frameworks(&files).contains(&"github-actions".to_string()));
+    }
+
+    #[test]
+    fn detect_multiple_frameworks() {
+        let files = vec![
+            "Anchor.toml".into(),
+            "next.config.mjs".into(),
+            "Dockerfile".into(),
+            "turbo.json".into(),
+            ".github/workflows/deploy.yaml".into(),
+        ];
+        let fw = detect_frameworks(&files);
+        assert_eq!(fw.len(), 5);
+        assert!(fw.contains(&"solana-anchor".to_string()));
+        assert!(fw.contains(&"nextjs".to_string()));
+        assert!(fw.contains(&"docker".to_string()));
+        assert!(fw.contains(&"turborepo".to_string()));
+        assert!(fw.contains(&"github-actions".to_string()));
+    }
+
+    #[test]
+    fn detect_nested_paths() {
+        let files = vec![
+            "apps/web/next.config.ts".into(),
+            "deploy/Dockerfile".into(),
+        ];
+        let fw = detect_frameworks(&files);
+        assert!(fw.contains(&"nextjs".to_string()));
+        assert!(fw.contains(&"docker".to_string()));
+    }
+
+    #[test]
+    fn collect_context_crate_root() {
+        let crate_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let ctx = collect_repo_context(crate_root, &[]);
+        assert!(!ctx.name.is_empty());
+    }
+}
+

@@ -897,3 +897,187 @@ pub fn create_launch_run_with(
         posts,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_repo() -> RepoContext {
+        RepoContext {
+            name: "test-repo".into(),
+            display_path: "/tmp/test".into(),
+            file_count: 0,
+            focus_paths: vec![],
+            readme_path: None,
+            readme_excerpt: None,
+            docs: vec![],
+            tests: vec![],
+            examples: vec![],
+            fixtures: vec![],
+            manifests: vec![],
+            locks: vec![],
+            ci: vec![],
+            env_examples: vec![],
+            licenses: vec![],
+            assets: vec![],
+            frameworks: vec![],
+            install_commands: vec![],
+            local_run_commands: vec![],
+            remote_dependency_notes: vec![],
+            runtime_notes: vec![],
+            artifact_notes: vec![],
+            languages: vec![],
+            git: GitContext {
+                branch: None,
+                commit: None,
+                remote_url: None,
+                web_url: None,
+                changed_files: vec![],
+                recent_commits: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn percent_formatting() {
+        assert_eq!(percent(0.0), "0%");
+        assert_eq!(percent(0.5), "50%");
+        assert_eq!(percent(1.0), "100%");
+        assert_eq!(percent(0.786), "79%");
+    }
+
+    #[test]
+    fn percent_edge_cases() {
+        assert_eq!(percent(0.004), "0%");
+        assert_eq!(percent(0.005), "1%");
+        assert_eq!(percent(0.999), "100%");
+    }
+
+    #[test]
+    fn scores_empty_repo() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        assert_eq!(scores.has_readme, 0.0);
+        assert_eq!(scores.docs_score, 0.0);
+    }
+
+    #[test]
+    fn scores_with_readme() {
+        let mut repo = empty_repo();
+        repo.readme_path = Some("README.md".into());
+        repo.readme_excerpt = Some("# My Project\nSome description".into());
+        let scores = derive_repo_scores(&repo);
+        assert!(scores.has_readme > 0.0);
+    }
+
+    #[test]
+    fn axes_always_six() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        assert_eq!(axes.len(), 6);
+    }
+
+    #[test]
+    fn axes_scores_bounded() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        for axis in &axes {
+            assert!(axis.score >= 0.0, "{} score {} < 0", axis.label, axis.score);
+            assert!(axis.score <= 1.0, "{} score {} > 1", axis.label, axis.score);
+        }
+    }
+
+    #[test]
+    fn axes_all_ids_present() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        let ids: Vec<AxisId> = axes.iter().map(|a| a.id).collect();
+        assert!(ids.contains(&AxisId::Immediacy));
+        assert!(ids.contains(&AxisId::Clarity));
+        assert!(ids.contains(&AxisId::Proof));
+        assert!(ids.contains(&AxisId::Distribution));
+        assert!(ids.contains(&AxisId::Shareability));
+        assert!(ids.contains(&AxisId::Trust));
+    }
+
+    #[test]
+    fn branches_always_four() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        let actions = build_actions(&axes);
+        let branches = build_branches(&axes, &actions, &repo);
+        assert_eq!(branches.len(), 4);
+    }
+
+    #[test]
+    fn branches_sorted_by_score_descending() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        let actions = build_actions(&axes);
+        let branches = build_branches(&axes, &actions, &repo);
+        for w in branches.windows(2) {
+            assert!(w[0].score >= w[1].score, "branches not sorted");
+        }
+    }
+
+    #[test]
+    fn full_run_produces_valid_output() {
+        let repo = empty_repo();
+        let run = create_launch_run_with(repo, None, None);
+        assert_eq!(run.kind, "launch");
+        assert_eq!(run.version, 1);
+        assert!(!run.title.is_empty());
+        assert!(!run.prompt.is_empty());
+        assert_eq!(run.axes.len(), 6);
+        assert_eq!(run.branches.len(), 4);
+        assert!(run.verdict.readiness >= 0.0 && run.verdict.readiness <= 1.0);
+    }
+
+    #[test]
+    fn full_run_with_rich_repo() {
+        let mut repo = empty_repo();
+        repo.readme_path = Some("README.md".into());
+        repo.readme_excerpt = Some("# Foo\nInstall with `npm install`\nRun `npm start`".into());
+        repo.file_count = 50;
+        repo.docs = vec!["docs/guide.md".into()];
+        repo.tests = vec!["tests/main.test.ts".into()];
+        repo.manifests = vec!["package.json".into()];
+        repo.locks = vec!["package-lock.json".into()];
+        repo.ci = vec![".github/workflows/ci.yml".into()];
+        repo.install_commands = vec!["npm install".into()];
+        repo.local_run_commands = vec!["npm start".into()];
+        repo.frameworks = vec!["nextjs".into()];
+        repo.languages = vec![Language { name: "TypeScript".into(), file_count: 40 }];
+
+        let run = create_launch_run_with(repo, Some("Should we launch?".into()), Some("Test Run".into()));
+        assert_eq!(run.prompt, "Should we launch?");
+        assert_eq!(run.title, "Test Run");
+        assert!(run.verdict.readiness > 0.0);
+    }
+
+    #[test]
+    fn signals_empty_repo() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        let signals = build_signals(&repo, &scores, &axes);
+        assert!(!signals.is_empty());
+        for s in &signals {
+            assert!(s.weight > 0.0 && s.weight <= 1.0);
+        }
+    }
+
+    #[test]
+    fn actions_not_empty() {
+        let repo = empty_repo();
+        let scores = derive_repo_scores(&repo);
+        let axes = build_axes(&repo, &scores);
+        let actions = build_actions(&axes);
+        assert!(!actions.is_empty());
+    }
+}

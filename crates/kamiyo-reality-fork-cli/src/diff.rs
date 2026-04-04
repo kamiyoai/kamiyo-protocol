@@ -312,3 +312,171 @@ pub fn render_diff_html(diff: &LaunchDiff) -> String {
         rows = rows,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_run(readiness: f64, branch_id: BranchId, label: &str, scores: &[(AxisId, f64)]) -> LaunchRun {
+        let axes: Vec<Axis> = scores
+            .iter()
+            .map(|(id, score)| Axis {
+                id: *id,
+                label: id.label().into(),
+                score: *score,
+                summary: String::new(),
+            })
+            .collect();
+
+        LaunchRun {
+            kind: "launch".into(),
+            version: 1,
+            generated_at: "2025-01-01T00:00:00Z".into(),
+            title: "test".into(),
+            prompt: "test".into(),
+            repo: RepoContext {
+                name: "test".into(),
+                display_path: ".".into(),
+                file_count: 0,
+                focus_paths: vec![],
+                readme_path: None,
+                readme_excerpt: None,
+                docs: vec![],
+                tests: vec![],
+                examples: vec![],
+                fixtures: vec![],
+                manifests: vec![],
+                locks: vec![],
+                ci: vec![],
+                env_examples: vec![],
+                licenses: vec![],
+                assets: vec![],
+                frameworks: vec![],
+                install_commands: vec![],
+                local_run_commands: vec![],
+                remote_dependency_notes: vec![],
+                runtime_notes: vec![],
+                artifact_notes: vec![],
+                languages: vec![],
+                git: GitContext {
+                    branch: None,
+                    commit: None,
+                    remote_url: None,
+                    web_url: None,
+                    changed_files: vec![],
+                    recent_commits: vec![],
+                },
+            },
+            axes,
+            signals: vec![],
+            branches: vec![],
+            verdict: Verdict {
+                winner_branch_id: branch_id,
+                label: label.into(),
+                reason: String::new(),
+                score: 0.0,
+                readiness,
+            },
+            actions: vec![],
+            posts: Posts {
+                announcement: String::new(),
+                thread: vec![],
+            },
+        }
+    }
+
+    fn default_scores() -> Vec<(AxisId, f64)> {
+        vec![
+            (AxisId::Immediacy, 0.5),
+            (AxisId::Clarity, 0.6),
+            (AxisId::Proof, 0.7),
+            (AxisId::Distribution, 0.4),
+            (AxisId::Shareability, 0.3),
+            (AxisId::Trust, 0.8),
+        ]
+    }
+
+    #[test]
+    fn diff_identical_runs() {
+        let scores = default_scores();
+        let run = make_run(0.55, BranchId::NarrowLaunch, "Narrow", &scores);
+        let diff = diff_launch_runs(&run, &run);
+        assert!(!diff.verdict_changed);
+        assert!((diff.readiness_delta).abs() < 1e-10);
+        for axis in &diff.axes {
+            assert_eq!(axis.direction, Direction::Flat);
+        }
+    }
+
+    #[test]
+    fn diff_improved_scores() {
+        let before_scores = default_scores();
+        let after_scores: Vec<(AxisId, f64)> = before_scores
+            .iter()
+            .map(|(id, s)| (*id, (s + 0.1).min(1.0)))
+            .collect();
+        let before = make_run(0.55, BranchId::DelayForProof, "Delay", &before_scores);
+        let after = make_run(0.65, BranchId::NarrowLaunch, "Narrow", &after_scores);
+        let diff = diff_launch_runs(&before, &after);
+        assert!(diff.verdict_changed);
+        assert!(diff.readiness_delta > 0.0);
+        for axis in &diff.axes {
+            assert_eq!(axis.direction, Direction::Up);
+            assert!(axis.delta > 0.0);
+        }
+    }
+
+    #[test]
+    fn diff_decreased_scores() {
+        let before_scores = default_scores();
+        let after_scores: Vec<(AxisId, f64)> = before_scores
+            .iter()
+            .map(|(id, s)| (*id, (s - 0.1).max(0.0)))
+            .collect();
+        let before = make_run(0.55, BranchId::NarrowLaunch, "Narrow", &before_scores);
+        let after = make_run(0.45, BranchId::NarrowLaunch, "Narrow", &after_scores);
+        let diff = diff_launch_runs(&before, &after);
+        assert!(!diff.verdict_changed);
+        assert!(diff.readiness_delta < 0.0);
+        for axis in &diff.axes {
+            assert_eq!(axis.direction, Direction::Down);
+        }
+    }
+
+    #[test]
+    fn diff_flat_threshold() {
+        let scores = default_scores();
+        let near_scores: Vec<(AxisId, f64)> = scores
+            .iter()
+            .map(|(id, s)| (*id, s + 0.004))
+            .collect();
+        let before = make_run(0.55, BranchId::NarrowLaunch, "Narrow", &scores);
+        let after = make_run(0.554, BranchId::NarrowLaunch, "Narrow", &near_scores);
+        let diff = diff_launch_runs(&before, &after);
+        for axis in &diff.axes {
+            assert_eq!(axis.direction, Direction::Flat);
+        }
+    }
+
+    #[test]
+    fn render_markdown_contains_table() {
+        let scores = default_scores();
+        let run = make_run(0.55, BranchId::NarrowLaunch, "Narrow", &scores);
+        let diff = diff_launch_runs(&run, &run);
+        let md = render_diff_markdown(&diff);
+        assert!(md.contains("# Launch Diff"));
+        assert!(md.contains("| Axis | Before | After | Delta |"));
+        assert!(md.contains("Immediacy"));
+    }
+
+    #[test]
+    fn render_html_valid_structure() {
+        let scores = default_scores();
+        let run = make_run(0.55, BranchId::NarrowLaunch, "Narrow", &scores);
+        let diff = diff_launch_runs(&run, &run);
+        let html = render_diff_html(&diff);
+        assert!(html.contains("<!doctype html>"));
+        assert!(html.contains("Reality Fork"));
+        assert!(html.contains("</html>"));
+    }
+}

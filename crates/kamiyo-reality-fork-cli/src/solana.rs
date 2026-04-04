@@ -743,3 +743,183 @@ pub fn cluster_label(cluster: &str) -> &str {
         url => url,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pubkey_roundtrip() {
+        let addr = "11111111111111111111111111111111";
+        let pk: Pubkey = addr.parse().unwrap();
+        assert_eq!(pk.to_string(), addr);
+    }
+
+    #[test]
+    fn pubkey_parse_invalid_base58() {
+        assert!("not-valid-base58!!!".parse::<Pubkey>().is_err());
+    }
+
+    #[test]
+    fn pubkey_parse_wrong_length() {
+        assert!("1111111111".parse::<Pubkey>().is_err());
+    }
+
+    #[test]
+    fn pubkey_serialize_json() {
+        let pk: Pubkey = "11111111111111111111111111111111".parse().unwrap();
+        let json = serde_json::to_string(&pk).unwrap();
+        assert_eq!(json, "\"11111111111111111111111111111111\"");
+    }
+
+    #[test]
+    fn pda_derivation_deterministic() {
+        let owner: Pubkey = "11111111111111111111111111111111".parse().unwrap();
+        let (pda1, bump1) = agent_pda(&owner).unwrap();
+        let (pda2, bump2) = agent_pda(&owner).unwrap();
+        assert_eq!(pda1.0, pda2.0);
+        assert_eq!(bump1, bump2);
+    }
+
+    #[test]
+    fn pda_known_address() {
+        let owner: Pubkey = "11111111111111111111111111111111".parse().unwrap();
+        let (pda, bump) = agent_pda(&owner).unwrap();
+        assert_eq!(pda.to_string(), "3Q7WaGHTK54sFRKnKd6899yJYN3ZzUARamN9xoWP84JT");
+        assert_eq!(bump, 252);
+    }
+
+    #[test]
+    fn pda_different_owners_differ() {
+        let a: Pubkey = "11111111111111111111111111111111".parse().unwrap();
+        let b: Pubkey = KAMIYO_PROGRAM_ID.parse().unwrap();
+        let (pda_a, _) = agent_pda(&a).unwrap();
+        let (pda_b, _) = agent_pda(&b).unwrap();
+        assert_ne!(pda_a.0, pda_b.0);
+    }
+
+    #[test]
+    fn discriminator_anchor_account() {
+        let disc = anchor_account_discriminator("AgentIdentity");
+        assert_eq!(disc.len(), 8);
+        let disc2 = anchor_account_discriminator("AgentIdentity");
+        assert_eq!(disc, disc2);
+    }
+
+    #[test]
+    fn discriminator_different_names_differ() {
+        let a = anchor_account_discriminator("AgentIdentity");
+        let b = anchor_account_discriminator("Escrow");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn instruction_discriminator() {
+        let a = anchor_instruction_discriminator("create_agent");
+        let b = anchor_instruction_discriminator("deactivate_agent");
+        assert_ne!(a, b);
+        assert_eq!(a.len(), 8);
+    }
+
+    #[test]
+    fn format_sol_large() {
+        assert_eq!(format_sol(1_500_000_000), "1.50 SOL");
+        assert_eq!(format_sol(10_000_000_000), "10.00 SOL");
+    }
+
+    #[test]
+    fn format_sol_medium() {
+        assert_eq!(format_sol(100_000_000), "0.1000 SOL");
+        assert_eq!(format_sol(1_000_000), "0.0010 SOL");
+    }
+
+    #[test]
+    fn format_sol_tiny() {
+        assert_eq!(format_sol(100), "100 lamports");
+        assert_eq!(format_sol(0), "0 lamports");
+    }
+
+    #[test]
+    fn format_timestamp_unix_epoch() {
+        assert_eq!(format_timestamp(0), "1970-01-01 00:00:00 UTC");
+    }
+
+    #[test]
+    fn format_timestamp_known() {
+        assert_eq!(format_timestamp(1700000000), "2023-11-14 22:13:20 UTC");
+    }
+
+    #[test]
+    fn cluster_label_aliases() {
+        assert_eq!(cluster_label("devnet"), "devnet");
+        assert_eq!(cluster_label("d"), "devnet");
+        assert_eq!(cluster_label("mainnet"), "mainnet-beta");
+        assert_eq!(cluster_label("mainnet-beta"), "mainnet-beta");
+        assert_eq!(cluster_label("m"), "mainnet-beta");
+        assert_eq!(cluster_label("localnet"), "localnet");
+        assert_eq!(cluster_label("localhost"), "localnet");
+        assert_eq!(cluster_label("l"), "localnet");
+        assert_eq!(cluster_label("testnet"), "testnet");
+        assert_eq!(cluster_label("t"), "testnet");
+    }
+
+    #[test]
+    fn cluster_label_custom_url() {
+        assert_eq!(
+            cluster_label("https://my-rpc.example.com"),
+            "https://my-rpc.example.com"
+        );
+    }
+
+    #[test]
+    fn agent_type_roundtrip() {
+        for v in 0..=3u8 {
+            let t = AgentType::from_u8(v);
+            assert_eq!(t.to_u8(), v);
+        }
+    }
+
+    #[test]
+    fn agent_type_parse() {
+        assert_eq!("trading".parse::<AgentType>().unwrap().to_u8(), 0);
+        assert_eq!("SERVICE".parse::<AgentType>().unwrap().to_u8(), 1);
+        assert_eq!("o".parse::<AgentType>().unwrap().to_u8(), 2);
+        assert_eq!("Custom".parse::<AgentType>().unwrap().to_u8(), 3);
+        assert!("invalid".parse::<AgentType>().is_err());
+    }
+
+    #[test]
+    fn agent_type_unknown_maps_to_custom() {
+        assert_eq!(AgentType::from_u8(255), AgentType::Custom);
+    }
+
+    #[test]
+    fn escrow_status_labels() {
+        assert_eq!(EscrowStatus::from_u8(0).label(), "Active");
+        assert_eq!(EscrowStatus::from_u8(1).label(), "Released");
+        assert_eq!(EscrowStatus::from_u8(2).label(), "Disputed");
+        assert_eq!(EscrowStatus::from_u8(3).label(), "Resolved");
+        assert_eq!(EscrowStatus::from_u8(99).label(), "Resolved");
+    }
+
+    #[test]
+    fn compact_u16_encoding() {
+        assert_eq!(compact_u16(0), vec![0]);
+        assert_eq!(compact_u16(127), vec![127]);
+        assert_eq!(compact_u16(128), vec![0x80, 1]);
+        assert_eq!(compact_u16(0x3fff), vec![0xff, 0x7f]);
+        assert_eq!(compact_u16(0x4000), vec![0x80, 0x80, 1]);
+    }
+
+    #[test]
+    fn program_id_is_valid() {
+        let pid = program_id();
+        assert_eq!(pid.to_string(), KAMIYO_PROGRAM_ID);
+    }
+
+    #[test]
+    fn system_program_id_is_valid() {
+        let sid = system_program_id();
+        assert_eq!(sid.to_string(), SYSTEM_PROGRAM);
+    }
+}
