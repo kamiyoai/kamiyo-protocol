@@ -2030,18 +2030,17 @@ async function extractStructuredArtifactsLLM(
     'You are an expert claim extraction system for intelligence analysis. Return ONLY valid JSON, no markdown or explanation.',
     6144
   );
-  const parsedClaims =
-    parseJSONFromLLM<
-      Array<{
-        text: string;
-        topic: string;
-        sentiment: number;
-        confidence: number;
-        stakes?: string;
-        counterclaim?: string;
-        entityRefs?: string[];
-      }>
-    >(claimsRaw);
+  const parsedClaims = parseJSONFromLLM<
+    Array<{
+      text: string;
+      topic: string;
+      sentiment: number;
+      confidence: number;
+      stakes?: string;
+      counterclaim?: string;
+      entityRefs?: string[];
+    }>
+  >(claimsRaw);
   const claims: RealityForkClaim[] = parsedClaims.slice(0, 32).map(c => {
     const entityIds = (c.entityRefs ?? [])
       .map(ref => entities.find(e => e.label === ref || e.aliases.includes(ref))?.id)
@@ -3709,7 +3708,8 @@ async function publishToDKG(
 
     const config = getParanetConfig();
     const dkgClient = await createDKGClient(config);
-    const publisher = new RealityForkPublisher(dkgClient, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const publisher = new RealityForkPublisher(dkgClient as any, {
       paranetUAL: config.paranetUAL ?? '',
       epochs: config.epochs ?? 12,
     });

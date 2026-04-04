@@ -2123,6 +2123,9 @@ importers:
       '@kamiyo/meishi':
         specifier: workspace:*
         version: link:../../packages/kamiyo-meishi
+      '@kamiyo/reality-fork-dkg':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-reality-fork-dkg
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../../packages/kamiyo-x402-client

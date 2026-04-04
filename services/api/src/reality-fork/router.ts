@@ -56,13 +56,15 @@ function rfPaymentRequired(): boolean {
   return process.env.RF_LLM_ENABLED === 'true' && Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+type RfPaymentResult = 'paid' | 'free' | false;
+
 async function rfPaymentGate(
   req: Request,
   res: Response,
   priceUsd: number,
   description: string
-): Promise<boolean> {
-  if (!rfPaymentRequired()) return true;
+): Promise<RfPaymentResult> {
+  if (!rfPaymentRequired()) return 'free';
 
   const walletHeader = req.headers['x-wallet'] as string | undefined;
   const facilitator = getX402Gateway();
@@ -82,7 +84,7 @@ async function rfPaymentGate(
           amount: priceUsd,
           endpoint: req.path,
         });
-        return true;
+        return 'paid';
       }
     }
   }
@@ -141,7 +143,7 @@ async function rfPaymentGate(
       network: result.payment.network,
       amount: priceUsd,
     });
-    return true;
+    return 'paid';
   }
 
   const { body } = getX402Challenge(req.path, priceUsd, description, supportedNetworks);
@@ -560,31 +562,34 @@ router.post('/uploads', upload.array('files', 5), (req: Request, res: Response) 
 router.post('/projects', async (req: Request, res: Response) => {
   try {
     // Payment gate: project creation triggers a full LLM job
-    const paid = await rfPaymentGate(
+    const paymentResult = await rfPaymentGate(
       req,
       res,
       RF_FULL_JOB_PRICE_USD,
       'Reality Fork project creation + analysis'
     );
-    if (!paid) return;
+    if (!paymentResult) return;
+    const isPaid = paymentResult === 'paid';
 
     const clientKey = clientIp(req);
     const config = getRouteGuardConfig();
     assertBurstLimit({
       bucketKey: `project:${clientKey ?? 'anon'}`,
-      limit: config.projectBurstLimit,
+      limit: isPaid ? config.projectBurstLimit * 5 : config.projectBurstLimit,
       windowMs: config.burstWindowMs,
       message: 'Project creation rate limit exceeded for the current window.',
       code: 'REALITY_FORK_RATE_LIMITED',
       details: { scope: 'projects' },
     });
 
-    assertCreateProjectQuota(clientKey, {
-      uploadIds: parseStringList(req.body?.uploadIds),
-      urls: parseStringList(req.body?.urls),
-      evidence: Array.isArray(req.body?.evidence) ? req.body.evidence : undefined,
-      pastedText: parseString(req.body?.pastedText),
-    });
+    if (!isPaid) {
+      assertCreateProjectQuota(clientKey, {
+        uploadIds: parseStringList(req.body?.uploadIds),
+        urls: parseStringList(req.body?.urls),
+        evidence: Array.isArray(req.body?.evidence) ? req.body.evidence : undefined,
+        pastedText: parseString(req.body?.pastedText),
+      });
+    }
 
     const project = createProject({
       title: parseString(req.body?.title),
@@ -599,7 +604,7 @@ router.post('/projects', async (req: Request, res: Response) => {
       evidence: Array.isArray(req.body?.evidence) ? req.body.evidence : undefined,
       clientIp: clientKey,
     });
-    const job = queueProjectJob(project.id, 'full', req);
+    const job = queueProjectJob(project.id, 'full', req, { skipQuota: isPaid });
     const envelope = buildProjectEnvelope(project.id, clientKey);
     res.status(201).json({
       ...(envelope ?? project),
@@ -670,7 +675,9 @@ router.post('/projects/:projectId/jobs', async (req: Request, res: Response) => 
     const paid = await rfPaymentGate(req, res, price, desc);
     if (!paid) return;
 
-    const job = queueProjectJob(req.params.projectId, kind, req);
+    const job = queueProjectJob(req.params.projectId, kind, req, {
+      skipQuota: paid === 'paid',
+    });
     res.status(202).json({
       ...job,
       quotaState: quotaStateForContext(clientIp(req), req.params.projectId),
@@ -712,7 +719,9 @@ router.post('/projects/:projectId/publish', async (req: Request, res: Response) 
     );
     if (!paid) return;
 
-    const job = queueProjectJob(req.params.projectId, 'publish', req);
+    const job = queueProjectJob(req.params.projectId, 'publish', req, {
+      skipQuota: paid === 'paid',
+    });
     res.status(202).json({
       ...job,
       quotaState: quotaStateForContext(clientIp(req), req.params.projectId),
@@ -735,7 +744,9 @@ router.post('/projects/:projectId/retry', async (req: Request, res: Response) =>
     );
     if (!paid) return;
 
-    const job = queueProjectJob(req.params.projectId, 'full', req);
+    const job = queueProjectJob(req.params.projectId, 'full', req, {
+      skipQuota: paid === 'paid',
+    });
     res.status(202).json({
       ...job,
       quotaState: quotaStateForContext(clientIp(req), req.params.projectId),

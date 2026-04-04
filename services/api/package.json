@@ -30,6 +30,7 @@
     "@kamiyo/agents": "workspace:*",
     "@kamiyo/daydreams": "workspace:*",
     "@kamiyo/hive": "workspace:*",
+    "@kamiyo/reality-fork-dkg": "workspace:*",
     "@kamiyo/meishi": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.0",
