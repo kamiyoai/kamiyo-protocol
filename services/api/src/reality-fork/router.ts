@@ -904,22 +904,77 @@ router.get('/p/:slug', (req: Request, res: Response) => {
   res.json(publication);
 });
 
-// Diagnostic: test DKG V9 import (temporary)
+// Diagnostic: test DKG V9 import + agent init (temporary)
 router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
   const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
   const nodeVersion = process.version;
+  const steps: string[] = [];
   try {
     if (dkgVersion !== 'v9') {
       res.json({ ok: false, reason: 'RF_DKG_VERSION is not v9', dkgVersion, nodeVersion });
       return;
     }
+    steps.push('importing @kamiyo/reality-fork-dkg');
     const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
-    res.json({ ok: true, hasV9Publisher: !!RealityForkPublisherV9, dkgVersion, nodeVersion });
+
+    steps.push('creating publisher instance');
+    const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const operationalKeys = (process.env.RF_DKG_V9_OP_KEYS ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    const publisher = new RealityForkPublisherV9({
+      dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+      bootstrapPeers,
+      chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+      chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+      operationalKeys,
+      paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+      epochs: 12,
+    });
+    steps.push('publisher created, now testing ensureAgent via publishReport');
+
+    const testResult = await Promise.race([
+      publisher.publishReport({
+        projectId: 'diag-test',
+        projectName: 'V9 Diagnostic',
+        description: 'Testing V9 DKG agent initialization',
+        hypothesisCount: 1,
+        laneCount: 1,
+        simulationRounds: 1,
+        winnerHypothesisId: 'status_quo',
+        probability: 0.5,
+        impactScore: 50,
+        evidenceCount: 1,
+        reportHash: 'diag0000',
+        createdAt: new Date().toISOString(),
+      }),
+      new Promise(resolve =>
+        setTimeout(() => resolve({ success: false, error: 'Timeout after 30s' }), 30_000)
+      ),
+    ]);
+    steps.push('publishReport returned');
+
+    await publisher.shutdown().catch(() => {});
+    res.json({
+      ok: true,
+      steps,
+      result: testResult,
+      dkgVersion,
+      nodeVersion,
+      bootstrapPeers: bootstrapPeers.length,
+      hasOpKeys: operationalKeys.length > 0,
+    });
   } catch (err) {
     res.json({
       ok: false,
+      steps,
       error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5) : undefined,
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 8) : undefined,
       dkgVersion,
       nodeVersion,
     });
