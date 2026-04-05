@@ -1375,7 +1375,7 @@ function loadPublicationById(
   const row = db
     .prepare(
       `
-    SELECT id, project_id, report_id, slug, title, summary, manifest_json, bundle_blob_id, status, created_at, published_at
+    SELECT id, project_id, report_id, slug, title, summary, manifest_json, bundle_blob_id, status, dkg_report_ual, created_at, published_at
     FROM reality_fork_publications
     WHERE id = ?
     LIMIT 1
@@ -4551,7 +4551,7 @@ export function getPublicationBySlug(
   const row = db
     .prepare(
       `
-    SELECT id, project_id, report_id, slug, title, summary, manifest_json, bundle_blob_id, status, created_at, published_at
+    SELECT id, project_id, report_id, slug, title, summary, manifest_json, bundle_blob_id, status, dkg_report_ual, created_at, published_at
     FROM reality_fork_publications
     WHERE slug = ?
     LIMIT 1
