@@ -3902,11 +3902,13 @@ async function runPublishJob(
     },
   });
 
-  // DKG publishing (fire-and-forget)
+  // DKG publishing — awaited but non-fatal (V9 agent init can take 30s+)
   if (RF_DKG_ENABLED) {
-    publishToDKG(publicationId, project, report, listSimulations(job.project_id)).catch(() => {
+    try {
+      await publishToDKG(publicationId, project, report, listSimulations(job.project_id));
+    } catch {
       // DKG publish failures never block publication
-    });
+    }
   }
 
   return {
