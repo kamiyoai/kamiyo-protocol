@@ -4719,6 +4719,146 @@ export async function lookupV9Entity(peerId: string, ual: string) {
   return publisher.lookupEntity(peerId, ual);
 }
 
+/**
+ * Publish a Reality Fork report to the Meishi DKG paranet as a schema:Review asset.
+ * This bridges RF data into the Meishi 3D compliance graph without any frontend changes.
+ * Uses the mainnet paranet (PARANET_DKG_ENDPOINT + PARANET_UAL) regardless of DKG_BLOCKCHAIN.
+ */
+export async function publishToMeishiParanet(projectId: string): Promise<{
+  success: boolean;
+  ual?: string;
+  error?: string;
+}> {
+  const {
+    resolveDkgPort,
+    resolveDkgPrivateKey,
+    resolveParanetUAL,
+    normalizeDkgEndpoint,
+    firstNonEmpty,
+  } = await import('../api/routes/_dkg-config');
+  const { createDKGClient } = await import('@kamiyo/agent-paranet');
+
+  // Use the Meishi/mainnet paranet endpoint — NOT the testnet DKG_ENDPOINT
+  const meishiEndpoint = firstNonEmpty(['PARANET_DKG_ENDPOINT', 'DKG_ENDPOINT']) ?? '';
+  const paranetUAL = resolveParanetUAL();
+  const privateKey = resolveDkgPrivateKey();
+
+  if (!meishiEndpoint || !paranetUAL || !privateKey) {
+    return {
+      success: false,
+      error: 'Missing PARANET_DKG_ENDPOINT, PARANET_UAL, or DKG_PRIVATE_KEY',
+    };
+  }
+
+  // Determine blockchain from paranet UAL (did:dkg:base:8453/... → base:8453)
+  const chainMatch = paranetUAL.match(/did:dkg:(base:\d+|gnosis:\d+|otp:\d+)\//);
+  const blockchain = (chainMatch?.[1] ?? 'base:8453') as
+    | 'base:8453'
+    | 'base:84532'
+    | 'gnosis:100'
+    | 'otp:2043';
+
+  // Use mainnet RPC for mainnet paranet
+  const rpc = blockchain === 'base:8453' ? 'https://mainnet.base.org' : undefined;
+
+  const project = getProject(projectId);
+  if (!project) return { success: false, error: 'Project not found' };
+
+  const report = loadReportById(project.latestReportId);
+  if (!report) return { success: false, error: 'No report found' };
+
+  const simulations = listSimulations(projectId);
+  const publishData = buildReportPublishData(project, report, simulations);
+
+  // Build a schema:Review asset that Meishi's SPARQL query picks up
+  const now = new Date().toISOString();
+  const reviewAsset = {
+    '@context': [{ '@vocab': 'https://schema.org/' }],
+    '@type': 'Review',
+    '@id': `urn:kamiyo:rf:review:${projectId}:${Date.now()}`,
+    name: 'ComplianceAudit',
+    itemReviewed: {
+      '@type': 'SoftwareApplication',
+      '@id': 'urn:kamiyo:agent:reality-fork',
+      identifier: 'kamiyo-reality-fork',
+      name: 'Kamiyo Reality Fork',
+    },
+    author: {
+      '@type': 'Organization',
+      '@id': 'urn:kamiyo:agent:rf-simulation-engine',
+      identifier: 'rf-simulation-engine',
+      name: 'Reality Fork Simulation Engine',
+    },
+    reviewRating: {
+      '@type': 'Rating',
+      ratingValue: Math.round(publishData.impactScore),
+      bestRating: 100,
+      worstRating: 0,
+      ratingExplanation: `Classification: ${publishData.probability >= 0.7 ? 'compliant' : publishData.probability >= 0.4 ? 'minimal' : 'limited'}`,
+    },
+    reviewBody: `Reality Fork: ${publishData.projectName}. Winner: ${publishData.winnerHypothesisId} (${Math.round(publishData.probability * 100)}% probability). ${publishData.evidenceCount} evidence sources, ${publishData.hypothesisCount} hypotheses, ${publishData.simulationRounds} rounds.`,
+    additionalProperty: [
+      { '@type': 'PropertyValue', name: 'auditType', value: 'periodic' },
+      {
+        '@type': 'PropertyValue',
+        name: 'classification',
+        value:
+          publishData.probability >= 0.7
+            ? 'compliant'
+            : publishData.probability >= 0.4
+              ? 'minimal'
+              : 'limited',
+      },
+      { '@type': 'PropertyValue', name: 'jurisdiction', value: 'global' },
+      {
+        '@type': 'PropertyValue',
+        name: 'dim:evidence_coverage',
+        value: Math.min(100, publishData.evidenceCount * 10),
+        description: `${publishData.evidenceCount} evidence sources analyzed`,
+      },
+      {
+        '@type': 'PropertyValue',
+        name: 'dim:simulation_depth',
+        value: Math.min(100, publishData.simulationRounds * 4),
+        description: `${publishData.simulationRounds} simulation rounds across ${publishData.laneCount} lanes`,
+      },
+      {
+        '@type': 'PropertyValue',
+        name: 'dim:hypothesis_diversity',
+        value: Math.min(100, publishData.hypothesisCount * 25),
+        description: `${publishData.hypothesisCount} competing hypotheses evaluated`,
+      },
+    ],
+    datePublished: now,
+  };
+
+  try {
+    const dkgClient = await createDKGClient({
+      dkgEndpoint: normalizeDkgEndpoint(meishiEndpoint),
+      dkgPort: resolveDkgPort(),
+      blockchain,
+      privateKey,
+      rpc,
+      paranetUAL,
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (dkgClient as any).asset.create(
+      { public: reviewAsset },
+      { epochsNum: 2, paranetUAL }
+    );
+
+    const ual = result?.UAL ?? result?.ual;
+    console.log('[meishi-bridge] Published RF review to Meishi paranet:', ual);
+
+    return { success: true, ual };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[meishi-bridge] Failed:', msg);
+    return { success: false, error: msg };
+  }
+}
+
 export function __resetRealityForkForTests(): void {
   queuedJobs.splice(0, queuedJobs.length);
   draining = false;

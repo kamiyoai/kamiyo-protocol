@@ -1046,6 +1046,27 @@ router.get('/v9/lookup/:ual', async (req: Request, res: Response) => {
   }
 });
 
+// ── Meishi bridge: publish RF report as schema:Review to Meishi paranet ──
+
+router.post('/v9/meishi-bridge/:projectId', async (req: Request, res: Response) => {
+  if (
+    !realityForkInternalSeedEnabled() ||
+    !verifyRealityForkInternalSeedToken(req.headers.authorization)
+  ) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    const { publishToMeishiParanet } = await import('./service');
+    const result = await publishToMeishiParanet(req.params.projectId);
+    res.json(result);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── DKG V9 diagnostics (keep behind env gate) ──────────────────────────
 router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
   if (process.env.RF_DKG_DIAG !== 'true') {
