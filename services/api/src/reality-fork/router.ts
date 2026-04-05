@@ -66,6 +66,14 @@ async function rfPaymentGate(
 ): Promise<RfPaymentResult> {
   if (!rfPaymentRequired()) return 'free';
 
+  // Internal seed token holders bypass payment (launch-team / testing)
+  if (
+    realityForkInternalSeedEnabled() &&
+    verifyRealityForkInternalSeedToken(req.headers.authorization)
+  ) {
+    return 'free';
+  }
+
   const walletHeader = req.headers['x-wallet'] as string | undefined;
   const facilitator = getX402Gateway();
   const supportedNetworks = getSupportedX402Networks();
