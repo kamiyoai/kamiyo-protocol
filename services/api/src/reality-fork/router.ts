@@ -992,4 +992,85 @@ router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
   }
 });
 
+// Diagnostic: test V9 publish with real project data (temporary)
+router.get('/diag/dkg-v9-publish/:projectId', async (req: Request, res: Response) => {
+  try {
+    const project = getProjectDetail(req.params.projectId);
+    if (!project) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    if (!project.report) {
+      res.status(400).json({ error: 'Project has no report' });
+      return;
+    }
+
+    const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agentMod = (await import('@origintrail-official/dkg-agent')) as any;
+    const agentFactory = agentMod.DKGAgent ?? agentMod.default?.DKGAgent;
+
+    const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+    const operationalKeys = (process.env.RF_DKG_V9_OP_KEYS ?? '')
+      .split(',')
+      .map((s: string) => s.trim())
+      .filter(Boolean);
+
+    const publisher = new RealityForkPublisherV9(
+      {
+        dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+        bootstrapPeers,
+        chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+        chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+        operationalKeys,
+        paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+        epochs: 12,
+      },
+      agentFactory
+    );
+
+    // Build same data that publishToDKGv9 builds
+    const sims = project.simulations || [];
+    const report = project.report;
+    const winnerHypId =
+      report.decision?.winnerHypothesisId ?? sims[0]?.hypothesisId ?? 'status_quo';
+    const winner =
+      sims.find((s: { hypothesisId: string }) => s.hypothesisId === winnerHypId) ?? sims[0];
+
+    const publishData = {
+      projectId: project.id,
+      projectName: project.title,
+      description: report.summary || 'No summary available',
+      hypothesisCount: sims.length || 1,
+      laneCount: project.simulationConfig?.lanes?.length || 1,
+      simulationRounds: project.simulationConfig?.rounds || 1,
+      winnerHypothesisId: winnerHypId,
+      probability: winner?.probability ?? 0.5,
+      impactScore: winner?.impactScore ?? 50,
+      evidenceCount: report.evidenceSummary?.sourceCount ?? 0,
+      reportHash: project.id.slice(0, 12).padEnd(8, '0'),
+      createdAt: new Date(report.createdAt).toISOString(),
+    };
+
+    const result = await Promise.race([
+      publisher.publishReport(publishData),
+      new Promise(resolve =>
+        setTimeout(() => resolve({ success: false, error: 'Timeout after 60s' }), 60_000)
+      ),
+    ]);
+
+    await publisher.shutdown().catch(() => {});
+    res.json({ ok: true, publishData, result });
+  } catch (err) {
+    res.json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5) : undefined,
+    });
+  }
+});
+
 export default router;

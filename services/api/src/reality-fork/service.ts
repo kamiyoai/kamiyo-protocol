@@ -3792,9 +3792,10 @@ async function publishToDKGv9(
     );
   }
 
-  const reportResult = await v9PublisherInstance.publishReport(
-    buildReportPublishData(project, report, simulations)
-  );
+  const publishData = buildReportPublishData(project, report, simulations);
+  console.log('[reality-fork] V9 publish data:', JSON.stringify(publishData));
+  const reportResult = await v9PublisherInstance.publishReport(publishData);
+  console.log('[reality-fork] V9 publish result:', JSON.stringify(reportResult));
 
   if (reportResult.success && reportResult.ual) {
     db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
