@@ -4,7 +4,7 @@
 export interface RealityForkDKGConfig {
   dkgEndpoint: string;
   dkgPort?: number;
-  blockchain: 'base:8453' | 'gnosis:100' | 'otp:2043';
+  blockchain: 'base:8453' | 'base:84532' | 'gnosis:100' | 'otp:2043';
   privateKey?: string;
   rpc?: string;
   epochs?: number;
@@ -90,6 +90,69 @@ export interface RealityForkDKGConfigV9 {
   paranetName?: string;
   /** Number of epochs for knowledge asset storage (default: 12) */
   epochs?: number;
+}
+
+// ── V9 Extended Types ─────────────────────────────────────────────────
+
+/** Result of a V9 SPARQL query against the paranet */
+export interface V9QueryResult {
+  rows: Record<string, unknown>[];
+  executionMs?: number;
+}
+
+/** Kamiyo agent profile for DKG agent registry */
+export interface V9AgentProfile {
+  name: string;
+  description?: string;
+  skills?: string[];
+  endpoint?: string;
+}
+
+/** Result of agent profile publishing */
+export interface V9AgentProfileResult {
+  success: boolean;
+  peerId?: string;
+  identityId?: string;
+  error?: string;
+}
+
+/** Health info for a connected V9 peer */
+export interface V9PeerHealth {
+  peerId: string;
+  latencyMs?: number;
+  online: boolean;
+}
+
+/** V9 P2P network status */
+export interface V9NetworkStatus {
+  peerId: string;
+  identityId?: string;
+  multiaddrs: string[];
+  peerCount: number;
+  peerHealth: V9PeerHealth[];
+  agents: unknown[];
+}
+
+/** Result of a workspace draft write (no chain cost) */
+export interface V9WorkspaceWriteResult {
+  success: boolean;
+  draftId?: string;
+  error?: string;
+}
+
+/** Result of enshrining a workspace draft on-chain */
+export interface V9WorkspaceEnshrineResult {
+  success: boolean;
+  ual?: string;
+  error?: string;
+}
+
+/** Result of resolving a UAL to its RDF triples */
+export interface V9EntityLookupResult {
+  success: boolean;
+  ual?: string;
+  triples?: unknown[];
+  error?: string;
 }
 
 /** DKG client interface (matches dkg.js) */

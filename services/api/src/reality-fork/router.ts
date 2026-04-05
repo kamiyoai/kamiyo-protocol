@@ -923,6 +923,129 @@ router.get('/p/:slug', (req: Request, res: Response) => {
   res.json(publication);
 });
 
+// ── DKG V9 API endpoints ─────────────────────────────────────────────
+
+router.post('/v9/agent/register', async (_req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  try {
+    const { registerV9Agent } = await import('./service');
+    const result = await registerV9Agent();
+    res.json(result);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.post('/v9/query', async (req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  const { sparql } = req.body as { sparql?: string };
+  if (!sparql || typeof sparql !== 'string') {
+    res.status(400).json({ error: 'sparql string required in body' });
+    return;
+  }
+  if (sparql.length > 8000) {
+    res.status(400).json({ error: 'sparql query too long (max 8000 chars)' });
+    return;
+  }
+  try {
+    const { queryDKGv9 } = await import('./service');
+    const result = await queryDKGv9(sparql);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ rows: [], error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/v9/network', async (_req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  try {
+    const { getV9NetworkStatus } = await import('./service');
+    const status = await getV9NetworkStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.post('/v9/workspace/write', async (req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  const { quads } = req.body as { quads?: unknown };
+  if (!quads || typeof quads !== 'object') {
+    res.status(400).json({ error: 'quads object required in body' });
+    return;
+  }
+  try {
+    const { writeV9Workspace } = await import('./service');
+    const result = await writeV9Workspace(quads);
+    res.json(result);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.post('/v9/workspace/enshrine', async (req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  const { selection } = req.body as { selection?: unknown };
+  if (selection === undefined) {
+    res.status(400).json({ error: 'selection required in body' });
+    return;
+  }
+  try {
+    const { enshrineV9Workspace } = await import('./service');
+    const result = await enshrineV9Workspace(selection);
+    res.json(result);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+router.get('/v9/lookup/:ual', async (req: Request, res: Response) => {
+  if (process.env.RF_DKG_VERSION !== 'v9') {
+    res.status(404).json({ error: 'V9 not enabled' });
+    return;
+  }
+  const ual = decodeURIComponent(req.params.ual);
+  const peerId = (req.query.peerId as string | undefined) ?? '';
+  if (!ual) {
+    res.status(400).json({ error: 'ual required' });
+    return;
+  }
+  try {
+    const { lookupV9Entity } = await import('./service');
+    const result = await lookupV9Entity(peerId, ual);
+    if (!result.success) {
+      res.status(404).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── DKG V9 diagnostics (keep behind env gate) ──────────────────────────
 router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
   if (process.env.RF_DKG_DIAG !== 'true') {

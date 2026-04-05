@@ -11,6 +11,13 @@ import type {
   RealityForkSimulationAsset,
   RealityForkPublishResult,
   RealityForkFullPublishResult,
+  V9QueryResult,
+  V9AgentProfile,
+  V9AgentProfileResult,
+  V9NetworkStatus,
+  V9WorkspaceWriteResult,
+  V9WorkspaceEnshrineResult,
+  V9EntityLookupResult,
 } from './types';
 import {
   RealityForkReportSchema,
@@ -24,6 +31,11 @@ import {
 // V9 DKGAgent type (from @origintrail-official/dkg-agent)
 // Using interface to avoid hard dep — the actual import is dynamic
 interface DKGAgentV9 {
+  // Lifecycle
+  start(): Promise<void>;
+  stop(): Promise<void>;
+
+  // Publishing
   publish(
     paranetId: string,
     content: { public?: object; private?: object } | object
@@ -34,8 +46,38 @@ interface DKGAgentV9 {
     description?: string;
     revealOnChain?: boolean;
   }): Promise<void>;
-  start(): Promise<void>;
-  stop(): Promise<void>;
+
+  // Querying
+  query(
+    sparql: string,
+    options?: { paranetId?: string; includeWorkspace?: boolean }
+  ): Promise<{ rows?: Record<string, unknown>[]; data?: unknown[] }>;
+  lookupEntity(peerId: string, ual: string): Promise<{ triples?: unknown[]; data?: unknown[] }>;
+
+  // Workspace (fast no-chain writes)
+  writeToWorkspace(
+    paranetId: string,
+    quads: unknown
+  ): Promise<{ workspaceOperationId?: string; draftId?: string }>;
+  enshrineFromWorkspace(paranetId: string, selection: unknown): Promise<{ ual: string }>;
+
+  // Agent discovery & profile
+  publishProfile(profile?: {
+    name?: string;
+    description?: string;
+    skills?: string[];
+    endpoint?: string;
+  }): Promise<{ peerId?: string; identityId?: string | bigint }>;
+  findAgents(options?: { framework?: string }): Promise<unknown[]>;
+
+  // Network
+  pingPeers(): Promise<number>;
+  getPeerHealth(): ReadonlyMap<string, { latencyMs?: number; online?: boolean }> | unknown[];
+
+  // Identity (readonly properties)
+  readonly peerId: string;
+  readonly identityId?: bigint;
+  readonly multiaddrs?: string[];
 }
 
 interface DKGAgentV9Static {
@@ -236,6 +278,132 @@ export class RealityForkPublisherV9 {
       entityUALs: entityResults.map(r => r.ual!),
       simulationUALs: simResults.map(r => r.ual!),
     };
+  }
+
+  // ── V9 Extended Capabilities ───────────────────────────────────────
+
+  /** Execute a SPARQL query against the paranet's local triple store */
+  async querySparql(sparql: string): Promise<V9QueryResult> {
+    const agent = await this.ensureAgent();
+    const start = Date.now();
+    const result = await agent.query(sparql, { paranetId: this.config.paranetId });
+    return {
+      rows: (result.rows ?? result.data ?? []) as Record<string, unknown>[],
+      executionMs: Date.now() - start,
+    };
+  }
+
+  /** Publish this agent's profile to the DKG agent registry */
+  async publishAgentProfile(profile: V9AgentProfile): Promise<V9AgentProfileResult> {
+    try {
+      const agent = await this.ensureAgent();
+      const result = await agent.publishProfile({
+        name: profile.name,
+        description: profile.description,
+        skills: profile.skills,
+        endpoint: profile.endpoint,
+      });
+      return {
+        success: true,
+        peerId: result.peerId ?? agent.peerId,
+        identityId: String(result.identityId ?? agent.identityId ?? ''),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'publishProfile failed',
+      };
+    }
+  }
+
+  /** Get P2P network status: peerId, multiaddrs, peers, discovered agents */
+  async getNetworkStatus(): Promise<V9NetworkStatus> {
+    const agent = await this.ensureAgent();
+
+    const [healthResult, agentsResult] = await Promise.allSettled([
+      Promise.resolve(agent.getPeerHealth()),
+      agent.findAgents(),
+    ]);
+
+    // getPeerHealth may return a Map or array depending on version
+    let healthList: Array<{ peerId: string; latencyMs?: number; online: boolean }> = [];
+    if (healthResult.status === 'fulfilled') {
+      const raw = healthResult.value;
+      if (raw instanceof Map) {
+        for (const [pid, h] of raw) {
+          healthList.push({
+            peerId: pid,
+            latencyMs: (h as any).latencyMs,
+            online: (h as any).online !== false,
+          });
+        }
+      } else if (Array.isArray(raw)) {
+        healthList = raw.map((p: any) => ({
+          peerId: String(p.peerId ?? ''),
+          latencyMs: p.latencyMs,
+          online: p.online !== false,
+        }));
+      }
+    }
+
+    return {
+      peerId: agent.peerId,
+      identityId: agent.identityId != null ? String(agent.identityId) : undefined,
+      multiaddrs: agent.multiaddrs ? [...agent.multiaddrs] : [],
+      peerCount: healthList.length,
+      peerHealth: healthList,
+      agents: agentsResult.status === 'fulfilled' ? agentsResult.value : [],
+    };
+  }
+
+  /** Save quads to workspace (free, no on-chain cost, gossip-replicated) */
+  async writeToWorkspace(quads: unknown): Promise<V9WorkspaceWriteResult> {
+    try {
+      const agent = await this.ensureAgent();
+      const result = await agent.writeToWorkspace(this.config.paranetId, quads);
+      return {
+        success: true,
+        draftId: result.workspaceOperationId ?? result.draftId,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'workspace write failed',
+      };
+    }
+  }
+
+  /** Promote workspace draft to a finalized on-chain Knowledge Asset */
+  async enshrineFromWorkspace(selection: unknown): Promise<V9WorkspaceEnshrineResult> {
+    try {
+      const agent = await this.ensureAgent();
+      const result = await agent.enshrineFromWorkspace(this.config.paranetId, selection);
+      return { success: true, ual: result.ual };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'enshrine failed',
+      };
+    }
+  }
+
+  /** Resolve a UAL to its RDF triples via a connected peer */
+  async lookupEntity(peerId: string, ual: string): Promise<V9EntityLookupResult> {
+    try {
+      const agent = await this.ensureAgent();
+      const result = await agent.lookupEntity(peerId, ual);
+      return {
+        success: true,
+        ual,
+        triples: (result.triples ?? result.data ?? []) as unknown[],
+      };
+    } catch (error) {
+      return {
+        success: false,
+        ual,
+        error: error instanceof Error ? error.message : 'lookupEntity failed',
+      };
+    }
   }
 
   /** Gracefully stop the embedded P2P node */

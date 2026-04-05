@@ -3773,49 +3773,86 @@ async function publishToDKGv9(
   project: RealityForkProject,
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
-): Promise<{ success: boolean; ual?: string; error?: string }> {
-  const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
+): Promise<{
+  success: boolean;
+  ual?: string;
+  entityUALs?: string[];
+  simUALs?: string[];
+  error?: string;
+}> {
+  const publisher = await getOrInitV9Publisher();
 
-  if (!v9PublisherInstance) {
-    const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-    const operationalKeys = (process.env.RF_DKG_V9_OP_KEYS ?? '')
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
+  // Build entity assets from LLM-extracted entities
+  const entities = listEntities(project.id);
+  const entityAssets = entities.map(e => ({
+    entityId: e.id,
+    projectId: e.projectId,
+    entityName: e.label,
+    entityType: e.category,
+    description: e.aliases?.length ? `Aliases: ${e.aliases.join(', ')}` : e.label,
+    hypothesisId: simulations[0]?.hypothesisId ?? 'unknown',
+    laneId: 'multi',
+    probability: 0.5,
+    impactScore: Math.min(100, (e.mentionCount ?? 1) * 5),
+    evidenceHash: sha256(e.id).slice(0, 16),
+    createdAt: new Date(e.createdAt).toISOString(),
+    metadata: { mentionCount: e.mentionCount, evidenceRefs: e.evidenceRefs },
+  }));
 
-    // Import the V9 agent from services/api where it's installed
-    const agentMod = await import('@origintrail-official/dkg-agent');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const agentFactory = (agentMod as any).DKGAgent ?? (agentMod as any).default?.DKGAgent;
+  // Build simulation assets
+  const simAssets = simulations.map(s => ({
+    simulationId: s.id,
+    projectId: s.projectId,
+    hypothesisId: s.hypothesisId,
+    laneId: s.slug ?? 'default',
+    simulationRounds: project.simulationConfig.rounds,
+    probability: s.probability,
+    impactScore: s.impactScore,
+    evidenceHash: sha256(s.id).slice(0, 16),
+    createdAt: new Date(s.createdAt).toISOString(),
+    parameters: { stance: s.stance, outcome: s.outcome, confidence: s.confidence },
+  }));
 
-    v9PublisherInstance = new RealityForkPublisherV9(
-      {
-        dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
-        bootstrapPeers,
-        chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
-        chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
-        operationalKeys,
-        paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
-        epochs: 12,
-      },
-      agentFactory
+  console.log(
+    `[dkg-v9] publishing full project: 1 report + ${entityAssets.length} entities + ${simAssets.length} simulations`
+  );
+
+  try {
+    const result = await publisher.publishFullProject({
+      report: buildReportPublishData(project, report, simulations),
+      entities: entityAssets,
+      simulations: simAssets,
+    });
+
+    console.log(
+      `[dkg-v9] full project published: report=${result.reportUAL}, entities=${result.entityUALs.length}, sims=${result.simulationUALs.length}`
     );
-  }
 
-  const publishData = buildReportPublishData(project, report, simulations);
-  const reportResult = await v9PublisherInstance.publishReport(publishData);
-
-  if (reportResult.success && reportResult.ual) {
     db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
-      reportResult.ual,
+      result.reportUAL,
       publicationId
     );
-  }
 
-  return reportResult;
+    return {
+      success: true,
+      ual: result.reportUAL,
+      entityUALs: result.entityUALs,
+      simUALs: result.simulationUALs,
+    };
+  } catch (error) {
+    // Fall back to report-only publish if full project fails
+    console.warn('[dkg-v9] full project publish failed, falling back to report-only:', error);
+    const reportResult = await publisher.publishReport(
+      buildReportPublishData(project, report, simulations)
+    );
+    if (reportResult.success && reportResult.ual) {
+      db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
+        reportResult.ual,
+        publicationId
+      );
+    }
+    return reportResult;
+  }
 }
 
 async function publishToDKG(
@@ -4599,6 +4636,87 @@ export async function waitForJobCompletion(
   }
 
   throw new Error(`Timed out waiting for job ${jobId}`);
+}
+
+// ── V9 Extended Service Functions ──────────────────────────────────────
+
+/** Shared singleton init for V9 publisher — used by both publish flow and V9 API endpoints */
+export async function getOrInitV9Publisher(): Promise<
+  InstanceType<typeof import('@kamiyo/reality-fork-dkg').RealityForkPublisherV9>
+> {
+  if (v9PublisherInstance) return v9PublisherInstance;
+
+  const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
+  const agentMod = await import('@origintrail-official/dkg-agent');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const agentFactory = (agentMod as any).DKGAgent ?? (agentMod as any).default?.DKGAgent;
+
+  const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  const operationalKeys = (process.env.RF_DKG_V9_OP_KEYS ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  v9PublisherInstance = new RealityForkPublisherV9(
+    {
+      dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+      bootstrapPeers,
+      chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+      chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+      operationalKeys,
+      paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+      paranetName: 'kamiyo-reality-fork',
+      epochs: 12,
+    },
+    agentFactory
+  );
+
+  return v9PublisherInstance;
+}
+
+export async function queryDKGv9(sparql: string) {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.querySparql(sparql);
+}
+
+export async function registerV9Agent() {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.publishAgentProfile({
+    name: 'kamiyo-reality-fork',
+    description:
+      'Kamiyo Reality Fork — AI-powered counterfactual simulation engine publishing verified knowledge to DKG',
+    skills: ['reality-fork', 'simulation', 'sparql', 'knowledge-graph'],
+    endpoint: process.env.API_BASE_URL ?? undefined,
+  });
+}
+
+export async function getV9NetworkStatus() {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.getNetworkStatus();
+}
+
+export async function writeV9Workspace(quads: unknown) {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.writeToWorkspace(quads);
+}
+
+export async function enshrineV9Workspace(selection: unknown) {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.enshrineFromWorkspace(selection);
+}
+
+export async function lookupV9Entity(peerId: string, ual: string) {
+  if (process.env.RF_DKG_VERSION !== 'v9') throw new Error('V9 not enabled');
+  const publisher = await getOrInitV9Publisher();
+  return publisher.lookupEntity(peerId, ual);
 }
 
 export function __resetRealityForkForTests(): void {

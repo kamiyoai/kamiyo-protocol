@@ -7,6 +7,14 @@ export type {
   RealityForkPublishResult,
   RealityForkFullPublishResult,
   DKGClient,
+  V9QueryResult,
+  V9AgentProfile,
+  V9AgentProfileResult,
+  V9PeerHealth,
+  V9NetworkStatus,
+  V9WorkspaceWriteResult,
+  V9WorkspaceEnshrineResult,
+  V9EntityLookupResult,
 } from './types';
 
 export {
