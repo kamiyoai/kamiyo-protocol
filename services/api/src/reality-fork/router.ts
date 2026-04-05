@@ -904,4 +904,26 @@ router.get('/p/:slug', (req: Request, res: Response) => {
   res.json(publication);
 });
 
+// Diagnostic: test DKG V9 import (temporary)
+router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
+  const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
+  const nodeVersion = process.version;
+  try {
+    if (dkgVersion !== 'v9') {
+      res.json({ ok: false, reason: 'RF_DKG_VERSION is not v9', dkgVersion, nodeVersion });
+      return;
+    }
+    const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
+    res.json({ ok: true, hasV9Publisher: !!RealityForkPublisherV9, dkgVersion, nodeVersion });
+  } catch (err) {
+    res.json({
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5) : undefined,
+      dkgVersion,
+      nodeVersion,
+    });
+  }
+});
+
 export default router;
