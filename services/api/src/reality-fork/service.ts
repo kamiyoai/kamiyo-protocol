@@ -4750,16 +4750,10 @@ export async function publishToMeishiParanet(projectId: string): Promise<{
     };
   }
 
-  // Determine blockchain from paranet UAL (did:dkg:base:8453/... → base:8453)
-  const chainMatch = paranetUAL.match(/did:dkg:(base:\d+|gnosis:\d+|otp:\d+)\//);
-  const blockchain = (chainMatch?.[1] ?? 'base:8453') as
-    | 'base:8453'
-    | 'base:84532'
-    | 'gnosis:100'
-    | 'otp:2043';
-
-  // Use mainnet RPC for mainnet paranet
-  const rpc = blockchain === 'base:8453' ? 'https://mainnet.base.org' : undefined;
+  // Use the same blockchain config that Meishi uses (DKG_BLOCKCHAIN env)
+  const { resolveDkgBlockchain, resolveDkgRpc } = await import('../api/routes/_dkg-config');
+  const blockchain = resolveDkgBlockchain();
+  const rpc = resolveDkgRpc();
 
   const project = getProject(projectId);
   if (!project) return { success: false, error: 'Project not found' };
