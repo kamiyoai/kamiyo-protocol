@@ -4832,15 +4832,24 @@ export async function publishToMeishiParanet(projectId: string): Promise<{
     datePublished: now,
   };
 
+  const dkgConfig = {
+    dkgEndpoint: normalizeDkgEndpoint(meishiEndpoint),
+    dkgPort: resolveDkgPort(),
+    blockchain,
+    privateKey,
+    rpc,
+    paranetUAL,
+  };
+  console.log(
+    '[meishi-bridge] DKG config:',
+    JSON.stringify({
+      ...dkgConfig,
+      privateKey: dkgConfig.privateKey ? '***' : undefined,
+    })
+  );
+
   try {
-    const dkgClient = await createDKGClient({
-      dkgEndpoint: normalizeDkgEndpoint(meishiEndpoint),
-      dkgPort: resolveDkgPort(),
-      blockchain,
-      privateKey,
-      rpc,
-      paranetUAL,
-    });
+    const dkgClient = await createDKGClient(dkgConfig);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await (dkgClient as any).asset.create(
@@ -4850,11 +4859,15 @@ export async function publishToMeishiParanet(projectId: string): Promise<{
 
     const ual = result?.UAL ?? result?.ual;
     console.log('[meishi-bridge] Published RF review to Meishi paranet:', ual);
+    console.log('[meishi-bridge] Full result:', JSON.stringify(result));
 
     return { success: true, ual };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const responseData = (error as any)?.response?.data;
     console.error('[meishi-bridge] Failed:', msg);
+    if (responseData) console.error('[meishi-bridge] Response:', JSON.stringify(responseData));
     return { success: false, error: msg };
   }
 }
