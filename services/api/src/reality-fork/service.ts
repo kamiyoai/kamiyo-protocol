@@ -3808,8 +3808,14 @@ async function publishToDKG(
     } else {
       await publishToDKGv8(publicationId, project, report, simulations);
     }
-  } catch {
-    // DKG publish failure is non-fatal
+  } catch (err) {
+    // DKG publish failure is non-fatal — log for diagnostics
+    console.warn(
+      '[reality-fork] DKG publish failed (non-fatal):',
+      publicationId,
+      process.env.RF_DKG_VERSION ?? 'v8',
+      err instanceof Error ? err.message : err
+    );
   }
 }
 
