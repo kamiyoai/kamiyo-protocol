@@ -3801,7 +3801,6 @@ async function publishToDKGv9(
     );
   }
 
-  // Surface result for debugging
   return reportResult;
 }
 

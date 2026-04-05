@@ -904,8 +904,12 @@ router.get('/p/:slug', (req: Request, res: Response) => {
   res.json(publication);
 });
 
-// Diagnostic: test DKG V9 import + agent init (temporary)
+// ── DKG V9 diagnostics (keep behind env gate) ──────────────────────────
 router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
+  if (process.env.RF_DKG_DIAG !== 'true') {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
   const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
   const nodeVersion = process.version;
   const steps: string[] = [];
@@ -992,8 +996,11 @@ router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
   }
 });
 
-// Diagnostic: test V9 publish with real project data (temporary)
 router.get('/diag/dkg-v9-publish/:projectId', async (req: Request, res: Response) => {
+  if (process.env.RF_DKG_DIAG !== 'true') {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
   try {
     const project = getProjectDetail(req.params.projectId);
     if (!project) {
