@@ -3729,12 +3729,22 @@ async function publishToDKGv8(
   project: RealityForkProject,
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
-): Promise<void> {
+): Promise<{ success: boolean; ual?: string; error?: string }> {
   const { getParanetConfig } = await import('../api/routes/_dkg-config');
   const { createDKGClient } = await import('@kamiyo/agent-paranet');
   const { RealityForkPublisher } = await import('@kamiyo/reality-fork-dkg');
 
   const config = getParanetConfig();
+  console.log(
+    '[dkg-v8] config:',
+    JSON.stringify({
+      dkgEndpoint: config.dkgEndpoint,
+      dkgPort: config.dkgPort,
+      blockchain: config.blockchain,
+      paranetUAL: config.paranetUAL,
+      epochs: config.epochs,
+    })
+  );
   const dkgClient = await createDKGClient(config);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const publisher = new RealityForkPublisher(dkgClient as any, {
@@ -3745,6 +3755,7 @@ async function publishToDKGv8(
   const reportResult = await publisher.publishReport(
     buildReportPublishData(project, report, simulations)
   );
+  console.log('[dkg-v8] publishReport result:', JSON.stringify(reportResult));
 
   if (reportResult.success && reportResult.ual) {
     db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
@@ -3752,6 +3763,8 @@ async function publishToDKGv8(
       publicationId
     );
   }
+
+  return reportResult;
 }
 
 async function publishToDKGv9(
@@ -3821,8 +3834,13 @@ async function publishToDKG(
         error: result?.error,
       };
     } else {
-      await publishToDKGv8(publicationId, project, report, simulations);
-      return { ok: true, version: 'v8' };
+      const result = await publishToDKGv8(publicationId, project, report, simulations);
+      return {
+        ok: result?.success ?? false,
+        version: 'v8',
+        ual: result?.ual,
+        error: result?.error,
+      };
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
