@@ -3817,7 +3817,7 @@ async function publishToDKG(
   project: RealityForkProject,
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
     if (dkgVersion === 'v9') {
@@ -3825,14 +3825,16 @@ async function publishToDKG(
     } else {
       await publishToDKGv8(publicationId, project, report, simulations);
     }
+    return { ok: true };
   } catch (err) {
-    // DKG publish failure is non-fatal — log for diagnostics
+    const message = err instanceof Error ? err.message : String(err);
     console.warn(
       '[reality-fork] DKG publish failed (non-fatal):',
       publicationId,
       process.env.RF_DKG_VERSION ?? 'v8',
-      err instanceof Error ? err.message : err
+      message
     );
+    return { ok: false, error: message };
   }
 }
 
@@ -3904,17 +3906,24 @@ async function runPublishJob(
   });
 
   // DKG publishing — awaited but non-fatal (V9 agent init can take 30s+)
+  let dkgResult: { ok: boolean; error?: string } | null = null;
   if (RF_DKG_ENABLED) {
     try {
-      await publishToDKG(publicationId, project, report, listSimulations(job.project_id));
+      dkgResult = await publishToDKG(
+        publicationId,
+        project,
+        report,
+        listSimulations(job.project_id)
+      );
     } catch {
-      // DKG publish failures never block publication
+      dkgResult = { ok: false, error: 'unexpected throw' };
     }
   }
 
   return {
     publicationId,
     slug: publicationBundle.slug,
+    ...(dkgResult ? { dkg: dkgResult } : {}),
   };
 }
 
