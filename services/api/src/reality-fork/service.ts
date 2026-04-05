@@ -4865,10 +4865,17 @@ export async function publishToMeishiParanet(projectId: string): Promise<{
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const responseData = (error as any)?.response?.data;
+    const errAny = error as any;
+    const responseData = errAny?.response?.data;
+    const responseStatus = errAny?.response?.status;
+    const stack = error instanceof Error ? error.stack?.split('\n').slice(0, 5).join('\n') : '';
     console.error('[meishi-bridge] Failed:', msg);
     if (responseData) console.error('[meishi-bridge] Response:', JSON.stringify(responseData));
-    return { success: false, error: msg };
+    const detail = responseData
+      ? `${msg} | status=${responseStatus} | body=${JSON.stringify(responseData)}`
+      : msg;
+    if (stack) console.error('[meishi-bridge] Stack:', stack);
+    return { success: false, error: detail };
   }
 }
 
