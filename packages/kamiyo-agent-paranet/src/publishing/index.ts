@@ -268,8 +268,8 @@ export async function createDKGClient(config: ParanetConfig): Promise<DKGClient>
         privateKey: config.privateKey,
         ...(config.rpc ? { rpc: config.rpc } : {}),
       },
-      maxNumberOfRetries: 10,
-      frequency: 3,
+      maxNumberOfRetries: 30,
+      frequency: 5,
     });
 
     return dkg as DKGClient;
