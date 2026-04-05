@@ -3772,15 +3772,23 @@ async function publishToDKGv9(
       .map(s => s.trim())
       .filter(Boolean);
 
-    v9PublisherInstance = new RealityForkPublisherV9({
-      dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
-      bootstrapPeers,
-      chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
-      chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
-      operationalKeys,
-      paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
-      epochs: 12,
-    });
+    // Import the V9 agent from services/api where it's installed
+    const agentMod = await import('@origintrail-official/dkg-agent');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agentFactory = (agentMod as any).DKGAgent ?? (agentMod as any).default?.DKGAgent;
+
+    v9PublisherInstance = new RealityForkPublisherV9(
+      {
+        dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+        bootstrapPeers,
+        chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+        chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+        operationalKeys,
+        paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+        epochs: 12,
+      },
+      agentFactory
+    );
   }
 
   const reportResult = await v9PublisherInstance.publishReport(

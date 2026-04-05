@@ -917,6 +917,14 @@ router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
     steps.push('importing @kamiyo/reality-fork-dkg');
     const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
 
+    steps.push('importing @origintrail-official/dkg-agent');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agentMod = (await import('@origintrail-official/dkg-agent')) as any;
+    const agentFactory = agentMod.DKGAgent ?? agentMod.default?.DKGAgent;
+    steps.push(
+      `agentFactory: ${agentFactory ? 'found' : 'NOT FOUND'}, exports: ${Object.keys(agentMod).join(',')}`
+    );
+
     steps.push('creating publisher instance');
     const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
       .split(',')
@@ -927,15 +935,18 @@ router.get('/diag/dkg-v9', async (_req: Request, res: Response) => {
       .map(s => s.trim())
       .filter(Boolean);
 
-    const publisher = new RealityForkPublisherV9({
-      dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
-      bootstrapPeers,
-      chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
-      chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
-      operationalKeys,
-      paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
-      epochs: 12,
-    });
+    const publisher = new RealityForkPublisherV9(
+      {
+        dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+        bootstrapPeers,
+        chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+        chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+        operationalKeys,
+        paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+        epochs: 12,
+      },
+      agentFactory
+    );
     steps.push('publisher created, now testing ensureAgent via publishReport');
 
     const testResult = await Promise.race([

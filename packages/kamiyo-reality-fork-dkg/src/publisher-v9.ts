@@ -51,9 +51,17 @@ export class RealityForkPublisherV9 {
   private agent: DKGAgentV9 | null = null;
   private initPromise: Promise<DKGAgentV9> | null = null;
   private config: RealityForkDKGConfigV9;
+  private agentFactory: DKGAgentV9Static;
 
-  constructor(config: RealityForkDKGConfigV9) {
+  /**
+   * @param config V9 configuration
+   * @param agentFactory The DKGAgent class from @origintrail-official/dkg-agent.
+   *   Must be passed by the caller because the package is installed in services/api,
+   *   not in this library package.
+   */
+  constructor(config: RealityForkDKGConfigV9, agentFactory: DKGAgentV9Static) {
     this.config = config;
+    this.agentFactory = agentFactory;
   }
 
   /** Lazily initialize the V9 edge node. Thread-safe — concurrent calls share one init. */
@@ -62,14 +70,7 @@ export class RealityForkPublisherV9 {
     if (this.initPromise) return this.initPromise;
 
     this.initPromise = (async () => {
-      // Dynamic import with runtime string to prevent TS from resolving at build time
-      const modId = '@origintrail-official/dkg-agent';
-      const mod = await (Function('id', 'return import(id)') as (id: string) => Promise<unknown>)(
-        modId
-      );
-      const DKGAgent: DKGAgentV9Static = (mod as { DKGAgent: DKGAgentV9Static }).DKGAgent;
-
-      const agent = await DKGAgent.create({
+      const agent = await this.agentFactory.create({
         name: 'kamiyo-reality-fork',
         framework: 'kamiyo',
         nodeRole: 'edge',
