@@ -4858,18 +4858,25 @@ export async function publishToMeishiParanet(projectId: string): Promise<{
     return { success: true, ual };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    // Dig through all possible error shapes dkg.js might wrap
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const errAny = error as any;
-    const responseData = errAny?.response?.data;
-    const responseStatus = errAny?.response?.status;
-    const stack = error instanceof Error ? error.stack?.split('\n').slice(0, 5).join('\n') : '';
-    console.error('[meishi-bridge] Failed:', msg);
-    if (responseData) console.error('[meishi-bridge] Response:', JSON.stringify(responseData));
-    const detail = responseData
-      ? `${msg} | status=${responseStatus} | body=${JSON.stringify(responseData)}`
-      : msg;
-    if (stack) console.error('[meishi-bridge] Stack:', stack);
-    return { success: false, error: detail };
+    const details: Record<string, unknown> = {};
+    for (const key of ['response', 'cause', 'code', 'status', 'data', 'operationId']) {
+      if (errAny?.[key] != null) {
+        try {
+          details[key] =
+            key === 'response'
+              ? { status: errAny.response?.status, data: errAny.response?.data }
+              : errAny[key];
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    const detailStr = Object.keys(details).length > 0 ? JSON.stringify(details) : '';
+    console.error('[meishi-bridge] Failed:', msg, detailStr);
+    return { success: false, error: detailStr ? `${msg} | ${detailStr}` : msg };
   }
 }
 
