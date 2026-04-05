@@ -50,9 +50,11 @@ export class RealityForkPublisher {
       );
       console.log('[dkg-publisher] create result:', JSON.stringify(result, null, 2));
       if (!result.UAL) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fullResult = result as any;
         return {
           success: false,
-          error: `DKG create completed but no UAL returned. Operation status: ${JSON.stringify(result.operation)}`,
+          error: `DKG create completed but no UAL returned. Full result: ${JSON.stringify(fullResult)}`,
         };
       }
       return { success: true, ual: result.UAL };

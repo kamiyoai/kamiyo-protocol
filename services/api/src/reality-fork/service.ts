@@ -3738,6 +3738,7 @@ async function publishToDKGv8(
   console.log(
     '[dkg-v8] config:',
     JSON.stringify({
+      rpc: config.rpc ?? '(default)',
       dkgEndpoint: config.dkgEndpoint,
       dkgPort: config.dkgPort,
       blockchain: config.blockchain,
