@@ -3760,6 +3760,7 @@ async function publishToDKGv9(
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
 ): Promise<void> {
+  console.log('[reality-fork] V9 publish starting:', publicationId);
   const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
 
   if (!v9PublisherInstance) {
@@ -3799,6 +3800,13 @@ async function publishToDKGv9(
     db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
       reportResult.ual,
       publicationId
+    );
+    console.log('[reality-fork] V9 DKG publish OK:', publicationId, reportResult.ual);
+  } else {
+    console.warn(
+      '[reality-fork] V9 DKG publish returned failure:',
+      publicationId,
+      reportResult.error
     );
   }
 }
