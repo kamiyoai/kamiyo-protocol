@@ -28,6 +28,12 @@ interface DKGAgentV9 {
     paranetId: string,
     content: { public?: object; private?: object } | object
   ): Promise<{ ual: string }>;
+  ensureParanetLocal(opts: {
+    id: string;
+    name: string;
+    description?: string;
+    revealOnChain?: boolean;
+  }): Promise<void>;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -84,6 +90,14 @@ export class RealityForkPublisherV9 {
       });
 
       await agent.start();
+
+      // Ensure the paranet exists locally (idempotent — won't throw if already exists)
+      await agent.ensureParanetLocal({
+        id: this.config.paranetId,
+        name: this.config.paranetName ?? `kamiyo-rf-${this.config.paranetId}`,
+        description: 'Kamiyo Reality Fork paranet',
+      });
+
       this.agent = agent;
       return agent;
     })();

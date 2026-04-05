@@ -86,6 +86,8 @@ export interface RealityForkDKGConfigV9 {
   operationalKeys: string[];
   /** V9 paranet URN (e.g. 'urn:paranet:kamiyo-reality-fork') */
   paranetId: string;
+  /** Human-readable name for the paranet (used in ensureParanetLocal) */
+  paranetName?: string;
   /** Number of epochs for knowledge asset storage (default: 12) */
   epochs?: number;
 }
