@@ -86,6 +86,7 @@ export function getParanetConfig(): ParanetConfig {
     dkgPort: resolveDkgPort(),
     blockchain: resolveDkgBlockchain(),
     privateKey: resolveDkgPrivateKey(),
+    rpc: resolveDkgRpc(),
     epochs: resolveDkgEpochs(),
     paranetUAL: resolveParanetUAL(),
   };
