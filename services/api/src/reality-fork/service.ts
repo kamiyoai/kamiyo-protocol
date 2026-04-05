@@ -4499,7 +4499,8 @@ export function addEvidence(
 export function enqueueProjectJob(
   projectId: string,
   kind: RealityForkJobKind,
-  store = realityForkBlobStore
+  store = realityForkBlobStore,
+  options: { skipQuota?: boolean } = {}
 ): RealityForkJob {
   if (!loadProjectRow(projectId)) {
     throw new Error('Project not found');
@@ -4510,7 +4511,7 @@ export function enqueueProjectJob(
   if (kind === 'publish' && !loadReportById(project?.latestReportId ?? null, store)) {
     throw new Error('Project has no report to publish');
   }
-  if (kind === 'publish') {
+  if (kind === 'publish' && !options.skipQuota) {
     assertPublicationQuota(project?.createdByIp ?? null);
   }
 

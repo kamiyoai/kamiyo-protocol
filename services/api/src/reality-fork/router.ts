@@ -501,7 +501,7 @@ function queueProjectJob(
     assertEnqueueJobQuota(projectId, kind);
   }
   assertProjectCircuitClosed(projectId, kind, config);
-  return enqueueProjectJob(projectId, kind);
+  return enqueueProjectJob(projectId, kind, undefined, { skipQuota: options.skipQuota });
 }
 
 router.get('/', (req: Request, res: Response) => {
@@ -814,6 +814,25 @@ router.post('/internal/projects/:projectId/seed', (req: Request, res: Response) 
   } catch (error) {
     respondForRouteError(res, error, 'failed to seed project', {
       clientIp: clientIp(req),
+      projectId: req.params.projectId,
+    });
+  }
+});
+
+router.post('/internal/projects/:projectId/publish', (req: Request, res: Response) => {
+  if (!realityForkInternalSeedEnabled()) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  if (!verifyRealityForkInternalSeedToken(req.headers.authorization)) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+  try {
+    const job = queueProjectJob(req.params.projectId, 'publish', req, { skipQuota: true });
+    res.status(202).json(job);
+  } catch (error) {
+    respondForRouteError(res, error, 'failed to queue internal publish', {
       projectId: req.params.projectId,
     });
   }
