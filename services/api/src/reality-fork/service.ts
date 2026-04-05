@@ -3759,8 +3759,7 @@ async function publishToDKGv9(
   project: RealityForkProject,
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
-): Promise<void> {
-  console.log('[reality-fork] V9 publish starting:', publicationId);
+): Promise<{ success: boolean; ual?: string; error?: string }> {
   const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
 
   if (!v9PublisherInstance) {
@@ -3793,23 +3792,17 @@ async function publishToDKGv9(
   }
 
   const publishData = buildReportPublishData(project, report, simulations);
-  console.log('[reality-fork] V9 publish data:', JSON.stringify(publishData));
   const reportResult = await v9PublisherInstance.publishReport(publishData);
-  console.log('[reality-fork] V9 publish result:', JSON.stringify(reportResult));
 
   if (reportResult.success && reportResult.ual) {
     db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
       reportResult.ual,
       publicationId
     );
-    console.log('[reality-fork] V9 DKG publish OK:', publicationId, reportResult.ual);
-  } else {
-    console.warn(
-      '[reality-fork] V9 DKG publish returned failure:',
-      publicationId,
-      reportResult.error
-    );
   }
+
+  // Surface result for debugging
+  return reportResult;
 }
 
 async function publishToDKG(
@@ -3817,23 +3810,23 @@ async function publishToDKG(
   project: RealityForkProject,
   report: RealityForkReport,
   simulations: RealityForkSimulation[]
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<Record<string, unknown>> {
   try {
     const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
     if (dkgVersion === 'v9') {
-      await publishToDKGv9(publicationId, project, report, simulations);
+      const result = await publishToDKGv9(publicationId, project, report, simulations);
+      return {
+        ok: result?.success ?? false,
+        version: 'v9',
+        ual: result?.ual,
+        error: result?.error,
+      };
     } else {
       await publishToDKGv8(publicationId, project, report, simulations);
+      return { ok: true, version: 'v8' };
     }
-    return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.warn(
-      '[reality-fork] DKG publish failed (non-fatal):',
-      publicationId,
-      process.env.RF_DKG_VERSION ?? 'v8',
-      message
-    );
     return { ok: false, error: message };
   }
 }
@@ -3906,7 +3899,7 @@ async function runPublishJob(
   });
 
   // DKG publishing — awaited but non-fatal (V9 agent init can take 30s+)
-  let dkgResult: { ok: boolean; error?: string } | null = null;
+  let dkgResult: Record<string, unknown> | null = null;
   if (RF_DKG_ENABLED) {
     try {
       dkgResult = await publishToDKG(
