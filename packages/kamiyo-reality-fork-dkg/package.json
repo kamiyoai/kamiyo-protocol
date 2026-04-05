@@ -22,7 +22,13 @@
     "zod": "^3.22.0"
   },
   "peerDependencies": {
-    "dkg.js": "*"
+    "dkg.js": "^8.2.4",
+    "@origintrail-official/dkg-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@origintrail-official/dkg-agent": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

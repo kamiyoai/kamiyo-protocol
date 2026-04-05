@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",
+    "@origintrail-official/dkg-agent": "0.0.1-dev.1774254893.acaccb6",
     "@coral-xyz/anchor": "^0.31.1",
     "@kamiyo/agent-paranet": "workspace:*",
     "@kamiyo/agents": "workspace:*",

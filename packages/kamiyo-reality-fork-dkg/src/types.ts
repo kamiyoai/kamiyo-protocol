@@ -72,6 +72,24 @@ export interface RealityForkFullPublishResult {
   simulationUALs: string[];
 }
 
+/** Configuration for connecting to DKG V9 (embedded P2P edge node) */
+export interface RealityForkDKGConfigV9 {
+  /** Persistent storage directory for agent keys + triple store */
+  dataDir: string;
+  /** libp2p multiaddrs of bootstrap peers */
+  bootstrapPeers: string[];
+  /** EVM RPC URL for on-chain transactions */
+  chainRpcUrl: string;
+  /** DKG hub contract address */
+  chainHubAddress: string;
+  /** ECDSA operational keys for chain signing */
+  operationalKeys: string[];
+  /** V9 paranet URN (e.g. 'urn:paranet:kamiyo-reality-fork') */
+  paranetId: string;
+  /** Number of epochs for knowledge asset storage (default: 12) */
+  epochs?: number;
+}
+
 /** DKG client interface (matches dkg.js) */
 export interface DKGClient {
   asset: {

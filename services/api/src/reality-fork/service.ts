@@ -3695,6 +3695,106 @@ async function runFullJob(
   };
 }
 
+// Lazy singleton for V9 publisher (persists across publishes to reuse P2P node)
+let v9PublisherInstance: InstanceType<
+  typeof import('@kamiyo/reality-fork-dkg').RealityForkPublisherV9
+> | null = null;
+
+function buildReportPublishData(
+  project: RealityForkProject,
+  report: RealityForkReport,
+  simulations: RealityForkSimulation[]
+) {
+  const winnerHypId =
+    report.decision?.winnerHypothesisId ?? simulations[0]?.hypothesisId ?? 'status_quo';
+  const winner = simulations.find(s => s.hypothesisId === winnerHypId) ?? simulations[0];
+  return {
+    projectId: project.id,
+    projectName: project.title,
+    description: report.summary,
+    hypothesisCount: simulations.length,
+    laneCount: project.simulationConfig.lanes.length,
+    simulationRounds: project.simulationConfig.rounds,
+    winnerHypothesisId: winnerHypId,
+    probability: winner?.probability ?? 0.5,
+    impactScore: winner?.impactScore ?? 50,
+    evidenceCount: report.evidenceSummary?.sourceCount ?? 0,
+    reportHash: sha256(report.id),
+    createdAt: new Date(report.createdAt).toISOString(),
+  };
+}
+
+async function publishToDKGv8(
+  publicationId: string,
+  project: RealityForkProject,
+  report: RealityForkReport,
+  simulations: RealityForkSimulation[]
+): Promise<void> {
+  const { getParanetConfig } = await import('../api/routes/_dkg-config');
+  const { createDKGClient } = await import('@kamiyo/agent-paranet');
+  const { RealityForkPublisher } = await import('@kamiyo/reality-fork-dkg');
+
+  const config = getParanetConfig();
+  const dkgClient = await createDKGClient(config);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const publisher = new RealityForkPublisher(dkgClient as any, {
+    paranetUAL: config.paranetUAL ?? '',
+    epochs: config.epochs ?? 12,
+  });
+
+  const reportResult = await publisher.publishReport(
+    buildReportPublishData(project, report, simulations)
+  );
+
+  if (reportResult.success && reportResult.ual) {
+    db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
+      reportResult.ual,
+      publicationId
+    );
+  }
+}
+
+async function publishToDKGv9(
+  publicationId: string,
+  project: RealityForkProject,
+  report: RealityForkReport,
+  simulations: RealityForkSimulation[]
+): Promise<void> {
+  const { RealityForkPublisherV9 } = await import('@kamiyo/reality-fork-dkg');
+
+  if (!v9PublisherInstance) {
+    const bootstrapPeers = (process.env.RF_DKG_V9_BOOTSTRAP_PEERS ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    const operationalKeys = (process.env.RF_DKG_V9_OP_KEYS ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    v9PublisherInstance = new RealityForkPublisherV9({
+      dataDir: process.env.RF_DKG_V9_DATA_DIR ?? '/tmp/kamiyo-dkg-v9',
+      bootstrapPeers,
+      chainRpcUrl: process.env.RF_DKG_V9_CHAIN_RPC ?? '',
+      chainHubAddress: process.env.RF_DKG_V9_HUB_ADDRESS ?? '',
+      operationalKeys,
+      paranetId: process.env.RF_DKG_V9_PARANET_ID ?? '',
+      epochs: 12,
+    });
+  }
+
+  const reportResult = await v9PublisherInstance.publishReport(
+    buildReportPublishData(project, report, simulations)
+  );
+
+  if (reportResult.success && reportResult.ual) {
+    db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
+      reportResult.ual,
+      publicationId
+    );
+  }
+}
+
 async function publishToDKG(
   publicationId: string,
   project: RealityForkProject,
@@ -3702,41 +3802,11 @@ async function publishToDKG(
   simulations: RealityForkSimulation[]
 ): Promise<void> {
   try {
-    const { getParanetConfig } = await import('../api/routes/_dkg-config');
-    const { createDKGClient } = await import('@kamiyo/agent-paranet');
-    const { RealityForkPublisher } = await import('@kamiyo/reality-fork-dkg');
-
-    const config = getParanetConfig();
-    const dkgClient = await createDKGClient(config);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const publisher = new RealityForkPublisher(dkgClient as any, {
-      paranetUAL: config.paranetUAL ?? '',
-      epochs: config.epochs ?? 12,
-    });
-
-    const winnerHypId =
-      report.decision?.winnerHypothesisId ?? simulations[0]?.hypothesisId ?? 'status_quo';
-    const winner = simulations.find(s => s.hypothesisId === winnerHypId) ?? simulations[0];
-    const reportResult = await publisher.publishReport({
-      projectId: project.id,
-      projectName: project.title,
-      description: report.summary,
-      hypothesisCount: simulations.length,
-      laneCount: project.simulationConfig.lanes.length,
-      simulationRounds: project.simulationConfig.rounds,
-      winnerHypothesisId: winnerHypId,
-      probability: winner?.probability ?? 0.5,
-      impactScore: winner?.impactScore ?? 50,
-      evidenceCount: report.evidenceSummary?.sourceCount ?? 0,
-      reportHash: sha256(report.id),
-      createdAt: new Date(report.createdAt).toISOString(),
-    });
-
-    if (reportResult.success && reportResult.ual) {
-      db.prepare('UPDATE reality_fork_publications SET dkg_report_ual = ? WHERE id = ?').run(
-        reportResult.ual,
-        publicationId
-      );
+    const dkgVersion = process.env.RF_DKG_VERSION ?? 'v8';
+    if (dkgVersion === 'v9') {
+      await publishToDKGv9(publicationId, project, report, simulations);
+    } else {
+      await publishToDKGv8(publicationId, project, report, simulations);
     }
   } catch {
     // DKG publish failure is non-fatal

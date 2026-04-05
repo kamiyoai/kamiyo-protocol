@@ -1,5 +1,6 @@
 export type {
   RealityForkDKGConfig,
+  RealityForkDKGConfigV9,
   RealityForkReportAsset,
   RealityForkEntityAsset,
   RealityForkSimulationAsset,
@@ -19,6 +20,7 @@ export {
 } from './schemas';
 
 export { RealityForkPublisher } from './publisher';
+export { RealityForkPublisherV9 } from './publisher-v9';
 
 export {
   escapeSparql,
