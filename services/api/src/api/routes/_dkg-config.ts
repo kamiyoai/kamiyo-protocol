@@ -1,6 +1,6 @@
 import type { ParanetConfig } from '@kamiyo/agent-paranet';
 
-export type DkgBlockchainId = 'base:8453' | 'gnosis:100' | 'otp:2043';
+export type DkgBlockchainId = 'base:8453' | 'base:84532' | 'gnosis:100' | 'otp:2043';
 
 export function firstNonEmpty(keys: readonly string[]): string | undefined {
   for (const key of keys) {
@@ -31,7 +31,7 @@ export function resolveDkgEndpoint(): string | undefined {
 
 export function resolveDkgBlockchain(): DkgBlockchainId {
   const value = firstNonEmpty(['DKG_BLOCKCHAIN', 'KAMIYO_DKG_BLOCKCHAIN', 'PARANET_BLOCKCHAIN']);
-  if (value === 'gnosis:100' || value === 'otp:2043') return value;
+  if (value === 'base:84532' || value === 'gnosis:100' || value === 'otp:2043') return value;
   return 'base:8453';
 }
 

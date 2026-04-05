@@ -1,10 +1,6 @@
 // Core types for the agent paranet credit score system
 
-import {
-  isValidGlobalId,
-  scoreToTierIndex,
-  TIER_THRESHOLDS as SHARED_THRESHOLDS,
-} from './shared';
+import { isValidGlobalId, scoreToTierIndex, TIER_THRESHOLDS as SHARED_THRESHOLDS } from './shared';
 
 // Re-export shared utilities for convenience
 export {
@@ -29,13 +25,7 @@ export {
   extractNumber,
 } from './shared';
 
-export type {
-  TaskType,
-  TierName,
-  DisputeOutcome,
-  AttestationType,
-  TrustType,
-} from './shared';
+export type { TaskType, TierName, DisputeOutcome, AttestationType, TrustType } from './shared';
 
 import type { TaskType, DisputeOutcome, AttestationType, TrustType } from './shared';
 
@@ -43,7 +33,7 @@ import type { TaskType, DisputeOutcome, AttestationType, TrustType } from './sha
 export interface ParanetConfig {
   dkgEndpoint: string;
   dkgPort?: number;
-  blockchain: 'base:8453' | 'gnosis:100' | 'otp:2043';
+  blockchain: 'base:8453' | 'base:84532' | 'gnosis:100' | 'otp:2043';
   privateKey?: string;
   rpc?: string;
   epochs?: number;
@@ -329,7 +319,11 @@ export interface DKGClient {
     update(ual: string, content: { public?: object; private?: object }): Promise<{ UAL: string }>;
   };
   graph: {
-    query(sparql: string, type: 'SELECT' | 'CONSTRUCT', options?: { repository?: string; paranetUAL?: string }): Promise<{ data: unknown[] }>;
+    query(
+      sparql: string,
+      type: 'SELECT' | 'CONSTRUCT',
+      options?: { repository?: string; paranetUAL?: string }
+    ): Promise<{ data: unknown[] }>;
   };
 }
 
@@ -345,8 +339,13 @@ export function buildTaskURN(globalId: string, timestamp: number): string {
   return `urn:kamiyo:task:${globalId}:${timestamp}`;
 }
 
-export function buildAttestationURN(agentId: string, capability: string, attestorId: string): string {
-  if (!isValidGlobalId(agentId) || !isValidGlobalId(attestorId)) throw new Error('Invalid global ID');
+export function buildAttestationURN(
+  agentId: string,
+  capability: string,
+  attestorId: string
+): string {
+  if (!isValidGlobalId(agentId) || !isValidGlobalId(attestorId))
+    throw new Error('Invalid global ID');
   if (typeof capability !== 'string' || capability.length === 0 || capability.length > 128) {
     throw new Error('Invalid capability');
   }
@@ -355,12 +354,14 @@ export function buildAttestationURN(agentId: string, capability: string, attesto
 }
 
 export function buildTrustURN(trustorId: string, trusteeId: string): string {
-  if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId)) throw new Error('Invalid global ID');
+  if (!isValidGlobalId(trustorId) || !isValidGlobalId(trusteeId))
+    throw new Error('Invalid global ID');
   return `urn:kamiyo:trust:${trustorId}:${trusteeId}`;
 }
 
 export function buildPoCHURN(identityDid: string, contentHash: string, createdAt: string): string {
-  if (typeof identityDid !== 'string' || identityDid.length === 0) throw new Error('Invalid identity DID');
+  if (typeof identityDid !== 'string' || identityDid.length === 0)
+    throw new Error('Invalid identity DID');
   if (typeof contentHash !== 'string' || contentHash.length < 8 || contentHash.length > 128) {
     throw new Error('Invalid content hash');
   }
