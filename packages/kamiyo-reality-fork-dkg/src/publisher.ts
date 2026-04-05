@@ -40,10 +40,21 @@ export class RealityForkPublisher {
     const asset = buildReportAsset(data);
 
     try {
+      console.log('[dkg-publisher] creating asset with', {
+        epochs: this.epochs,
+        paranetUAL: this.paranetUAL,
+      });
       const result = await this.dkg.asset.create(
         { public: asset },
         { epochsNum: this.epochs, paranetUAL: this.paranetUAL }
       );
+      console.log('[dkg-publisher] create result:', JSON.stringify(result, null, 2));
+      if (!result.UAL) {
+        return {
+          success: false,
+          error: `DKG create completed but no UAL returned. Operation status: ${JSON.stringify(result.operation)}`,
+        };
+      }
       return { success: true, ual: result.UAL };
     } catch (error) {
       return {
