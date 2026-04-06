@@ -23,7 +23,11 @@ import {
   readFundryUserPosition,
   type FundryUserPosition,
 } from './tools/fundryStaking.js';
-import { depositToStakingPeriod, ensureOpenStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
+import {
+  depositToStakingPeriod,
+  ensureOpenStakingPeriod,
+  findLatestOpenStakingPeriod,
+} from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
 import { createDkgActivityPublisher, type DkgActivityEvent } from './dkgActivity.js';
 import { ensureMeishiTrust } from './meishiTrust.js';
@@ -723,7 +727,14 @@ async function maintainOpenStakingPeriod(params: {
   } catch (error) {
     const message = toErrorMessage(error);
     params.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
-    return { checked: true, maintained: false, reason: 'rollover_failed', error: message, period: null, ...meta };
+    return {
+      checked: true,
+      maintained: false,
+      reason: 'rollover_failed',
+      error: message,
+      period: null,
+      ...meta,
+    };
   }
 }
 
@@ -743,10 +754,19 @@ async function runAutoStakePolicy(params: {
   const reserveLamports = BigInt(env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
   const availableBps = BigInt(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
   const maxLamportsPerTx = BigInt(env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
-  const availableLamports =
-    params.currentBalanceLamports > reserveLamports
-      ? params.currentBalanceLamports - reserveLamports
+
+  // Use inflow-based calculation: only route NEW SOL received since last deposit,
+  // not a percentage of the total wallet balance (which would drain the treasury).
+  const baselineKey = `auto_stake_baseline:${params.depositor.publicKey.toBase58()}`;
+  const storedBaseline = params.db.kvGet(baselineKey);
+  const baselineLamports =
+    storedBaseline != null ? BigInt(storedBaseline) : params.currentBalanceLamports;
+  const inflowLamports =
+    params.currentBalanceLamports > baselineLamports
+      ? params.currentBalanceLamports - baselineLamports
       : 0n;
+  const availableLamports =
+    inflowLamports > reserveLamports ? inflowLamports - reserveLamports : 0n;
   const targetLamports = (availableLamports * availableBps) / 10_000n;
 
   const meta = {
@@ -760,6 +780,8 @@ async function runAutoStakePolicy(params: {
     availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
     maxLamportsPerTx: maxLamportsPerTx.toString(),
     operatorBalanceLamports: params.currentBalanceLamports.toString(),
+    baselineLamports: baselineLamports.toString(),
+    inflowLamports: inflowLamports.toString(),
     availableLamports: availableLamports.toString(),
     targetLamports: targetLamports.toString(),
   };
@@ -788,9 +810,7 @@ async function runAutoStakePolicy(params: {
       `find_latest_open_staking_period timed out after ${env.KAMIYO_RPC_READ_TIMEOUT_MS}ms`
     );
 
-    let rolloverResult:
-      | Awaited<ReturnType<typeof ensureOpenStakingPeriod>>
-      | null = null;
+    let rolloverResult: Awaited<ReturnType<typeof ensureOpenStakingPeriod>> | null = null;
     if (!period) {
       rolloverResult = await withTimeout(
         ensureOpenStakingPeriod({
@@ -906,6 +926,10 @@ async function runAutoStakePolicy(params: {
     });
     params.db.addAction(params.tickId, 'write_staking_deposit_receipt', {}, { receiptPath });
 
+    // Record post-deposit balance as baseline for next tick's inflow calculation.
+    const afterBalance = BigInt(depositResult.afterBalanceLamports);
+    params.db.kvSet(baselineKey, afterBalance.toString());
+
     return {
       observation: {
         executed: true,
@@ -918,7 +942,7 @@ async function runAutoStakePolicy(params: {
         periodVault: depositResult.periodVault,
         ...meta,
       },
-      nextBalanceLamports: BigInt(depositResult.afterBalanceLamports),
+      nextBalanceLamports: afterBalance,
       period: depositResult.afterPeriod ?? period,
     };
   } catch (e) {
@@ -1109,7 +1133,10 @@ function normalizeBoolean(input: unknown): boolean {
   return false;
 }
 
-function toolTokenStatus(params: { getConnection: () => Connection; defaultMint?: string }): ToolConfig {
+function toolTokenStatus(params: {
+  getConnection: () => Connection;
+  defaultMint?: string;
+}): ToolConfig {
   return {
     name: 'token_status',
     description:
@@ -1429,7 +1456,9 @@ async function main(): Promise<void> {
           KAMIYO_OPERATOR_PRIVATE_KEY: env.KAMIYO_AGENT_CLAIMER_PRIVATE_KEY,
         }).keypair
       : keypair;
-  const kamiyoAgentClaimerIsOperator = kamiyoAgentClaimerKeypair.publicKey.equals(keypair.publicKey);
+  const kamiyoAgentClaimerIsOperator = kamiyoAgentClaimerKeypair.publicKey.equals(
+    keypair.publicKey
+  );
   const wallet = new KeypairWallet(keypair);
   const rpcUrls = uniqueNonEmptyStrings([env.SOLANA_RPC_URL, ...env.SOLANA_RPC_FALLBACK_URLS]);
   if (rpcUrls.length === 0) {
@@ -2734,7 +2763,12 @@ async function main(): Promise<void> {
                   periodNumbers,
                   claims,
                 });
-                db.addAction(tickId, 'write_kamiyo_agent_staking_claim_receipt', {}, { receiptPath });
+                db.addAction(
+                  tickId,
+                  'write_kamiyo_agent_staking_claim_receipt',
+                  {},
+                  { receiptPath }
+                );
 
                 kamiyoAgentClaimerBalanceLamports = BigInt(
                   await rpcRead('refresh_kamiyo_agent_claimer_balance', candidate =>
@@ -3313,8 +3347,9 @@ async function main(): Promise<void> {
                       });
 
                       const balanceAfterJobLamports = BigInt(
-                        await rpcRead(`read_agent_balance_after_job:${agentProfile.id}`, candidate =>
-                          candidate.getBalance(agentSigner.publicKey, 'confirmed')
+                        await rpcRead(
+                          `read_agent_balance_after_job:${agentProfile.id}`,
+                          candidate => candidate.getBalance(agentSigner.publicKey, 'confirmed')
                         )
                       );
                       const balanceDeltaLamports = balanceAfterJobLamports - agentBalanceLamports;
@@ -3518,8 +3553,9 @@ async function main(): Promise<void> {
                     );
 
                     agentBalanceLamports = BigInt(
-                      await rpcRead(`read_agent_balance_after_claim:${agentProfile.id}`, candidate =>
-                        candidate.getBalance(agentSigner.publicKey, 'confirmed')
+                      await rpcRead(
+                        `read_agent_balance_after_claim:${agentProfile.id}`,
+                        candidate => candidate.getBalance(agentSigner.publicKey, 'confirmed')
                       )
                     );
                     agentResult.claim = {
