@@ -83,6 +83,11 @@ enum Commands {
         #[command(subcommand)]
         command: ConfigCommands,
     },
+    /// Publish and resolve Knowledge Assets on OriginTrail DKG
+    Dkg {
+        #[command(subcommand)]
+        command: DkgCommands,
+    },
     /// Generate shell completions
     Completions {
         /// Shell to generate completions for
@@ -193,6 +198,20 @@ enum AgentCommands {
     Pda {
         /// Owner address (base58)
         owner: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum DkgCommands {
+    /// Publish a Reality Fork report as a Knowledge Asset
+    Publish {
+        /// Reality Fork project ID
+        project_id: String,
+    },
+    /// Resolve a Knowledge Asset by UAL
+    Resolve {
+        /// Universal Asset Locator (UAL)
+        ual: String,
     },
 }
 
@@ -948,6 +967,130 @@ fn cmd_agent_pda(owner_str: &str) -> Result<()> {
     Ok(())
 }
 
+fn resolve_api_url(profile: &config::Profile) -> Result<String> {
+    profile
+        .api_url
+        .clone()
+        .or_else(|| std::env::var("KAMIYO_API_URL").ok())
+        .ok_or_else(|| anyhow::anyhow!(
+            "no API URL configured — set it with: reality-fork config set api_url https://app.kamiyo.ai"
+        ))
+}
+
+fn cmd_dkg_publish(
+    project_id: &str,
+    api_url: &str,
+    output_format: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
+    let url = format!("{api_url}/api/reality-fork/projects/{project_id}/dkg-publish");
+
+    if !quiet && output_format != Some("json") {
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+        let _ = write!(w, "\n  {} {}\n\n", "dkg".dimmed(), "publishing...".cyan());
+        let _ = writeln!(w, "  {}  {}", "project".dimmed(), project_id);
+        let _ = writeln!(w);
+    }
+
+    let resp = ureq::post(&url)
+        .set("Content-Type", "application/json")
+        .send_string("{}")
+        .context("failed to call DKG publish endpoint")?;
+
+    let body: serde_json::Value = resp
+        .into_json()
+        .context("invalid JSON response from DKG publish")?;
+
+    if output_format == Some("json") {
+        println!("{}", serde_json::to_string_pretty(&body)?);
+        return Ok(());
+    }
+
+    let ual = body.get("ual").and_then(|v| v.as_str());
+    let status = body.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+
+    if !quiet {
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+        let _ = writeln!(w, "  {}  {}", "status".dimmed(), status.cyan());
+        if let Some(ual) = ual {
+            let _ = writeln!(w, "  {}     {}", "ual".dimmed(), ual.white());
+        }
+        let _ = writeln!(w);
+    }
+
+    Ok(())
+}
+
+fn cmd_dkg_resolve(
+    ual: &str,
+    api_url: &str,
+    output_format: Option<&str>,
+    quiet: bool,
+) -> Result<()> {
+    let encoded_ual: String = ual
+        .bytes()
+        .flat_map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![b as char]
+            }
+            _ => format!("%{b:02X}").chars().collect(),
+        })
+        .collect();
+    let url = format!("{api_url}/api/dkg/resolve?ual={encoded_ual}");
+
+    if !quiet && output_format != Some("json") {
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+        let _ = write!(w, "\n  {} {}\n\n", "dkg".dimmed(), "resolving...".cyan());
+        let _ = writeln!(w, "  {}  {}", "ual".dimmed(), ual);
+        let _ = writeln!(w);
+    }
+
+    let resp = ureq::get(&url)
+        .call()
+        .context("failed to call DKG resolve endpoint")?;
+
+    let body: serde_json::Value = resp
+        .into_json()
+        .context("invalid JSON response from DKG resolve")?;
+
+    if output_format == Some("json") {
+        println!("{}", serde_json::to_string_pretty(&body)?);
+        return Ok(());
+    }
+
+    if !quiet {
+        let stderr = std::io::stderr();
+        let mut w = stderr.lock();
+
+        if let Some(assertion) = body.get("assertion") {
+            let report_type = assertion
+                .get("@type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let title = assertion
+                .get("rf:title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("untitled");
+            let published = assertion
+                .get("rf:publishedAt")
+                .and_then(|v| v.as_str())
+                .unwrap_or("—");
+
+            let _ = writeln!(w, "  {}    {}", "type".dimmed(), report_type);
+            let _ = writeln!(w, "  {}   {}", "title".dimmed(), title.white());
+            let _ = writeln!(w, "  {} {}", "published".dimmed(), published.dimmed());
+        } else {
+            let _ = writeln!(w, "{}", serde_json::to_string_pretty(&body)?);
+        }
+        let _ = writeln!(w);
+    }
+
+    Ok(())
+}
+
 fn run() -> Result<()> {
     let cli = Cli::parse();
     let store = ConfigStore::load();
@@ -1059,6 +1202,17 @@ fn run() -> Result<()> {
                 Ok(())
             }
         },
+        Commands::Dkg { command } => {
+            let api_url = resolve_api_url(&profile)?;
+            match command {
+                DkgCommands::Publish { project_id } => {
+                    cmd_dkg_publish(&project_id, &api_url, output_format, quiet)
+                }
+                DkgCommands::Resolve { ual } => {
+                    cmd_dkg_resolve(&ual, &api_url, output_format, quiet)
+                }
+            }
+        }
         Commands::Completions { shell } => {
             generate(shell, &mut Cli::command(), "reality-fork", &mut std::io::stdout());
             Ok(())

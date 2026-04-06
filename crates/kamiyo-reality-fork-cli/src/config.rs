@@ -15,6 +15,8 @@ pub struct Profile {
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keypair: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_url: Option<String>,
 }
 
 impl Default for Profile {
@@ -23,6 +25,7 @@ impl Default for Profile {
             cluster: None,
             output: None,
             keypair: None,
+            api_url: None,
         }
     }
 }
@@ -121,7 +124,8 @@ impl ConfigStore {
                 profile.output = Some(value.to_string());
             }
             "keypair" => profile.keypair = Some(value.to_string()),
-            _ => return Err(format!("unknown config key: {key} (valid: cluster, output, keypair)")),
+            "api_url" | "api-url" => profile.api_url = Some(value.to_string()),
+            _ => return Err(format!("unknown config key: {key} (valid: cluster, output, keypair, api_url)")),
         }
         Ok(())
     }
@@ -137,7 +141,8 @@ impl ConfigStore {
             "cluster" => profile.cluster = None,
             "output" => profile.output = None,
             "keypair" => profile.keypair = None,
-            _ => return Err(format!("unknown config key: {key} (valid: cluster, output, keypair)")),
+            "api_url" | "api-url" => profile.api_url = None,
+            _ => return Err(format!("unknown config key: {key} (valid: cluster, output, keypair, api_url)")),
         }
         Ok(())
     }
