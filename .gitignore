@@ -110,8 +110,8 @@ services/agent-factory/VOTE-BLITZ-STRATEGY.md
 services/agent-factory/vote-campaign/
 services/agent-factory/skill.json
 
-# Private partnership data
-docs/partnerships/
+# Internal docs
+docs/
 
 # Business model / strategy (internal only)
 marketing/oracle-business-model.md

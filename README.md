@@ -13,7 +13,7 @@ Kizuna is the protocol's agentic trust and settlement layer. It provides trust s
 | Area | Purpose | Primary paths |
 | --- | --- | --- |
 | Kizuna core services | Verification, settlement, funding, repayment, and operator APIs | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api`, `apps/cdp-onboarding` |
-| Reality Fork | Counterfactual control-room package and launch assets | `packages/kamiyo-reality-fork`, `docs/reality-fork-launch-kit.md` |
+| Reality Fork | Counterfactual control-room package and launch assets | `packages/kamiyo-reality-fork` |
 | Trust infrastructure | Durable trust-event ingest, reads, replay, and service runtime | `services/trust-layer-service`, `crates/kamiyo-trust-layer` |
 | Identity and compliance | Passport, mandate, and compliance surfaces | `packages/kamiyo-meishi`, `services/meishi-compliance` |
 | Client and integration packages | SDKs, settlement libraries, and agent-facing integrations | `packages/` |
@@ -59,7 +59,6 @@ The root defaults target the Kizuna core workspace. For module, legacy, and on-c
 ## Documentation
 
 - [Reality Fork package](packages/kamiyo-reality-fork/README.md)
-- [Reality Fork launch kit](docs/reality-fork-launch-kit.md)
 - [Architecture](ARCHITECTURE.md)
 - [Build Guide](BUILD.md)
 - [Development Guide](DEVELOPMENT.md)
