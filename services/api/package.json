@@ -13,6 +13,7 @@
     "dev:core": "COMPANION_RUNTIME_PROFILE=kizuna-core COMPANION_ROUTE_SURFACE=kizuna-core tsx watch src/index.ts",
     "dev:full": "COMPANION_RUNTIME_PROFILE=full COMPANION_ROUTE_SURFACE=full tsx watch src/index.ts",
     "dev:full-core-surface": "COMPANION_RUNTIME_PROFILE=full COMPANION_ROUTE_SURFACE=kizuna-core tsx watch src/index.ts",
+    "company:heartbeat": "tsx scripts/run-company-heartbeat.ts",
     "babyagi:dev": "tsx src/babyagi-bridge-server.ts",
     "provision:oobe-mcp-client": "tsx scripts/provision-oobe-mcp-client.ts",
     "preflight:contract": "node scripts/preflight-env.mjs --mode contract",

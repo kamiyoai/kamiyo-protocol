@@ -9,6 +9,8 @@ import { errorHandler } from './middleware';
 import { setAnthropicClient } from './routes/chat';
 import { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes/paid';
 import { initCreditsRoutes } from './routes/credits';
+import internalRevenueRouter from './routes/internal-revenue';
+import companyRouter from './routes/company';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
 import { resolveSolanaRpcUrl } from '../solana';
@@ -225,6 +227,8 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
 
   mountEdgeRouteGroups(app, createEdgeRouteGroups(authRateLimiter, apiKeyRateLimiter));
   mountApiRouteGroupCollection(app, createApiRouteGroupCollectionForRuntime(publicReadLimiter, runtime), runtime);
+  app.use('/api', companyRouter);
+  app.use('/api/internal/revenue-events', internalRevenueRouter);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());

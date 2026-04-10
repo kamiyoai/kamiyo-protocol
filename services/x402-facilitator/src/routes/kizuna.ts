@@ -4,16 +4,25 @@ import {
   applyKizunaFundingEvent,
   applyKizunaCollateralEvent,
   applyKizunaRepayment,
+  createKizunaReservation,
+  finalizeKizunaSettlement,
   getKizunaCollateralPosition,
   getKizunaCollateralSummary,
   getKizunaAccount,
+  getKizunaBillableSettlementEvent,
+  getKizunaDebtByReservationId,
   getKizunaEnterpriseBalance,
   getKizunaLatestHealthSnapshot,
   getKizunaOutstandingMicro,
   getKizunaPool,
+  getKizunaReservationById,
+  getKizunaReservationByNonce,
   listKizunaFundingEvents,
   listKizunaTransactions,
   listKizunaCollateralPositions,
+  insertKizunaUnderwriteDecision,
+  insertSettlement,
+  releaseKizunaReservation,
   upsertKizunaAccount,
 } from '../db/queries';
 import { getConfig } from '../config';
@@ -53,6 +62,13 @@ function parseNonNegativeMicro(value: unknown): bigint | null {
   } catch {
     return null;
   }
+}
+
+function parsePositiveNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  if (typeof value !== 'string') return null;
+  const parsed = Number.parseFloat(value.trim());
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function parseLane(value: unknown): 'enterprise' | 'crypto-fast' | null {
@@ -104,6 +120,22 @@ function sendError(res: Response, status: number, error: string): void {
   res.status(status).json({ error });
 }
 
+function requireInternalToken(req: Request, res: Response): boolean {
+  const configured = getConfig().KIZUNA_INTERNAL_TOKEN.trim();
+  if (!configured) {
+    sendError(res, 503, 'Kizuna internal auth is not configured');
+    return false;
+  }
+
+  const header = asString(req.get('authorization'));
+  if (header !== `Bearer ${configured}`) {
+    sendError(res, 401, 'Unauthorized');
+    return false;
+  }
+
+  return true;
+}
+
 function parseManualMandateCaps(value: unknown): {
   singleMicro: string;
   dailyMicro: string;
@@ -134,6 +166,253 @@ function parseManualMandateCaps(value: unknown): {
 
 export function createKizunaRouter(): Router {
   const router = Router();
+
+  router.post('/internal/jobs/reservations', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+    if (!requireInternalToken(req, res)) return;
+
+    const agentId = asString(req.body?.agentId);
+    const payerWallet = asString(req.body?.payerWallet);
+    const requestNonce = asString(req.body?.requestNonce);
+    const lane = parseLane(req.body?.lane);
+    const amountMicro = parsePositiveMicro(req.body?.amountMicro);
+
+    if (!agentId || !payerWallet || !requestNonce || !lane || amountMicro == null) {
+      sendError(res, 400, 'agentId, payerWallet, requestNonce, lane, and amountMicro are required');
+      return;
+    }
+
+    try {
+      const replay = await getKizunaReservationByNonce(payerWallet, requestNonce);
+      if (replay) {
+        res.json({
+          escrowRef: replay.id,
+          decisionId: replay.decision.id,
+          lane: replay.lane,
+          poolId: replay.pool_id,
+          amountMicro: replay.amount_micro,
+          fundingMode: replay.funding_mode,
+          status: replay.status,
+        });
+        return;
+      }
+
+      const account = await getKizunaAccount(agentId);
+      if (!account) {
+        sendError(res, 404, 'Kizuna account not found');
+        return;
+      }
+      if (account.status !== 'active') {
+        sendError(res, 409, 'Kizuna account is not active');
+        return;
+      }
+      if (account.payer_wallet !== payerWallet) {
+        sendError(res, 400, 'payerWallet does not match the Kizuna account');
+        return;
+      }
+
+      const poolId = resolvePoolId(lane, req.body?.poolId, config);
+      const outstandingMicro = await getKizunaOutstandingMicro(agentId, { lane, poolId });
+      const maxSingleMicro = BigInt(config.KIZUNA_MAX_SINGLE_MICRO);
+      const mandateSingleLimitMicro =
+        parseNonNegativeMicro(account.mandate_single_limit_micro) ?? maxSingleMicro;
+
+      let availableMicro = amountMicro <= maxSingleMicro ? amountMicro : maxSingleMicro;
+      availableMicro = availableMicro <= mandateSingleLimitMicro ? availableMicro : mandateSingleLimitMicro;
+
+      const reasonCodes: string[] = [];
+      if (amountMicro > maxSingleMicro) {
+        reasonCodes.push('kizuna_max_single_limit_exceeded');
+      }
+      if (amountMicro > mandateSingleLimitMicro) {
+        reasonCodes.push('kizuna_mandate_single_limit_exceeded');
+      }
+
+      let fundingMode: 'none' | 'prefunded' | 'collateralized' =
+        lane === 'crypto-fast' ? 'collateralized' : 'none';
+      let lockedMicro = '0';
+
+      if (lane === 'enterprise' && config.KIZUNA_ENTERPRISE_REQUIRE_PREFUND) {
+        const enterpriseBalance = await getKizunaEnterpriseBalance(agentId, poolId);
+        const prefundAvailable = parseNonNegativeMicro(enterpriseBalance?.available_micro) ?? 0n;
+        if (prefundAvailable <= 0n) {
+          availableMicro = 0n;
+          reasonCodes.push('kizuna_prefund_insufficient');
+        } else if (availableMicro > prefundAvailable) {
+          availableMicro = prefundAvailable;
+          reasonCodes.push('kizuna_prefund_partial');
+        }
+
+        if (availableMicro > 0n) {
+          fundingMode = 'prefunded';
+          lockedMicro = availableMicro.toString(10);
+        }
+      }
+
+      const approvedMicro = availableMicro > 0n ? availableMicro : 0n;
+      const decision = await insertKizunaUnderwriteDecision({
+        agentId,
+        payerWallet,
+        repayWallet: account.repay_wallet,
+        requestNonce,
+        network: asString(req.body?.network) || 'solana',
+        lane,
+        poolId,
+        requestedMicro: amountMicro.toString(10),
+        approved: approvedMicro > 0n,
+        approvedMicro: approvedMicro.toString(10),
+        availableMicro: availableMicro.toString(10),
+        outstandingMicro: outstandingMicro.toString(10),
+        scoreRaw: approvedMicro > 0n ? 700 : 250,
+        reasonCodes,
+        tier: 'internal_job',
+        policyPackId: 'keiro-jobs-v1',
+        riskBand: approvedMicro > 0n ? 'low' : 'high',
+        decisionEnvelopeHash: null,
+      });
+
+      if (approvedMicro <= 0n) {
+        res.status(409).json({
+          error: 'Kizuna reservation rejected',
+          decisionId: decision.id,
+          reasonCodes,
+        });
+        return;
+      }
+
+      const reservation = await createKizunaReservation({
+        decisionId: decision.id,
+        agentId,
+        payerWallet,
+        requestNonce,
+        network: asString(req.body?.network) || 'solana',
+        lane,
+        poolId,
+        amountMicro: approvedMicro.toString(10),
+        ttlMs: config.KIZUNA_RESERVATION_TTL_MS,
+        fundingMode,
+        lockedMicro,
+      });
+
+      res.json({
+        escrowRef: reservation.id,
+        decisionId: decision.id,
+        lane: reservation.lane,
+        poolId: reservation.pool_id,
+        amountMicro: reservation.amount_micro,
+        fundingMode: reservation.funding_mode,
+        status: reservation.status,
+      });
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : 'Failed to create reservation');
+    }
+  });
+
+  router.post('/internal/jobs/reservations/release', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+    if (!requireInternalToken(req, res)) return;
+
+    const reservationId = asString(req.body?.reservationId);
+    const reason = asString(req.body?.reason) === 'expired' ? 'expired' : 'released';
+
+    if (!reservationId) {
+      sendError(res, 400, 'reservationId is required');
+      return;
+    }
+
+    try {
+      await releaseKizunaReservation(reservationId, reason);
+      res.json({ success: true, reservationId, reason });
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : 'Failed to release reservation');
+    }
+  });
+
+  router.post('/internal/jobs/reservations/settle', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+    if (!requireInternalToken(req, res)) return;
+
+    const reservationId = asString(req.body?.reservationId);
+    const merchantWallet = asString(req.body?.merchantWallet);
+    const paymentToken = asString(req.body?.paymentToken) || 'USDC';
+    const auditRef = asString(req.body?.auditRef);
+    const amount = parsePositiveNumber(req.body?.amount);
+    const feeAmount = parsePositiveNumber(req.body?.feeAmount) ?? 0;
+
+    if (!reservationId || !merchantWallet || !auditRef || amount == null) {
+      sendError(res, 400, 'reservationId, merchantWallet, amount, and auditRef are required');
+      return;
+    }
+
+    try {
+      const existingDebt = await getKizunaDebtByReservationId(reservationId);
+      if (existingDebt?.settlement_id) {
+        const existingBillable = await getKizunaBillableSettlementEvent(
+          reservationId,
+          existingDebt.settlement_id
+        );
+        res.json({
+          settlementRef: existingDebt.settlement_id,
+          debtId: existingDebt.id,
+          billableEventId: existingBillable?.id || null,
+        });
+        return;
+      }
+
+      const reservation = await getKizunaReservationById(reservationId);
+      if (!reservation) {
+        sendError(res, 404, 'Reservation not found');
+        return;
+      }
+      if (reservation.status !== 'reserved') {
+        sendError(res, 409, `Reservation is ${reservation.status}`);
+        return;
+      }
+
+      const settlement = await insertSettlement(
+        merchantWallet,
+        reservation.payer_wallet,
+        amount,
+        feeAmount,
+        paymentToken,
+        auditRef,
+        'confirmed',
+        reservation.network
+      );
+
+      const settlementResult = await finalizeKizunaSettlement({
+        reservationId,
+        settlementId: settlement.id,
+        txHash: auditRef,
+        feeAmount,
+        feeTxHash: auditRef,
+        lane: reservation.lane,
+        poolId: reservation.pool_id,
+        decisionEnvelopeHash: null,
+      });
+      const billableEvent = await getKizunaBillableSettlementEvent(reservationId, settlement.id);
+
+      res.json({
+        settlementRef: settlement.id,
+        debtId: settlementResult.debt?.id || null,
+        billableEventId: billableEvent?.id || null,
+      });
+    } catch (err) {
+      sendError(res, 500, err instanceof Error ? err.message : 'Failed to settle reservation');
+    }
+  });
 
   router.post('/accounts/onboard', async (req: Request, res: Response) => {
     const config = getConfig();

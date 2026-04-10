@@ -79,6 +79,9 @@ export const JobSchema = z.object({
   status: JobStatusSchema,
   assignedAgent: z.string().optional(),
   escrowId: z.string().optional(),
+  escrowRef: z.string().optional(),
+  settlementRef: z.string().optional(),
+  receiptId: z.string().optional(),
   objectiveSpec: ObjectiveSpecSchema,
   minimumCreditScore: z.number().min(0).max(100),
   createdAt: z.string(),
@@ -94,6 +97,7 @@ export const TaskSubmissionSchema = z.object({
   agentId: z.string(),
   result: z.string().min(1).max(50000),
   proof: z.string().max(10000).optional(),
+  receiptId: z.string().optional(),
   submittedAt: z.string(),
 });
 
@@ -106,11 +110,36 @@ export const EarningSchema = z.object({
   amount: z.number(),
   token: z.enum(['SOL', 'USDC']),
   status: z.enum(['pending', 'released', 'disputed']),
+  receiptId: z.string().optional(),
+  settlementRef: z.string().optional(),
   createdAt: z.string(),
   releasedAt: z.string().optional(),
 });
 
 export type Earning = z.infer<typeof EarningSchema>;
+
+export const JobEventSchema = z.object({
+  id: z.string(),
+  jobId: z.string(),
+  agentId: z.string().optional(),
+  eventType: z.enum([
+    'job_created',
+    'job_accepted',
+    'job_started',
+    'job_submitted',
+    'job_completed',
+    'job_disputed',
+    'job_cancelled',
+  ]),
+  idempotencyKey: z.string().optional(),
+  escrowRef: z.string().optional(),
+  settlementRef: z.string().optional(),
+  receiptId: z.string().optional(),
+  payload: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+});
+
+export type JobEvent = z.infer<typeof JobEventSchema>;
 
 export const CreateAgentRequestSchema = z.object({
   walletAddress: z

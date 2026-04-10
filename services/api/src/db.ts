@@ -230,9 +230,21 @@ db.exec(`
     created_at INTEGER DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS credit_internal_debits (
+    reference_id TEXT PRIMARY KEY,
+    wallet TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    amount_micro INTEGER NOT NULL,
+    description TEXT,
+    debited_micro INTEGER NOT NULL,
+    balance_after_micro INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch())
+  );
+
   CREATE INDEX IF NOT EXISTS idx_credit_deposits_wallet ON credit_deposits(wallet);
   CREATE INDEX IF NOT EXISTS idx_credit_deposits_tx ON credit_deposits(tx_signature);
   CREATE INDEX IF NOT EXISTS idx_credit_usage_wallet ON credit_usage(wallet);
+  CREATE INDEX IF NOT EXISTS idx_credit_internal_debits_wallet ON credit_internal_debits(wallet);
 `);
 
 export interface User {
@@ -1091,6 +1103,17 @@ export interface CreditUsage {
   created_at: number;
 }
 
+export interface CreditInternalDebit {
+  reference_id: string;
+  wallet: string;
+  endpoint: string;
+  amount_micro: number;
+  description: string | null;
+  debited_micro: number;
+  balance_after_micro: number;
+  created_at: number;
+}
+
 // 1M $KAMIYO = $10 credits (adjustable via KAMIYO_CREDIT_RATE)
 const KAMIYO_TO_CREDIT_RATE = parseFloat(process.env.KAMIYO_CREDIT_RATE || '0.00001');
 
@@ -1189,6 +1212,84 @@ export function deductCredits(
     `).run(wallet, endpoint, amountMicro, description || null);
 
     return true;
+  })();
+}
+
+export function getCreditInternalDebit(referenceId: string): CreditInternalDebit | null {
+  return db.prepare('SELECT * FROM credit_internal_debits WHERE reference_id = ?').get(referenceId) as CreditInternalDebit | null;
+}
+
+export function debitCreditsInternal(params: {
+  wallet: string;
+  amountMicro: number;
+  endpoint: string;
+  referenceId: string;
+  description?: string;
+}): { debitedMicro: number; balanceMicro: number; idempotent: boolean } | null {
+  return db.transaction(() => {
+    const existing = getCreditInternalDebit(params.referenceId);
+    if (existing) {
+      if (
+        existing.wallet !== params.wallet ||
+        existing.amount_micro !== params.amountMicro ||
+        existing.endpoint !== params.endpoint
+      ) {
+        throw new Error('credit_internal_reference_conflict');
+      }
+
+      return {
+        debitedMicro: existing.debited_micro,
+        balanceMicro: existing.balance_after_micro,
+        idempotent: true,
+      };
+    }
+
+    const account = getCreditAccount(params.wallet);
+    if (!account || account.balance_micro < params.amountMicro) {
+      return null;
+    }
+
+    const balanceAfterMicro = account.balance_micro - params.amountMicro;
+
+    db.prepare(`
+      UPDATE credits
+      SET balance_micro = ?,
+          total_spent_micro = total_spent_micro + ?,
+          updated_at = unixepoch()
+      WHERE wallet = ?
+    `).run(balanceAfterMicro, params.amountMicro, params.wallet);
+
+    db.prepare(`
+      INSERT INTO credit_usage (wallet, endpoint, amount_micro, description)
+      VALUES (?, ?, ?, ?)
+    `).run(params.wallet, params.endpoint, params.amountMicro, params.description || null);
+
+    db.prepare(`
+      INSERT INTO credit_internal_debits (
+        reference_id,
+        wallet,
+        endpoint,
+        amount_micro,
+        description,
+        debited_micro,
+        balance_after_micro
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      params.referenceId,
+      params.wallet,
+      params.endpoint,
+      params.amountMicro,
+      params.description || null,
+      params.amountMicro,
+      balanceAfterMicro
+    );
+
+    return {
+      debitedMicro: params.amountMicro,
+      balanceMicro: balanceAfterMicro,
+      idempotent: false,
+    };
   })();
 }
 

@@ -4,8 +4,12 @@ import type { Agent } from '../types/index.js';
 
 export type ReceiptKind =
   | 'job_accepted'
+  | 'job_started'
   | 'job_submitted'
+  | 'job_completed'
+  | 'job_cancelled'
   | 'earning_created'
+  | 'earning_released'
   | 'job_disputed';
 
 export interface Receipt {

@@ -1,4 +1,19 @@
-import type { Agent, AgentSkill, AgentPersonality, AgentTier, CreateAgentRequest } from '../types/index.js';
+import type {
+  Agent,
+  AgentSkill,
+  AgentPersonality,
+  AgentTier,
+  CreateAgentRequest,
+} from '../types/index.js';
+import {
+  keiroUsePostgres,
+  newEntityId,
+  normalizeBoolean,
+  parseJsonArray,
+  queryKeiro,
+  queryKeiroOne,
+  toIsoString,
+} from './store.js';
 import { normalizeSkillTag } from './skill-tags.js';
 
 const agents = new Map<string, Agent>();
@@ -20,44 +35,91 @@ function calculateTier(creditScore: number): AgentTier {
   return 'unverified';
 }
 
-function newId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+function rowToAgent(row: Record<string, unknown>): Agent {
+  return {
+    id: String(row.id),
+    walletAddress: String(row.wallet_address),
+    name: String(row.name),
+    personality: row.personality as AgentPersonality,
+    skills: parseJsonArray(row.skills),
+    tier: row.tier as AgentTier,
+    creditScore: Number(row.credit_score ?? 0),
+    tasksCompleted: Number(row.tasks_completed ?? 0),
+    disputeCount: Number(row.dispute_count ?? 0),
+    tenureDays: Number(row.tenure_days ?? 0),
+    avgQuality: Number(row.avg_quality ?? 0),
+    isActive: normalizeBoolean(row.is_active),
+    createdAt: toIsoString(row.created_at),
+    globalId: typeof row.global_id === 'string' ? row.global_id : undefined,
+  };
+}
+
+function persistInMemory(agent: Agent) {
+  agents.set(agent.id, agent);
+  agentsByWallet.set(agent.walletAddress, agent.id);
+}
+
+function normalizeSkills(skills: string[]): string[] {
+  return Array.from(new Set(skills.map(normalizeSkillTag).filter(Boolean)));
 }
 
 export const agentService = {
-  getAll(): Agent[] {
-    return Array.from(agents.values());
+  async getAll(): Promise<Agent[]> {
+    if (!keiroUsePostgres) {
+      return Array.from(agents.values());
+    }
+
+    const rows = await queryKeiro<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_agents
+       ORDER BY created_at DESC`
+    );
+    return rows.map(rowToAgent);
   },
 
-  getById(id: string): Agent | undefined {
-    return agents.get(id);
+  async getById(id: string): Promise<Agent | undefined> {
+    if (!keiroUsePostgres) {
+      return agents.get(id);
+    }
+
+    const row = await queryKeiroOne<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_agents
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    return row ? rowToAgent(row) : undefined;
   },
 
-  getByWallet(walletAddress: string): Agent | undefined {
-    const agentId = agentsByWallet.get(walletAddress);
-    if (!agentId) return undefined;
-    return agents.get(agentId);
+  async getByWallet(walletAddress: string): Promise<Agent | undefined> {
+    if (!keiroUsePostgres) {
+      const agentId = agentsByWallet.get(walletAddress);
+      return agentId ? agents.get(agentId) : undefined;
+    }
+
+    const row = await queryKeiroOne<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_agents
+       WHERE wallet_address = $1
+       LIMIT 1`,
+      [walletAddress]
+    );
+    return row ? rowToAgent(row) : undefined;
   },
 
-  create(request: CreateAgentRequest): Agent {
-    if (this.getByWallet(request.walletAddress)) {
+  async create(request: CreateAgentRequest): Promise<Agent> {
+    const existing = await this.getByWallet(request.walletAddress);
+    if (existing) {
       throw new Error('Agent already exists for this wallet');
     }
 
-    const id = newId('agent');
-    const skills = Array.from(
-      new Set(
-        request.skills.map(normalizeSkillTag).filter(Boolean)
-      )
-    );
-    const globalId = `solana:${request.walletAddress}`;
-
     const agent: Agent = {
-      id,
+      id: newEntityId('agent'),
       walletAddress: request.walletAddress,
       name: request.name.trim(),
       personality: request.personality,
-      skills,
+      skills: normalizeSkills(request.skills),
       tier: 'unverified',
       creditScore: 0,
       tasksCompleted: 0,
@@ -66,55 +128,123 @@ export const agentService = {
       avgQuality: 0,
       isActive: true,
       createdAt: new Date().toISOString(),
-      globalId,
+      globalId: `solana:${request.walletAddress}`,
     };
 
-    agents.set(id, agent);
-    agentsByWallet.set(request.walletAddress, id);
+    if (!keiroUsePostgres) {
+      persistInMemory(agent);
+      return agent;
+    }
+
+    await queryKeiro(
+      `INSERT INTO keiro_agents (
+         id, wallet_address, name, personality, skills, tier, credit_score,
+         tasks_completed, dispute_count, tenure_days, avg_quality, is_active,
+         global_id, created_at, updated_at
+       )
+       VALUES (
+         $1, $2, $3, $4, $5::jsonb, $6, $7,
+         $8, $9, $10, $11, $12,
+         $13, $14::timestamptz, $14::timestamptz
+       )`,
+      [
+        agent.id,
+        agent.walletAddress,
+        agent.name,
+        agent.personality,
+        JSON.stringify(agent.skills),
+        agent.tier,
+        agent.creditScore,
+        agent.tasksCompleted,
+        agent.disputeCount,
+        agent.tenureDays,
+        agent.avgQuality,
+        agent.isActive,
+        agent.globalId ?? null,
+        agent.createdAt,
+      ]
+    );
 
     return agent;
   },
 
-  update(id: string, updates: Partial<Agent>): Agent | null {
-    const current = agents.get(id);
+  async update(id: string, updates: Partial<Agent>): Promise<Agent | null> {
+    const current = await this.getById(id);
     if (!current) return null;
 
-    const normalizedSkills = updates.skills
-      ? Array.from(new Set(updates.skills.map(normalizeSkillTag).filter(Boolean)))
-      : undefined;
+    const normalizedSkills = updates.skills ? normalizeSkills(updates.skills) : current.skills;
+    const creditScore =
+      updates.creditScore !== undefined ? Math.max(0, Math.min(100, Math.round(updates.creditScore))) : current.creditScore;
 
     const updated: Agent = {
       ...current,
       ...updates,
       id: current.id,
       walletAddress: current.walletAddress,
-      skills: normalizedSkills ?? current.skills,
+      skills: normalizedSkills,
+      creditScore,
+      tier: calculateTier(creditScore),
+      name: updates.name?.trim() || current.name,
     };
 
-    if (updates.creditScore !== undefined) {
-      updated.tier = calculateTier(updated.creditScore);
+    if (!keiroUsePostgres) {
+      persistInMemory(updated);
+      return updated;
     }
 
-    agents.set(id, updated);
+    await queryKeiro(
+      `UPDATE keiro_agents
+       SET
+         name = $2,
+         personality = $3,
+         skills = $4::jsonb,
+         tier = $5,
+         credit_score = $6,
+         tasks_completed = $7,
+         dispute_count = $8,
+         tenure_days = $9,
+         avg_quality = $10,
+         is_active = $11,
+         global_id = $12,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [
+        id,
+        updated.name,
+        updated.personality,
+        JSON.stringify(updated.skills),
+        updated.tier,
+        updated.creditScore,
+        updated.tasksCompleted,
+        updated.disputeCount,
+        updated.tenureDays,
+        updated.avgQuality,
+        updated.isActive,
+        updated.globalId ?? null,
+      ]
+    );
+
     return updated;
   },
 
-  setActive(id: string, isActive: boolean): Agent | null {
+  async setActive(id: string, isActive: boolean): Promise<Agent | null> {
     return this.update(id, { isActive });
   },
 
-  recordTaskCompletion(
+  async recordTaskCompletion(
     id: string,
     qualityScore: number,
-    disputed: boolean = false
-  ): Agent | null {
-    const agent = agents.get(id);
+    disputed = false
+  ): Promise<Agent | null> {
+    const agent = await this.getById(id);
     if (!agent) return null;
 
     const clampedQuality = Math.max(0, Math.min(100, qualityScore));
     const taskCount = agent.tasksCompleted + 1;
     const disputes = disputed ? agent.disputeCount + 1 : agent.disputeCount;
-    const avgQuality = Math.round((agent.avgQuality * agent.tasksCompleted + clampedQuality) / taskCount);
+    const avgQuality = Math.round(
+      (agent.avgQuality * agent.tasksCompleted + clampedQuality) / taskCount
+    );
 
     const creditScore = Math.round(
       avgQuality * 0.4 +
@@ -132,25 +262,44 @@ export const agentService = {
     });
   },
 
-  incrementTenure(id: string): Agent | null {
-    const agent = agents.get(id);
+  async incrementTenure(id: string): Promise<Agent | null> {
+    const agent = await this.getById(id);
     if (!agent) return null;
     return this.update(id, { tenureDays: agent.tenureDays + 1 });
   },
 
-  delete(id: string): boolean {
-    const agent = agents.get(id);
+  async delete(id: string): Promise<boolean> {
+    const agent = await this.getById(id);
     if (!agent) return false;
 
-    agentsByWallet.delete(agent.walletAddress);
-    agents.delete(id);
+    if (!keiroUsePostgres) {
+      agentsByWallet.delete(agent.walletAddress);
+      agents.delete(id);
+      return true;
+    }
+
+    await queryKeiro(`DELETE FROM keiro_agents WHERE id = $1`, [id]);
     return true;
   },
 
-  getLeaderboard(limit: number = 10): Agent[] {
-    return this.getAll()
-      .filter((a) => a.isActive)
-      .sort((a, b) => b.creditScore - a.creditScore)
-      .slice(0, limit);
+  async getLeaderboard(limit = 10): Promise<Agent[]> {
+    const safeLimit = Math.min(100, Math.max(1, limit));
+
+    if (!keiroUsePostgres) {
+      return Array.from(agents.values())
+        .filter((agent) => agent.isActive)
+        .sort((a, b) => b.creditScore - a.creditScore)
+        .slice(0, safeLimit);
+    }
+
+    const rows = await queryKeiro<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_agents
+       WHERE is_active = TRUE
+       ORDER BY credit_score DESC, created_at DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+    return rows.map(rowToAgent);
   },
 };

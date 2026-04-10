@@ -1560,6 +1560,35 @@ export async function createKizunaReservation(params: {
   });
 }
 
+export async function getKizunaReservationById(
+  reservationId: string
+): Promise<KizunaReservationRow | null> {
+  return queryOne<KizunaReservationRow>(
+    `SELECT
+       id,
+       decision_id,
+       agent_id,
+       payer_wallet,
+       request_nonce,
+       network,
+       lane,
+       pool_id,
+       amount_micro::text,
+       funding_mode,
+       locked_micro::text,
+       status,
+       expires_at,
+       settlement_id::text,
+       tx_hash,
+       created_at,
+       updated_at
+     FROM kizuna_credit_reservations
+     WHERE id = $1
+     LIMIT 1`,
+    [reservationId]
+  );
+}
+
 export async function getKizunaReservationByNonce(
   payerWallet: string,
   requestNonce: string

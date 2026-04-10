@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import { agentService } from '../services/agents.js';
 import { AgentSkillSchema, CreateAgentRequestSchema } from '../types/index.js';
-import { z } from 'zod';
 import { inferSkills } from '../services/skill-inference.js';
 
 export const agentsRouter = new Hono();
@@ -24,28 +24,28 @@ agentsRouter.post(
   }
 );
 
-agentsRouter.get('/', (c) => {
-  const agents = agentService.getAll();
+agentsRouter.get('/', async (c) => {
+  const agents = await agentService.getAll();
   return c.json({ agents });
 });
 
-agentsRouter.get('/leaderboard', (c) => {
-  const rawLimit = parseInt(c.req.query('limit') || '10', 10);
-  const limit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 10 : rawLimit));
-  const agents = agentService.getLeaderboard(limit);
+agentsRouter.get('/leaderboard', async (c) => {
+  const rawLimit = Number.parseInt(c.req.query('limit') || '10', 10);
+  const limit = Math.min(100, Math.max(1, Number.isNaN(rawLimit) ? 10 : rawLimit));
+  const agents = await agentService.getLeaderboard(limit);
   return c.json({ agents });
 });
 
-agentsRouter.get('/wallet/:address', (c) => {
+agentsRouter.get('/wallet/:address', async (c) => {
   const address = c.req.param('address');
-  const agent = agentService.getByWallet(address);
+  const agent = await agentService.getByWallet(address);
   if (!agent) return c.json({ error: 'Agent not found for this wallet' }, 404);
   return c.json({ agent });
 });
 
-agentsRouter.get('/:id', (c) => {
+agentsRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const agent = agentService.getById(id);
+  const agent = await agentService.getById(id);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
   return c.json({ agent });
 });
@@ -53,10 +53,10 @@ agentsRouter.get('/:id', (c) => {
 agentsRouter.post(
   '/',
   zValidator('json', CreateAgentRequestSchema),
-  (c) => {
+  async (c) => {
     const body = c.req.valid('json');
     try {
-      const agent = agentService.create({
+      const agent = await agentService.create({
         ...body,
         name: body.name.trim(),
       });
@@ -81,11 +81,11 @@ agentsRouter.patch(
       isActive: z.boolean().optional(),
     })
   ),
-  (c) => {
+  async (c) => {
     const id = c.req.param('id');
     const updates = c.req.valid('json');
 
-    const agent = agentService.update(id, {
+    const agent = await agentService.update(id, {
       ...updates,
       name: updates.name?.trim() ?? updates.name,
     });
@@ -94,17 +94,17 @@ agentsRouter.patch(
   }
 );
 
-agentsRouter.post('/:id/toggle-active', (c) => {
+agentsRouter.post('/:id/toggle-active', async (c) => {
   const id = c.req.param('id');
-  const agent = agentService.getById(id);
+  const agent = await agentService.getById(id);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
-  const updated = agentService.setActive(id, !agent.isActive);
+  const updated = await agentService.setActive(id, !agent.isActive);
   return c.json({ agent: updated });
 });
 
-agentsRouter.delete('/:id', (c) => {
+agentsRouter.delete('/:id', async (c) => {
   const id = c.req.param('id');
-  const deleted = agentService.delete(id);
+  const deleted = await agentService.delete(id);
   if (!deleted) return c.json({ error: 'Agent not found' }, 404);
   return c.json({ success: true });
 });

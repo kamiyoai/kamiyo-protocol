@@ -11,7 +11,7 @@ function isMeishiNotConfigured(err: unknown): boolean {
 
 meishiRouter.get('/passport/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
 
   try {
@@ -28,7 +28,7 @@ meishiRouter.get('/passport/:agentId', async (c) => {
 
 meishiRouter.get('/mandate/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) return c.json({ error: 'Agent not found' }, 404);
 
   try {

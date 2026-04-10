@@ -1,19 +1,40 @@
-import type { AgentSkill, AgentTier, Job, JobStatus, ObjectiveSpec } from '../types/index.js';
+import type {
+  AgentSkill,
+  AgentTier,
+  Job,
+  JobStatus,
+  ObjectiveSpec,
+} from '../types/index.js';
+import {
+  keiroUsePostgres,
+  newEntityId,
+  parseJsonArray,
+  parseJsonRecord,
+  parseNumeric,
+  queryKeiro,
+  queryKeiroOne,
+  toIsoString,
+} from './store.js';
 
 const jobs = new Map<string, Job>();
 const TIER_ORDER: AgentTier[] = ['unverified', 'bronze', 'silver', 'gold', 'platinum'];
 
-type CreateJobInput = Omit<Job, 'id' | 'createdAt' | 'status' | 'objectiveSpec' | 'minimumCreditScore'> & {
+type CreateJobInput = Omit<
+  Job,
+  'id' | 'createdAt' | 'status' | 'objectiveSpec' | 'minimumCreditScore' | 'escrowRef' | 'settlementRef' | 'receiptId'
+> & {
   objectiveSpec?: ObjectiveSpec;
   minimumCreditScore?: number;
 };
 
+type JobUpdateOptions = {
+  receiptId?: string | null;
+  escrowRef?: string | null;
+  settlementRef?: string | null;
+};
+
 function tierMeetsRequirement(agentTier: AgentTier, requiredTier: AgentTier): boolean {
   return TIER_ORDER.indexOf(agentTier) >= TIER_ORDER.indexOf(requiredTier);
-}
-
-function newId(prefix: string): string {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function clampCreditScore(score: number | undefined): number {
@@ -56,6 +77,40 @@ function sanitizeObjectiveSpec(
     verification: objectiveSpec.verification,
     evidenceRequired: objectiveSpec.evidenceRequired,
   };
+}
+
+function rowToJob(row: Record<string, unknown>): Job {
+  const escrowRef = typeof row.escrow_ref === 'string' ? row.escrow_ref : undefined;
+
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description),
+    requiredSkills: parseJsonArray(row.required_skills),
+    requiredTier: row.required_tier as AgentTier,
+    payment: parseNumeric(row.payment),
+    paymentToken: row.payment_token as 'SOL' | 'USDC',
+    estimatedTime: String(row.estimated_time),
+    poster: String(row.poster),
+    posterAddress: String(row.poster_address),
+    status: row.status as JobStatus,
+    assignedAgent: typeof row.assigned_agent === 'string' ? row.assigned_agent : undefined,
+    escrowId: escrowRef,
+    escrowRef,
+    settlementRef: typeof row.settlement_ref === 'string' ? row.settlement_ref : undefined,
+    receiptId: typeof row.receipt_id === 'string' ? row.receipt_id : undefined,
+    objectiveSpec: parseJsonRecord(row.objective_spec, defaultObjectiveSpec({
+      title: String(row.title),
+      description: String(row.description),
+    })) as ObjectiveSpec,
+    minimumCreditScore: Number(row.minimum_credit_score ?? 0),
+    createdAt: toIsoString(row.created_at),
+    deadline: row.deadline ? toIsoString(row.deadline) : undefined,
+  };
+}
+
+function persistInMemory(job: Job) {
+  jobs.set(job.id, job);
 }
 
 function seedJobs() {
@@ -238,94 +293,259 @@ function seedJobs() {
     },
   ];
 
-  mockJobs.forEach((job) => {
-    const id = newId('job');
-    jobs.set(id, {
+  for (const job of mockJobs) {
+    const seeded: Job = {
       ...job,
-      id,
+      id: newEntityId('job'),
       status: 'open',
       objectiveSpec: sanitizeObjectiveSpec(job.objectiveSpec, job),
       minimumCreditScore: clampCreditScore(job.minimumCreditScore),
       createdAt: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-    });
-  });
+    };
+    persistInMemory(seeded);
+  }
 }
 
-seedJobs();
+if (!keiroUsePostgres) {
+  seedJobs();
+}
 
 export const jobService = {
-  getAll(): Job[] {
-    return Array.from(jobs.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  async getAll(): Promise<Job[]> {
+    if (!keiroUsePostgres) {
+      return Array.from(jobs.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    }
+
+    const rows = await queryKeiro<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_jobs
+       ORDER BY created_at DESC`
     );
+    return rows.map(rowToJob);
   },
 
-  getById(id: string): Job | undefined {
-    return jobs.get(id);
+  async getById(id: string): Promise<Job | undefined> {
+    if (!keiroUsePostgres) {
+      return jobs.get(id);
+    }
+
+    const row = await queryKeiroOne<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_jobs
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    return row ? rowToJob(row) : undefined;
   },
 
-  getOpen(): Job[] {
-    return this.getAll().filter((job) => job.status === 'open');
+  async getOpen(): Promise<Job[]> {
+    return (await this.getAll()).filter((job) => job.status === 'open');
   },
 
-  getByStatus(status: JobStatus): Job[] {
-    return this.getAll().filter((job) => job.status === status);
+  async getByStatus(status: JobStatus): Promise<Job[]> {
+    return (await this.getAll()).filter((job) => job.status === status);
   },
 
-  getMatchingJobs(skills: AgentSkill[], tier: AgentTier): Job[] {
-    return this.getOpen().filter((job) => {
+  async getMatchingJobs(skills: AgentSkill[], tier: AgentTier): Promise<Job[]> {
+    return (await this.getOpen()).filter((job) => {
       const hasRequiredSkill = job.requiredSkills.some((skill) => skills.includes(skill));
       const meetsTierRequirement = tierMeetsRequirement(tier, job.requiredTier);
       return hasRequiredSkill && meetsTierRequirement;
     });
   },
 
-  getByAgent(agentId: string): Job[] {
-    return this.getAll().filter((job) => job.assignedAgent === agentId);
+  async getByAgent(agentId: string): Promise<Job[]> {
+    if (!keiroUsePostgres) {
+      return (await this.getAll()).filter((job) => job.assignedAgent === agentId);
+    }
+
+    const rows = await queryKeiro<Record<string, unknown>>(
+      `SELECT *
+       FROM keiro_jobs
+       WHERE assigned_agent = $1
+       ORDER BY created_at DESC`,
+      [agentId]
+    );
+    return rows.map(rowToJob);
   },
 
-  create(job: CreateJobInput): Job {
-    const id = newId('job');
+  async create(job: CreateJobInput): Promise<Job> {
     const newJob: Job = {
       ...job,
-      id,
+      id: newEntityId('job'),
       status: 'open',
       objectiveSpec: sanitizeObjectiveSpec(job.objectiveSpec, job),
       minimumCreditScore: clampCreditScore(job.minimumCreditScore),
       createdAt: new Date().toISOString(),
     };
-    jobs.set(id, newJob);
+
+    if (!keiroUsePostgres) {
+      persistInMemory(newJob);
+      return newJob;
+    }
+
+    await queryKeiro(
+      `INSERT INTO keiro_jobs (
+         id, title, description, required_skills, required_tier, payment,
+         payment_token, estimated_time, poster, poster_address, status,
+         assigned_agent, escrow_ref, settlement_ref, receipt_id, objective_spec,
+         minimum_credit_score, deadline, created_at, updated_at
+       )
+       VALUES (
+         $1, $2, $3, $4::jsonb, $5, $6,
+         $7, $8, $9, $10, $11,
+         $12, $13, $14, $15, $16::jsonb,
+         $17, $18::timestamptz, $19::timestamptz, $19::timestamptz
+       )`,
+      [
+        newJob.id,
+        newJob.title,
+        newJob.description,
+        JSON.stringify(newJob.requiredSkills),
+        newJob.requiredTier,
+        newJob.payment,
+        newJob.paymentToken,
+        newJob.estimatedTime,
+        newJob.poster,
+        newJob.posterAddress,
+        newJob.status,
+        newJob.assignedAgent ?? null,
+        newJob.escrowRef ?? null,
+        newJob.settlementRef ?? null,
+        newJob.receiptId ?? null,
+        JSON.stringify(newJob.objectiveSpec),
+        newJob.minimumCreditScore,
+        newJob.deadline ?? null,
+        newJob.createdAt,
+      ]
+    );
+
     return newJob;
   },
 
-  assign(jobId: string, agentId: string, escrowId?: string): Job | null {
-    const job = jobs.get(jobId);
+  async assign(
+    jobId: string,
+    agentId: string,
+    escrowRef?: string,
+    receiptId?: string
+  ): Promise<Job | null> {
+    const job = await this.getById(jobId);
     if (!job || job.status !== 'open') return null;
 
     const updatedJob: Job = {
       ...job,
       status: 'assigned',
       assignedAgent: agentId,
-      escrowId,
+      escrowId: escrowRef,
+      escrowRef,
+      receiptId: receiptId ?? job.receiptId,
     };
-    jobs.set(jobId, updatedJob);
+
+    if (!keiroUsePostgres) {
+      persistInMemory(updatedJob);
+      return updatedJob;
+    }
+
+    await queryKeiro(
+      `UPDATE keiro_jobs
+       SET
+         status = 'assigned',
+         assigned_agent = $2,
+         escrow_ref = $3,
+         receipt_id = $4,
+         updated_at = NOW()
+       WHERE id = $1 AND status = 'open'`,
+      [jobId, agentId, escrowRef ?? null, updatedJob.receiptId ?? null]
+    );
+
     return updatedJob;
   },
 
-  updateStatus(jobId: string, status: JobStatus): Job | null {
-    const job = jobs.get(jobId);
+  async updateStatus(
+    jobId: string,
+    status: JobStatus,
+    options: JobUpdateOptions = {}
+  ): Promise<Job | null> {
+    const job = await this.getById(jobId);
     if (!job) return null;
 
-    const updatedJob: Job = { ...job, status };
-    jobs.set(jobId, updatedJob);
+    const updatedJob: Job = {
+      ...job,
+      status,
+      receiptId: options.receiptId === undefined ? job.receiptId : options.receiptId ?? undefined,
+      escrowId: options.escrowRef === undefined ? job.escrowId : options.escrowRef ?? undefined,
+      escrowRef: options.escrowRef === undefined ? job.escrowRef : options.escrowRef ?? undefined,
+      settlementRef:
+        options.settlementRef === undefined ? job.settlementRef : options.settlementRef ?? undefined,
+    };
+
+    if (!keiroUsePostgres) {
+      persistInMemory(updatedJob);
+      return updatedJob;
+    }
+
+    await queryKeiro(
+      `UPDATE keiro_jobs
+       SET
+         status = $2,
+         receipt_id = $3,
+         escrow_ref = $4,
+         settlement_ref = $5,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [
+        jobId,
+        status,
+        updatedJob.receiptId ?? null,
+        updatedJob.escrowRef ?? null,
+        updatedJob.settlementRef ?? null,
+      ]
+    );
+
     return updatedJob;
   },
 
-  cancel(jobId: string): boolean {
-    const job = jobs.get(jobId);
+  async cancel(jobId: string, options: JobUpdateOptions = {}): Promise<boolean> {
+    const job = await this.getById(jobId);
     if (!job || !['open', 'assigned'].includes(job.status)) return false;
 
-    jobs.set(jobId, { ...job, status: 'cancelled' });
+    const cancelled: Job = {
+      ...job,
+      status: 'cancelled',
+      receiptId: options.receiptId === undefined ? job.receiptId : options.receiptId ?? undefined,
+      escrowId: options.escrowRef === undefined ? job.escrowId : options.escrowRef ?? undefined,
+      escrowRef: options.escrowRef === undefined ? job.escrowRef : options.escrowRef ?? undefined,
+      settlementRef:
+        options.settlementRef === undefined ? job.settlementRef : options.settlementRef ?? undefined,
+    };
+
+    if (!keiroUsePostgres) {
+      persistInMemory(cancelled);
+      return true;
+    }
+
+    await queryKeiro(
+      `UPDATE keiro_jobs
+       SET
+         status = 'cancelled',
+         receipt_id = $2,
+         escrow_ref = $3,
+         settlement_ref = $4,
+         updated_at = NOW()
+       WHERE id = $1`,
+      [
+        jobId,
+        cancelled.receiptId ?? null,
+        cancelled.escrowRef ?? null,
+        cancelled.settlementRef ?? null,
+      ]
+    );
+
     return true;
   },
 };
+
+export { tierMeetsRequirement };

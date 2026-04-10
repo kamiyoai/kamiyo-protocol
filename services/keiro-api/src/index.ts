@@ -13,6 +13,7 @@ import { reputationRouter } from './routes/reputation.js';
 import { meishiRouter } from './routes/meishi.js';
 import { receiptsRouter } from './routes/receipts.js';
 import { receiptService } from './services/receipts.js';
+import { closeKeiroStore } from './services/store.js';
 
 const app = new Hono();
 
@@ -162,11 +163,13 @@ process.on('unhandledRejection', (e) => {
 
 process.on('SIGTERM', async () => {
   await receiptService.close();
+  await closeKeiroStore();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   await receiptService.close();
+  await closeKeiroStore();
   process.exit(0);
 });
 

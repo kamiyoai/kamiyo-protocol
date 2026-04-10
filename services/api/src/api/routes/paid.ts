@@ -11,6 +11,13 @@ import { logger } from '../../logger';
 import { getCreditBalance, deductCredits, getCreditBalanceUsd, usdToCredits, isDailySpendCapExceeded, incrementDailyApiSpend, getDailySpendStatus } from '../../db';
 import { getBurnService, type BurnRecord } from '../../burn-service';
 import { COMPANION_X402_NETWORKS, getX402Capability } from '../../core-capabilities';
+import {
+  buildCompanyTicketId,
+  defaultGoalIdForUnit,
+  recordCompanyTicketEvent,
+  upsertCompanyTicket,
+} from '../../company';
+import { recordRevenueEvent } from '../../revenue-events';
 
 const router: IRouter = Router();
 
@@ -217,6 +224,72 @@ async function paymentMiddleware(
           // Record 1% burn from x402 payment
           const burnService = getBurnService();
           const burn = burnService.recordX402Burn(verify.payer, endpoint, priceUsd);
+          const companyTicket = upsertCompanyTicket({
+            ticketId: buildCompanyTicketId('x402-endpoint', endpoint),
+            source: 'x402-endpoint',
+            sourceRef: endpoint,
+            unitId: 'payments',
+            goalId: defaultGoalIdForUnit('payments'),
+            title: `${description} revenue lane`,
+            description: `Recurring x402 settlement lane for ${endpoint}.`,
+            status: 'open',
+            priority: 8,
+            expectedGrossUsd: priceUsd,
+            expectedCostUsd: 0,
+            expectedNetUsd: priceUsd,
+            confidence: 0.9,
+            urgency: 0.8,
+            assignedAgentId: verify.payer,
+            executionPath: 'x402-direct',
+            metadata: {
+              endpoint,
+              description,
+            },
+          });
+
+          recordCompanyTicketEvent({
+            ticketId: companyTicket.id,
+            eventType: 'x402_payment_settled',
+            status: 'open',
+            source: 'x402',
+            sourceRef: settle.tx,
+            settlementRef: settle.tx,
+            idempotencyKey: `x402:${settle.tx}`,
+            payload: {
+              endpoint,
+              description,
+              payer: verify.payer,
+              network: verify.network,
+              amount: verify.amount,
+              grossUsd: priceUsd,
+              burnId: burn?.id ?? null,
+            },
+          });
+
+          recordRevenueEvent({
+            eventId: `x402:${settle.tx}`,
+            source: 'x402',
+            kind: 'x402.payment.settled',
+            agentId: verify.payer,
+            workId: endpoint,
+            gross: priceUsd,
+            fees: 0,
+            net: priceUsd,
+            token: 'USD',
+            chain: verify.network || 'base',
+            status: 'settled',
+            settlementRef: settle.tx,
+            metadata: {
+              unitId: 'payments',
+              ticketId: companyTicket.id,
+              goalId: defaultGoalIdForUnit('payments'),
+              description,
+              payer: verify.payer,
+              amount: verify.amount,
+              endpoint,
+              burnId: burn?.id ?? null,
+            },
+          });
 
           paidReq.x402 = {
             payer: verify.payer,

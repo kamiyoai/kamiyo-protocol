@@ -3,10 +3,10 @@ import { agentService } from '../services/agents.js';
 
 export const reputationRouter = new Hono();
 
-reputationRouter.get('/agent/:agentId', (c) => {
+reputationRouter.get('/agent/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
 
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) {
     return c.json({ error: 'Agent not found' }, 404);
   }

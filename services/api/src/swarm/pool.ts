@@ -1,5 +1,12 @@
 import { randomUUID } from 'crypto';
 import db from '../db';
+import {
+  buildCompanyTicketId,
+  defaultGoalIdForUnit,
+  recordCompanyTicketEvent,
+  upsertCompanyTicket,
+} from '../company';
+import { recordRevenueEvent } from '../revenue-events';
 
 function clamp(n: number, min: number, max: number): number {
   if (!Number.isFinite(n)) return min;
@@ -61,6 +68,12 @@ export function settleTeamBudget(options: {
   const refunded = reserved - amountDrawn;
 
   const settle = db.transaction(() => {
+    const team = db.prepare(`
+      SELECT currency
+      FROM swarm_teams
+      WHERE id = ?
+    `).get(options.teamId) as { currency: string } | undefined;
+
     if (refunded > 0) {
       db.prepare(`
         UPDATE swarm_teams
@@ -79,6 +92,72 @@ export function settleTeamBudget(options: {
         INSERT INTO swarm_draws (id, team_id, agent_id, amount, purpose, status, created_at)
         VALUES (?, ?, ?, ?, ?, 'completed', ?)
       `).run(drawId, options.teamId, options.agentId, amountDrawn, options.purpose, now);
+
+      const companyTicket = upsertCompanyTicket({
+        ticketId: buildCompanyTicketId('hive-purpose', options.purpose),
+        source: 'hive-purpose',
+        sourceRef: options.purpose,
+        unitId: 'delivery',
+        goalId: defaultGoalIdForUnit('delivery'),
+        title: `Hive work: ${options.purpose}`,
+        description: `Budgeted Hive work settled for ${options.purpose}.`,
+        status: 'in_progress',
+        expectedGrossUsd: amountDrawn,
+        expectedCostUsd: 0,
+        expectedNetUsd: amountDrawn,
+        confidence: 0.7,
+        urgency: 0.5,
+        assignedAgentId: options.agentId,
+        assignedTeamId: options.teamId,
+        executionPath: 'hive',
+        metadata: {
+          teamId: options.teamId,
+          purpose: options.purpose,
+        },
+      });
+
+      recordCompanyTicketEvent({
+        ticketId: companyTicket.id,
+        eventType: 'hive_draw_completed',
+        status: 'in_progress',
+        source: 'hive',
+        sourceRef: drawId,
+        settlementRef: drawId,
+        idempotencyKey: `hive:${drawId}`,
+        payload: {
+          teamId: options.teamId,
+          agentId: options.agentId,
+          reserved,
+          refunded,
+          amountDrawn,
+          purpose: options.purpose,
+        },
+      });
+
+      recordRevenueEvent({
+        eventId: `hive:${drawId}`,
+        source: 'hive',
+        kind: 'hive.draw.completed',
+        agentId: options.agentId,
+        workId: options.purpose,
+        gross: amountDrawn,
+        fees: 0,
+        net: amountDrawn,
+        token: team?.currency || 'KAMIYO',
+        chain: process.env.SWARM_NETWORK || 'solana',
+        status: 'completed',
+        settlementRef: drawId,
+        metadata: {
+          unitId: 'delivery',
+          goalId: defaultGoalIdForUnit('delivery'),
+          ticketId: companyTicket.id,
+          teamId: options.teamId,
+          reserved,
+          refunded,
+          purpose: options.purpose,
+        },
+        occurredAt: now,
+      });
     }
 
     return { ok: true as const, refunded, amountDrawn, drawId };
