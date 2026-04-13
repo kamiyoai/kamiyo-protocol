@@ -12,6 +12,8 @@ import meishiDkgRoutes from '../routes/meishi-dkg';
 import dkgRoutes from '../routes/dkg';
 import fairscaleFusionRoutes from '../routes/fairscale-fusion';
 import realityForkRoutes from '../routes/reality-fork';
+import buybackRoutes from '../routes/buyback';
+import kamiyoTokenRoutes from '../routes/kamiyo-token';
 import type { ApiRouteGroup } from './types';
 
 export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
@@ -77,6 +79,18 @@ export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): 
       routeIds: ['reality-fork'],
       path: '/api/reality-fork',
       handlers: [realityForkRoutes],
+    },
+    {
+      ownership: 'kizuna-core',
+      routeIds: ['buyback'],
+      path: '/api/buyback',
+      handlers: [publicReadLimiter, buybackRoutes],
+    },
+    {
+      ownership: 'kizuna-core',
+      routeIds: ['kamiyo-token'],
+      path: '/api/kamiyo',
+      handlers: [publicReadLimiter, kamiyoTokenRoutes],
     },
   ];
 }
