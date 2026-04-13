@@ -29,6 +29,8 @@ Examples:
 - `/api/meishi`
 - `/api/meishi-dkg`
 - `/api/dkg`
+- `/api/buyback`
+- `/api/kamiyo`
 
 Partner-private Kizuna surfaces should still land in `kizuna-core` when they reuse the hosted Kizuna execution path. OOBE is the current example. See `docs/OOBE_PARTNER_INTEGRATION.md`.
 
@@ -41,9 +43,7 @@ Examples:
 - `/api/hive`
 - `/api/hive-teams`
 - `/api/swarm-teams`
-- `/api/buyback`
 - `/api/channels`
-- `/api/kamiyo`
 
 ### `legacy`
 

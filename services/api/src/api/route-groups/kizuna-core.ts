@@ -10,6 +10,8 @@ import meishiRoutes from '../routes/meishi';
 import meishiDkgRoutes from '../routes/meishi-dkg';
 import dkgRoutes from '../routes/dkg';
 import fairscaleFusionRoutes from '../routes/fairscale-fusion';
+import buybackRoutes from '../routes/buyback';
+import kamiyoTokenRoutes from '../routes/kamiyo-token';
 import type { ApiRouteGroup } from './types';
 
 export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
@@ -24,5 +26,7 @@ export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): 
     { ownership: 'kizuna-core', routeIds: ['meishi-dkg'], path: '/api/meishi-dkg', handlers: [publicReadLimiter, meishiDkgRoutes] },
     { ownership: 'kizuna-core', routeIds: ['dkg'], path: '/api/dkg', handlers: [publicReadLimiter, dkgRoutes] },
     { ownership: 'kizuna-core', routeIds: ['fairscale-fusion'], path: '/api/fusion/fairscale', handlers: [fairscaleFusionRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['buyback'], path: '/api/buyback', handlers: [publicReadLimiter, buybackRoutes] },
+    { ownership: 'kizuna-core', routeIds: ['kamiyo-token'], path: '/api/kamiyo', handlers: [publicReadLimiter, kamiyoTokenRoutes] },
   ];
 }
