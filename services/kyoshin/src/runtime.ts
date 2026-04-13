@@ -356,6 +356,7 @@ export class KyoshinRuntime {
   private readonly status: RuntimeStatus;
   private readonly rpcConnections: Connection[];
   private readonly operatorKeypair: Keypair;
+  private readonly stakingAdminKeypair: Keypair | null;
 
   private loopTimer: NodeJS.Timeout | null = null;
   private runningTick = false;
@@ -383,6 +384,18 @@ export class KyoshinRuntime {
       });
     }
     this.operatorKeypair = keypairInfo.keypair;
+
+    const adminInfo = loadOptionalKeypair({
+      keypairPath: runtimeEnv.KAMIYO_STAKING_ADMIN_KEYPAIR_PATH,
+      privateKey: runtimeEnv.KAMIYO_STAKING_ADMIN_PRIVATE_KEY,
+    });
+    this.stakingAdminKeypair = adminInfo?.keypair ?? null;
+    if (this.stakingAdminKeypair) {
+      log('info', 'Staking admin keypair loaded', {
+        pubkey: this.stakingAdminKeypair.publicKey.toBase58(),
+        source: adminInfo?.source ?? 'unknown',
+      });
+    }
 
     const endpoints = [runtimeEnv.SOLANA_RPC_URL, ...runtimeEnv.SOLANA_RPC_FALLBACK_URLS];
     this.rpcConnections = endpoints.map(endpoint => new Connection(endpoint, 'confirmed'));
@@ -957,7 +970,7 @@ export class KyoshinRuntime {
         await this.maybeMaintainOpenStakingPeriod({
           tickId,
           poolAddress: this.runtimeEnv.KAMIYO_STAKING_POOL,
-          admin: this.operatorKeypair,
+          admin: this.stakingAdminKeypair ?? this.operatorKeypair,
           source: 'runtime_period_maintenance',
         });
       }
@@ -2675,6 +2688,7 @@ export class KyoshinRuntime {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
+      log('warn', 'staking_period_maintenance failed', { ...meta, error: message });
       this.lastStakingPeriodMaintenanceMs = nowMs - (STAKING_PERIOD_MAINTENANCE_INTERVAL_MS - STAKING_PERIOD_MAINTENANCE_RETRY_MS);
     }
   }
@@ -2745,7 +2759,7 @@ export class KyoshinRuntime {
       const rollover = await withTimeout(
         ensureOpenStakingPeriod({
           connection: this.rpcConnections[0],
-          admin: params.depositor,
+          admin: this.stakingAdminKeypair ?? params.depositor,
           pool,
         }),
         Math.max(this.runtimeEnv.KAMIYO_RPC_READ_TIMEOUT_MS * 3, 60_000),

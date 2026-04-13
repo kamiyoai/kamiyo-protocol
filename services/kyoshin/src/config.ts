@@ -30,6 +30,8 @@ const envSchema = z.object({
 
   KAMIYO_OPERATOR_KEYPAIR_PATH: optionalNonEmptyString,
   KAMIYO_OPERATOR_PRIVATE_KEY: optionalNonEmptyString,
+  KAMIYO_STAKING_ADMIN_KEYPAIR_PATH: optionalNonEmptyString,
+  KAMIYO_STAKING_ADMIN_PRIVATE_KEY: optionalNonEmptyString,
 
   KAMIYO_MODE: z.enum(['propose', 'execute']).default('propose'),
   KAMIYO_EXECUTION_STAGE: z.enum(['canary_0', 'canary_1', 'canary_2', 'full']).default('canary_0'),
