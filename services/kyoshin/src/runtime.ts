@@ -49,6 +49,7 @@ import { createInitialStatus, type RuntimeStatus } from './state.js';
 
 const SERVICE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const STAKING_PERIOD_MAINTENANCE_INTERVAL_MS = 15 * 60_000;
+const STAKING_PERIOD_MAINTENANCE_RETRY_MS = 60_000;
 
 function log(level: 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>): void {
   const payload = {
@@ -2612,7 +2613,6 @@ export class KyoshinRuntime {
   }): Promise<void> {
     const nowMs = Date.now();
     if (nowMs - this.lastStakingPeriodMaintenanceMs < STAKING_PERIOD_MAINTENANCE_INTERVAL_MS) return;
-    this.lastStakingPeriodMaintenanceMs = nowMs;
 
     const meta = {
       source: params.source,
@@ -2625,7 +2625,10 @@ export class KyoshinRuntime {
       const existingOpen = await this.rpcRead('find_latest_open_staking_period', connection =>
         findLatestOpenStakingPeriod(connection, pool)
       );
-      if (existingOpen) return;
+      if (existingOpen) {
+        this.lastStakingPeriodMaintenanceMs = nowMs;
+        return;
+      }
 
       const rollover = await withTimeout(
         ensureOpenStakingPeriod({
@@ -2637,10 +2640,13 @@ export class KyoshinRuntime {
         'ensure_open_staking_period timed out'
       );
 
+      const isBootstrap = rollover.createdPeriod?.periodNumber === '1';
+      const actionName = isBootstrap ? 'staking_period_bootstrap' : 'staking_period_rollover';
+
       if (rollover.createSignature || rollover.activateSignature) {
         this.db.addAction(
           params.tickId,
-          'staking_period_rollover',
+          actionName,
           {
             source: params.source,
             wallet: params.admin.publicKey.toBase58(),
@@ -2660,11 +2666,16 @@ export class KyoshinRuntime {
       }
 
       if (!rollover.period) {
-        this.db.addAction(params.tickId, 'staking_period_rollover', meta, null, 'no_open_period_after_rollover');
+        this.db.addAction(params.tickId, actionName, meta, null, 'no_open_period_after_rollover');
+        this.lastStakingPeriodMaintenanceMs = nowMs - (STAKING_PERIOD_MAINTENANCE_INTERVAL_MS - STAKING_PERIOD_MAINTENANCE_RETRY_MS);
+        return;
       }
+
+      this.lastStakingPeriodMaintenanceMs = nowMs;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
+      this.lastStakingPeriodMaintenanceMs = nowMs - (STAKING_PERIOD_MAINTENANCE_INTERVAL_MS - STAKING_PERIOD_MAINTENANCE_RETRY_MS);
     }
   }
 

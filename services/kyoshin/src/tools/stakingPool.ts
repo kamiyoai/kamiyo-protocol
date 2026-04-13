@@ -341,20 +341,10 @@ export async function ensureOpenStakingPeriod(params: {
   }
 
   const latest = await findLatestStakingPeriod(connection, pool);
-  if (!latest) {
-    return {
-      period: null,
-      createdPeriod: null,
-      createSignature: null,
-      activateSignature: null,
-    };
-  }
-
-  const previousPeriodNumber = BigInt(latest.periodNumber);
-  const nextPeriodNumber = previousPeriodNumber + 1n;
-  const previousDuration = latest.endTime - latest.startTime;
+  const nextPeriodNumber = latest ? BigInt(latest.periodNumber) + 1n : 1n;
+  const previousDuration = latest ? latest.endTime - latest.startTime : 0;
   const duration = previousDuration > 0 ? previousDuration : defaultDuration;
-  const startTime = Math.max(now, latest.endTime);
+  const startTime = latest ? Math.max(now, latest.endTime) : now;
   const endTime = startTime + duration;
 
   let createSignature: string | null = null;
