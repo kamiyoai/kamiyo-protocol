@@ -15,6 +15,7 @@ import { getEngagementStats } from './engagement-optimizer';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
 import { startBuybackWorker, stopBuybackWorker } from './buyback-service';
 import { startStakingReferralWorker, stopStakingReferralWorker } from './staking-referrals';
+import { startVariantSweepWorker, stopVariantSweepWorker } from './variants/sweep-worker';
 
 let operationalIntervals: NodeJS.Timeout[] = [];
 
@@ -44,29 +45,40 @@ export function stopCoreRuntimeSupport(): void {
 export function startExtendedRuntimeSupport(): void {
   if (operationalIntervals.length === 0) {
     pushInterval(setInterval(aggregateHourlySentiment, 60 * 60 * 1000));
-    pushInterval(setInterval(() => {
-      cleanupOldSentiment();
-      cleanupOldImages();
-      cleanupOldProcessedTweets(7);
-      cleanupOldInfluencerTweets();
-      cleanupOldPerformance();
-    }, 24 * 60 * 60 * 1000));
-    pushInterval(setInterval(() => {
-      const growth = getGrowthStats();
-      const engagement = getEngagementStats();
-      logger.info('Daily growth stats', {
-        trackedPosts: growth.tracked,
-        avgScore: growth.avgScore.toFixed(1),
-        bestScore: growth.bestScore.toFixed(1),
-        totalReplies: engagement.totalReplies,
-      });
-    }, 24 * 60 * 60 * 1000));
+    pushInterval(
+      setInterval(
+        () => {
+          cleanupOldSentiment();
+          cleanupOldImages();
+          cleanupOldProcessedTweets(7);
+          cleanupOldInfluencerTweets();
+          cleanupOldPerformance();
+        },
+        24 * 60 * 60 * 1000
+      )
+    );
+    pushInterval(
+      setInterval(
+        () => {
+          const growth = getGrowthStats();
+          const engagement = getEngagementStats();
+          logger.info('Daily growth stats', {
+            trackedPosts: growth.tracked,
+            avgScore: growth.avgScore.toFixed(1),
+            bestScore: growth.bestScore.toFixed(1),
+            totalReplies: engagement.totalReplies,
+          });
+        },
+        24 * 60 * 60 * 1000
+      )
+    );
   }
 
   startBurnWorker();
   startBuybackWorker();
   startStakingReferralWorker();
   startPoCHRolloutEvaluator();
+  startVariantSweepWorker();
 }
 
 export function stopExtendedRuntimeSupport(): void {
@@ -79,4 +91,5 @@ export function stopExtendedRuntimeSupport(): void {
   stopBuybackWorker();
   stopStakingReferralWorker();
   stopPoCHRolloutEvaluator();
+  stopVariantSweepWorker();
 }
