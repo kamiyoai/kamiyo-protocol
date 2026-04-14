@@ -1464,7 +1464,9 @@ export function deductCredits(
 }
 
 export function getCreditInternalDebit(referenceId: string): CreditInternalDebit | null {
-  return db.prepare('SELECT * FROM credit_internal_debits WHERE reference_id = ?').get(referenceId) as CreditInternalDebit | null;
+  return db
+    .prepare('SELECT * FROM credit_internal_debits WHERE reference_id = ?')
+    .get(referenceId) as CreditInternalDebit | null;
 }
 
 export function debitCreditsInternal(params: {
@@ -1499,20 +1501,25 @@ export function debitCreditsInternal(params: {
 
     const balanceAfterMicro = account.balance_micro - params.amountMicro;
 
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE credits
       SET balance_micro = ?,
           total_spent_micro = total_spent_micro + ?,
           updated_at = unixepoch()
       WHERE wallet = ?
-    `).run(balanceAfterMicro, params.amountMicro, params.wallet);
+    `
+    ).run(balanceAfterMicro, params.amountMicro, params.wallet);
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_usage (wallet, endpoint, amount_micro, description)
       VALUES (?, ?, ?, ?)
-    `).run(params.wallet, params.endpoint, params.amountMicro, params.description || null);
+    `
+    ).run(params.wallet, params.endpoint, params.amountMicro, params.description || null);
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO credit_internal_debits (
         reference_id,
         wallet,
@@ -1523,7 +1530,8 @@ export function debitCreditsInternal(params: {
         balance_after_micro
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `
+    ).run(
       params.referenceId,
       params.wallet,
       params.endpoint,
@@ -1804,6 +1812,66 @@ db.exec(`
     updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
     PRIMARY KEY (agent_id, task_type)
   );
+
+  CREATE TABLE IF NOT EXISTS agent_variants (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT,
+    agent_id TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    genome_hash TEXT NOT NULL,
+    genome_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    sample_count INTEGER NOT NULL DEFAULT 0,
+    rep_score REAL NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    promoted_at INTEGER,
+    archived_at INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_variants_agent_task ON agent_variants(agent_id, task_type);
+  CREATE INDEX IF NOT EXISTS idx_agent_variants_status ON agent_variants(task_type, status);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_variants_genome ON agent_variants(agent_id, task_type, genome_hash);
+
+  CREATE TABLE IF NOT EXISTS variant_tournaments (
+    id TEXT PRIMARY KEY,
+    task_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    max_participants INTEGER NOT NULL,
+    budget_cap REAL NOT NULL,
+    policy_json TEXT,
+    receipt_id TEXT,
+    winner_variant_id TEXT,
+    promotion_event_id TEXT,
+    started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    completed_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS variant_tournament_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tournament_id TEXT NOT NULL,
+    variant_id TEXT NOT NULL,
+    performance_event_id TEXT,
+    quality_score REAL,
+    cost REAL,
+    latency_ms INTEGER,
+    outcome TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_variant_entries_tournament ON variant_tournament_entries(tournament_id);
+  CREATE INDEX IF NOT EXISTS idx_variant_entries_variant ON variant_tournament_entries(variant_id);
+
+  CREATE TABLE IF NOT EXISTS variant_events (
+    id TEXT PRIMARY KEY,
+    variant_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    payload_json TEXT,
+    receipt_id TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_variant_events_variant ON variant_events(variant_id, created_at);
 
   CREATE TABLE IF NOT EXISTS counterfactual_cases (
     id TEXT PRIMARY KEY,
