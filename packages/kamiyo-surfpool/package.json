@@ -62,7 +62,7 @@
     "typescript": "^5.0.0",
     "jest": "^30.2.0",
     "@types/jest": "^30.0.0",
-    "ts-jest": "^29.0.0",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.0"
   },
   "files": [
