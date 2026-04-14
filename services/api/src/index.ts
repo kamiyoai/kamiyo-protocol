@@ -5,8 +5,8 @@ import { grokClient as grok } from './clients';
 import { logger } from './logger';
 import { initSentry, captureError, setUser } from './sentry';
 import { messagesTotal, responseLatency, anthropicLatency, trackLatency } from './metrics';
-import { initProtocol, getProtocol } from './protocol';
-import { runLiveDemo, isDemoRunning, demoEvents, DemoLog } from './hive-live-demo';
+import { initProtocol } from './protocol';
+import { runLiveDemo, isDemoRunning } from './hive-live-demo';
 import { initCompanionAgent, generateAgentResponse, isAgentAvailable } from './agent-client';
 
 // Feature flag: use new Claude Agent SDK wrapper
@@ -36,7 +36,10 @@ class TimeoutError extends Error {
 async function withTimeout<T>(promise: Promise<T>, ms: number, operation: string): Promise<T> {
   let timeoutId: NodeJS.Timeout;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => reject(new TimeoutError(`${operation} timed out after ${ms}ms`)), ms);
+    timeoutId = setTimeout(
+      () => reject(new TimeoutError(`${operation} timed out after ${ms}ms`)),
+      ms
+    );
   });
 
   try {
@@ -86,7 +89,6 @@ import {
   updateUserWallet,
   getActiveEscrowByUser,
   getActiveEscrowByWallet,
-  updateEscrowStatus,
   getActiveSession,
   isProcessed,
   markProcessed,
@@ -100,16 +102,12 @@ import {
   markChallengeVerified,
   isLookupRateLimited,
   incrementLookupCount,
-  getUserById,
 } from './db';
 import {
   parseSendCommand,
   executeSend,
   cancelPendingSend,
   getPendingSendsForUser,
-  formatPendingSendsList,
-  getSendSummary,
-  cleanupExpiredSends,
   fromSmallestUnit,
 } from './tip-bot';
 import {
@@ -126,29 +124,64 @@ import {
   TIERS,
 } from './tiers';
 import { verifyPayment, getPaymentInstructions } from './payments';
-import { submitRating, getUserReputation, formatReputation, generateReputationProof } from './reputation';
-import { getContext, formatContextForPrompt, lookupToken, lookupTokenByCA, formatTokenData } from './crypto-context';
+import {
+  submitRating,
+  getUserReputation,
+  formatReputation,
+  generateReputationProof,
+} from './reputation';
+import {
+  getContext,
+  formatContextForPrompt,
+  lookupToken,
+  lookupTokenByCA,
+  formatTokenData,
+} from './crypto-context';
 
 // Autonomous features
-import { lookupWallet, formatWalletSummary, lookupTransaction, formatTransactionSummary, checkWhaleMovements, formatWhaleAlert, isValidSolanaAddress } from './chain-lookup';
+import {
+  lookupWallet,
+  formatWalletSummary,
+  lookupTransaction,
+  formatTransactionSummary,
+  checkWhaleMovements,
+  formatWhaleAlert,
+  isValidSolanaAddress,
+} from './chain-lookup';
 import { getThreadContext, formatThreadContext, shouldReadThread } from './thread-reader';
-import { generatePost, generateQuoteTweet, getApprovedPosts, markPosted, rotateMood, getPersonalityState, KAMIYO_LORE } from './autonomous';
-import { isKyoshinOperatorLogEnabled, maybeQueueKyoshinOperatorLog, setKyoshinOperatorNextSerial } from './operator-logbook';
-import { analyzeSentiment, getSentimentTrend } from './sentiment';
+import {
+  generatePost,
+  generateQuoteTweet,
+  getApprovedPosts,
+  markPosted,
+  rotateMood,
+} from './autonomous';
+import {
+  isKamiyoAgentOperatorLogEnabled,
+  maybeQueueKamiyoAgentOperatorLog,
+  setKamiyoAgentOperatorNextSerial,
+} from './operator-logbook';
 import { runApprovalCycle, APPROVAL_MODE } from './approval';
 import { ENGAGEMENT_CONFIG } from './config';
-import { generateMeme, isImageGenAvailable } from './image-gen';
-import { startConversation, runConversation, endConversation, AGENTS } from './multi-agent';
 import { startInfluencerMonitoring } from './influencer-monitor';
 import { startEngagementLoop } from './engagement-optimizer';
 import { startPerformanceTracking } from './growth-tracker';
 import { isGrokAvailable } from './trend-engine';
-import { isRateLimited, recordRateLimit, recordSuccess, recordFailure, canWrite, waitForWrite, recordWrite, withRateLimit, isCircuitOpen } from './rate-limiter';
+import {
+  isRateLimited,
+  recordRateLimit,
+  recordSuccess,
+  recordFailure,
+  canWrite,
+  waitForWrite,
+  recordWrite,
+  isCircuitOpen,
+} from './rate-limiter';
 import { startApiServer } from './api';
 import { closeDatabase } from './db';
 import { closeFairscaleFusionStore } from './fairscale-fusion-store';
 import { shutdownMcpSessions } from './mcp/index.js';
-import { createMarketCallSignal, formatSignal, isProverAvailable, extractMarketSignal, generateSignalProof } from './hive-signal';
+import { createMarketCallSignal, formatSignal, extractMarketSignal } from './hive-signal';
 import { initHiveAgent, getHiveAgent, formatTrackRecord, getRecentSignals } from './hive-stubs';
 import { runAutoFollowCycle } from './auto-follow';
 import { BN } from '@coral-xyz/anchor';
@@ -240,9 +273,15 @@ User: "!send 0.1 SOL @someone" (unrecognized command format)
 You: "Try: !send @someone 0.1 SOL - I'll help you send it."`;
 
 const CRISIS_KEYWORDS = [
-  'kill myself', 'suicide', 'end it all', 'want to die',
-  'self harm', 'cutting myself', 'hurt myself',
-  'no reason to live', 'better off dead'
+  'kill myself',
+  'suicide',
+  'end it all',
+  'want to die',
+  'self harm',
+  'cutting myself',
+  'hurt myself',
+  'no reason to live',
+  'better off dead',
 ];
 
 const CRISIS_RESPONSE = `This sounds really hard, and I hear you. Please reach out to people trained to help:
@@ -291,10 +330,7 @@ function containsCrisisKeywords(text: string): boolean {
   return CRISIS_KEYWORDS.some(kw => lower.includes(kw));
 }
 
-async function handleCommand(
-  userId: string,
-  text: string
-): Promise<string | null> {
+async function handleCommand(userId: string, text: string): Promise<string | null> {
   // !wallet <address> - Start wallet verification
   const walletMatch = text.match(COMMANDS.WALLET);
   if (walletMatch) {
@@ -347,7 +383,7 @@ async function handleCommand(
   if (verifyMatch) {
     const tx = verifyMatch[1];
     const user = getOrCreateUser(userId, 'twitter');
-    const currentTier = (await refreshUserTier(userId, 'twitter', user.wallet));
+    const currentTier = await refreshUserTier(userId, 'twitter', user.wallet);
     const nextTier = currentTier === 'free' ? 'companion' : 'pro';
 
     const result = await verifyPayment(userId, tx, nextTier);
@@ -417,7 +453,8 @@ Or paste that URL in a tweet to use Blinks.`;
 
     // Return proof summary (full proof too long for tweet)
     const commitmentShort = proof.commitment.slice(0, 18);
-    const tierName = ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'][proof.tier] || 'Unknown';
+    const tierName =
+      ['Unverified', 'Bronze', 'Silver', 'Gold', 'Platinum'][proof.tier] || 'Unknown';
     return `ZK Reputation Proof generated.
 Threshold: ${threshold}%
 Tier: ${tierName}
@@ -525,7 +562,7 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
       response += '\n\nRecent signals:';
       for (const sig of recent) {
         const dir = ['SHORT', 'LONG', 'NEUTRAL'][sig.direction];
-        const outcome = sig.outcome === null ? 'pending' : (sig.outcome === 1 ? 'correct' : 'wrong');
+        const outcome = sig.outcome === null ? 'pending' : sig.outcome === 1 ? 'correct' : 'wrong';
         response += `\n- ${dir} ${sig.confidence}% [${sig.commitment.slice(0, 8)}] ${outcome}`;
       }
     }
@@ -551,7 +588,10 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
     // Start demo in background (don't await - it runs async)
     runLiveDemo(globalTwitter).then(result => {
       if (result.success) {
-        logger.info('Hive demo completed', { tweets: result.tweetIds.length, txs: result.txSignatures.length });
+        logger.info('Hive demo completed', {
+          tweets: result.tweetIds.length,
+          txs: result.txSignatures.length,
+        });
       } else {
         logger.error('Hive demo failed', { error: result.error });
       }
@@ -622,7 +662,8 @@ This proves your rating >= ${threshold}% without revealing the exact rating.`;
   return null;
 }
 
-const FALLBACK_RESPONSE = "I'm having trouble processing that right now. Please try again in a moment.";
+const FALLBACK_RESPONSE =
+  "I'm having trouble processing that right now. Please try again in a moment.";
 
 const GROK_SYSTEM = `You are Grok, an AI with real-time access to X (Twitter) discussions and trends.
 Your role: provide honest, insightful takes with current X context.
@@ -641,7 +682,7 @@ async function getGrokResponse(userMessage: string, contextStr: string): Promise
         max_tokens: 140,
         messages: [
           { role: 'system', content: `${GROK_SYSTEM}\n\n${contextStr}` },
-          { role: 'user', content: userMessage }
+          { role: 'user', content: userMessage },
         ],
       }),
       15000,
@@ -673,7 +714,7 @@ async function generateResponse(
 
   const messages = [
     ...history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-    { role: 'user' as const, content: userMessage }
+    { role: 'user' as const, content: userMessage },
   ];
 
   try {
@@ -705,24 +746,24 @@ async function generateResponse(
       // If KAMIYO is mentioned, add it from context
       if (uniqueTokens.includes('KAMIYO') && cryptoCtx.kamiyo) {
         const k = cryptoCtx.kamiyo;
-        requestedTokens.push(formatTokenData({
-          name: 'KAMIYO',
-          symbol: 'KAMIYO',
-          priceUsd: k.priceUsd,
-          priceChange24h: k.priceChange24h,
-          marketCap: k.marketCap,
-          volume24h: k.volume24h,
-          liquidity: k.liquidity,
-          chain: 'solana',
-        }));
+        requestedTokens.push(
+          formatTokenData({
+            name: 'KAMIYO',
+            symbol: 'KAMIYO',
+            priceUsd: k.priceUsd,
+            priceChange24h: k.priceChange24h,
+            marketCap: k.marketCap,
+            volume24h: k.volume24h,
+            liquidity: k.liquidity,
+            chain: 'solana',
+          })
+        );
       }
 
       // Look up other tokens (limit to 3)
       const tokensToLookup = uniqueTokens.filter(t => t !== 'KAMIYO').slice(0, 3);
       if (tokensToLookup.length > 0) {
-        const tokenResults = await Promise.all(
-          tokensToLookup.map(t => lookupToken(t))
-        );
+        const tokenResults = await Promise.all(tokensToLookup.map(t => lookupToken(t)));
         const foundTokens = tokenResults.filter((t): t is NonNullable<typeof t> => t !== null);
         requestedTokens.push(...foundTokens.map(formatTokenData));
       }
@@ -737,21 +778,22 @@ async function generateResponse(
     // Call Claude and Grok in parallel
     const [claudeResponse, grokTake] = await Promise.all([
       withRetry(
-        () => withTimeout(
-          trackLatency(anthropicLatency, {}, () =>
-            anthropic.messages.create({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 100,
-              system: systemWithContext,
-              messages,
-            })
+        () =>
+          withTimeout(
+            trackLatency(anthropicLatency, {}, () =>
+              anthropic.messages.create({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 100,
+                system: systemWithContext,
+                messages,
+              })
+            ),
+            30000,
+            'Anthropic API'
           ),
-          30000,
-          'Anthropic API'
-        ),
         { maxRetries: 2, operation: 'Anthropic API' }
       ),
-      getGrokResponse(userMessage, contextStr)
+      getGrokResponse(userMessage, contextStr),
     ]);
 
     const claudeText = claudeResponse.content
@@ -767,10 +809,12 @@ async function generateResponse(
         model: 'claude-sonnet-4-20250514',
         max_tokens: 100,
         system: `Combine into ONE punchy response. MAX 250 characters. No labels.`,
-        messages: [{
-          role: 'user',
-          content: `Q: "${userMessage}"\nClaude: ${claudeText}\nGrok: ${grokTake}\n\nCombine (max 250 chars):`
-        }]
+        messages: [
+          {
+            role: 'user',
+            content: `Q: "${userMessage}"\nClaude: ${claudeText}\nGrok: ${grokTake}\n\nCombine (max 250 chars):`,
+          },
+        ],
       });
 
       finalResponse = synthesisResponse.content
@@ -790,7 +834,7 @@ async function generateResponse(
         model: 'claude-sonnet-4-20250514',
         max_tokens: 100,
         system: 'Shorten to under 280 characters. Keep the core message. Same tone.',
-        messages: [{ role: 'user', content: finalResponse }]
+        messages: [{ role: 'user', content: finalResponse }],
       });
 
       finalResponse = shortenResponse.content
@@ -833,23 +877,25 @@ async function generateResponse(
 
 // Clean up text: strip emojis, fix dashes
 function cleanText(text: string): string {
-  return text
-    // Strip emojis
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Misc symbols, pictographs, emoticons
-    .replace(/[\u{2600}-\u{26FF}]/gu, '')    // Misc symbols
-    .replace(/[\u{2700}-\u{27BF}]/gu, '')    // Dingbats
-    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')  // Emoticons
-    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')  // Transport/map symbols
-    .replace(/[\u{1FA00}-\u{1FAFF}]/gu, '')  // Chess, symbols
-    .replace(/[\u{2300}-\u{23FF}]/gu, '')    // Misc technical
-    .replace(/[\u{2B50}]/gu, '')             // Star
-    .replace(/[\u{203C}\u{2049}]/gu, '')     // Exclamation marks
-    .replace(/[\u{20E3}]/gu, '')             // Combining enclosing keycap
-    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')    // Variation selectors
-    // Fix dashes: em-dash to spaced en-dash
-    .replace(/—/g, ' – ')
-    .replace(/\s+/g, ' ')                     // Collapse multiple spaces
-    .trim();
+  return (
+    text
+      // Strip emojis
+      .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Misc symbols, pictographs, emoticons
+      .replace(/[\u{2600}-\u{26FF}]/gu, '') // Misc symbols
+      .replace(/[\u{2700}-\u{27BF}]/gu, '') // Dingbats
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport/map symbols
+      .replace(/[\u{1FA00}-\u{1FAFF}]/gu, '') // Chess, symbols
+      .replace(/[\u{2300}-\u{23FF}]/gu, '') // Misc technical
+      .replace(/[\u{2B50}]/gu, '') // Star
+      .replace(/[\u{203C}\u{2049}]/gu, '') // Exclamation marks
+      .replace(/[\u{20E3}]/gu, '') // Combining enclosing keycap
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '') // Variation selectors
+      // Fix dashes: em-dash to spaced en-dash
+      .replace(/—/g, ' – ')
+      .replace(/\s+/g, ' ') // Collapse multiple spaces
+      .trim()
+  );
 }
 
 const POST_FINGERPRINT = process.env.KAMIYO_POST_FINGERPRINT?.trim();
@@ -859,9 +905,7 @@ function maybeAddFingerprint(text: string): string {
     return text;
   }
 
-  return text.length + POST_FINGERPRINT.length + 1 <= 280
-    ? `${text} ${POST_FINGERPRINT}`
-    : text;
+  return text.length + POST_FINGERPRINT.length + 1 <= 280 ? `${text} ${POST_FINGERPRINT}` : text;
 }
 
 async function postReply(
@@ -889,7 +933,12 @@ async function postReply(
     recordWrite();
     return reply.data.id;
   } catch (err: unknown) {
-    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    const error = err as {
+      code?: number;
+      status?: number;
+      rateLimit?: { reset?: number };
+      message?: string;
+    };
 
     if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
       recordRateLimit(error.rateLimit?.reset);
@@ -906,11 +955,16 @@ async function postReply(
 
 const MAX_MESSAGE_LENGTH = 1000; // Prevent abuse with very long messages
 
-
 async function processMention(
   twitter: TwitterApi,
   anthropic: Anthropic,
-  tweet: { id: string; text: string; author_id?: string; in_reply_to_user_id?: string; conversation_id?: string }
+  tweet: {
+    id: string;
+    text: string;
+    author_id?: string;
+    in_reply_to_user_id?: string;
+    conversation_id?: string;
+  }
 ): Promise<void> {
   const userId = `twitter_${tweet.author_id || 'unknown'}`;
   let text = tweet.text.replace(/@\w+/g, '').trim();
@@ -919,7 +973,8 @@ async function processMention(
   // Pattern: "@other_account ... @KAMIYOCompanion" = asking other account about us
   const tweetLower = tweet.text.toLowerCase();
   const firstMention = tweet.text.match(/^@(\w+)/)?.[1]?.toLowerCase();
-  const isAboutUs = firstMention && firstMention !== 'kamiyocompanion' && tweetLower.includes('@kamiyocompanion');
+  const isAboutUs =
+    firstMention && firstMention !== 'kamiyocompanion' && tweetLower.includes('@kamiyocompanion');
 
   if (isAboutUs) {
     // Someone is asking another account about us - we can offer our own perspective
@@ -930,12 +985,11 @@ async function processMention(
   }
 
   // Check if this is a reply and fetch thread context
-  let threadContext = '';
   if (shouldReadThread(tweet)) {
     try {
       const thread = await getThreadContext(twitter, tweet.id, 5);
       if (thread.totalMessages > 1) {
-        threadContext = formatThreadContext(thread);
+        formatThreadContext(thread);
         logger.info('Fetched thread context', { tweetId: tweet.id, depth: thread.totalMessages });
 
         // If the direct text is minimal (like "What about @KAMIYO"), use thread context as primary
@@ -982,10 +1036,12 @@ async function processMention(
   const tier = await refreshUserTier(userId, 'twitter', user.wallet);
 
   // Check message limit
-  const { allowed, remaining } = checkMessageLimit(userId, tier);
+  const { allowed } = checkMessageLimit(userId, tier);
   if (!allowed) {
     const config = getTierConfig(tier);
-    await postReply(twitter, tweet.id,
+    await postReply(
+      twitter,
+      tweet.id,
       `You've reached today's limit (${config.maxMessagesPerDay} messages). Upgrade with !upgrade companion for more.`
     );
     return;
@@ -1026,7 +1082,8 @@ async function processMention(
   // Check if response contains a market take worth staking on
   let finalResponse = response;
   const signal = extractMarketSignal(response);
-  if (signal && signal.direction !== 2) { // Has directional take
+  if (signal && signal.direction !== 2) {
+    // Has directional take
     const stakeChance = 1.0; // 100% for demo
     const swarmTeamsAgent = getHiveAgent();
 
@@ -1047,7 +1104,9 @@ async function processMention(
         const commitmentTag = `\n\n[${result.commitment.slice(0, 12)}]`;
         if (finalResponse.length + commitmentTag.length <= 280) {
           finalResponse = finalResponse + commitmentTag;
-          logger.info('Added Hive commitment to reply', { commitment: result.commitment.slice(0, 16) });
+          logger.info('Added Hive commitment to reply', {
+            commitment: result.commitment.slice(0, 16),
+          });
         }
       }
     }
@@ -1062,7 +1121,6 @@ async function processMention(
   } else {
     logger.warn('Reply not posted', { tweetId: tweet.id, reason: 'postReply returned null' });
   }
-
 }
 
 // Exponential backoff state
@@ -1070,10 +1128,7 @@ let backoffMs = 0;
 const MAX_BACKOFF_MS = 15 * 60 * 1000; // 15 minutes max
 const BASE_POLL_INTERVAL = 30000;
 
-async function startMentionStream(
-  twitter: TwitterApi,
-  anthropic: Anthropic
-): Promise<void> {
+async function startMentionStream(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting mention polling...');
 
   const me = await twitter.v2.me();
@@ -1128,7 +1183,10 @@ async function startMentionStream(
           // Skip if we already replied to this conversation (prevents multiple replies in same thread)
           const conversationId = tweet.conversation_id || tweet.id;
           if (hasRepliedToConversation(conversationId)) {
-            logger.info('Skipping - already replied to conversation', { tweetId: tweet.id, conversationId });
+            logger.info('Skipping - already replied to conversation', {
+              tweetId: tweet.id,
+              conversationId,
+            });
             lastSeenId = tweet.id;
             setBotState('lastSeenId', lastSeenId);
             continue;
@@ -1150,7 +1208,10 @@ async function startMentionStream(
             await processMention(twitter, anthropic, tweet);
           } catch (mentionErr) {
             // Log but don't crash the polling loop
-            logger.error('Failed to process mention', { tweetId: tweet.id, error: String(mentionErr) });
+            logger.error('Failed to process mention', {
+              tweetId: tweet.id,
+              error: String(mentionErr),
+            });
             captureError(mentionErr instanceof Error ? mentionErr : new Error(String(mentionErr)));
           }
           lastSeenId = tweet.id;
@@ -1167,10 +1228,11 @@ async function startMentionStream(
 
         const resetTime = error.rateLimit?.reset;
         if (resetTime) {
-          const waitMs = (resetTime * 1000) - Date.now();
+          const waitMs = resetTime * 1000 - Date.now();
           backoffMs = Math.min(Math.max(waitMs, BASE_POLL_INTERVAL), MAX_BACKOFF_MS);
         } else {
-          backoffMs = backoffMs === 0 ? BASE_POLL_INTERVAL : Math.min(backoffMs * 2, MAX_BACKOFF_MS);
+          backoffMs =
+            backoffMs === 0 ? BASE_POLL_INTERVAL : Math.min(backoffMs * 2, MAX_BACKOFF_MS);
         }
         logger.info('Mention poll rate limited', { backoffSeconds: Math.round(backoffMs / 1000) });
       } else {
@@ -1200,17 +1262,20 @@ let isShuttingDown = false;
 async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): Promise<void> {
   logger.info('Starting autonomous posting loop...');
   logger.info(`Approval mode: ${APPROVAL_MODE}`);
-  const kyoshinOperatorLogs = isKyoshinOperatorLogEnabled();
+  const kamiyoAgentOperatorLogs = isKamiyoAgentOperatorLogEnabled();
 
-  const forcedNextSerial = Number.parseInt(process.env.KYOSHIN_OPERATOR_LOG_FORCE_NEXT_SERIAL ?? '', 10);
-  if (kyoshinOperatorLogs && Number.isFinite(forcedNextSerial) && forcedNextSerial > 0) {
-    setKyoshinOperatorNextSerial(forcedNextSerial);
-    logger.info('Kyoshin operator next serial overridden', { nextSerial: forcedNextSerial });
+  const forcedNextSerial = Number.parseInt(
+    process.env.KAMIYO_AGENT_OPERATOR_LOG_FORCE_NEXT_SERIAL ?? '',
+    10
+  );
+  if (kamiyoAgentOperatorLogs && Number.isFinite(forcedNextSerial) && forcedNextSerial > 0) {
+    setKamiyoAgentOperatorNextSerial(forcedNextSerial);
+    logger.info('Kamiyo Agent operator next serial overridden', { nextSerial: forcedNextSerial });
   }
 
-  if (kyoshinOperatorLogs) {
-    logger.info('Kyoshin operator log autopost mode enabled', {
-      initialSerial: process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL || '9',
+  if (kamiyoAgentOperatorLogs) {
+    logger.info('Kamiyo Agent operator log autopost mode enabled', {
+      initialSerial: process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL || '9',
     });
   }
 
@@ -1221,15 +1286,18 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
   // Generate new posts periodically (every 3-5 hours)
   const generateLoop = async () => {
     try {
-      if (kyoshinOperatorLogs) {
-        logger.debug('Skipping generic generation in Kyoshin operator log mode');
+      if (kamiyoAgentOperatorLogs) {
+        logger.debug('Skipping generic generation in Kamiyo Agent operator log mode');
       } else {
         // Rotate mood occasionally
         rotateMood();
 
         // Generate a new post
         const post = await generatePost(anthropic);
-        logger.info('Generated autonomous post', { id: post.id, content: post.content.slice(0, 50) });
+        logger.info('Generated autonomous post', {
+          id: post.id,
+          content: post.content.slice(0, 50),
+        });
 
         // Run approval cycle (self-review + DM if needed)
         await runApprovalCycle(anthropic, twitter);
@@ -1238,8 +1306,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
       logger.error('Autonomous generation failed', { error: String(err) });
     }
 
-    // In Kyoshin mode this acts as a lightweight watchdog cadence.
-    const nextDelay = kyoshinOperatorLogs
+    // In Kamiyo Agent mode this acts as a lightweight watchdog cadence.
+    const nextDelay = kamiyoAgentOperatorLogs
       ? 30 * 60 * 1000
       : (3 + Math.random() * 2) * 60 * 60 * 1000;
     setTimeout(generateLoop, nextDelay);
@@ -1267,8 +1335,8 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
 
       // Only post if enough time has passed (2-3 hours)
       if (timeSinceLastPost >= MIN_POST_INTERVAL) {
-        if (kyoshinOperatorLogs) {
-          maybeQueueKyoshinOperatorLog(now);
+        if (kamiyoAgentOperatorLogs) {
+          maybeQueueKamiyoAgentOperatorLog(now);
         }
 
         const approved = getApprovedPosts();
@@ -1306,7 +1374,10 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
               }
 
               // Generate ZK proof for market signals
-              const signalResult = await createMarketCallSignal(post.content, post.context ?? undefined);
+              const signalResult = await createMarketCallSignal(
+                post.content,
+                post.context ?? undefined
+              );
               if (signalResult) {
                 logger.info('Generated ZK signal proof', {
                   signal: formatSignal(signalResult.signal),
@@ -1342,24 +1413,34 @@ async function startAutonomousLoop(twitter: TwitterApi, anthropic: Anthropic): P
                   await forwardToTelegram(result.data.id, post.content);
                 }
               } catch (tweetErr: unknown) {
-                const error = tweetErr as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+                const error = tweetErr as {
+                  code?: number;
+                  status?: number;
+                  rateLimit?: { reset?: number };
+                  message?: string;
+                };
                 if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
                   recordRateLimit(error.rateLimit?.reset);
                   logger.warn('Autonomous tweet rate limited', { postId: post.id });
                 } else {
                   recordFailure(`autonomousTweet: ${error.message || String(tweetErr)}`);
-                  logger.error('Autonomous tweet failed', { postId: post.id, error: String(tweetErr) });
+                  logger.error('Autonomous tweet failed', {
+                    postId: post.id,
+                    error: String(tweetErr),
+                  });
                 }
               }
             }
           } else {
             logger.info('Skipping post this cycle (randomized delay)', {
-              pendingCount: approved.length
+              pendingCount: approved.length,
             });
           }
         }
       } else {
-        const hoursRemaining = ((MIN_POST_INTERVAL - timeSinceLastPost) / (60 * 60 * 1000)).toFixed(1);
+        const hoursRemaining = ((MIN_POST_INTERVAL - timeSinceLastPost) / (60 * 60 * 1000)).toFixed(
+          1
+        );
         logger.debug('Post rate limit active', { hoursRemaining });
       }
     } catch (err) {
@@ -1408,14 +1489,20 @@ async function startWhaleMonitoring(twitter: TwitterApi, anthropic: Anthropic): 
   const checkWhales = async () => {
     try {
       const alerts = await checkWhaleMovements(1000000); // 1M+ KAMIYO
-      for (const alert of alerts.slice(0, 1)) { // One alert at a time
+      for (const alert of alerts.slice(0, 1)) {
+        // One alert at a time
         const message = formatWhaleAlert(alert);
         // Generate a witty comment about the whale movement
         const response = await anthropic.messages.create({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 80,
           system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: `Whale alert: ${message}. Comment on this in your style. Under 200 chars.` }],
+          messages: [
+            {
+              role: 'user',
+              content: `Whale alert: ${message}. Comment on this in your style. Under 200 chars.`,
+            },
+          ],
         });
 
         const comment = response.content
@@ -1503,7 +1590,9 @@ async function main(): Promise<void> {
         logger.info('Registering bot as Hive agent...');
         const commitment = await swarmTeamsAgent.register(new BN(100000000));
         if (commitment) {
-          logger.info('Bot registered as Hive agent', { commitment: commitment.slice(0, 16) + '...' });
+          logger.info('Bot registered as Hive agent', {
+            commitment: commitment.slice(0, 16) + '...',
+          });
         }
       } else {
         logger.info('Hive agent already registered', {
@@ -1520,8 +1609,12 @@ async function main(): Promise<void> {
   globalTwitter = undefined;
 
   if (runtime.moduleBackgroundsEnabled) {
-    if (process.env.TWITTER_API_KEY && process.env.TWITTER_API_SECRET &&
-        process.env.TWITTER_ACCESS_TOKEN && process.env.TWITTER_ACCESS_SECRET) {
+    if (
+      process.env.TWITTER_API_KEY &&
+      process.env.TWITTER_API_SECRET &&
+      process.env.TWITTER_ACCESS_TOKEN &&
+      process.env.TWITTER_ACCESS_SECRET
+    ) {
       try {
         const twitterCreds = getTwitterCredentials();
         twitter = new TwitterApi(twitterCreds);
@@ -1587,7 +1680,9 @@ async function main(): Promise<void> {
       await startInfluencerMonitoring(twitter, anthropic);
       await startEngagementLoop(twitter, anthropic);
     } else {
-      logger.info('Influencer monitoring disabled (set INFLUENCER_MONITORING_ENABLED=true to enable)');
+      logger.info(
+        'Influencer monitoring disabled (set INFLUENCER_MONITORING_ENABLED=true to enable)'
+      );
     }
     await startPerformanceTracking(twitter);
     await startMentionStream(twitter, anthropic);
@@ -1600,10 +1695,13 @@ async function main(): Promise<void> {
     logger.info('Module background boot disabled in Kizuna core runtime');
   }
 
-  logger.info('KAMIYO API is running', { profile: runtime.profile, routeSurface: runtime.routeSurface });
+  logger.info('KAMIYO API is running', {
+    profile: runtime.profile,
+    routeSurface: runtime.routeSurface,
+  });
 }
 
-main().catch((err) => {
+main().catch(err => {
   logger.error('Fatal error', { error: String(err) });
   process.exit(1);
 });

@@ -43,14 +43,14 @@ async function main() {
     readFlag('--keypair')?.trim() ||
     process.env.KAMIYO_OPERATOR_KEYPAIR_PATH?.trim() ||
     (process.env.HOME
-      ? `${process.env.HOME}/local/token-launch/wallets/kyoshin-hot.json`
+      ? `${process.env.HOME}/local/token-launch/wallets/kamiyo-agent-hot.json`
       : undefined);
 
   if (!keypairPath) {
     throw new Error('Missing keypair. Provide --keypair <path> or set KAMIYO_OPERATOR_KEYPAIR_PATH.');
   }
 
-  const name = (readFlag('--name')?.trim() || process.env.KAMIYO_AGENT_NAME?.trim() || 'kyoshin').trim();
+  const name = (readFlag('--name')?.trim() || process.env.KAMIYO_AGENT_NAME?.trim() || 'kamiyo-agent').trim();
   const nameBytes = Buffer.byteLength(name, 'utf8');
   if (!name || nameBytes > 32) {
     throw new Error(`Invalid agent name. Must be 1..32 bytes (got ${nameBytes}).`);

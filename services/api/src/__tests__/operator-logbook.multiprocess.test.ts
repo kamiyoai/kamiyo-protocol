@@ -87,7 +87,7 @@ describe('operator-logbook multi-process contract', () => {
   });
 
   it('allows only one daily enqueue when two workers tick concurrently', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-operator-logbook-mp-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'kamiyo-agent-operator-logbook-mp-'));
     const dbPath = join(tempDir, 'autonomous.db');
     const db = new Database(dbPath);
     createSchema(db);
@@ -97,8 +97,8 @@ describe('operator-logbook multi-process contract', () => {
     const env = {
       ...process.env,
       DATA_DIR: tempDir,
-      KYOSHIN_OPERATOR_LOG_ENABLED: 'true',
-      KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL: '9',
+      KAMIYO_AGENT_OPERATOR_LOG_ENABLED: 'true',
+      KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL: '9',
       KYO_TEST_NOW_MS: String(nowMs),
     };
 
@@ -108,15 +108,15 @@ describe('operator-logbook multi-process contract', () => {
 
     const verifyDb = new Database(dbPath, { readonly: true });
     const postCount = (
-      verifyDb.prepare('SELECT COUNT(*) as count FROM post_queue WHERE context = ?').get('kyoshin_log:daily_24h') as {
+      verifyDb.prepare('SELECT COUNT(*) as count FROM post_queue WHERE context = ?').get('kamiyo_agent_log:daily_24h') as {
         count: number;
       }
     ).count;
     expect(postCount).toBe(1);
 
     const state = verifyDb
-      .prepare('SELECT next_serial, last_daily_at FROM kyoshin_operator_log_state WHERE key = ?')
-      .get('kyoshin') as { next_serial: number; last_daily_at: number };
+      .prepare('SELECT next_serial, last_daily_at FROM kamiyo_agent_operator_log_state WHERE key = ?')
+      .get('kamiyo-agent') as { next_serial: number; last_daily_at: number };
     expect(state.next_serial).toBe(10);
     expect(state.last_daily_at).toBe(nowMs);
     verifyDb.close();

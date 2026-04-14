@@ -31,6 +31,7 @@ export interface Config {
   KIZUNA_KERNEL_URL: string;
   KIZUNA_KERNEL_TIMEOUT_MS: number;
   KIZUNA_KERNEL_FAIL_CLOSED: boolean;
+  KIZUNA_KERNEL_PUBLIC_KEYS: Record<string, string>;
   KIZUNA_KERNEL_SIGNING_KEYS: Record<string, string>;
   KIZUNA_ENTERPRISE_POOL_ID: string;
   KIZUNA_FASTPATH_POOL_ID: string;
@@ -96,6 +97,7 @@ const DEFAULTS: Partial<Config> = {
   KIZUNA_KERNEL_URL: '',
   KIZUNA_KERNEL_TIMEOUT_MS: 1500,
   KIZUNA_KERNEL_FAIL_CLOSED: true,
+  KIZUNA_KERNEL_PUBLIC_KEYS: {},
   KIZUNA_ENTERPRISE_POOL_ID: 'enterprise-main',
   KIZUNA_FASTPATH_POOL_ID: 'fastpath-main',
   KIZUNA_ENTERPRISE_REQUIRE_PREFUND: true,
@@ -417,6 +419,25 @@ export function validateConfig(): ValidationResult {
     }
   }
 
+  const kernelPublicKeysRaw = process.env.KIZUNA_KERNEL_PUBLIC_KEYS;
+  if (kernelPublicKeysRaw) {
+    try {
+      const parsed = JSON.parse(kernelPublicKeysRaw) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        errors.push('KIZUNA_KERNEL_PUBLIC_KEYS must be a JSON object');
+      } else {
+        for (const [keyId, keyValue] of Object.entries(parsed as Record<string, unknown>)) {
+          if (!keyId.trim() || typeof keyValue !== 'string' || !keyValue.trim()) {
+            errors.push('KIZUNA_KERNEL_PUBLIC_KEYS entries must be non-empty strings');
+            break;
+          }
+        }
+      }
+    } catch {
+      errors.push('KIZUNA_KERNEL_PUBLIC_KEYS must be valid JSON');
+    }
+  }
+
   if (kizunaEnabled) {
     if (!process.env.KIZUNA_INTERNAL_TOKEN?.trim()) {
       errors.push('KIZUNA_INTERNAL_TOKEN is required when KIZUNA_ENABLED=true');
@@ -443,8 +464,10 @@ export function validateConfig(): ValidationResult {
     if (kernelFailClosed && !kizunaKernelUrl?.trim()) {
       errors.push('KIZUNA_KERNEL_URL is required when fail-closed mode is enabled');
     }
-    if (kernelFailClosed && !kernelSigningKeysRaw?.trim()) {
-      errors.push('KIZUNA_KERNEL_SIGNING_KEYS is required when fail-closed mode is enabled');
+    if (kernelFailClosed && !kernelPublicKeysRaw?.trim() && !kernelSigningKeysRaw?.trim()) {
+      errors.push(
+        'KIZUNA_KERNEL_PUBLIC_KEYS or KIZUNA_KERNEL_SIGNING_KEYS is required when fail-closed mode is enabled'
+      );
     }
   }
 
@@ -500,6 +523,16 @@ export function getConfig(): Config {
     KIZUNA_KERNEL_FAIL_CLOSED:
       (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) ===
       'true',
+    KIZUNA_KERNEL_PUBLIC_KEYS: (() => {
+      const raw = process.env.KIZUNA_KERNEL_PUBLIC_KEYS;
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          ([key, value]) => key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
+        )
+      );
+    })(),
     KIZUNA_KERNEL_SIGNING_KEYS: (() => {
       const raw = process.env.KIZUNA_KERNEL_SIGNING_KEYS;
       if (!raw) return {};
@@ -639,6 +672,7 @@ export function getRedactedConfig(): Record<string, string> {
     KIZUNA_KERNEL_URL: config.KIZUNA_KERNEL_URL,
     KIZUNA_KERNEL_TIMEOUT_MS: String(config.KIZUNA_KERNEL_TIMEOUT_MS),
     KIZUNA_KERNEL_FAIL_CLOSED: String(config.KIZUNA_KERNEL_FAIL_CLOSED),
+    KIZUNA_KERNEL_PUBLIC_KEYS: Object.keys(config.KIZUNA_KERNEL_PUBLIC_KEYS).join(','),
     KIZUNA_KERNEL_SIGNING_KEYS: Object.keys(config.KIZUNA_KERNEL_SIGNING_KEYS).join(','),
     KIZUNA_ENTERPRISE_POOL_ID: config.KIZUNA_ENTERPRISE_POOL_ID,
     KIZUNA_FASTPATH_POOL_ID: config.KIZUNA_FASTPATH_POOL_ID,

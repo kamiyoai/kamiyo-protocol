@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@kamiyo/reality-fork": ["../kamiyo-reality-fork/dist/index.d.ts"]
+    },
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/index.ts",
+    "src/config.ts",
+    "src/hooks.ts",
+    "src/output.ts",
+    "src/sessions.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

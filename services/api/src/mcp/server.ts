@@ -20,8 +20,6 @@ import { logger } from '../logger.js';
 import {
   getSolanaProgram,
   isSolanaConfigured,
-  createEscrow,
-  checkEscrowStatus,
   verifyPayment,
   fileDispute,
   getApiReputation,
@@ -79,6 +77,18 @@ const TOOL_DEFINITIONS = [
       },
       required: ['agentIdentity'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        agentIdentity: { type: 'string' },
+        passportAddress: { type: 'string' },
+        attestationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: true,
+    },
   },
   {
     name: 'meishi_get_passport',
@@ -93,6 +103,29 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['passportAddress'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        passportAddress: { type: 'string' },
+        attestationProvider: { type: 'string' },
+        passport: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        latestMandate: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -110,6 +143,22 @@ const TOOL_DEFINITIONS = [
       },
       required: ['passportAddress', 'version'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        attestationProvider: { type: 'string' },
+        mandate: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
+        },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'meishi_get_audit',
@@ -126,34 +175,21 @@ const TOOL_DEFINITIONS = [
       },
       required: ['passportAddress', 'nonce'],
     },
-  },
-  {
-    name: 'create_escrow',
-    description: 'Create payment escrow with quality guarantee',
-    inputSchema: {
+    outputSchema: {
       type: 'object' as const,
       properties: {
-        api: { type: 'string', description: 'API provider wallet' },
-        amount: { type: 'number', description: 'Amount in SOL' },
-        timeLock: { type: 'number', description: 'Expiry in seconds' },
-        adjudicationProvider: {
-          type: 'string',
-          description: 'Optional dispute adjudicator preference: openclaw, nanoclaw, or ironclaw',
+        success: { type: 'boolean' },
+        attestationProvider: { type: 'string' },
+        audit: {
+          anyOf: [
+            { type: 'object' },
+            { type: 'null' },
+          ],
         },
+        error: { type: 'string' },
       },
-      required: ['api', 'amount'],
-    },
-  },
-  {
-    name: 'check_escrow_status',
-    description: 'Check escrow status',
-    inputSchema: {
-      type: 'object' as const,
-      properties: {
-        escrowAddress: { type: 'string', description: 'Escrow PDA' },
-        transactionId: { type: 'string', description: 'Transaction ID' },
-      },
-      required: [] as string[],
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -177,6 +213,21 @@ const TOOL_DEFINITIONS = [
         expectedCriteria: { type: 'array', description: 'Fields to check' },
       },
       required: ['apiResponse', 'expectedCriteria'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        qualityScore: { type: 'number' },
+        refundPercentage: { type: 'number' },
+        completeness: { type: 'number' },
+        freshness: { type: 'number' },
+        schemaCompliance: { type: 'number' },
+        rationale: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
     },
   },
   {
@@ -302,6 +353,21 @@ const TOOL_DEFINITIONS = [
       },
       required: ['apiProvider'],
     },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        reputationScore: { type: 'number' },
+        totalTransactions: { type: 'number' },
+        disputesFiled: { type: 'number' },
+        disputesWon: { type: 'number' },
+        averageQualityReceived: { type: 'number' },
+        recommendation: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'x402_check_pricing',
@@ -316,6 +382,33 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['url'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        free: { type: 'boolean' },
+        options: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              network: { type: 'string' },
+              priceUsd: {
+                anyOf: [
+                  { type: 'number' },
+                  { type: 'string' },
+                ],
+              },
+              asset: { type: 'string' },
+              description: { type: 'string' },
+            },
+          },
+        },
+        adjudicationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
     },
   },
   {
@@ -334,6 +427,27 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['url'],
+    },
+    outputSchema: {
+      type: 'object' as const,
+      properties: {
+        success: { type: 'boolean' },
+        paid: { type: 'boolean' },
+        data: {},
+        summary: { type: 'string' },
+        payment: {
+          type: 'object',
+          properties: {
+            network: { type: 'string' },
+            amountUsd: { type: 'number' },
+            asset: { type: 'string' },
+            signature: { type: 'string' },
+          },
+        },
+        adjudicationProvider: { type: 'string' },
+        error: { type: 'string' },
+      },
+      required: ['success'],
     },
   },
 ];
@@ -357,6 +471,14 @@ export class HostedToolError extends Error {
 
 function getToolDefinition(name: string): ToolDefinition | undefined {
   return TOOL_DEFINITIONS.find((tool) => tool.name === name);
+}
+
+export function getHostedToolDefinition(name: string): ToolDefinition | undefined {
+  return getToolDefinition(name);
+}
+
+export function getHostedToolDefinitions(): readonly ToolDefinition[] {
+  return TOOL_DEFINITIONS;
 }
 
 function validateArgs(args: unknown, schema: { required?: string[]; properties?: Record<string, unknown> }): string | null {
@@ -399,8 +521,6 @@ function validateArgs(args: unknown, schema: { required?: string[]; properties?:
 }
 
 const SOLANA_TOOLS = [
-  'create_escrow',
-  'check_escrow_status',
   'verify_payment',
   'file_dispute',
   'get_api_reputation',
@@ -414,7 +534,7 @@ function toolHasScope(toolName: string, auth: AuthInfo): boolean {
     auth.scopes.includes(scope) || auth.scopes.includes('mcp:tools');
 
   if (toolName.startsWith('x402_')) return hasScope('mcp:tools:x402');
-  if (['create_escrow', 'file_dispute', 'file_dispute_truth_court'].includes(toolName)) {
+  if (['file_dispute', 'file_dispute_truth_court'].includes(toolName)) {
     return hasScope('mcp:tools:escrow');
   }
   return hasScope('mcp:tools');
@@ -1086,26 +1206,6 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   const program = getSolanaProgram();
   if (!program) {
     return { success: false, error: 'Solana not configured. Set MCP_PROGRAM_ID, MCP_AGENT_KEYPAIR, SOLANA_RPC_URL.' };
-  }
-
-  if (name === 'create_escrow') {
-    const providerResolution = resolveProvider('adjudicationProvider');
-    if (providerResolution.error) return { success: false, error: providerResolution.error };
-    const escrow = await createEscrow(
-      { api: args.api as string, amount: args.amount as number, timeLock: args.timeLock as number | undefined },
-      program
-    );
-    if (providerResolution.provider && escrow && typeof escrow === 'object') {
-      return { ...escrow, adjudicationProvider: providerResolution.provider };
-    }
-    return escrow;
-  }
-
-  if (name === 'check_escrow_status') {
-    return checkEscrowStatus(
-      { escrowAddress: args.escrowAddress as string | undefined, transactionId: args.transactionId as string | undefined },
-      program
-    );
   }
 
   if (name === 'verify_payment') {

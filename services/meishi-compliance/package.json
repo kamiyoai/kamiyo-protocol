@@ -18,7 +18,7 @@
     "@kamiyo/sdk": "workspace:*",
     "@solana/web3.js": "^1.95.0",
     "bs58": "^6.0.0",
-    "dkg.js": "^8.2.2",
+    "dkg.js": "^8.2.4",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {

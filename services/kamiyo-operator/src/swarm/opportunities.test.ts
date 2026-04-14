@@ -10,7 +10,7 @@ import type { SwarmRegistry } from './types.js';
 function createRegistry(): SwarmRegistry {
   return {
     version: 1,
-    parent: 'kyoshin',
+    parent: 'kamiyo-agent',
     agents: [
       {
         id: 'agent-1',

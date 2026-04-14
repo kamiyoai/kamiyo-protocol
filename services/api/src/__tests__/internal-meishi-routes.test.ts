@@ -342,6 +342,47 @@ describe('internal meishi routes', () => {
     }
   });
 
+  it('does not republish the same dkg-only identity audit when one already exists', async () => {
+    graphQueryMock.mockResolvedValue({
+      data: [{ audit: 'did:dkg:otp:2043/test/existing-dkg-only-audit' }],
+    });
+    state.createPassportError = new Error(
+      'AnchorError thrown in programs/meishi/src/lib.rs:102. Error Code: AgentIdentityInvalid. Error Number: 6019. Error Message: Agent identity not found or inactive.'
+    );
+
+    const app = express();
+    app.use(express.json());
+    app.use('/internal/meishi', internalMeishiRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const walletAddress = Keypair.generate().publicKey.toBase58();
+      const res = await fetch(`${baseUrl}/internal/meishi/ensure-identity`, {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer test-meishi-secret-value',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          entityType: 'agent',
+          walletAddress,
+          displayName: 'Signal Agent',
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.assuranceMode).toBe('dkg_only');
+      expect(body.dkgAuditPublished).toBe(false);
+      expect(body.dkgAuditQueued).toBe(false);
+      expect(body.existingAuditUal).toBe('did:dkg:otp:2043/test/existing-dkg-only-audit');
+      expect(body.latestAuditUal).toBe('did:dkg:otp:2043/test/existing-dkg-only-audit');
+      expect(publishAuditMock).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
   it('queues the audit when DKG publish hits a retryable rate limit', async () => {
     graphQueryMock.mockResolvedValue({ data: [] });
     publishAuditMock.mockRejectedValue(new Error('Returned error: over rate limit'));

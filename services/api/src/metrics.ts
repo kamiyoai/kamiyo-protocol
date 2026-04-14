@@ -106,6 +106,13 @@ export const mcpOAuthTotal = new Counter({
   registers: [registry],
 });
 
+export const sapToolRequestsTotal = new Counter({
+  name: 'sap_tool_requests_total',
+  help: 'Total SAP tool requests',
+  labelNames: ['tool', 'status', 'payment_mode', 'header_type'] as const,
+  registers: [registry],
+});
+
 // Buyback metrics
 export const buybackExecutionTotal = new Counter({
   name: 'buyback_execution_total',

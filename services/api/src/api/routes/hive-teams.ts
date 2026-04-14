@@ -8,6 +8,7 @@ import db, { deductCredits, usdToCredits } from '../../db';
 // Using direct task executor instead of orchestrator
 import { createTaskExecutor, hasTaskExecutorProviders, TASK_EXECUTOR_UNAVAILABLE_REASON } from '../../task-executor';
 import hiveSwarmRoutes from './hive-swarm';
+import controlRoomRoutes from '../../control-room/router';
 import { authMiddleware } from '../middleware';
 import { getSolanaConnection } from '../../solana';
 import { reserveTeamBudget, settleTeamBudget } from '../../swarm/pool';
@@ -58,10 +59,6 @@ function generateActionHash(teamId: string, description: string, timestamp: numb
   return createHash('sha256').update(data).digest('hex');
 }
 
-const SWARM_POOL_WALLET = process.env.SWARM_POOL_WALLET || '';
-const FACILITATOR_URL = process.env.FACILITATOR_URL || 'https://facilitator.kamiyo.ai';
-const SWARM_NETWORK = process.env.SWARM_NETWORK || 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
-
 const taskExecutorConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   openaiApiKey: process.env.OPENAI_API_KEY,
@@ -84,6 +81,7 @@ router.use(authMiddleware);
 
 // Swarm DAG planning/execution routes (team-scoped)
 router.use('/:id/swarm', hiveSwarmRoutes);
+router.use('/:id/control-room', controlRoomRoutes);
 
 // GET /api/hive-teams - list teams owned by authenticated user
 router.get('/', (req: Request, res: Response) => {
@@ -1337,8 +1335,6 @@ router.get('/:id/proposals/:proposalId', (req: Request, res: Response) => {
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const revealPhaseEnded = now > proposal.reveal_deadline;
-
   // Get votes - only show revealed values after reveal phase
   const votes = db.prepare('SELECT * FROM swarm_vote_bids WHERE proposal_id = ?')
     .all(proposalId) as Array<{

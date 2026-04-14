@@ -517,20 +517,24 @@ describe('kizuna route invariants', () => {
 
   it('rejects tampered decision envelope on settle', async () => {
     const { createSettleRouter } = await import('../src/routes/settle');
-    const { hashKizunaDecisionEnvelope, mintLocalKizunaEnvelope } = await import('../src/services/kizuna-kernel');
+    const { hashKizunaDecisionEnvelope } = await import('../src/services/kizuna-kernel');
+    const { mintLegacyDecisionEnvelope } = await import('./helpers/kizuna-envelopes');
 
-    const envelope = mintLocalKizunaEnvelope({
-      decisionId: 'dec-1',
-      agentId: 'agent-1',
-      payerWallet: '0x1111111111111111111111111111111111111111',
-      requestNonce: 'nonce-1',
-      network: 'eip155:8453',
-      lane: 'enterprise',
-      poolId: 'enterprise-main',
-      approvedMicro: '1000000',
-      policyPackId: 'policy-v1',
-      riskBand: 'medium',
-    });
+    const envelope = mintLegacyDecisionEnvelope(
+      {
+        decisionId: 'dec-1',
+        agentId: 'agent-1',
+        payerWallet: '0x1111111111111111111111111111111111111111',
+        requestNonce: 'nonce-1',
+        network: 'eip155:8453',
+        lane: 'enterprise',
+        poolId: 'enterprise-main',
+        approvedMicro: '1000000',
+        policyPackId: 'policy-v1',
+        riskBand: 'medium',
+      },
+      'secret-1'
+    );
 
     const tamperedEnvelope = {
       ...envelope!,

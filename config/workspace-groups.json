@@ -40,7 +40,7 @@
     "modules": {
       "description": "Kizuna-powered runtimes, apps, and orchestration layers.",
       "workspaces": [
-        { "path": "services/kyoshin", "name": "@kamiyo/kyoshin" },
+        { "path": "services/kamiyo-agent", "name": "@kamiyo/kamiyo-agent" },
         { "path": "services/keiro-api", "name": "@kamiyo/keiro-api" },
         { "path": "services/agent-factory", "name": "@kamiyo/agent-factory" },
         { "path": "apps/keiro", "name": "@kamiyo/keiro" },
@@ -49,10 +49,11 @@
         { "path": "packages/kamiyo-agents", "name": "@kamiyo/agents" },
         { "path": "packages/kamiyo-agent-paranet", "name": "@kamiyo/agent-paranet" },
         { "path": "packages/kamiyo-daydreams", "name": "@kamiyo/daydreams" },
-        { "path": "packages/kamiyo-swarm-agents", "name": "@kamiyo/swarm-agents" }
+        { "path": "packages/kamiyo-swarm-agents", "name": "@kamiyo/swarm-agents" },
+        { "path": "packages/kamiyo-reality-fork", "name": "@kamiyo/reality-fork" }
       ],
       "paths": [
-        "services/kyoshin/",
+        "services/kamiyo-agent/",
         "services/keiro-api/",
         "services/agent-factory/",
         "apps/keiro/",
@@ -62,6 +63,7 @@
         "packages/kamiyo-agent-paranet/",
         "packages/kamiyo-daydreams/",
         "packages/kamiyo-swarm-agents/",
+        "packages/kamiyo-reality-fork/",
         ".github/workflows/keiro.yml"
       ]
     },

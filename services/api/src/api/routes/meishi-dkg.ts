@@ -3,6 +3,8 @@ import type { Router as IRouter } from 'express-serve-static-core';
 import { AgentParanetClient } from '@kamiyo/agent-paranet';
 import { logger } from '../../logger';
 import {
+  firstNonEmpty,
+  normalizeDkgEndpoint,
   resolveDkgBlockchain,
   resolveDkgEndpoint,
   resolveDkgPort,
@@ -32,6 +34,7 @@ interface AuditRecord {
   date: string | null;
   scope: QueryScope;
   repository: string;
+  provisional: boolean;
 }
 
 interface LeaderboardAgent {
@@ -117,7 +120,7 @@ const DEFAULT_DASHBOARD_LIMIT = 24;
 const DEFAULT_REPOSITORY = 'publicCurrent';
 const DEFAULT_SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_HEALTH_TIMEOUT_MS = 2500;
-const FEATURED_AGENT_ENV_KEYS = ['MEISHI_FEATURED_AGENT_ID', 'KYOSHIN_AGENT_ID'] as const;
+const FEATURED_AGENT_ENV_KEYS = ['MEISHI_FEATURED_AGENT_ID', 'KAMIYO_AGENT_ID'] as const;
 
 const snapshots = new Map<string, SnapshotEnvelope<unknown>>();
 
@@ -172,6 +175,35 @@ function formatWarnings(scope: QueryScope | null): string[] {
     return ['Paranet is not configured. Showing verified DKG data from the global repository.'];
   }
   return [];
+}
+
+function resolveMeishiDkgEndpoint(): string | undefined {
+  return firstNonEmpty(['PARANET_DKG_ENDPOINT']) || resolveDkgEndpoint();
+}
+
+function deriveParanetRepository(paranetUAL: string): string {
+  return `paranet-${paranetUAL.toLowerCase().replace(/[/:]/g, '-')}`;
+}
+
+function shouldUseDirectQuery(endpoint: string, port: number): boolean {
+  try {
+    const normalized = normalizeDkgEndpoint(endpoint);
+    const url = new URL(normalized);
+    return url.protocol === 'https:' && port === 443;
+  } catch {
+    return false;
+  }
+}
+
+function buildDirectQueryUrl(endpoint: string, port: number): string {
+  const url = new URL(normalizeDkgEndpoint(endpoint));
+  if (!url.port && !((url.protocol === 'https:' && port === 443) || (url.protocol === 'http:' && port === 80))) {
+    url.port = String(port);
+  }
+  url.pathname = '/v1/direct-query';
+  url.search = '';
+  url.hash = '';
+  return url.toString();
 }
 
 function getSnapshotKey(route: string, params: Record<string, string | number | null | undefined>): string {
@@ -249,14 +281,15 @@ function queryAuditFeed(minScore: number, opts?: { jurisdiction?: string; limit?
     : '';
 
   return `
-    PREFIX schema: <https://schema.org/>
-    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date
+    PREFIX schema: <http://schema.org/>
+    SELECT ?audit ?agent ?score ?classification ?jurisdiction ?auditor ?auditType ?date ?reviewBody
     WHERE {
       ?audit a schema:Review ;
              schema:reviewRating/schema:ratingValue ?score .
       OPTIONAL { ?audit schema:name ?auditName . }
       FILTER(!BOUND(?auditName) || ?auditName = "ComplianceAudit")
       OPTIONAL { ?audit schema:datePublished ?date . }
+      OPTIONAL { ?audit schema:reviewBody ?reviewBody . }
       OPTIONAL {
         ?audit schema:itemReviewed ?agentRef .
         OPTIONAL { ?agentRef schema:identifier ?agentIdentifier . }
@@ -294,7 +327,7 @@ let clientInitPromise: Promise<AgentParanetClient> | null = null;
 async function getClient(): Promise<AgentParanetClient> {
   if (client) return client;
 
-  const endpoint = resolveDkgEndpoint();
+  const endpoint = resolveMeishiDkgEndpoint();
   if (!endpoint) {
     throw new RouteUnavailableError('DKG endpoint not configured');
   }
@@ -314,20 +347,66 @@ async function getClient(): Promise<AgentParanetClient> {
   return clientInitPromise;
 }
 
-async function queryWithParanetFallback(
-  dkg: { graph: { query: (query: string, type: 'SELECT', opts?: { repository?: string; paranetUAL?: string }) => Promise<{ data?: unknown[] }> } },
+async function runDirectQuery(
+  endpoint: string,
+  port: number,
   query: string,
-  route: string
-): Promise<{ rows: Array<Record<string, unknown>>; scope: QueryScope; repository: string }> {
+  repository: string
+): Promise<{ data: Array<Record<string, unknown>> }> {
+  const res = await fetch(buildDirectQueryUrl(endpoint, port), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      type: 'SELECT',
+      repository,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Direct query failed with status ${res.status}`);
+  }
+
+  const body = await res.json() as { data?: unknown[] };
+  return {
+    data: Array.isArray(body?.data) ? (body.data as Array<Record<string, unknown>>) : [],
+  };
+}
+
+async function runSelectQuery(
+  query: string,
+  opts?: { repository?: string; paranetUAL?: string }
+): Promise<{ data: Array<Record<string, unknown>> }> {
+  const endpoint = resolveMeishiDkgEndpoint();
+  if (!endpoint) {
+    throw new RouteUnavailableError('DKG endpoint not configured');
+  }
+
+  const port = resolveDkgPort();
+  if (shouldUseDirectQuery(endpoint, port)) {
+    const repository = opts?.repository || resolveMeishiRepository();
+    return runDirectQuery(endpoint, port, query, repository);
+  }
+
+  const dkg = (await getClient()).rawDKG;
+  const result = await dkg.graph.query(query, 'SELECT', opts);
+  return {
+    data: Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [],
+  };
+}
+
+async function queryWithParanetFallback(query: string, route: string): Promise<{ rows: Array<Record<string, unknown>>; scope: QueryScope; repository: string }> {
   const paranetUAL = resolveParanetUAL();
   const repositories = resolveMeishiRepositories();
+  const endpoint = resolveMeishiDkgEndpoint();
+  const directQuery = endpoint ? shouldUseDirectQuery(endpoint, resolveDkgPort()) : false;
   let firstEmptySuccess: { rows: Array<Record<string, unknown>>; scope: QueryScope; repository: string } | null = null;
 
   if (!paranetUAL) {
     for (const repository of repositories) {
       try {
-        const result = await dkg.graph.query(query, 'SELECT', { repository });
-        const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+        const result = await runSelectQuery(query, { repository });
+        const rows = result.data;
         if (rows.length > 0) return { rows, scope: 'global', repository };
         firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'global', repository };
       } catch (error) {
@@ -342,26 +421,43 @@ async function queryWithParanetFallback(
     return firstEmptySuccess ?? { rows: [], scope: 'global', repository: repositories[0] ?? DEFAULT_REPOSITORY };
   }
 
-  for (const repository of repositories) {
-    try {
-      const result = await dkg.graph.query(query, 'SELECT', { repository, paranetUAL });
-      const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
-      if (rows.length > 0) return { rows, scope: 'paranet', repository };
-      firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'paranet', repository };
-    } catch (error) {
-      logger.warn('Meishi DKG paranet query failed, trying fallback', {
-        route,
-        repository,
-        paranetUAL,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  const paranetRepository = deriveParanetRepository(paranetUAL);
+  try {
+    const result = await runSelectQuery(query, { repository: paranetRepository });
+    const rows = result.data;
+    if (rows.length > 0) return { rows, scope: 'paranet', repository: paranetRepository };
+    firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'paranet', repository: paranetRepository };
+  } catch (error) {
+    logger.warn('Meishi DKG paranet repository query failed, trying scoped fallback', {
+      route,
+      repository: paranetRepository,
+      paranetUAL,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  if (!directQuery) {
+    for (const repository of repositories) {
+      try {
+        const result = await runSelectQuery(query, { repository, paranetUAL });
+        const rows = result.data;
+        if (rows.length > 0) return { rows, scope: 'paranet', repository };
+        firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'paranet', repository };
+      } catch (error) {
+        logger.warn('Meishi DKG paranet query failed, trying fallback', {
+          route,
+          repository,
+          paranetUAL,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
   for (const repository of repositories) {
     try {
-      const result = await dkg.graph.query(query, 'SELECT', { repository });
-      const rows = Array.isArray(result?.data) ? (result.data as Array<Record<string, unknown>>) : [];
+      const result = await runSelectQuery(query, { repository });
+      const rows = result.data;
       if (rows.length > 0) return { rows, scope: 'global_fallback', repository };
       firstEmptySuccess = firstEmptySuccess ?? { rows, scope: 'global_fallback', repository };
     } catch (error) {
@@ -380,19 +476,32 @@ function normalizeAudit(row: Record<string, unknown>, scope: QueryScope, reposit
   const agentId = parseString(row.agent);
   const ual = parseString(row.audit);
   if (!agentId || !ual) return null;
+  const provisional = isProvisioningAudit(row.reviewBody);
+  const complianceScore = provisional ? 0 : Math.round(parseNum(row.score));
+  const complianceClass = provisional ? 'unclassified' : (parseString(row.classification) || 'unknown');
 
   return {
     ual,
     agentId,
-    complianceScore: Math.round(parseNum(row.score)),
-    complianceClass: parseString(row.classification) || 'unknown',
+    complianceScore,
+    complianceClass,
     jurisdiction: parseString(row.jurisdiction) || null,
     auditorId: parseString(row.auditor) || null,
     auditType: parseString(row.auditType) || 'periodic',
     date: parseDate(row.date),
     scope,
     repository,
+    provisional,
   };
+}
+
+function isProvisioningAudit(reviewBody: unknown): boolean {
+  const normalized = parseString(reviewBody).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes('provision an on-chain kamiyo agent identity before enabling meishi passport issuance')
+    || normalized.includes('register a meishi mandate before this subject executes trades')
+  );
 }
 
 function buildLeaderboard(audits: AuditRecord[], limit: number): LeaderboardAgent[] {
@@ -545,13 +654,13 @@ function pickFeaturedAgent(leaderboard: LeaderboardAgent[], audits: AuditRecord[
 }
 
 async function loadAuditFeed(route: string, opts?: { minScore?: number; limit?: number; jurisdiction?: string; agentId?: string }) {
-  const client = await withTimeout('dkg_client_init', getClient());
-  const dkg = client.rawDKG;
-  const query = queryAuditFeed(opts?.minScore ?? 0, opts);
-  const { rows, scope, repository } = await withTimeout(route, queryWithParanetFallback(dkg, query, route));
+  const minScore = opts?.minScore ?? 0;
+  const query = queryAuditFeed(minScore, opts);
+  const { rows, scope, repository } = await withTimeout(route, queryWithParanetFallback(query, route));
   const audits = rows
     .map((row) => normalizeAudit(row, scope, repository))
-    .filter((value): value is AuditRecord => Boolean(value));
+    .filter((value): value is AuditRecord => Boolean(value))
+    .filter((audit) => audit.complianceScore >= minScore);
 
   return {
     audits,
@@ -561,7 +670,7 @@ async function loadAuditFeed(route: string, opts?: { minScore?: number; limit?: 
 }
 
 async function loadDashboard(limit: number, minScore: number): Promise<DashboardPayload> {
-  const endpoint = resolveDkgEndpoint() || null;
+  const endpoint = resolveMeishiDkgEndpoint() || null;
   if (!endpoint) {
     throw new RouteUnavailableError('DKG endpoint not configured');
   }
@@ -636,7 +745,7 @@ async function respondWithSnapshot<T extends { warnings: string[] }>(
 }
 
 router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
-  const endpoint = resolveDkgEndpoint() || null;
+  const endpoint = resolveMeishiDkgEndpoint() || null;
   const blockchain = resolveDkgBlockchain();
   const paranetUAL = resolveParanetUAL() || null;
   const timestamp = new Date().toISOString();
@@ -660,13 +769,11 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
 
   try {
     const started = Date.now();
-    const c = await withTimeout('dkg_client_init', getClient());
-    const dkg = c.rawDKG;
     const repository = resolveMeishiRepository();
 
     await withTimeout(
       'dkg_query',
-      dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', { repository })
+      runSelectQuery('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', { repository })
     );
     checks.push({
       name: 'dkg_connectivity',
@@ -679,18 +786,16 @@ router.get('/health', asyncRoute(async (_req: Request, res: Response) => {
       checks.push({ name: 'paranet_access', status: 'warn', message: 'No paranet UAL configured' });
     } else {
       const paranetStarted = Date.now();
+      const paranetRepository = deriveParanetRepository(paranetUAL);
       try {
         await withTimeout(
           'paranet_query',
-          dkg.graph.query('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', 'SELECT', {
-            repository,
-            paranetUAL,
-          })
+          runSelectQuery('PREFIX schema: <https://schema.org/>\nSELECT ?s WHERE { ?s ?p ?o } LIMIT 1', { repository: paranetRepository })
         );
         checks.push({
           name: 'paranet_access',
           status: 'pass',
-          message: 'Paranet accessible',
+          message: 'Paranet repository accessible',
           latencyMs: Date.now() - paranetStarted,
         });
       } catch (error) {

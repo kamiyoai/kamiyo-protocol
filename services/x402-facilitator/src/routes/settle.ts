@@ -49,6 +49,7 @@ import {
   hashKizunaDecisionEnvelope,
   verifyKizunaDecisionEnvelope,
 } from '../services/kizuna-kernel';
+import { hashKizunaRequest } from '../services/kizuna-request-hash';
 
 function sendSettleFailure(
   res: Response,
@@ -487,6 +488,10 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
 
         try {
           const envelope = verifyKizunaDecisionEnvelope(requirementKizuna.decisionEnvelope);
+          const requestedMicroForHash =
+            requirementAmountRaw != null
+              ? parseUsdcMicroAmountBigint(requirementAmountRaw)
+              : amountMicro;
           envelopeHash = hashKizunaDecisionEnvelope(envelope);
           if (envelopeHash !== reservation.decision.decision_envelope_hash) {
             sendSettleFailure(
@@ -505,6 +510,17 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
           }
           if (envelope.payload.payerWallet !== payment.payer) {
             sendSettleFailure(res, 400, 'payer_mismatch', 'Envelope payer mismatch', network, payment.payer);
+            return;
+          }
+          if ('repayWallet' in envelope.payload && envelope.payload.repayWallet !== requirementKizuna.repayWallet) {
+            sendSettleFailure(
+              res,
+              400,
+              'repay_wallet_mismatch',
+              'Envelope repay wallet mismatch',
+              network,
+              payment.payer
+            );
             return;
           }
           if (envelope.payload.requestNonce !== payment.nonce) {
@@ -530,6 +546,43 @@ export function createSettleRouter(connection: Connection, facilitatorKeypair: K
               payment.payer
             );
             return;
+          }
+          if (envelope.version === 'kizuna-envelope-v2') {
+            if (!requestedMicroForHash) {
+              sendSettleFailure(
+                res,
+                400,
+                'invalid_amount',
+                'Kizuna payment requirement amount is required for v2 settlement',
+                network,
+                payment.payer
+              );
+              return;
+            }
+            const requestHash = hashKizunaRequest({
+              agentId: requirementKizuna.agentId,
+              repayWallet: requirementKizuna.repayWallet,
+              payerWallet: payment.payer,
+              requestNonce: payment.nonce,
+              network,
+              requestedMicro: requestedMicroForHash.toString(10),
+              resource: payment.resource || requirementResource || null,
+              payTo: merchantWallet,
+              lane,
+              poolId,
+              collateralAccount: requirementKizuna.collateralAccount || null,
+            });
+            if (envelope.payload.requestHash !== requestHash) {
+              sendSettleFailure(
+                res,
+                400,
+                'kizuna_envelope_mismatch',
+                'Decision envelope request hash mismatch',
+                network,
+                payment.payer
+              );
+              return;
+            }
           }
         } catch (err) {
           sendSettleFailure(

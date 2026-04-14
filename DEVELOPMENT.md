@@ -27,7 +27,7 @@ pnpm run lint:check
 
 ### Modules
 
-Use for Kizuna-powered runtimes and client surfaces such as Kyoshin, Keiro, OpenClaw, Hive, and agent packages.
+Use for Kizuna-powered runtimes and client surfaces such as Kamiyo Agent, Keiro, OpenClaw, Hive, and agent packages.
 
 ```bash
 pnpm run build:modules

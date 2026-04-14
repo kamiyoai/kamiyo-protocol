@@ -15,24 +15,24 @@ vi.mock('../logger', () => ({
 
 const ORIGINAL_ENV = {
   DATA_DIR: process.env.DATA_DIR,
-  KYOSHIN_OPERATOR_LOG_ENABLED: process.env.KYOSHIN_OPERATOR_LOG_ENABLED,
-  KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL: process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL,
+  KAMIYO_AGENT_OPERATOR_LOG_ENABLED: process.env.KAMIYO_AGENT_OPERATOR_LOG_ENABLED,
+  KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL: process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL,
 };
 
 function restoreEnv(): void {
   if (ORIGINAL_ENV.DATA_DIR === undefined) delete process.env.DATA_DIR;
   else process.env.DATA_DIR = ORIGINAL_ENV.DATA_DIR;
 
-  if (ORIGINAL_ENV.KYOSHIN_OPERATOR_LOG_ENABLED === undefined) {
-    delete process.env.KYOSHIN_OPERATOR_LOG_ENABLED;
+  if (ORIGINAL_ENV.KAMIYO_AGENT_OPERATOR_LOG_ENABLED === undefined) {
+    delete process.env.KAMIYO_AGENT_OPERATOR_LOG_ENABLED;
   } else {
-    process.env.KYOSHIN_OPERATOR_LOG_ENABLED = ORIGINAL_ENV.KYOSHIN_OPERATOR_LOG_ENABLED;
+    process.env.KAMIYO_AGENT_OPERATOR_LOG_ENABLED = ORIGINAL_ENV.KAMIYO_AGENT_OPERATOR_LOG_ENABLED;
   }
 
-  if (ORIGINAL_ENV.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL === undefined) {
-    delete process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL;
+  if (ORIGINAL_ENV.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL === undefined) {
+    delete process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL;
   } else {
-    process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL = ORIGINAL_ENV.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL;
+    process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL = ORIGINAL_ENV.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL;
   }
 }
 
@@ -71,17 +71,17 @@ interface LoadOptions {
 
 async function loadOperatorLogbook(options: LoadOptions): Promise<{
   db: SqliteDatabase;
-  isKyoshinOperatorLogEnabled: () => boolean;
-  maybeQueueKyoshinOperatorLog: (nowMs?: number) => unknown;
-  setKyoshinOperatorNextSerial: (nextSerial: number) => void;
+  isKamiyoAgentOperatorLogEnabled: () => boolean;
+  maybeQueueKamiyoAgentOperatorLog: (nowMs?: number) => unknown;
+  setKamiyoAgentOperatorNextSerial: (nextSerial: number) => void;
 }> {
   vi.resetModules();
   process.env.DATA_DIR = options.dataDir;
-  process.env.KYOSHIN_OPERATOR_LOG_ENABLED = options.enabled ? 'true' : 'false';
+  process.env.KAMIYO_AGENT_OPERATOR_LOG_ENABLED = options.enabled ? 'true' : 'false';
   if (options.initialSerial === undefined) {
-    delete process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL;
+    delete process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL;
   } else {
-    process.env.KYOSHIN_OPERATOR_LOG_INITIAL_SERIAL = String(options.initialSerial);
+    process.env.KAMIYO_AGENT_OPERATOR_LOG_INITIAL_SERIAL = String(options.initialSerial);
   }
 
   const { db } = await import('../clients');
@@ -89,9 +89,9 @@ async function loadOperatorLogbook(options: LoadOptions): Promise<{
   const operatorLogbook = await import('../operator-logbook');
   return {
     db,
-    isKyoshinOperatorLogEnabled: operatorLogbook.isKyoshinOperatorLogEnabled,
-    maybeQueueKyoshinOperatorLog: operatorLogbook.maybeQueueKyoshinOperatorLog,
-    setKyoshinOperatorNextSerial: operatorLogbook.setKyoshinOperatorNextSerial,
+    isKamiyoAgentOperatorLogEnabled: operatorLogbook.isKamiyoAgentOperatorLogEnabled,
+    maybeQueueKamiyoAgentOperatorLog: operatorLogbook.maybeQueueKamiyoAgentOperatorLog,
+    setKamiyoAgentOperatorNextSerial: operatorLogbook.setKamiyoAgentOperatorNextSerial,
   };
 }
 
@@ -113,7 +113,7 @@ describe('operator-logbook', () => {
   });
 
   it('returns null when operator-log mode is disabled', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-operator-logbook-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'kamiyo-agent-operator-logbook-'));
     const operatorLogbook = await loadOperatorLogbook({
       dataDir: tempDir,
       enabled: false,
@@ -121,14 +121,14 @@ describe('operator-logbook', () => {
     });
     db = operatorLogbook.db;
 
-    expect(operatorLogbook.isKyoshinOperatorLogEnabled()).toBe(false);
-    expect(operatorLogbook.maybeQueueKyoshinOperatorLog(1_738_800_000_000)).toBeNull();
+    expect(operatorLogbook.isKamiyoAgentOperatorLogEnabled()).toBe(false);
+    expect(operatorLogbook.maybeQueueKamiyoAgentOperatorLog(1_738_800_000_000)).toBeNull();
     const row = db.prepare('SELECT COUNT(*) as count FROM post_queue').get() as { count: number };
     expect(row.count).toBe(0);
   });
 
   it('queues first due daily log and advances serial/state', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-operator-logbook-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'kamiyo-agent-operator-logbook-'));
     const operatorLogbook = await loadOperatorLogbook({
       dataDir: tempDir,
       enabled: true,
@@ -137,7 +137,7 @@ describe('operator-logbook', () => {
     db = operatorLogbook.db;
 
     const nowMs = 1_738_800_000_000;
-    const queued = operatorLogbook.maybeQueueKyoshinOperatorLog(nowMs) as {
+    const queued = operatorLogbook.maybeQueueKamiyoAgentOperatorLog(nowMs) as {
       kind: string;
       serial: number;
       content: string;
@@ -152,22 +152,22 @@ describe('operator-logbook', () => {
     const post = db
       .prepare('SELECT context, status, approved_at FROM post_queue WHERE id = 1')
       .get() as { context: string; status: string; approved_at: number };
-    expect(post.context).toBe('kyoshin_log:daily_24h');
+    expect(post.context).toBe('kamiyo_agent_log:daily_24h');
     expect(post.status).toBe('approved');
     expect(post.approved_at).toBe(nowMs);
 
-    expect(operatorLogbook.maybeQueueKyoshinOperatorLog(nowMs)).toBeNull();
+    expect(operatorLogbook.maybeQueueKamiyoAgentOperatorLog(nowMs)).toBeNull();
 
     const state = db
-      .prepare('SELECT next_serial, last_daily_at, next_daily_at FROM kyoshin_operator_log_state WHERE key = ?')
-      .get('kyoshin') as { next_serial: number; last_daily_at: number; next_daily_at: number };
+      .prepare('SELECT next_serial, last_daily_at, next_daily_at FROM kamiyo_agent_operator_log_state WHERE key = ?')
+      .get('kamiyo-agent') as { next_serial: number; last_daily_at: number; next_daily_at: number };
     expect(state.next_serial).toBe(43);
     expect(state.last_daily_at).toBe(nowMs);
     expect(state.next_daily_at).toBe(nowMs + 24 * 60 * 60 * 1000);
   });
 
   it('does not enqueue duplicate logs when scheduler checks same timestamp twice', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-operator-logbook-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'kamiyo-agent-operator-logbook-'));
     const operatorLogbook = await loadOperatorLogbook({
       dataDir: tempDir,
       enabled: true,
@@ -176,8 +176,8 @@ describe('operator-logbook', () => {
     db = operatorLogbook.db;
 
     const nowMs = 1_738_900_000_000;
-    const first = operatorLogbook.maybeQueueKyoshinOperatorLog(nowMs);
-    const second = operatorLogbook.maybeQueueKyoshinOperatorLog(nowMs);
+    const first = operatorLogbook.maybeQueueKamiyoAgentOperatorLog(nowMs);
+    const second = operatorLogbook.maybeQueueKamiyoAgentOperatorLog(nowMs);
 
     expect(first).not.toBeNull();
     expect(second).toBeNull();
@@ -186,7 +186,7 @@ describe('operator-logbook', () => {
   });
 
   it('allows forward serial override and rejects rewind', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'kyoshin-operator-logbook-'));
+    tempDir = mkdtempSync(join(tmpdir(), 'kamiyo-agent-operator-logbook-'));
     const operatorLogbook = await loadOperatorLogbook({
       dataDir: tempDir,
       enabled: true,
@@ -194,21 +194,21 @@ describe('operator-logbook', () => {
     });
     db = operatorLogbook.db;
 
-    operatorLogbook.setKyoshinOperatorNextSerial(15);
+    operatorLogbook.setKamiyoAgentOperatorNextSerial(15);
     let state = db
-      .prepare('SELECT next_serial FROM kyoshin_operator_log_state WHERE key = ?')
-      .get('kyoshin') as { next_serial: number };
+      .prepare('SELECT next_serial FROM kamiyo_agent_operator_log_state WHERE key = ?')
+      .get('kamiyo-agent') as { next_serial: number };
     expect(state.next_serial).toBe(15);
 
-    const queued = operatorLogbook.maybeQueueKyoshinOperatorLog(Date.now() + 1_000) as {
+    const queued = operatorLogbook.maybeQueueKamiyoAgentOperatorLog(Date.now() + 1_000) as {
       serial: number;
     } | null;
     expect(queued?.serial).toBe(15);
 
-    operatorLogbook.setKyoshinOperatorNextSerial(10);
+    operatorLogbook.setKamiyoAgentOperatorNextSerial(10);
     state = db
-      .prepare('SELECT next_serial FROM kyoshin_operator_log_state WHERE key = ?')
-      .get('kyoshin') as { next_serial: number };
+      .prepare('SELECT next_serial FROM kamiyo_agent_operator_log_state WHERE key = ?')
+      .get('kamiyo-agent') as { next_serial: number };
     expect(state.next_serial).toBe(16);
   });
 });

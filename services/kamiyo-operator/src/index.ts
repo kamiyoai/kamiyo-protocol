@@ -23,7 +23,11 @@ import {
   readFundryUserPosition,
   type FundryUserPosition,
 } from './tools/fundryStaking.js';
-import { depositToStakingPeriod, ensureOpenStakingPeriod, findLatestOpenStakingPeriod } from './tools/stakingPool.js';
+import {
+  depositToStakingPeriod,
+  ensureOpenStakingPeriod,
+  findLatestOpenStakingPeriod,
+} from './tools/stakingPool.js';
 import { fetchTokenStatus } from './tools/tokenStatus.js';
 import { createDkgActivityPublisher, type DkgActivityEvent } from './dkgActivity.js';
 import { ensureMeishiTrust } from './meishiTrust.js';
@@ -172,7 +176,7 @@ function prometheusLine(name: string, value: number, labels?: Record<string, str
   return `${name}{${serializedLabels}} ${safeValue}`;
 }
 
-const FUNDRY_ACTION_TOOLS = ['kyoshin_staking_claim', 'swarm_agent_staking_claim'] as const;
+const FUNDRY_ACTION_TOOLS = ['kamiyo_agent_staking_claim', 'swarm_agent_staking_claim'] as const;
 const FUNDRY_ACTION_TOOL_SET = new Set<string>(FUNDRY_ACTION_TOOLS);
 
 function isRateLimitErrorMessage(error: string | null | undefined): boolean {
@@ -723,7 +727,14 @@ async function maintainOpenStakingPeriod(params: {
   } catch (error) {
     const message = toErrorMessage(error);
     params.db.addAction(params.tickId, 'staking_period_rollover', meta, null, message);
-    return { checked: true, maintained: false, reason: 'rollover_failed', error: message, period: null, ...meta };
+    return {
+      checked: true,
+      maintained: false,
+      reason: 'rollover_failed',
+      error: message,
+      period: null,
+      ...meta,
+    };
   }
 }
 
@@ -743,10 +754,19 @@ async function runAutoStakePolicy(params: {
   const reserveLamports = BigInt(env.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
   const availableBps = BigInt(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS);
   const maxLamportsPerTx = BigInt(env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX);
-  const availableLamports =
-    params.currentBalanceLamports > reserveLamports
-      ? params.currentBalanceLamports - reserveLamports
+
+  // Use inflow-based calculation: only route NEW SOL received since last deposit,
+  // not a percentage of the total wallet balance (which would drain the treasury).
+  const baselineKey = `auto_stake_baseline:${params.depositor.publicKey.toBase58()}`;
+  const storedBaseline = params.db.kvGet(baselineKey);
+  const baselineLamports =
+    storedBaseline != null ? BigInt(storedBaseline) : params.currentBalanceLamports;
+  const inflowLamports =
+    params.currentBalanceLamports > baselineLamports
+      ? params.currentBalanceLamports - baselineLamports
       : 0n;
+  const availableLamports =
+    inflowLamports > reserveLamports ? inflowLamports - reserveLamports : 0n;
   const targetLamports = (availableLamports * availableBps) / 10_000n;
 
   const meta = {
@@ -760,6 +780,8 @@ async function runAutoStakePolicy(params: {
     availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
     maxLamportsPerTx: maxLamportsPerTx.toString(),
     operatorBalanceLamports: params.currentBalanceLamports.toString(),
+    baselineLamports: baselineLamports.toString(),
+    inflowLamports: inflowLamports.toString(),
     availableLamports: availableLamports.toString(),
     targetLamports: targetLamports.toString(),
   };
@@ -788,9 +810,7 @@ async function runAutoStakePolicy(params: {
       `find_latest_open_staking_period timed out after ${env.KAMIYO_RPC_READ_TIMEOUT_MS}ms`
     );
 
-    let rolloverResult:
-      | Awaited<ReturnType<typeof ensureOpenStakingPeriod>>
-      | null = null;
+    let rolloverResult: Awaited<ReturnType<typeof ensureOpenStakingPeriod>> | null = null;
     if (!period) {
       rolloverResult = await withTimeout(
         ensureOpenStakingPeriod({
@@ -906,6 +926,10 @@ async function runAutoStakePolicy(params: {
     });
     params.db.addAction(params.tickId, 'write_staking_deposit_receipt', {}, { receiptPath });
 
+    // Record post-deposit balance as baseline for next tick's inflow calculation.
+    const afterBalance = BigInt(depositResult.afterBalanceLamports);
+    params.db.kvSet(baselineKey, afterBalance.toString());
+
     return {
       observation: {
         executed: true,
@@ -918,7 +942,7 @@ async function runAutoStakePolicy(params: {
         periodVault: depositResult.periodVault,
         ...meta,
       },
-      nextBalanceLamports: BigInt(depositResult.afterBalanceLamports),
+      nextBalanceLamports: afterBalance,
       period: depositResult.afterPeriod ?? period,
     };
   } catch (e) {
@@ -1059,7 +1083,7 @@ function buildSystemPrompt(params: {
 
   return `${params.identity}
 
-You are Kamiyo Operator: Kyoshin parent runtime for revenue-focused subagent operations.
+You are Kamiyo Operator: Kamiyo Agent parent runtime for revenue-focused subagent operations.
 
 NON-NEGOTIABLE CONSTRAINTS:
 - Do NOT mint or launch tokens directly from this runtime tick.
@@ -1109,7 +1133,10 @@ function normalizeBoolean(input: unknown): boolean {
   return false;
 }
 
-function toolTokenStatus(params: { getConnection: () => Connection; defaultMint?: string }): ToolConfig {
+function toolTokenStatus(params: {
+  getConnection: () => Connection;
+  defaultMint?: string;
+}): ToolConfig {
   return {
     name: 'token_status',
     description:
@@ -1422,14 +1449,16 @@ async function main(): Promise<void> {
   }
 
   const { keypair } = loadOperatorKeypair(env);
-  const kyoshinClaimerKeypair =
-    env.KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH || env.KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY
+  const kamiyoAgentClaimerKeypair =
+    env.KAMIYO_AGENT_CLAIMER_KEYPAIR_PATH || env.KAMIYO_AGENT_CLAIMER_PRIVATE_KEY
       ? loadOperatorKeypair({
-          KAMIYO_OPERATOR_KEYPAIR_PATH: env.KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH,
-          KAMIYO_OPERATOR_PRIVATE_KEY: env.KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY,
+          KAMIYO_OPERATOR_KEYPAIR_PATH: env.KAMIYO_AGENT_CLAIMER_KEYPAIR_PATH,
+          KAMIYO_OPERATOR_PRIVATE_KEY: env.KAMIYO_AGENT_CLAIMER_PRIVATE_KEY,
         }).keypair
       : keypair;
-  const kyoshinClaimerIsOperator = kyoshinClaimerKeypair.publicKey.equals(keypair.publicKey);
+  const kamiyoAgentClaimerIsOperator = kamiyoAgentClaimerKeypair.publicKey.equals(
+    keypair.publicKey
+  );
   const wallet = new KeypairWallet(keypair);
   const rpcUrls = uniqueNonEmptyStrings([env.SOLANA_RPC_URL, ...env.SOLANA_RPC_FALLBACK_URLS]);
   if (rpcUrls.length === 0) {
@@ -1676,11 +1705,11 @@ async function main(): Promise<void> {
           candidate.getBalance(wallet.publicKey, 'confirmed')
         )
       );
-      let kyoshinClaimerBalanceLamports: bigint | undefined = kyoshinClaimerIsOperator
+      let kamiyoAgentClaimerBalanceLamports: bigint | undefined = kamiyoAgentClaimerIsOperator
         ? operatorBalanceLamports
         : undefined;
       const dkgEvents: DkgActivityEvent[] = [];
-      const dkgAgentId = env.KAMIYO_DKG_AGENT_ID ?? kyoshinClaimerKeypair.publicKey.toBase58();
+      const dkgAgentId = env.KAMIYO_DKG_AGENT_ID ?? kamiyoAgentClaimerKeypair.publicKey.toBase58();
       const swarmExecutionEnabled = env.KAMIYO_SWARM_ENABLED && !env.KAMIYO_SWARM_PROPOSE_ONLY;
       let swarmRegistry: SwarmRegistry | null = null;
       let swarmOpportunityIntake: SwarmOpportunityIntake | null = null;
@@ -1716,12 +1745,12 @@ async function main(): Promise<void> {
             availableBps: env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS,
             maxLamportsPerTx: env.KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX,
           },
-          kyoshinAutoClaim: env.KAMIYO_KYOSHIN_STAKING_POOL
+          kamiyoAgentAutoClaim: env.KAMIYO_AGENT_STAKING_POOL
             ? {
-                enabled: env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED,
-                pool: env.KAMIYO_KYOSHIN_STAKING_POOL,
-                minLamports: env.KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS,
-                maxPeriodsPerRun: env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN,
+                enabled: env.KAMIYO_AGENT_AUTO_CLAIM_ENABLED,
+                pool: env.KAMIYO_AGENT_STAKING_POOL,
+                minLamports: env.KAMIYO_AGENT_AUTO_CLAIM_MIN_LAMPORTS,
+                maxPeriodsPerRun: env.KAMIYO_AGENT_AUTO_CLAIM_MAX_PERIODS_PER_RUN,
               }
             : null,
           dkgActivity: {
@@ -2380,7 +2409,7 @@ async function main(): Promise<void> {
           };
 
           {
-            const launchOwner = kyoshinClaimerKeypair.publicKey;
+            const launchOwner = kamiyoAgentClaimerKeypair.publicKey;
             const [launchAgentIdentity] = PublicKey.findProgramAddressSync(
               [Buffer.from('agent'), launchOwner.toBuffer()],
               KAMIYO_PROGRAM_ID
@@ -2479,12 +2508,12 @@ async function main(): Promise<void> {
         };
       }
 
-      if (env.KAMIYO_KYOSHIN_STAKING_POOL && !swarmExecutionEnabled) {
-        observation.kyoshinStakingSource = {
-          pool: env.KAMIYO_KYOSHIN_STAKING_POOL,
-          claimer: kyoshinClaimerKeypair.publicKey.toBase58(),
-          claimerIsOperator: kyoshinClaimerIsOperator,
-          autoClaimEnabled: env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED,
+      if (env.KAMIYO_AGENT_STAKING_POOL && !swarmExecutionEnabled) {
+        observation.kamiyoAgentStakingSource = {
+          pool: env.KAMIYO_AGENT_STAKING_POOL,
+          claimer: kamiyoAgentClaimerKeypair.publicKey.toBase58(),
+          claimerIsOperator: kamiyoAgentClaimerIsOperator,
+          autoClaimEnabled: env.KAMIYO_AGENT_AUTO_CLAIM_ENABLED,
         };
       }
 
@@ -2623,19 +2652,19 @@ async function main(): Promise<void> {
 
       if (
         env.KAMIYO_MODE === 'execute' &&
-        env.KAMIYO_KYOSHIN_STAKING_POOL &&
+        env.KAMIYO_AGENT_STAKING_POOL &&
         !swarmExecutionEnabled
       ) {
-        const kyoshinPool = env.KAMIYO_KYOSHIN_STAKING_POOL;
-        const claimerAddress = kyoshinClaimerKeypair.publicKey.toBase58();
-        const minClaimLamports = BigInt(env.KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS);
-        const maxPeriodsPerRun = env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN;
+        const kamiyoAgentPool = env.KAMIYO_AGENT_STAKING_POOL;
+        const claimerAddress = kamiyoAgentClaimerKeypair.publicKey.toBase58();
+        const minClaimLamports = BigInt(env.KAMIYO_AGENT_AUTO_CLAIM_MIN_LAMPORTS);
+        const maxPeriodsPerRun = env.KAMIYO_AGENT_AUTO_CLAIM_MAX_PERIODS_PER_RUN;
 
-        if (!env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED) {
-          observation.kyoshinAutoClaim = {
+        if (!env.KAMIYO_AGENT_AUTO_CLAIM_ENABLED) {
+          observation.kamiyoAgentAutoClaim = {
             executed: false,
             reason: 'disabled',
-            pool: kyoshinPool,
+            pool: kamiyoAgentPool,
             claimer: claimerAddress,
           };
         } else {
@@ -2643,7 +2672,7 @@ async function main(): Promise<void> {
             const position = await withTimeout(
               readFundryUserPosition({
                 apiBase: env.KAMIYO_FUNDRY_API_BASE_URL,
-                poolAddress: kyoshinPool,
+                poolAddress: kamiyoAgentPool,
                 wallet: claimerAddress,
                 timeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
                 retries: env.KAMIYO_FUNDRY_HTTP_RETRIES,
@@ -2651,12 +2680,12 @@ async function main(): Promise<void> {
                 retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
               }),
               fundryReadTimeoutBudgetMs(),
-              'read_kyoshin_staking_position timed out'
+              'read_kamiyo_agent_staking_position timed out'
             );
             const claimableLamports = getClaimableLamports(position);
             const periodNumbers = getClaimablePeriodNumbers(position, maxPeriodsPerRun);
             const claimMeta = {
-              pool: kyoshinPool,
+              pool: kamiyoAgentPool,
               claimer: claimerAddress,
               claimableLamports: claimableLamports.toString(),
               minClaimLamports: minClaimLamports.toString(),
@@ -2665,25 +2694,25 @@ async function main(): Promise<void> {
             };
 
             if (periodNumbers.length === 0) {
-              observation.kyoshinAutoClaim = {
+              observation.kamiyoAgentAutoClaim = {
                 executed: false,
                 reason: 'no_claimable_periods',
                 ...claimMeta,
               };
             } else if (claimableLamports < minClaimLamports) {
-              observation.kyoshinAutoClaim = {
+              observation.kamiyoAgentAutoClaim = {
                 executed: false,
                 reason: 'below_threshold',
                 ...claimMeta,
               };
             } else {
-              kyoshinClaimerBalanceLamports ??= BigInt(
-                await rpcRead('read_kyoshin_claimer_balance', candidate =>
-                  candidate.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
+              kamiyoAgentClaimerBalanceLamports ??= BigInt(
+                await rpcRead('read_kamiyo_agent_claimer_balance', candidate =>
+                  candidate.getBalance(kamiyoAgentClaimerKeypair.publicKey, 'confirmed')
                 )
               );
-              if (kyoshinClaimerBalanceLamports < 10_000_000n) {
-                observation.kyoshinAutoClaim = {
+              if (kamiyoAgentClaimerBalanceLamports < 10_000_000n) {
+                observation.kamiyoAgentAutoClaim = {
                   executed: false,
                   reason: 'low_sol_balance',
                   ...claimMeta,
@@ -2693,8 +2722,8 @@ async function main(): Promise<void> {
                   claimFundryStakingPeriods({
                     connection,
                     apiBase: env.KAMIYO_FUNDRY_API_BASE_URL,
-                    poolAddress: kyoshinPool,
-                    signer: kyoshinClaimerKeypair,
+                    poolAddress: kamiyoAgentPool,
+                    signer: kamiyoAgentClaimerKeypair,
                     periodNumbers,
                     requestTimeoutMs: env.KAMIYO_RPC_READ_TIMEOUT_MS,
                     confirmTimeoutMs: Math.max(env.KAMIYO_RPC_READ_TIMEOUT_MS * 2, 30_000),
@@ -2703,15 +2732,15 @@ async function main(): Promise<void> {
                     retryMaxDelayMs: env.KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS,
                   }),
                   fundryClaimTimeoutBudgetMs(periodNumbers.length),
-                  'claim_kyoshin_staking_periods timed out'
+                  'claim_kamiyo_agent_staking_periods timed out'
                 );
 
                 db.addAction(
                   tickId,
-                  'kyoshin_staking_claim',
+                  'kamiyo_agent_staking_claim',
                   {
-                    source: 'runtime_kyoshin_staking_claim',
-                    pool: kyoshinPool,
+                    source: 'runtime_kamiyo_agent_staking_claim',
+                    pool: kamiyoAgentPool,
                     claimer: claimerAddress,
                     periodNumbers,
                     minClaimLamports: minClaimLamports.toString(),
@@ -2723,29 +2752,34 @@ async function main(): Promise<void> {
                   }
                 );
 
-                const receiptPath = writeOutbox(outboxDir, 'kyoshin-staking-claim-receipt', {
+                const receiptPath = writeOutbox(outboxDir, 'kamiyo-agent-staking-claim-receipt', {
                   at: new Date().toISOString(),
                   mode: 'auto',
-                  source: 'runtime_kyoshin_staking_claim',
-                  pool: kyoshinPool,
+                  source: 'runtime_kamiyo_agent_staking_claim',
+                  pool: kamiyoAgentPool,
                   claimer: claimerAddress,
                   claimableLamports: claimableLamports.toString(),
                   minClaimLamports: minClaimLamports.toString(),
                   periodNumbers,
                   claims,
                 });
-                db.addAction(tickId, 'write_kyoshin_staking_claim_receipt', {}, { receiptPath });
+                db.addAction(
+                  tickId,
+                  'write_kamiyo_agent_staking_claim_receipt',
+                  {},
+                  { receiptPath }
+                );
 
-                kyoshinClaimerBalanceLamports = BigInt(
-                  await rpcRead('refresh_kyoshin_claimer_balance', candidate =>
-                    candidate.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
+                kamiyoAgentClaimerBalanceLamports = BigInt(
+                  await rpcRead('refresh_kamiyo_agent_claimer_balance', candidate =>
+                    candidate.getBalance(kamiyoAgentClaimerKeypair.publicKey, 'confirmed')
                   )
                 );
-                if (kyoshinClaimerIsOperator) {
-                  operatorBalanceLamports = kyoshinClaimerBalanceLamports;
+                if (kamiyoAgentClaimerIsOperator) {
+                  operatorBalanceLamports = kamiyoAgentClaimerBalanceLamports;
                 }
 
-                observation.kyoshinAutoClaim = {
+                observation.kamiyoAgentAutoClaim = {
                   executed: true,
                   receiptPath,
                   signatures: claims.map(claim => claim.signature).filter(Boolean),
@@ -2753,20 +2787,20 @@ async function main(): Promise<void> {
                   ...claimMeta,
                 };
                 db.recordRevenueEvent({
-                  id: `${tickId}:claim:kyoshin:${kyoshinPool}`,
+                  id: `${tickId}:claim:kamiyo-agent:${kamiyoAgentPool}`,
                   tickId,
                   lane: 'trading',
                   kind: 'claim',
                   amountSol: lamportsToSol(claimableLamports),
                   amountUsd: lamportsToSol(claimableLamports) * env.KAMIYO_SWARM_SOL_PRICE_USD,
                   metadata: {
-                    source: 'kyoshin_staking',
-                    pool: kyoshinPool,
+                    source: 'kamiyo_agent_staking',
+                    pool: kamiyoAgentPool,
                     claimer: claimerAddress,
                   },
                 });
                 dkgEvents.push({
-                  type: 'kyoshin_staking_claim',
+                  type: 'kamiyo_agent_staking_claim',
                   signatures: claims
                     .map(claim => claim.signature)
                     .filter(
@@ -2780,20 +2814,20 @@ async function main(): Promise<void> {
             const error = e instanceof Error ? e.message : String(e);
             db.addAction(
               tickId,
-              'kyoshin_staking_claim',
+              'kamiyo_agent_staking_claim',
               {
-                source: 'runtime_kyoshin_staking_claim',
-                pool: kyoshinPool,
+                source: 'runtime_kamiyo_agent_staking_claim',
+                pool: kamiyoAgentPool,
                 claimer: claimerAddress,
               },
               null,
               error
             );
-            observation.kyoshinAutoClaim = {
+            observation.kamiyoAgentAutoClaim = {
               executed: false,
               reason: 'claim_failed',
               error,
-              pool: kyoshinPool,
+              pool: kamiyoAgentPool,
               claimer: claimerAddress,
             };
           }
@@ -2818,8 +2852,8 @@ async function main(): Promise<void> {
       if (env.KAMIYO_MODE === 'execute' && env.KAMIYO_AUTO_STAKE_ENABLED) {
         if (!env.KAMIYO_STAKING_POOL) {
           observation.autoStake = { executed: false, reason: 'staking_pool_not_configured' };
-          if (env.KAMIYO_KYOSHIN_STAKING_POOL && !swarmExecutionEnabled) {
-            observation.kyoshinRoute = {
+          if (env.KAMIYO_AGENT_STAKING_POOL && !swarmExecutionEnabled) {
+            observation.kamiyoAgentRoute = {
               executed: false,
               reason: 'target_staking_pool_not_configured',
             };
@@ -2883,35 +2917,35 @@ async function main(): Promise<void> {
             };
           }
 
-          if (env.KAMIYO_KYOSHIN_STAKING_POOL && !swarmExecutionEnabled) {
-            if (kyoshinClaimerIsOperator) {
-              observation.kyoshinRoute = {
+          if (env.KAMIYO_AGENT_STAKING_POOL && !swarmExecutionEnabled) {
+            if (kamiyoAgentClaimerIsOperator) {
+              observation.kamiyoAgentRoute = {
                 executed: false,
                 reason: 'same_wallet_as_operator',
-                wallet: kyoshinClaimerKeypair.publicKey.toBase58(),
+                wallet: kamiyoAgentClaimerKeypair.publicKey.toBase58(),
                 pool: env.KAMIYO_STAKING_POOL,
               };
             } else {
-              kyoshinClaimerBalanceLamports ??= BigInt(
-                await rpcRead('read_kyoshin_route_balance', candidate =>
-                  candidate.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
+              kamiyoAgentClaimerBalanceLamports ??= BigInt(
+                await rpcRead('read_kamiyo_agent_route_balance', candidate =>
+                  candidate.getBalance(kamiyoAgentClaimerKeypair.publicKey, 'confirmed')
                 )
               );
-              const kyoshinRoute = await runAutoStakePolicy({
+              const kamiyoAgentRoute = await runAutoStakePolicy({
                 connection,
                 db,
                 tickId,
                 dayStart,
                 outboxDir,
                 poolAddress: env.KAMIYO_STAKING_POOL,
-                depositor: kyoshinClaimerKeypair,
-                source: 'runtime_auto_stake_kyoshin_route',
-                currentBalanceLamports: kyoshinClaimerBalanceLamports,
+                depositor: kamiyoAgentClaimerKeypair,
+                source: 'runtime_auto_stake_kamiyo_agent_route',
+                currentBalanceLamports: kamiyoAgentClaimerBalanceLamports,
               });
-              kyoshinClaimerBalanceLamports = kyoshinRoute.nextBalanceLamports;
-              observation.kyoshinRoute = kyoshinRoute.observation;
+              kamiyoAgentClaimerBalanceLamports = kamiyoAgentRoute.nextBalanceLamports;
+              observation.kamiyoAgentRoute = kamiyoAgentRoute.observation;
               {
-                const routeObservation = kyoshinRoute.observation as Record<string, unknown>;
+                const routeObservation = kamiyoAgentRoute.observation as Record<string, unknown>;
                 if (routeObservation.executed === true) {
                   const routeAmountSol =
                     asNumber(routeObservation.amountSol) ??
@@ -2920,21 +2954,21 @@ async function main(): Promise<void> {
                       : 0);
                   if (routeAmountSol > 0) {
                     db.recordRevenueEvent({
-                      id: `${tickId}:route:kyoshin`,
+                      id: `${tickId}:route:kamiyo-agent`,
                       tickId,
                       lane: 'trading',
                       kind: 'route',
                       amountSol: routeAmountSol,
                       amountUsd: routeAmountSol * env.KAMIYO_SWARM_SOL_PRICE_USD,
                       metadata: {
-                        source: 'runtime_auto_stake_kyoshin_route',
+                        source: 'runtime_auto_stake_kamiyo_agent_route',
                         pool: env.KAMIYO_STAKING_POOL,
-                        wallet: kyoshinClaimerKeypair.publicKey.toBase58(),
+                        wallet: kamiyoAgentClaimerKeypair.publicKey.toBase58(),
                       },
                     });
                   }
                   dkgEvents.push({
-                    type: 'kyoshin_route_deposit',
+                    type: 'kamiyo_agent_route_deposit',
                     signature:
                       typeof routeObservation.signature === 'string'
                         ? routeObservation.signature
@@ -2954,25 +2988,25 @@ async function main(): Promise<void> {
       if (
         env.KAMIYO_MODE === 'execute' &&
         !env.KAMIYO_AUTO_STAKE_ENABLED &&
-        env.KAMIYO_KYOSHIN_STAKING_POOL &&
+        env.KAMIYO_AGENT_STAKING_POOL &&
         !swarmExecutionEnabled
       ) {
-        observation.kyoshinRoute = { executed: false, reason: 'auto_stake_disabled' };
+        observation.kamiyoAgentRoute = { executed: false, reason: 'auto_stake_disabled' };
       }
 
-      if (env.KAMIYO_KYOSHIN_STAKING_POOL && !swarmExecutionEnabled) {
-        if (kyoshinClaimerIsOperator) {
-          kyoshinClaimerBalanceLamports = operatorBalanceLamports;
+      if (env.KAMIYO_AGENT_STAKING_POOL && !swarmExecutionEnabled) {
+        if (kamiyoAgentClaimerIsOperator) {
+          kamiyoAgentClaimerBalanceLamports = operatorBalanceLamports;
         }
-        kyoshinClaimerBalanceLamports ??= BigInt(
-          await rpcRead('read_kyoshin_claimer_snapshot_balance', candidate =>
-            candidate.getBalance(kyoshinClaimerKeypair.publicKey, 'confirmed')
+        kamiyoAgentClaimerBalanceLamports ??= BigInt(
+          await rpcRead('read_kamiyo_agent_claimer_snapshot_balance', candidate =>
+            candidate.getBalance(kamiyoAgentClaimerKeypair.publicKey, 'confirmed')
           )
         );
-        observation.kyoshinClaimer = {
-          publicKey: kyoshinClaimerKeypair.publicKey.toBase58(),
-          solBalance: lamportsToSol(kyoshinClaimerBalanceLamports),
-          isOperatorWallet: kyoshinClaimerIsOperator,
+        observation.kamiyoAgentClaimer = {
+          publicKey: kamiyoAgentClaimerKeypair.publicKey.toBase58(),
+          solBalance: lamportsToSol(kamiyoAgentClaimerBalanceLamports),
+          isOperatorWallet: kamiyoAgentClaimerIsOperator,
         };
       }
 
@@ -3001,8 +3035,8 @@ async function main(): Promise<void> {
             };
           } else {
             const agentResults: Array<Record<string, unknown>> = [];
-            const minClaimLamports = BigInt(env.KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS);
-            const maxPeriodsPerRun = env.KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN;
+            const minClaimLamports = BigInt(env.KAMIYO_AGENT_AUTO_CLAIM_MIN_LAMPORTS);
+            const maxPeriodsPerRun = env.KAMIYO_AGENT_AUTO_CLAIM_MAX_PERIODS_PER_RUN;
             const opportunitiesById = new Map(
               (swarmOpportunityIntake?.opportunities ?? []).map(opportunity => [
                 opportunity.id,
@@ -3313,8 +3347,9 @@ async function main(): Promise<void> {
                       });
 
                       const balanceAfterJobLamports = BigInt(
-                        await rpcRead(`read_agent_balance_after_job:${agentProfile.id}`, candidate =>
-                          candidate.getBalance(agentSigner.publicKey, 'confirmed')
+                        await rpcRead(
+                          `read_agent_balance_after_job:${agentProfile.id}`,
+                          candidate => candidate.getBalance(agentSigner.publicKey, 'confirmed')
                         )
                       );
                       const balanceDeltaLamports = balanceAfterJobLamports - agentBalanceLamports;
@@ -3419,7 +3454,7 @@ async function main(): Promise<void> {
                 }
               }
 
-              if (agentProfile.sourceStakingPool && env.KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED) {
+              if (agentProfile.sourceStakingPool && env.KAMIYO_AGENT_AUTO_CLAIM_ENABLED) {
                 try {
                   const position = await withTimeout(
                     readFundryUserPosition({
@@ -3518,8 +3553,9 @@ async function main(): Promise<void> {
                     );
 
                     agentBalanceLamports = BigInt(
-                      await rpcRead(`read_agent_balance_after_claim:${agentProfile.id}`, candidate =>
-                        candidate.getBalance(agentSigner.publicKey, 'confirmed')
+                      await rpcRead(
+                        `read_agent_balance_after_claim:${agentProfile.id}`,
+                        candidate => candidate.getBalance(agentSigner.publicKey, 'confirmed')
                       )
                     );
                     agentResult.claim = {
@@ -3549,7 +3585,7 @@ async function main(): Promise<void> {
                     });
 
                     dkgEvents.push({
-                      type: 'kyoshin_staking_claim',
+                      type: 'kamiyo_agent_staking_claim',
                       signatures: claims
                         .map(claim => claim.signature)
                         .filter(

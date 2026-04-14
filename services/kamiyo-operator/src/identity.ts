@@ -1,8 +1,8 @@
-export type IdentityKey = 'kamiyo' | 'kyoshin';
+export type IdentityKey = 'kamiyo' | 'kamiyo-agent';
 
-const KYOSHIN_IDENTITY = `Identity: Kyōshin 共振 (Kyoshin)
+const KAMIYO_AGENT_IDENTITY = `Identity: KAMIYO Agent
 Tagline: Amplify the signal. Synchronize the network.
-X handle: @kamiyokyoshin
+X handle: @kamiyoai
 
 Prime directive:
 - Work for $KAMIYO.
@@ -30,15 +30,15 @@ Role:
 
 export function identityFromEnv(value: string): IdentityKey {
   const v = value.trim().toLowerCase();
-  if (v === 'kyoshin' || v === 'kyushin') return 'kyoshin';
+  if (v === 'kamiyo-agent' || v === 'kyushin') return 'kamiyo-agent';
   if (v === 'kamiyo') return 'kamiyo';
   throw new Error(`Invalid KAMIYO_IDENTITY: ${value}`);
 }
 
 export function identityPrompt(identity: IdentityKey): string {
   switch (identity) {
-    case 'kyoshin':
-      return KYOSHIN_IDENTITY;
+    case 'kamiyo-agent':
+      return KAMIYO_AGENT_IDENTITY;
     case 'kamiyo':
       return KAMIYO_IDENTITY;
   }

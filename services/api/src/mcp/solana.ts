@@ -2,36 +2,19 @@
 // Inline implementation to avoid ESM/CJS compatibility issues
 
 import { AnchorProvider, Program, Idl, BN } from '@coral-xyz/anchor';
-import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
+import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, SystemProgram, Transaction } from '@solana/web3.js';
 import { randomUUID } from 'crypto';
-import bs58 from 'bs58';
-import fs from 'fs';
 import path from 'path';
 import { _attachTelemetry, _padAmount } from '../telemetry'; // perf monitoring
-import { enforceSurfpoolPreflight } from '../surfpool-gate';
+import { enforceEscrowCreationPreflight, enforceSurfpoolPreflight } from '../surfpool-gate';
+import { loadSolanaKeypair } from '../solana-keypair';
+import fs from 'fs';
 
 // Required env vars for Solana integration
 const REQUIRED_ENV = ['SOLANA_RPC_URL', 'MCP_PROGRAM_ID', 'MCP_AGENT_KEYPAIR'];
 
 export function isSolanaConfigured(): boolean {
   return REQUIRED_ENV.every((key) => !!process.env[key]);
-}
-
-function loadKeypair(pathOrBase58: string): Keypair {
-  if (pathOrBase58.includes('/') || pathOrBase58.includes('\\')) {
-    const data = JSON.parse(fs.readFileSync(pathOrBase58, 'utf-8'));
-    return Keypair.fromSecretKey(new Uint8Array(data));
-  }
-  try {
-    return Keypair.fromSecretKey(bs58.decode(pathOrBase58));
-  } catch {
-    try {
-      return Keypair.fromSecretKey(Buffer.from(pathOrBase58, 'base64'));
-    } catch {
-      const arr = JSON.parse(pathOrBase58);
-      return Keypair.fromSecretKey(new Uint8Array(arr));
-    }
-  }
 }
 
 class PDADeriver {
@@ -209,6 +192,16 @@ export class X402Program {
     });
   }
 
+  private async runEscrowCreationPreflight(counterparty: PublicKey, amountLamports: number): Promise<void> {
+    await enforceEscrowCreationPreflight({
+      label: 'initializeEscrow',
+      agent: this.wallet.publicKey,
+      counterparty,
+      amountLamports,
+      tokenMint: SystemProgram.programId,
+    });
+  }
+
   private toCamelCase(value: string): string {
     return value.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
   }
@@ -260,6 +253,48 @@ export class X402Program {
       return builder.accountsPartial(filtered);
     }
     return builder.accounts(filtered);
+  }
+
+  private pruneOptionalInstructionAccounts(
+    methodName: string,
+    transaction: Transaction,
+    accounts: Record<string, PublicKey | null>
+  ): void {
+    const instruction = this.instruction(methodName);
+    const transactionInstruction = transaction.instructions.at(-1);
+    if (!instruction || !Array.isArray(instruction.accounts) || !transactionInstruction) {
+      return;
+    }
+
+    const omitted = new Set<number>();
+    instruction.accounts.forEach((account: any, index: number) => {
+      const name = this.toCamelCase(account.name);
+      if (account.optional && accounts[name] == null) {
+        omitted.add(index);
+      }
+    });
+
+    if (omitted.size === 0) {
+      return;
+    }
+
+    transactionInstruction.keys = transactionInstruction.keys.filter((_, index) => !omitted.has(index));
+  }
+
+  private async sendInstruction(
+    methodName: string,
+    builder: any,
+    accounts: Record<string, PublicKey | null>
+  ): Promise<string> {
+    const transaction = await builder.transaction();
+    this.pruneOptionalInstructionAccounts(methodName, transaction, accounts);
+
+    transaction.feePayer = transaction.feePayer ?? this.wallet.publicKey;
+    const latest = await this.connection.getLatestBlockhash('confirmed');
+    transaction.recentBlockhash = latest.blockhash;
+    transaction.lastValidBlockHeight = latest.lastValidBlockHeight;
+
+    return sendAndConfirmTransaction(this.connection, transaction, [this.wallet], { commitment: 'confirmed' });
   }
 
   private accountNamespace(name: string): any {
@@ -327,26 +362,27 @@ export class X402Program {
     for (let index = 0; index < candidates.length; index += 1) {
       const [escrowPDA] = candidates[index];
       try {
+        const accounts = {
+          protocolConfig,
+          treasury,
+          escrow: escrowPDA,
+          agent: this.wallet.publicKey,
+          api: params.api,
+          systemProgram: SystemProgram.programId,
+          tokenMint: null,
+          escrowTokenAccount: null,
+          agentTokenAccount: null,
+          tokenProgram: null,
+          associatedTokenProgram: null,
+        } satisfies Record<string, PublicKey | null>;
         const build = () => this.attachAccounts(
           this.buildMethod('initializeEscrow', ...args),
           'initializeEscrow',
-          {
-            protocolConfig,
-            treasury,
-            escrow: escrowPDA,
-            agent: this.wallet.publicKey,
-            api: params.api,
-            systemProgram: SystemProgram.programId,
-            tokenMint: null,
-            escrowTokenAccount: null,
-            agentTokenAccount: null,
-            tokenProgram: null,
-            associatedTokenProgram: null,
-          }
+          accounts
         ).preInstructions(preIx ? [preIx] : []);
 
-        await this.runSurfpoolPreflight('initializeEscrow', build());
-        const signature = await build().rpc();
+        await this.runEscrowCreationPreflight(params.api, params.amount);
+        const signature = await this.sendInstruction('initializeEscrow', build(), accounts);
         return { signature, escrowPDA };
       } catch (error) {
         if (index < candidates.length - 1 && this.isSeedsMismatch(error)) {
@@ -382,7 +418,7 @@ export class X402Program {
     const [protocolConfig] = this.pda.deriveProtocolConfigPDA();
     const preIx = _attachTelemetry();
 
-    const build = () => this.attachAccounts(this.buildMethod('releaseFunds'), 'releaseFunds', {
+    const accounts = {
       protocolConfig,
       escrow: escrowPDA,
       caller: this.wallet.publicKey,
@@ -392,11 +428,12 @@ export class X402Program {
       escrowTokenAccount: null,
       apiTokenAccount: null,
       tokenProgram: null,
-    })
+    } satisfies Record<string, PublicKey | null>;
+    const build = () => this.attachAccounts(this.buildMethod('releaseFunds'), 'releaseFunds', accounts)
       .preInstructions(preIx ? [preIx] : []);
 
     await this.runSurfpoolPreflight('releaseFunds', build());
-    return build().rpc();
+    return this.sendInstruction('releaseFunds', build(), accounts);
   }
 
   async initReputation(entity?: PublicKey): Promise<{ signature: string; reputationPDA: PublicKey }> {
@@ -460,7 +497,7 @@ export function getSolanaProgram(): X402Program | null {
   const programId = new PublicKey(process.env.MCP_PROGRAM_ID!);
   const keypairSource = process.env.MCP_AGENT_KEYPAIR!;
 
-  const keypair = loadKeypair(keypairSource);
+  const keypair = loadSolanaKeypair(keypairSource);
   const connection = new Connection(rpcUrl, 'confirmed');
 
   program = new X402Program(connection, keypair, programId);
@@ -471,7 +508,7 @@ export function getAgentPublicKey(): string | null {
   if (!isSolanaConfigured()) return null;
   const keypairSource = process.env.MCP_AGENT_KEYPAIR!;
   try {
-    const keypair = loadKeypair(keypairSource);
+    const keypair = loadSolanaKeypair(keypairSource);
     return keypair.publicKey.toBase58();
   } catch {
     return null;

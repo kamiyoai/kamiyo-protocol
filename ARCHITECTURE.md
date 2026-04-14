@@ -9,7 +9,7 @@ Kizuna is the open payment rail for autonomous agents. It exposes public APIs, s
 ```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │                           Kizuna-Powered Clients                    │
-│  Kyoshin runtime   Keiro app   OpenClaw tools   partner APIs        │
+│  Kamiyo Agent runtime   Keiro app   OpenClaw tools   partner APIs        │
 └───────────────────────────────┬──────────────────────────────────────┘
                                 │
                                 ▼
@@ -126,7 +126,7 @@ The default build, test, and CI path.
 
 Kizuna-powered surfaces that stay active but are not the repo default.
 
-- `services/kyoshin`
+- `services/kamiyo-agent`
 - `apps/keiro`
 - `packages/kamiyo-openclaw`
 - `packages/kamiyo-hive`

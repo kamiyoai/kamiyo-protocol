@@ -47,8 +47,10 @@ describe('Meishi DKG routes', () => {
   const envBackup = {
     DKG_ENDPOINT: process.env.DKG_ENDPOINT,
     KAMIYO_DKG_ENDPOINT: process.env.KAMIYO_DKG_ENDPOINT,
+    PARANET_DKG_ENDPOINT: process.env.PARANET_DKG_ENDPOINT,
     DKG_BLOCKCHAIN: process.env.DKG_BLOCKCHAIN,
     DKG_PORT: process.env.DKG_PORT,
+    PARANET_DKG_PORT: process.env.PARANET_DKG_PORT,
     DKG_PRIVATE_KEY: process.env.DKG_PRIVATE_KEY,
     MEISHI_PARANET_UAL: process.env.MEISHI_PARANET_UAL,
     PARANET_UAL: process.env.PARANET_UAL,
@@ -62,8 +64,10 @@ describe('Meishi DKG routes', () => {
 
     delete process.env.DKG_ENDPOINT;
     process.env.KAMIYO_DKG_ENDPOINT = 'ot-node.example:8900';
+    delete process.env.PARANET_DKG_ENDPOINT;
     process.env.DKG_BLOCKCHAIN = 'base:8453';
     process.env.DKG_PORT = '8900';
+    delete process.env.PARANET_DKG_PORT;
     process.env.DKG_PRIVATE_KEY = '';
     process.env.MEISHI_PARANET_UAL = 'urn:example:paranet';
     process.env.MEISHI_DKG_REPOSITORY = 'publicCurrent';
@@ -124,8 +128,135 @@ describe('Meishi DKG routes', () => {
     }
   });
 
+  it('queries the derived paranet repository before falling back to scoped paranet queries', async () => {
+    graphQueryMock.mockResolvedValueOnce({
+      data: [
+        {
+          audit: 'urn:dkg:audit:1',
+          agent: 'agent-alpha',
+          score: '91',
+          classification: 'minimal',
+          jurisdiction: 'global',
+          auditor: 'auditor-1',
+          auditType: 'periodic',
+          date: '2026-03-15T12:00:00Z',
+        },
+      ],
+    });
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/dashboard`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.health.scope).toBe('paranet');
+      expect(body.health.repository).toBe('paranet-urn-example-paranet');
+      expect(graphQueryMock).toHaveBeenCalledWith(
+        expect.any(String),
+        'SELECT',
+        { repository: 'paranet-urn-example-paranet' }
+      );
+      expect(graphQueryMock).toHaveBeenCalledTimes(1);
+    } finally {
+      await close();
+    }
+  });
+
+  it('prefers the dedicated paranet DKG endpoint when it is configured', async () => {
+    process.env.DKG_ENDPOINT = 'https://public-node.example';
+    process.env.PARANET_DKG_ENDPOINT = 'https://gateway.example';
+
+    graphQueryMock.mockResolvedValueOnce({
+      data: [
+        {
+          audit: 'urn:dkg:audit:1',
+          agent: 'agent-alpha',
+          score: '91',
+          classification: 'minimal',
+          jurisdiction: 'global',
+          auditor: 'auditor-1',
+          auditType: 'periodic',
+          date: '2026-03-15T12:00:00Z',
+        },
+      ],
+    });
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/dashboard`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.health.endpoint).toBe('https://gateway.example');
+    } finally {
+      await close();
+    }
+  });
+
+  it('uses direct gateway queries when the paranet endpoint is served over https on port 443', async () => {
+    process.env.DKG_ENDPOINT = 'https://public-node.example';
+    process.env.PARANET_DKG_ENDPOINT = 'https://gateway.example';
+    delete process.env.DKG_PORT;
+    process.env.PARANET_DKG_PORT = '443';
+
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            audit: 'urn:dkg:audit:1',
+            agent: 'agent-alpha',
+            score: '91',
+            classification: 'minimal',
+            jurisdiction: 'global',
+            auditor: 'auditor-1',
+            auditType: 'periodic',
+            date: '2026-03-15T12:00:00Z',
+          },
+        ],
+      }),
+    } as Response);
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const response = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+        http.get(`${baseUrl}/api/meishi-dkg/dashboard`, (res) => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => { body += chunk; });
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, body }));
+        }).on('error', reject);
+      });
+      expect(response.status).toBe(200);
+      const body = JSON.parse(response.body) as any;
+      expect(body.health.endpoint).toBe('https://gateway.example');
+      expect(createClientMock).not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://gateway.example/v1/direct-query',
+        expect.objectContaining({
+          method: 'POST',
+        })
+      );
+      const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+      expect(typeof requestInit?.body).toBe('string');
+      expect(String(requestInit?.body)).toContain('PREFIX schema: <http://schema.org/>');
+    } finally {
+      fetchMock.mockRestore();
+      await close();
+    }
+  });
+
   it('uses the corrected warning copy when falling back from paranet to global records', async () => {
     graphQueryMock
+      .mockRejectedValueOnce(new Error('paranet repository unavailable'))
       .mockRejectedValueOnce(new Error('paranet unavailable'))
       .mockRejectedValueOnce(new Error('paranet unavailable'))
       .mockResolvedValueOnce({
@@ -156,6 +287,40 @@ describe('Meishi DKG routes', () => {
       expect(body.warnings).toContain(
         'Paranet records are temporarily unavailable. Displaying the latest verified DKG records.'
       );
+    } finally {
+      await close();
+    }
+  });
+
+  it('normalizes provisioning audits so placeholder dkg-only records do not present as limited compliance', async () => {
+    graphQueryMock.mockResolvedValueOnce({
+      data: [
+        {
+          audit: 'urn:dkg:audit:bootstrap-1',
+          agent: 'agent-alpha',
+          score: '66',
+          classification: 'limited',
+          jurisdiction: 'global',
+          auditor: 'urn:kamiyo:service:meishi-internal',
+          auditType: 'triggered',
+          reviewBody:
+            'Provision an on-chain Kamiyo agent identity before enabling Meishi passport issuance.; Register a Meishi mandate before this subject executes trades.',
+          date: '2026-03-17T12:00:00Z',
+        },
+      ],
+    });
+
+    const app = express();
+    app.use('/api/meishi-dkg', meishiDkgRoutes);
+    const { baseUrl, close } = await startServer(app);
+
+    try {
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/dashboard`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as any;
+      expect(body.leaderboard.agents[0].complianceScore).toBe(0);
+      expect(body.leaderboard.agents[0].complianceClass).toBe('unclassified');
+      expect(body.graph.stats.avgComplianceScore).toBe(0);
     } finally {
       await close();
     }
@@ -223,7 +388,7 @@ describe('Meishi DKG routes', () => {
       data: [
         {
           audit: 'urn:dkg:audit:10',
-          agent: 'agent-kyoshin',
+          agent: 'agent-kamiyo-agent',
           score: '96',
           classification: 'minimal',
           jurisdiction: 'global',
@@ -233,7 +398,7 @@ describe('Meishi DKG routes', () => {
         },
         {
           audit: 'urn:dkg:audit:9',
-          agent: 'agent-kyoshin',
+          agent: 'agent-kamiyo-agent',
           score: '94',
           classification: 'minimal',
           jurisdiction: 'global',
@@ -249,12 +414,12 @@ describe('Meishi DKG routes', () => {
     const { baseUrl, close } = await startServer(app);
 
     try {
-      const res = await fetch(`${baseUrl}/api/meishi-dkg/agent/${encodeURIComponent('agent-kyoshin')}/audits?limit=5`);
+      const res = await fetch(`${baseUrl}/api/meishi-dkg/agent/${encodeURIComponent('agent-kamiyo-agent')}/audits?limit=5`);
       expect(res.status).toBe(200);
       const body = await res.json() as any;
       expect(body.dataMode).toBe('live');
       expect(body.audits).toHaveLength(2);
-      expect(body.audits[0].agentId).toBe('agent-kyoshin');
+      expect(body.audits[0].agentId).toBe('agent-kamiyo-agent');
       expect(body.audits[0].ual).toBe('urn:dkg:audit:10');
     } finally {
       await close();

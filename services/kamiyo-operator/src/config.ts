@@ -33,9 +33,9 @@ const envSchema = z
   KAMIYO_OPERATOR_PRIVATE_KEY: optionalNonEmptyString,
 
   KAMIYO_IDENTITY: z
-    .enum(['kamiyo', 'kyoshin', 'kyushin'])
-    .default('kyoshin')
-    .transform(v => (v === 'kyushin' ? 'kyoshin' : v)),
+    .enum(['kamiyo', 'kamiyo-agent', 'kyushin'])
+    .default('kamiyo-agent')
+    .transform(v => (v === 'kyushin' ? 'kamiyo-agent' : v)),
 
   KAMIYO_AGENT_NAME: z.string().min(1).default('kamiyo-operator'),
   KAMIYO_AUTO_CREATE_AGENT: z
@@ -53,9 +53,9 @@ const envSchema = z
   KAMIYO_FUNDRY_HTTP_BASE_BACKOFF_MS: z.coerce.number().int().positive().default(350),
   KAMIYO_FUNDRY_HTTP_MAX_BACKOFF_MS: z.coerce.number().int().positive().default(5000),
   KAMIYO_FUNDRY_METRICS_WINDOW_MINUTES: z.coerce.number().int().positive().default(60),
-  KAMIYO_KYOSHIN_STAKING_POOL: optionalNonEmptyString,
-  KAMIYO_KYOSHIN_CLAIMER_KEYPAIR_PATH: optionalNonEmptyString,
-  KAMIYO_KYOSHIN_CLAIMER_PRIVATE_KEY: optionalNonEmptyString,
+  KAMIYO_AGENT_STAKING_POOL: optionalNonEmptyString,
+  KAMIYO_AGENT_CLAIMER_KEYPAIR_PATH: optionalNonEmptyString,
+  KAMIYO_AGENT_CLAIMER_PRIVATE_KEY: optionalNonEmptyString,
   KAMIYO_PRIME_DIRECTIVE: z
     .string()
     .min(1)
@@ -105,7 +105,7 @@ const envSchema = z
   KAMIYO_MEISHI_DAILY_LIMIT_USD: z.coerce.number().positive().default(2500),
   KAMIYO_MEISHI_MONTHLY_LIMIT_USD: z.coerce.number().positive().default(25000),
   KAMIYO_MEISHI_HUMAN_APPROVAL_USD: z.coerce.number().positive().default(250),
-  KAMIYO_MEISHI_FINDINGS_PREFIX: z.string().min(1).default('urn:kamiyo:meishi:kyoshin'),
+  KAMIYO_MEISHI_FINDINGS_PREFIX: z.string().min(1).default('urn:kamiyo:meishi:kamiyo-agent'),
   KAMIYO_MEISHI_CATEGORY_WHITELIST_HEX: optionalNonEmptyString,
   KAMIYO_MEISHI_MERCHANT_WHITELIST_HEX: optionalNonEmptyString,
 
@@ -130,12 +130,12 @@ const envSchema = z
     .default('true')
     .transform(v => v === 'true'),
   KAMIYO_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(1_000_000),
-  KAMIYO_KYOSHIN_AUTO_CLAIM_ENABLED: z
+  KAMIYO_AGENT_AUTO_CLAIM_ENABLED: z
     .enum(['true', 'false'])
     .default('true')
     .transform(v => v === 'true'),
-  KAMIYO_KYOSHIN_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(0),
-  KAMIYO_KYOSHIN_AUTO_CLAIM_MAX_PERIODS_PER_RUN: z.coerce.number().int().positive().default(8),
+  KAMIYO_AGENT_AUTO_CLAIM_MIN_LAMPORTS: z.coerce.number().int().nonnegative().default(0),
+  KAMIYO_AGENT_AUTO_CLAIM_MAX_PERIODS_PER_RUN: z.coerce.number().int().positive().default(8),
   KAMIYO_AUTO_STAKE_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

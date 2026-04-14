@@ -13,7 +13,7 @@ export const MEISHI_IDL: Idl = {
       "name": "create_meishi",
       "docs": [
         "Create a new Meishi passport for an agent.",
-        "The caller must own an active Kamiyo AgentIdentity."
+        "The caller must own an active KamiyoAgentIdentity."
       ],
       "discriminator": [
         53,
@@ -1452,7 +1452,7 @@ export const MEISHI_IDL: Idl = {
           {
             "name": "agent_identity",
             "docs": [
-              "Link to existing Kamiyo AgentIdentity PDA"
+              "Link to existing KamiyoAgentIdentity PDA"
             ],
             "type": "pubkey"
           },

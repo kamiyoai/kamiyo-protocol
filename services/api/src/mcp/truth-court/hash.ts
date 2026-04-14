@@ -48,6 +48,7 @@ export function computeCaseHashes(input: TruthCourtCaseInput): {
   const featureHash = hashJson(input.featureVector);
 
   const casePayload = {
+    caseType: input.caseType ?? 'dispute',
     transactionId: input.transactionId,
     claimant: input.claimant,
     respondent: input.respondent ?? null,

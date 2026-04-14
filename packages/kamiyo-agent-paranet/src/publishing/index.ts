@@ -33,11 +33,16 @@ export class ParanetPublisher {
 
   async publishTaskCompletion(task: TaskCompletion): Promise<PublishResult> {
     const timer = createTimer();
-    const log = this.logger.child({ operation: 'publishTaskCompletion', provider: task.providerGlobalId });
+    const log = this.logger.child({
+      operation: 'publishTaskCompletion',
+      provider: task.providerGlobalId,
+    });
 
     const validation = TaskCompletionSchema.safeParse(task);
     if (!validation.success) {
-      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      const errorMsg = validation.error.issues
+        .map((i: { message: string }) => i.message)
+        .join(', ');
       log.warn('Validation failed', { error: errorMsg });
       return { success: false, error: `Validation failed: ${errorMsg}` };
     }
@@ -56,7 +61,10 @@ export class ParanetPublisher {
       log.info('Task completion published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
-      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
+      log.error('Publishing failed', {
+        duration: timer(),
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -66,11 +74,17 @@ export class ParanetPublisher {
 
   async publishCapabilityAttestation(attestation: CapabilityAttestation): Promise<PublishResult> {
     const timer = createTimer();
-    const log = this.logger.child({ operation: 'publishCapabilityAttestation', agent: attestation.agentGlobalId, capability: attestation.capability });
+    const log = this.logger.child({
+      operation: 'publishCapabilityAttestation',
+      agent: attestation.agentGlobalId,
+      capability: attestation.capability,
+    });
 
     const validation = CapabilityAttestationSchema.safeParse(attestation);
     if (!validation.success) {
-      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      const errorMsg = validation.error.issues
+        .map((i: { message: string }) => i.message)
+        .join(', ');
       log.warn('Validation failed', { error: errorMsg });
       return { success: false, error: `Validation failed: ${errorMsg}` };
     }
@@ -89,7 +103,10 @@ export class ParanetPublisher {
       log.info('Attestation published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
-      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
+      log.error('Publishing failed', {
+        duration: timer(),
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -99,11 +116,17 @@ export class ParanetPublisher {
 
   async publishTrustRelationship(trust: TrustRelationship): Promise<PublishResult> {
     const timer = createTimer();
-    const log = this.logger.child({ operation: 'publishTrustRelationship', trustor: trust.trustorGlobalId, trustee: trust.trusteeGlobalId });
+    const log = this.logger.child({
+      operation: 'publishTrustRelationship',
+      trustor: trust.trustorGlobalId,
+      trustee: trust.trusteeGlobalId,
+    });
 
     const validation = TrustRelationshipSchema.safeParse(trust);
     if (!validation.success) {
-      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      const errorMsg = validation.error.issues
+        .map((i: { message: string }) => i.message)
+        .join(', ');
       log.warn('Validation failed', { error: errorMsg });
       return { success: false, error: `Validation failed: ${errorMsg}` };
     }
@@ -122,7 +145,10 @@ export class ParanetPublisher {
       log.info('Trust published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
-      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
+      log.error('Publishing failed', {
+        duration: timer(),
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -140,7 +166,9 @@ export class ParanetPublisher {
 
     const validation = PoCHContributionSchema.safeParse(contribution);
     if (!validation.success) {
-      const errorMsg = validation.error.issues.map((i: { message: string }) => i.message).join(', ');
+      const errorMsg = validation.error.issues
+        .map((i: { message: string }) => i.message)
+        .join(', ');
       log.warn('Validation failed', { error: errorMsg });
       return { success: false, error: `Validation failed: ${errorMsg}` };
     }
@@ -159,7 +187,10 @@ export class ParanetPublisher {
       log.info('PoCH contribution published', { duration: timer(), ual: result.UAL });
       return { success: true, ual: result.UAL };
     } catch (error) {
-      log.error('Publishing failed', { duration: timer(), error: error instanceof Error ? error.message : String(error) });
+      log.error('Publishing failed', {
+        duration: timer(),
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Publishing failed',
@@ -237,8 +268,8 @@ export async function createDKGClient(config: ParanetConfig): Promise<DKGClient>
         privateKey: config.privateKey,
         ...(config.rpc ? { rpc: config.rpc } : {}),
       },
-      maxNumberOfRetries: 3,
-      frequency: 2,
+      maxNumberOfRetries: 30,
+      frequency: 5,
     });
 
     return dkg as DKGClient;

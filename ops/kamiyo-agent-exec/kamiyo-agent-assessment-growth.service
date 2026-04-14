@@ -1,0 +1,19 @@
+[Unit]
+Description=KAMIYO Agent Assessment Growth Run
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=openclaw
+Group=openclaw
+WorkingDirectory=__KAMIYO_APP_ROOT__
+EnvironmentFile=/etc/kamiyo/kamiyo-agent-exec.env
+ExecStart=/usr/local/bin/kamiyo-agent-assessment-growth auto
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077

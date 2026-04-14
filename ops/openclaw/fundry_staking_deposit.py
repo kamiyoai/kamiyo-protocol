@@ -20,7 +20,7 @@ def format_sol(value: float) -> str:
 
 
 def _bridge_script_path() -> Path:
-    return Path(__file__).resolve().parent / 'bridges' / 'kyoshin-fundry-staking-deposit.mjs'
+    return Path(__file__).resolve().parent / 'bridges' / 'kamiyo-agent-fundry-staking-deposit.mjs'
 
 
 def run_fundry_staking_deposit(

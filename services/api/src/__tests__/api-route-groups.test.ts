@@ -1,11 +1,14 @@
 import { once } from 'node:events';
-import { readdirSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import express, { Router } from 'express';
 import type * as RouteGroups from '../api/route-groups';
 
 let routeGroups: typeof RouteGroups;
+const originalDataDir = process.env.DATA_DIR;
+let tempDataDir = '';
 
 function getRouteGroups(): typeof RouteGroups {
   if (!routeGroups) {
@@ -19,9 +22,21 @@ const passThroughLimiter = Router();
 
 describe('api route ownership groups', () => {
   beforeAll(async () => {
+    tempDataDir = mkdtempSync(join(tmpdir(), 'kamiyo-route-groups-'));
     process.env.JWT_SECRET ??= 'test-jwt-secret';
     process.env.API_SECRET ??= 'test-api-secret';
+    process.env.DATA_DIR = tempDataDir;
     routeGroups = await import('../api/route-groups');
+  });
+
+  afterAll(() => {
+    if (originalDataDir === undefined) delete process.env.DATA_DIR;
+    else process.env.DATA_DIR = originalDataDir;
+
+    if (tempDataDir) {
+      rmSync(tempDataDir, { recursive: true, force: true });
+      tempDataDir = '';
+    }
   });
 
   it('builds a stable ownership collection for the api entrypoint', () => {
@@ -39,14 +54,20 @@ describe('api route ownership groups', () => {
     const groups = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter);
 
     expect(groups.length).toBeGreaterThan(0);
-    expect(groups.map((group) => group.path)).toContain('/verify');
-    expect(groups.map((group) => group.path)).toContain('/api/auth');
+    expect(groups.map(group => group.path)).toContain('/.well-known/x402');
+    expect(groups.map(group => group.path)).toContain('/verify');
+    expect(groups.map(group => group.path)).toContain('/api/auth');
   });
 
   it('keeps route paths unique across ownership groups', () => {
     const { createApiRouteGroupCollection } = getRouteGroups();
     const grouped = createApiRouteGroupCollection(passThroughLimiter);
-    const groups = [...grouped.protectedRoutes, ...grouped.kizunaCore, ...grouped.modules, ...grouped.legacy];
+    const groups = [
+      ...grouped.protectedRoutes,
+      ...grouped.kizunaCore,
+      ...grouped.modules,
+      ...grouped.legacy,
+    ];
 
     const seen = new Set<string>();
     for (const group of groups) {
@@ -60,7 +81,12 @@ describe('api route ownership groups', () => {
     const grouped = createApiRouteGroupCollection(passThroughLimiter);
     const ownershipByRouteId = new Map<string, Set<string>>();
 
-    for (const group of [...grouped.protectedRoutes, ...grouped.kizunaCore, ...grouped.modules, ...grouped.legacy]) {
+    for (const group of [
+      ...grouped.protectedRoutes,
+      ...grouped.kizunaCore,
+      ...grouped.modules,
+      ...grouped.legacy,
+    ]) {
       for (const routeId of group.routeIds) {
         const ownerships = ownershipByRouteId.get(routeId) ?? new Set<string>();
         ownerships.add(group.ownership);
@@ -75,15 +101,17 @@ describe('api route ownership groups', () => {
 
   it('keeps Kizuna core routes separate from retained legacy routes', () => {
     const { createKizunaCoreRouteGroups, createLegacyRouteGroups } = getRouteGroups();
-    const corePaths = createKizunaCoreRouteGroups(passThroughLimiter).map((group) => group.path);
-    const legacyPaths = createLegacyRouteGroups(passThroughLimiter).map((group) => group.path);
+    const corePaths = createKizunaCoreRouteGroups(passThroughLimiter).map(group => group.path);
+    const legacyPaths = createLegacyRouteGroups(passThroughLimiter).map(group => group.path);
 
     expect(corePaths).toContain('/api/credits');
     expect(corePaths).toContain('/api/paid');
     expect(corePaths).toContain('/api/partners/oobe');
+    expect(corePaths).toContain('/api/sap');
     expect(corePaths).toContain('/api/meishi');
     expect(corePaths).toContain('/api/dkg');
     expect(corePaths).toContain('/api/fusion/fairscale');
+    expect(corePaths).toContain('/api/reality-fork');
 
     expect(legacyPaths).toContain('/api/trust-graph');
     expect(legacyPaths).toContain('/api/paranet');
@@ -92,8 +120,10 @@ describe('api route ownership groups', () => {
 
   it('keeps Kizuna-powered module routes out of the legacy bucket', () => {
     const { createLegacyRouteGroups, createModuleRouteGroups } = getRouteGroups();
-    const modulePaths = createModuleRouteGroups().map((group) => group.path);
-    const legacyPaths = new Set(createLegacyRouteGroups(passThroughLimiter).map((group) => group.path));
+    const modulePaths = createModuleRouteGroups().map(group => group.path);
+    const legacyPaths = new Set(
+      createLegacyRouteGroups(passThroughLimiter).map(group => group.path)
+    );
 
     expect(modulePaths).toContain('/api/hive');
     expect(modulePaths).toContain('/api/hive-teams');
@@ -105,12 +135,8 @@ describe('api route ownership groups', () => {
   });
 
   it('accounts for every companion route file', () => {
-    const {
-      EDGE_ROUTE_IDS,
-      SUPPORT_ROUTE_IDS,
-      createApiRouteGroupCollection,
-      listOwnedRouteIds,
-    } = getRouteGroups();
+    const { EDGE_ROUTE_IDS, SUPPORT_ROUTE_IDS, createApiRouteGroupCollection, listOwnedRouteIds } =
+      getRouteGroups();
     const groups = createApiRouteGroupCollection(passThroughLimiter);
     const accounted = new Set([
       ...listOwnedRouteIds(groups),
@@ -120,22 +146,20 @@ describe('api route ownership groups', () => {
 
     const routeDir = resolve(process.cwd(), 'src/api/routes');
     const routeFiles = readdirSync(routeDir)
-      .filter((name) => name.endsWith('.ts'))
-      .filter((name) => !name.startsWith('_'))
-      .map((name) => name.replace(/\.ts$/, ''))
+      .filter(name => name.endsWith('.ts'))
+      .filter(name => !name.startsWith('_'))
+      .map(name => name.replace(/\.ts$/, ''))
       .sort();
 
     expect([...accounted].sort()).toEqual(routeFiles);
   });
 
   it('keeps edge and support route files outside owned buckets', () => {
-    const {
-      EDGE_ROUTE_IDS,
-      SUPPORT_ROUTE_IDS,
-      createApiRouteGroupCollection,
-      listOwnedRouteIds,
-    } = getRouteGroups();
-    const ownedRouteIds = new Set(listOwnedRouteIds(createApiRouteGroupCollection(passThroughLimiter)));
+    const { EDGE_ROUTE_IDS, SUPPORT_ROUTE_IDS, createApiRouteGroupCollection, listOwnedRouteIds } =
+      getRouteGroups();
+    const ownedRouteIds = new Set(
+      listOwnedRouteIds(createApiRouteGroupCollection(passThroughLimiter))
+    );
 
     for (const routeId of [...EDGE_ROUTE_IDS, ...SUPPORT_ROUTE_IDS]) {
       expect(ownedRouteIds.has(routeId)).toBe(false);
@@ -146,9 +170,16 @@ describe('api route ownership groups', () => {
     const { createApiRouteGroupCollection, createEdgeRouteGroups } = getRouteGroups();
     const grouped = createApiRouteGroupCollection(passThroughLimiter);
     const ownedPaths = new Set(
-      [...grouped.protectedRoutes, ...grouped.kizunaCore, ...grouped.modules, ...grouped.legacy].map((group) => group.path)
+      [
+        ...grouped.protectedRoutes,
+        ...grouped.kizunaCore,
+        ...grouped.modules,
+        ...grouped.legacy,
+      ].map(group => group.path)
     );
-    const edgePaths = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter).map((group) => group.path);
+    const edgePaths = createEdgeRouteGroups(passThroughLimiter, passThroughLimiter).map(
+      group => group.path
+    );
 
     for (const path of edgePaths) {
       expect(ownedPaths.has(path)).toBe(false);
@@ -163,7 +194,10 @@ describe('api route ownership groups', () => {
     } = getRouteGroups();
     const { getCompanionRuntimeState } = await import('../runtime-profile');
     const grouped = createApiRouteGroupCollection(passThroughLimiter);
-    const coreGrouped = createApiRouteGroupCollectionForRuntime(passThroughLimiter, getCompanionRuntimeState());
+    const coreGrouped = createApiRouteGroupCollectionForRuntime(
+      passThroughLimiter,
+      getCompanionRuntimeState()
+    );
 
     const coreOnly = getMountedApiRouteGroups(grouped, getCompanionRuntimeState());
     const full = getMountedApiRouteGroups(
@@ -171,14 +205,15 @@ describe('api route ownership groups', () => {
       getCompanionRuntimeState({ COMPANION_RUNTIME_PROFILE: 'full' } as NodeJS.ProcessEnv)
     );
 
-    const corePaths = coreOnly.map((group) => group.path);
-    const fullPaths = full.map((group) => group.path);
+    const corePaths = coreOnly.map(group => group.path);
+    const fullPaths = full.map(group => group.path);
 
     expect(coreGrouped.modules).toEqual([]);
     expect(coreGrouped.legacy).toEqual([]);
     expect(corePaths).toContain('/api/credits');
     expect(corePaths).toContain('/api/v1/chat');
     expect(corePaths).toContain('/api/fusion/fairscale');
+    expect(corePaths).toContain('/api/reality-fork');
     expect(corePaths).not.toContain('/api/hive');
 
     expect(fullPaths).toContain('/api/hive');

@@ -1,7 +1,8 @@
 // API middleware: auth, rate limiting, tier enforcement
 
 import { Request, Response, NextFunction } from 'express';
-import { verifyApiKey, JWTPayload } from './auth';
+import type { JWTPayload } from './auth';
+import { isJwtAuthConfigured, verifyApiKey } from './auth';
 import { logger } from '../logger';
 import { getApiRateLimit, incrementApiRateLimit, cleanupOldRateLimits } from '../db';
 
@@ -35,6 +36,16 @@ export function stopRateLimitCleanup(): void {
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (!isJwtAuthConfigured()) {
+    res.status(503).json({
+      error: {
+        code: 'AUTH_DISABLED',
+        message: 'Wallet authentication is not configured.',
+      },
+    });
+    return;
+  }
+
   // Extract token from header or query
   let token: string | undefined;
 

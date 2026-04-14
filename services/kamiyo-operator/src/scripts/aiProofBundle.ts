@@ -173,7 +173,7 @@ async function main() {
       ],
     };
 
-    const markdown = `# Kyoshin AI Proof Bundle
+    const markdown = `# Kamiyo Agent AI Proof Bundle
 
 Generated: ${nowIso}
 Mode: accelerated 24h qualification

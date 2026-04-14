@@ -47,6 +47,8 @@ services:
         value: "1500"
       - key: KIZUNA_KERNEL_FAIL_CLOSED
         value: "true"
+      - key: KIZUNA_KERNEL_PUBLIC_KEYS
+        sync: false
       - key: KIZUNA_KERNEL_SIGNING_KEYS
         sync: false
       - key: KIZUNA_ENTERPRISE_POOL_ID

@@ -1,32 +1,25 @@
+import { resolveAllowedTargetHosts } from './allowed-target-hosts';
+
 const DEFAULT_ALLOWED_TARGET_HOSTS = ['api.kamiyo.ai', 'x402.kamiyo.ai'] as const;
 
 export const OOBE_ALLOWED_TOOL_NAMES = [
+  'meishi_verify_agent',
+  'meishi_get_passport',
+  'meishi_get_mandate',
+  'meishi_get_audit',
   'x402_check_pricing',
   'x402_fetch',
-  'create_escrow',
-  'check_escrow_status',
+  'get_api_reputation',
+  'assess_data_quality',
+  'estimate_refund',
 ] as const;
 
 export type OobeAllowedToolName = (typeof OOBE_ALLOWED_TOOL_NAMES)[number];
 
-function normalizeHost(value: string): string | null {
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return null;
-
-  const withoutScheme = trimmed.replace(/^[a-z]+:\/\//, '');
-  const host = withoutScheme.split('/')[0]?.split(':')[0]?.trim();
-  return host || null;
-}
-
-export function getOobePartnerBearerToken(): string {
-  return process.env.OOBE_PARTNER_BEARER_TOKEN?.trim() || '';
+export function getOobePartnerApiKey(): string {
+  return process.env.OOBE_PARTNER_API_KEY?.trim() || process.env.OOBE_PARTNER_BEARER_TOKEN?.trim() || '';
 }
 
 export function getOobeAllowedTargetHosts(): string[] {
-  const configured = (process.env.OOBE_ALLOWED_TARGET_HOSTS || '')
-    .split(/[,\n]/)
-    .map((value) => normalizeHost(value))
-    .filter((value): value is string => Boolean(value));
-
-  return [...new Set([...DEFAULT_ALLOWED_TARGET_HOSTS, ...configured])];
+  return resolveAllowedTargetHosts(DEFAULT_ALLOWED_TARGET_HOSTS, process.env.OOBE_ALLOWED_TARGET_HOSTS);
 }

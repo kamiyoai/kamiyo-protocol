@@ -3,11 +3,7 @@
 import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import { logger } from '../../logger';
-import {
-  AgentParanetClient,
-  sparqlQueries,
-  scoreToTierName,
-} from '@kamiyo/agent-paranet';
+import { AgentParanetClient, sparqlQueries, scoreToTierName } from '@kamiyo/agent-paranet';
 
 const router: IRouter = Router();
 
@@ -17,24 +13,24 @@ type TrustType = 'general' | 'task-specific' | 'staked';
 
 interface TrustNode {
   id: string;
-  ual?: string;                // DKG Universal Asset Locator
+  ual?: string; // DKG Universal Asset Locator
   label: string;
   tier: Tier;
   reputation: number;
   txCount: number;
-  firstSeen?: string;          // ISO date
-  lastActive?: string;         // ISO date
-  verified?: boolean;          // On-chain proof exists
+  firstSeen?: string; // ISO date
+  lastActive?: string; // ISO date
+  verified?: boolean; // On-chain proof exists
 }
 
 interface TrustEdge {
-  source: string;              // Trustor (who is trusting)
-  target: string;              // Trustee (who is being trusted)
-  weight: number;              // 0-100 trust level
-  trustType?: TrustType;       // Type of trust relationship
-  capability?: string;         // Scoped capability for task-specific trust
-  stakeAmount?: number;        // Backing stake (for staked trust)
-  since?: string;              // ISO date when established
+  source: string; // Trustor (who is trusting)
+  target: string; // Trustee (who is being trusted)
+  weight: number; // 0-100 trust level
+  trustType?: TrustType; // Type of trust relationship
+  capability?: string; // Scoped capability for task-specific trust
+  stakeAmount?: number; // Backing stake (for staked trust)
+  since?: string; // ISO date when established
 }
 
 interface TrustGraphStats {
@@ -132,7 +128,11 @@ async function fetchGraphFromDKG(): Promise<GraphData> {
     const blockchain = getBlockchainId();
 
     // Query all providers with reputation data
-    const providerQuery = sparqlQueries.queryTopProviders({ limit: 100, minQuality: 0, minTasks: 0 });
+    const providerQuery = sparqlQueries.queryTopProviders({
+      limit: 100,
+      minQuality: 0,
+      minTasks: 0,
+    });
     const providerResult = await dkg.graph.query(providerQuery, 'SELECT', DKG_QUERY_OPTS);
 
     const nodes: TrustNode[] = [];
@@ -232,48 +232,311 @@ async function fetchGraphFromDKG(): Promise<GraphData> {
 
 // Mock trust graph data (fallback) with full semantic properties
 const MOCK_NODES: TrustNode[] = [
-  // Kyoshin - KAMIYO's official X bot, content creation specialist
-  { id: 'eip155:8453:nika_entity:0', ual: 'urn:dkg:base/8453:agent:nika_entity', label: 'Kyoshin', tier: 'sentinel', reputation: 78, txCount: 342, firstSeen: '2026-02-04T00:00:00Z', lastActive: '2026-02-07T20:00:00Z', verified: true },
-  { id: 'agent-001', ual: 'urn:dkg:base/8453:agent:agent-001', label: 'Oracle Agent', tier: 'oracle', reputation: 95, txCount: 1247, firstSeen: '2025-06-15T00:00:00Z', lastActive: '2026-02-07T12:00:00Z', verified: true },
-  { id: 'agent-002', ual: 'urn:dkg:base/8453:agent:agent-002', label: 'Data Fetcher', tier: 'sentinel', reputation: 82, txCount: 856, firstSeen: '2025-08-01T00:00:00Z', lastActive: '2026-02-07T10:00:00Z', verified: true },
-  { id: 'agent-003', ual: 'urn:dkg:base/8453:agent:agent-003', label: 'Price Bot', tier: 'sentinel', reputation: 78, txCount: 423, firstSeen: '2025-09-10T00:00:00Z', lastActive: '2026-02-06T18:00:00Z', verified: true },
-  { id: 'agent-004', ual: 'urn:dkg:base/8453:agent:agent-004', label: 'Arbitrage Scanner', tier: 'architect', reputation: 65, txCount: 312, firstSeen: '2025-10-20T00:00:00Z', lastActive: '2026-02-07T08:00:00Z', verified: true },
-  { id: 'agent-005', ual: 'urn:dkg:base/8453:agent:agent-005', label: 'Liquidity Monitor', tier: 'architect', reputation: 58, txCount: 234, firstSeen: '2025-11-05T00:00:00Z', lastActive: '2026-02-05T22:00:00Z', verified: true },
-  { id: 'agent-006', ual: 'urn:dkg:base/8453:agent:agent-006', label: 'Swap Executor', tier: 'scout', reputation: 42, txCount: 156, firstSeen: '2025-12-01T00:00:00Z', lastActive: '2026-02-07T14:00:00Z', verified: true },
-  { id: 'agent-007', ual: 'urn:dkg:base/8453:agent:agent-007', label: 'Alert Bot', tier: 'scout', reputation: 35, txCount: 89, firstSeen: '2026-01-10T00:00:00Z', lastActive: '2026-02-06T20:00:00Z', verified: true },
-  { id: 'agent-008', ual: 'urn:dkg:base/8453:agent:agent-008', label: 'Analytics Agent', tier: 'oracle', reputation: 92, txCount: 2103, firstSeen: '2025-05-01T00:00:00Z', lastActive: '2026-02-07T16:00:00Z', verified: true },
-  { id: 'agent-009', ual: 'urn:dkg:base/8453:agent:agent-009', label: 'Risk Assessor', tier: 'sentinel', reputation: 76, txCount: 567, firstSeen: '2025-07-15T00:00:00Z', lastActive: '2026-02-07T11:00:00Z', verified: true },
-  { id: 'agent-010', ual: 'urn:dkg:base/8453:agent:agent-010', label: 'Report Generator', tier: 'architect', reputation: 54, txCount: 178, firstSeen: '2025-11-20T00:00:00Z', lastActive: '2026-02-04T09:00:00Z', verified: true },
-  { id: 'agent-011', ual: 'urn:dkg:base/8453:agent:agent-011', label: 'New Agent', tier: 'ghost', reputation: 12, txCount: 5, firstSeen: '2026-02-01T00:00:00Z', lastActive: '2026-02-06T15:00:00Z', verified: false },
-  { id: 'agent-012', ual: 'urn:dkg:base/8453:agent:agent-012', label: 'Test Agent', tier: 'ghost', reputation: 8, txCount: 2, firstSeen: '2026-02-05T00:00:00Z', verified: false },
+  // Kamiyo Agent - KAMIYO's official X bot, content creation specialist
+  {
+    id: 'eip155:8453:nika_entity:0',
+    ual: 'urn:dkg:base/8453:agent:nika_entity',
+    label: 'Kamiyo Agent',
+    tier: 'sentinel',
+    reputation: 78,
+    txCount: 342,
+    firstSeen: '2026-02-04T00:00:00Z',
+    lastActive: '2026-02-07T20:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-001',
+    ual: 'urn:dkg:base/8453:agent:agent-001',
+    label: 'Oracle Agent',
+    tier: 'oracle',
+    reputation: 95,
+    txCount: 1247,
+    firstSeen: '2025-06-15T00:00:00Z',
+    lastActive: '2026-02-07T12:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-002',
+    ual: 'urn:dkg:base/8453:agent:agent-002',
+    label: 'Data Fetcher',
+    tier: 'sentinel',
+    reputation: 82,
+    txCount: 856,
+    firstSeen: '2025-08-01T00:00:00Z',
+    lastActive: '2026-02-07T10:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-003',
+    ual: 'urn:dkg:base/8453:agent:agent-003',
+    label: 'Price Bot',
+    tier: 'sentinel',
+    reputation: 78,
+    txCount: 423,
+    firstSeen: '2025-09-10T00:00:00Z',
+    lastActive: '2026-02-06T18:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-004',
+    ual: 'urn:dkg:base/8453:agent:agent-004',
+    label: 'Arbitrage Scanner',
+    tier: 'architect',
+    reputation: 65,
+    txCount: 312,
+    firstSeen: '2025-10-20T00:00:00Z',
+    lastActive: '2026-02-07T08:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-005',
+    ual: 'urn:dkg:base/8453:agent:agent-005',
+    label: 'Liquidity Monitor',
+    tier: 'architect',
+    reputation: 58,
+    txCount: 234,
+    firstSeen: '2025-11-05T00:00:00Z',
+    lastActive: '2026-02-05T22:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-006',
+    ual: 'urn:dkg:base/8453:agent:agent-006',
+    label: 'Swap Executor',
+    tier: 'scout',
+    reputation: 42,
+    txCount: 156,
+    firstSeen: '2025-12-01T00:00:00Z',
+    lastActive: '2026-02-07T14:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-007',
+    ual: 'urn:dkg:base/8453:agent:agent-007',
+    label: 'Alert Bot',
+    tier: 'scout',
+    reputation: 35,
+    txCount: 89,
+    firstSeen: '2026-01-10T00:00:00Z',
+    lastActive: '2026-02-06T20:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-008',
+    ual: 'urn:dkg:base/8453:agent:agent-008',
+    label: 'Analytics Agent',
+    tier: 'oracle',
+    reputation: 92,
+    txCount: 2103,
+    firstSeen: '2025-05-01T00:00:00Z',
+    lastActive: '2026-02-07T16:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-009',
+    ual: 'urn:dkg:base/8453:agent:agent-009',
+    label: 'Risk Assessor',
+    tier: 'sentinel',
+    reputation: 76,
+    txCount: 567,
+    firstSeen: '2025-07-15T00:00:00Z',
+    lastActive: '2026-02-07T11:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-010',
+    ual: 'urn:dkg:base/8453:agent:agent-010',
+    label: 'Report Generator',
+    tier: 'architect',
+    reputation: 54,
+    txCount: 178,
+    firstSeen: '2025-11-20T00:00:00Z',
+    lastActive: '2026-02-04T09:00:00Z',
+    verified: true,
+  },
+  {
+    id: 'agent-011',
+    ual: 'urn:dkg:base/8453:agent:agent-011',
+    label: 'New Agent',
+    tier: 'ghost',
+    reputation: 12,
+    txCount: 5,
+    firstSeen: '2026-02-01T00:00:00Z',
+    lastActive: '2026-02-06T15:00:00Z',
+    verified: false,
+  },
+  {
+    id: 'agent-012',
+    ual: 'urn:dkg:base/8453:agent:agent-012',
+    label: 'Test Agent',
+    tier: 'ghost',
+    reputation: 8,
+    txCount: 2,
+    firstSeen: '2026-02-05T00:00:00Z',
+    verified: false,
+  },
 ];
 
 // Mock edges with trust semantics - each edge is a TrustRelationship assertion
 // source TRUSTS target (directed endorsement)
 const MOCK_EDGES: TrustEdge[] = [
-  // Kyoshin's trust relationships
-  { source: 'agent-001', target: 'eip155:8453:nika_entity:0', weight: 75, trustType: 'task-specific', capability: 'content-creation', since: '2026-02-04T00:00:00Z' },
-  { source: 'agent-008', target: 'eip155:8453:nika_entity:0', weight: 70, trustType: 'general', since: '2026-02-05T00:00:00Z' },
-  { source: 'eip155:8453:nika_entity:0', target: 'agent-002', weight: 65, trustType: 'general', since: '2026-02-04T12:00:00Z' },
-  { source: 'eip155:8453:nika_entity:0', target: 'agent-009', weight: 60, trustType: 'task-specific', capability: 'risk-assessment', since: '2026-02-05T00:00:00Z' },
+  // Kamiyo Agent's trust relationships
+  {
+    source: 'agent-001',
+    target: 'eip155:8453:nika_entity:0',
+    weight: 75,
+    trustType: 'task-specific',
+    capability: 'content-creation',
+    since: '2026-02-04T00:00:00Z',
+  },
+  {
+    source: 'agent-008',
+    target: 'eip155:8453:nika_entity:0',
+    weight: 70,
+    trustType: 'general',
+    since: '2026-02-05T00:00:00Z',
+  },
+  {
+    source: 'eip155:8453:nika_entity:0',
+    target: 'agent-002',
+    weight: 65,
+    trustType: 'general',
+    since: '2026-02-04T12:00:00Z',
+  },
+  {
+    source: 'eip155:8453:nika_entity:0',
+    target: 'agent-009',
+    weight: 60,
+    trustType: 'task-specific',
+    capability: 'risk-assessment',
+    since: '2026-02-05T00:00:00Z',
+  },
   // Other agent relationships
-  { source: 'agent-001', target: 'agent-002', weight: 85, trustType: 'staked', stakeAmount: 5000, since: '2025-09-01T00:00:00Z' },
-  { source: 'agent-001', target: 'agent-008', weight: 92, trustType: 'general', since: '2025-07-01T00:00:00Z' },
-  { source: 'agent-002', target: 'agent-003', weight: 72, trustType: 'task-specific', capability: 'price-feed', since: '2025-10-15T00:00:00Z' },
-  { source: 'agent-002', target: 'agent-004', weight: 58, trustType: 'general', since: '2025-11-01T00:00:00Z' },
-  { source: 'agent-003', target: 'agent-006', weight: 45, trustType: 'task-specific', capability: 'swap-execution', since: '2026-01-05T00:00:00Z' },
-  { source: 'agent-004', target: 'agent-005', weight: 63, trustType: 'general', since: '2025-11-20T00:00:00Z' },
-  { source: 'agent-005', target: 'agent-006', weight: 38, trustType: 'general', since: '2025-12-10T00:00:00Z' },
-  { source: 'agent-006', target: 'agent-007', weight: 32, trustType: 'general', since: '2026-01-20T00:00:00Z' },
-  { source: 'agent-008', target: 'agent-009', weight: 78, trustType: 'staked', stakeAmount: 3000, since: '2025-08-15T00:00:00Z' },
-  { source: 'agent-008', target: 'agent-002', weight: 81, trustType: 'general', since: '2025-09-10T00:00:00Z' },
-  { source: 'agent-009', target: 'agent-010', weight: 55, trustType: 'task-specific', capability: 'reporting', since: '2025-12-01T00:00:00Z' },
-  { source: 'agent-009', target: 'agent-004', weight: 48, trustType: 'general', since: '2025-11-10T00:00:00Z' },
-  { source: 'agent-010', target: 'agent-007', weight: 28, trustType: 'general', since: '2026-01-25T00:00:00Z' },
-  { source: 'agent-001', target: 'agent-009', weight: 70, trustType: 'staked', stakeAmount: 2000, since: '2025-08-01T00:00:00Z' },
-  { source: 'agent-003', target: 'agent-005', weight: 52, trustType: 'general', since: '2025-11-25T00:00:00Z' },
-  { source: 'agent-011', target: 'agent-006', weight: 15, trustType: 'general', since: '2026-02-02T00:00:00Z' },
-  { source: 'agent-012', target: 'agent-011', weight: 10, trustType: 'general', since: '2026-02-06T00:00:00Z' },
+  {
+    source: 'agent-001',
+    target: 'agent-002',
+    weight: 85,
+    trustType: 'staked',
+    stakeAmount: 5000,
+    since: '2025-09-01T00:00:00Z',
+  },
+  {
+    source: 'agent-001',
+    target: 'agent-008',
+    weight: 92,
+    trustType: 'general',
+    since: '2025-07-01T00:00:00Z',
+  },
+  {
+    source: 'agent-002',
+    target: 'agent-003',
+    weight: 72,
+    trustType: 'task-specific',
+    capability: 'price-feed',
+    since: '2025-10-15T00:00:00Z',
+  },
+  {
+    source: 'agent-002',
+    target: 'agent-004',
+    weight: 58,
+    trustType: 'general',
+    since: '2025-11-01T00:00:00Z',
+  },
+  {
+    source: 'agent-003',
+    target: 'agent-006',
+    weight: 45,
+    trustType: 'task-specific',
+    capability: 'swap-execution',
+    since: '2026-01-05T00:00:00Z',
+  },
+  {
+    source: 'agent-004',
+    target: 'agent-005',
+    weight: 63,
+    trustType: 'general',
+    since: '2025-11-20T00:00:00Z',
+  },
+  {
+    source: 'agent-005',
+    target: 'agent-006',
+    weight: 38,
+    trustType: 'general',
+    since: '2025-12-10T00:00:00Z',
+  },
+  {
+    source: 'agent-006',
+    target: 'agent-007',
+    weight: 32,
+    trustType: 'general',
+    since: '2026-01-20T00:00:00Z',
+  },
+  {
+    source: 'agent-008',
+    target: 'agent-009',
+    weight: 78,
+    trustType: 'staked',
+    stakeAmount: 3000,
+    since: '2025-08-15T00:00:00Z',
+  },
+  {
+    source: 'agent-008',
+    target: 'agent-002',
+    weight: 81,
+    trustType: 'general',
+    since: '2025-09-10T00:00:00Z',
+  },
+  {
+    source: 'agent-009',
+    target: 'agent-010',
+    weight: 55,
+    trustType: 'task-specific',
+    capability: 'reporting',
+    since: '2025-12-01T00:00:00Z',
+  },
+  {
+    source: 'agent-009',
+    target: 'agent-004',
+    weight: 48,
+    trustType: 'general',
+    since: '2025-11-10T00:00:00Z',
+  },
+  {
+    source: 'agent-010',
+    target: 'agent-007',
+    weight: 28,
+    trustType: 'general',
+    since: '2026-01-25T00:00:00Z',
+  },
+  {
+    source: 'agent-001',
+    target: 'agent-009',
+    weight: 70,
+    trustType: 'staked',
+    stakeAmount: 2000,
+    since: '2025-08-01T00:00:00Z',
+  },
+  {
+    source: 'agent-003',
+    target: 'agent-005',
+    weight: 52,
+    trustType: 'general',
+    since: '2025-11-25T00:00:00Z',
+  },
+  {
+    source: 'agent-011',
+    target: 'agent-006',
+    weight: 15,
+    trustType: 'general',
+    since: '2026-02-02T00:00:00Z',
+  },
+  {
+    source: 'agent-012',
+    target: 'agent-011',
+    weight: 10,
+    trustType: 'general',
+    since: '2026-02-06T00:00:00Z',
+  },
 ];
 
 function computeStats(nodes: TrustNode[], edges: TrustEdge[]): TrustGraphStats {
@@ -289,9 +552,8 @@ function computeStats(nodes: TrustNode[], edges: TrustEdge[]): TrustGraphStats {
     tierCounts[node.tier]++;
   }
 
-  const avgTrust = edges.length > 0
-    ? Math.round(edges.reduce((sum, e) => sum + e.weight, 0) / edges.length)
-    : 0;
+  const avgTrust =
+    edges.length > 0 ? Math.round(edges.reduce((sum, e) => sum + e.weight, 0) / edges.length) : 0;
 
   return {
     totalNodes: nodes.length,
@@ -340,9 +602,7 @@ function filterGraphByDepth(
   }
 
   const filteredNodes = nodes.filter(n => visited.has(n.id));
-  const filteredEdges = edges.filter(
-    e => visited.has(e.source) && visited.has(e.target)
-  );
+  const filteredEdges = edges.filter(e => visited.has(e.source) && visited.has(e.target));
 
   return { nodes: filteredNodes, edges: filteredEdges };
 }
@@ -372,7 +632,9 @@ router.get('/', async (req: Request, res: Response) => {
       graphCache = null;
     }
 
-    let { nodes, edges, source } = await getCachedGraph();
+    const cachedGraph = await getCachedGraph();
+    const { source } = cachedGraph;
+    let { nodes, edges } = cachedGraph;
 
     // Filter by center node and depth if specified
     if (center) {
@@ -416,13 +678,13 @@ router.get('/node/:id', async (req: Request, res: Response) => {
   }
 
   // Find connected edges
-  const connections = edges.filter(
-    e => e.source === nodeId || e.target === nodeId
-  ).map(e => ({
-    ...e,
-    direction: e.source === nodeId ? 'outgoing' : 'incoming',
-    peerId: e.source === nodeId ? e.target : e.source,
-  }));
+  const connections = edges
+    .filter(e => e.source === nodeId || e.target === nodeId)
+    .map(e => ({
+      ...e,
+      direction: e.source === nodeId ? 'outgoing' : 'incoming',
+      peerId: e.source === nodeId ? e.target : e.source,
+    }));
 
   // Get peer node details
   const peers = connections.map(c => {
@@ -498,7 +760,14 @@ router.get('/image', async (_req: Request, res: Response) => {
   // Draw nodes
   for (const node of positioned) {
     const color = TIER_COLORS[node.tier];
-    const size = node.tier === 'oracle' ? 16 : node.tier === 'sentinel' ? 14 : node.tier === 'architect' ? 12 : 10;
+    const size =
+      node.tier === 'oracle'
+        ? 16
+        : node.tier === 'sentinel'
+          ? 14
+          : node.tier === 'architect'
+            ? 12
+            : 10;
     svg += `  <circle cx="${node.x}" cy="${node.y}" r="${size}" fill="${color}" filter="url(#glow)"/>\n`;
   }
 
@@ -635,12 +904,14 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
     const outgoing = edges.filter(e => e.source === agentId);
 
     // Calculate trust scores
-    const incomingTrust = incoming.length > 0
-      ? Math.round(incoming.reduce((sum, e) => sum + e.weight, 0) / incoming.length)
-      : 0;
-    const outgoingTrust = outgoing.length > 0
-      ? Math.round(outgoing.reduce((sum, e) => sum + e.weight, 0) / outgoing.length)
-      : 0;
+    const incomingTrust =
+      incoming.length > 0
+        ? Math.round(incoming.reduce((sum, e) => sum + e.weight, 0) / incoming.length)
+        : 0;
+    const outgoingTrust =
+      outgoing.length > 0
+        ? Math.round(outgoing.reduce((sum, e) => sum + e.weight, 0) / outgoing.length)
+        : 0;
 
     // Build peer list with full trust semantics
     const peers: AgentDetails['topPeers'] = [];
@@ -652,7 +923,7 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
           id: peer.id,
           label: peer.label,
           tier: peer.tier,
-          direction: 'incoming',  // They trust me
+          direction: 'incoming', // They trust me
           weight: edge.weight,
           trustType: edge.trustType,
           capability: edge.capability,
@@ -669,7 +940,7 @@ router.get('/agent/:id/details', async (req: Request, res: Response) => {
           id: peer.id,
           label: peer.label,
           tier: peer.tier,
-          direction: 'outgoing',  // I trust them
+          direction: 'outgoing', // I trust them
           weight: edge.weight,
           trustType: edge.trustType,
           capability: edge.capability,

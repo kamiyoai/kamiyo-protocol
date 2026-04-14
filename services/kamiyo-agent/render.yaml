@@ -1,0 +1,287 @@
+services:
+  - type: worker
+    name: kamiyo-agent-exec
+    runtime: node
+    rootDir: services/kamiyo-agent
+    buildCommand: pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: SOLANA_RPC_URL
+        value: https://api.mainnet-beta.solana.com
+      - key: SOLANA_RPC_FALLBACK_URLS
+        value: ""
+
+      - key: KAMIYO_OPERATOR_KEYPAIR_PATH
+        sync: false
+      - key: KAMIYO_OPERATOR_PRIVATE_KEY
+        sync: false
+
+      - key: KAMIYO_MODE
+        value: execute
+      - key: KAMIYO_EXECUTION_STAGE
+        value: canary_1
+      - key: KAMIYO_EXECUTION_HARD_STOP
+        value: "false"
+      - key: KAMIYO_RUN_ONCE
+        value: "false"
+      - key: KAMIYO_LOOP_INTERVAL_SECONDS
+        value: "180"
+
+      - key: KAMIYO_DB_PATH
+        value: output/kamiyo-agent/state.db
+      - key: KAMIYO_OUTBOX_DIR
+        value: output/kamiyo-agent/outbox
+
+      - key: KAMIYO_SOL_DAILY_CAP
+        value: "0.05"
+      - key: KAMIYO_SOL_PER_TX_CAP
+        value: "0.01"
+      - key: KAMIYO_MAX_TX_PER_DAY
+        value: "10"
+
+      - key: KAMIYO_SWARM_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_REGISTRY_PATH
+        value: output/kamiyo-operator/swarm.registry.json
+      - key: KAMIYO_SWARM_MISSIONS_PER_TICK
+        value: "3"
+      - key: KAMIYO_SWARM_MAX_ACTIVE_AGENTS
+        value: "5"
+
+      - key: KAMIYO_SWARM_JOB_INTAKE_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_JOB_FEED_PATH
+        value: output/kamiyo-operator/swarm.jobs.json
+      - key: KAMIYO_SWARM_JOB_FEED_URLS
+        value: ""
+
+      - key: KAMIYO_SWARM_RELEVANCE_FEED_URL
+        sync: false
+      - key: KAMIYO_SWARM_RELEVANCE_API_KEY
+        sync: false
+      - key: KAMIYO_SWARM_RELEVANCE_AUTH_HEADER
+        value: authorization
+
+      - key: KAMIYO_SWARM_AGENTAI_FEED_URL
+        sync: false
+      - key: KAMIYO_SWARM_AGENTAI_API_KEY
+        sync: false
+      - key: KAMIYO_SWARM_AGENTAI_AUTH_HEADER
+        value: authorization
+
+      - key: KAMIYO_SWARM_KORE_FEED_URL
+        sync: false
+      - key: KAMIYO_SWARM_KORE_API_KEY
+        sync: false
+      - key: KAMIYO_SWARM_KORE_AUTH_HEADER
+        value: authorization
+
+      - key: KAMIYO_SWARM_JOB_MAX_OPEN
+        value: "12"
+      - key: KAMIYO_SWARM_JOB_MIN_REWARD_USD
+        value: "5"
+      - key: KAMIYO_SWARM_SOL_PRICE_USD
+        value: "150"
+      - key: KAMIYO_SWARM_JOB_FETCH_TIMEOUT_MS
+        value: "8000"
+
+      - key: KAMIYO_SWARM_JOB_EXECUTION_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK
+        value: "1"
+      - key: KAMIYO_SWARM_JOB_HTTP_TIMEOUT_MS
+        value: "20000"
+      - key: KAMIYO_SWARM_JOB_MIN_MARGIN_SOL
+        value: "0.0005"
+      - key: KAMIYO_SWARM_JOB_ESTIMATED_FEE_SOL
+        value: "0.00001"
+      - key: KAMIYO_SWARM_JOB_REQUIRE_EXPECTED_REWARD
+        value: "true"
+      - key: KAMIYO_SWARM_INTAKE_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_INTAKE_MAX_OPEN
+        value: "16"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_LIMIT
+        value: "4"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_BASE_SECONDS
+        value: "120"
+      - key: KAMIYO_SWARM_INTAKE_RETRY_MAX_SECONDS
+        value: "3600"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_MAX_PER_TICK
+        value: "6"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_DEFAULT_PAYOUT_USD
+        value: "12"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_REQUIRE_ENDPOINT
+        value: "true"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_SIMULATE_ONLY
+        value: "false"
+      - key: KAMIYO_SWARM_LEAD_CONVERSION_MIN_CONFIDENCE
+        value: "0.6"
+      - key: KAMIYO_SWARM_LEAD_CONTRACT_VALIDATION
+        value: "true"
+
+      - key: KAMIYO_SWARM_X402_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_X402_MAX_PRICE_USD
+        value: "2"
+      - key: KAMIYO_SWARM_X402_PREFERRED_NETWORK
+        value: solana:mainnet
+      - key: KAMIYO_SWARM_X402_FACILITATOR_POLICY
+        value: prefer-kamiyo
+
+      - key: KAMIYO_SWARM_CIRCUIT_BREAKER_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_CIRCUIT_NEG_MARGIN_STREAK
+        value: "3"
+      - key: KAMIYO_SWARM_CIRCUIT_COOLDOWN_MINUTES
+        value: "180"
+      - key: KAMIYO_SWARM_CIRCUIT_STATE_KEEP_DAYS
+        value: "30"
+
+      - key: KAMIYO_SWARM_ROLLBACK_ENABLED
+        value: "true"
+      - key: KAMIYO_SWARM_ROLLBACK_EVAL_INTERVAL_HOURS
+        value: "24"
+      - key: KAMIYO_SWARM_ROLLBACK_WINDOW_DAYS
+        value: "7"
+      - key: KAMIYO_SWARM_ROLLBACK_NET_SOL_TRIGGER
+        value: "-0.02"
+      - key: KAMIYO_SWARM_ROLLBACK_RECOVERY_NET_SOL
+        value: "0"
+      - key: KAMIYO_SWARM_ROLLBACK_MIN_JOBS
+        value: "5"
+      - key: KAMIYO_SWARM_ROLLBACK_SOURCE_MIN_JOBS
+        value: "2"
+      - key: KAMIYO_SWARM_ROLLBACK_MAX_DISABLED_SOURCES
+        value: "2"
+      - key: KAMIYO_SWARM_ROLLBACK_COOLDOWN_HOURS
+        value: "24"
+      - key: KAMIYO_REVENUE_POLICY_ENABLED
+        value: "true"
+      - key: KAMIYO_REVENUE_SETTLE_INTERVAL_MINUTES
+        value: "30"
+      - key: KAMIYO_REVENUE_MIN_NET_SOL
+        value: "0.001"
+      - key: KAMIYO_REVENUE_ROUTE_BPS
+        value: "7000"
+      - key: KAMIYO_REVENUE_RESERVE_BPS
+        value: "2000"
+      - key: KAMIYO_REVENUE_OPERATIONS_BPS
+        value: "1000"
+      - key: KAMIYO_SELF_IMPROVE_ENABLED
+        value: "true"
+      - key: KAMIYO_SELF_IMPROVE_INTERVAL_MINUTES
+        value: "60"
+      - key: KAMIYO_SELF_IMPROVE_WINDOW_HOURS
+        value: "24"
+      - key: KAMIYO_SELF_IMPROVE_MIN_JOBS
+        value: "10"
+      - key: KAMIYO_SELF_IMPROVE_FAIL_RATE_UPPER
+        value: "0.35"
+      - key: KAMIYO_SELF_IMPROVE_FAIL_RATE_LOWER
+        value: "0.1"
+      - key: KAMIYO_SELF_IMPROVE_MARGIN_STEP_SOL
+        value: "0.0002"
+      - key: KAMIYO_SELF_IMPROVE_MIN_MARGIN_FLOOR_SOL
+        value: "0.0002"
+      - key: KAMIYO_SELF_IMPROVE_MAX_EXECUTIONS_PER_TICK
+        value: "4"
+      - key: KAMIYO_INSIGHT_EXTRACTION_ENABLED
+        value: "false"
+      - key: KAMIYO_TICK_CHECKPOINT_ENABLED
+        value: "false"
+      - key: KAMIYO_TICK_CHECKPOINT_MAX_STALE_MS
+        value: "600000"
+      - key: KAMIYO_STREAMING_EVENTS_ENABLED
+        value: "false"
+      - key: KAMIYO_EVENTS_SSE_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_MEMORY_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_MEMORY_MAX_PER_TYPE
+        value: "20"
+      - key: KAMIYO_AGENT_MEMORY_INJECTION_LIMIT
+        value: "5"
+      - key: KAMIYO_MANDATE_CLASSIFICATION_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENTIC_LOOP_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENTIC_LOOP_MAX_TURNS
+        value: "3"
+      - key: KAMIYO_AGENTIC_LOOP_BUDGET_SOL
+        value: "0.005"
+      - key: KAMIYO_AGENTIC_LOOP_TIMEOUT_MS
+        value: "30000"
+      - key: KAMIYO_AGENTIC_LOOP_API_KEY
+        sync: false
+      - key: KAMIYO_AGENTIC_LOOP_BASE_URL
+        value: ""
+      - key: KAMIYO_AGENTIC_LOOP_MODEL
+        value: gpt-4o-mini
+      - key: KAMIYO_AGENTIC_LOOP_MAX_TOKENS
+        value: "4096"
+      - key: KAMIYO_AGENTIC_LOOP_MAX_COST_USD
+        value: "0.05"
+      - key: KAMIYO_AGENTIC_LOOP_LLM_TIMEOUT_MS
+        value: "45000"
+      - key: KAMIYO_AGENT_TEAMS_ENABLED
+        value: "false"
+      - key: KAMIYO_AGENT_TEAMS_REQUIRE_SCOUT
+        value: "false"
+      - key: KAMIYO_AGENT_TEAMS_REQUIRE_VERIFIER
+        value: "false"
+
+      - key: KAMIYO_FEE_VAULT
+        sync: false
+      - key: KAMIYO_AUTO_CLAIM_ENABLED
+        value: "true"
+      - key: KAMIYO_AUTO_CLAIM_MIN_LAMPORTS
+        value: "1000000"
+
+      - key: KAMIYO_STAKING_POOL
+        value: 9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d
+      - key: KAMIYO_ALLOWED_STAKING_POOLS
+        value: 9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d
+      - key: KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST
+        value: "true"
+      - key: KAMIYO_AUTO_STAKE_ENABLED
+        value: "true"
+      - key: KAMIYO_AUTO_STAKE_MIN_LAMPORTS
+        value: "50000000"
+      - key: KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS
+        value: "200000000"
+      - key: KAMIYO_AUTO_STAKE_AVAILABLE_BPS
+        value: "1500"
+      - key: KAMIYO_AUTO_STAKE_MAX_LAMPORTS_PER_TX
+        value: "25000000"
+      - key: KAMIYO_AUTO_STAKE_MAX_FEEDS_PER_DAY
+        value: "24"
+
+      - key: KAMIYO_AGENT_STAKING_POOL
+        sync: false
+      - key: KAMIYO_AGENT_CLAIMER_KEYPAIR_PATH
+        sync: false
+      - key: KAMIYO_AGENT_CLAIMER_PRIVATE_KEY
+        sync: false
+      - key: KAMIYO_AGENT_AUTO_CLAIM_ENABLED
+        value: "true"
+      - key: KAMIYO_AGENT_AUTO_CLAIM_MIN_LAMPORTS
+        value: "0"
+      - key: KAMIYO_AGENT_AUTO_CLAIM_MAX_PERIODS_PER_RUN
+        value: "8"
+      - key: KAMIYO_FUNDRY_API_BASE_URL
+        value: https://fundry.collaterize.com
+
+      - key: KAMIYO_AGENT_HTTP_ENABLED
+        value: "true"
+      - key: KAMIYO_AGENT_HTTP_HOST
+        value: 0.0.0.0
+      - key: KAMIYO_AGENT_HTTP_PORT
+        value: "4020"
+      - key: KAMIYO_AGENT_HTTP_TOKEN
+        sync: false
