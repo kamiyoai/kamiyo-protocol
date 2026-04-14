@@ -28,7 +28,7 @@ Set in agent config or environment:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DKG_ENDPOINT` | DKG node URL | `https://positron.origin-trail.network` |
+| `DKG_ENDPOINT` | DKG node URL | `https://your-dkg-node.example.com` |
 | `DKG_PORT` | DKG node port | `8900` |
 | `DKG_BLOCKCHAIN` | Chain (base:8453, gnosis:100, otp:2043) | `base:8453` |
 | `DKG_PRIVATE_KEY` | Signing key for DKG transactions | required |

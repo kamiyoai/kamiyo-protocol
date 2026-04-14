@@ -18,7 +18,7 @@
       "DKG_ENDPOINT": {
         "type": "string",
         "description": "DKG node endpoint URL",
-        "default": "https://positron.origin-trail.network"
+        "default": "https://your-dkg-node.example.com"
       },
       "DKG_PORT": {
         "type": "number",

@@ -13,5 +13,20 @@
     "declaration": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/hive-agent.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/__tests__",
+    "src/hive-agent.ts",
+    "src/api/routes/arena.ts",
+    "src/api/routes/sap.ts",
+    "src/arena-sap.ts",
+    "src/arena-solana.ts",
+    "src/arena.ts",
+    "src/sap-registration.ts",
+    "src/sap-x402-runtime.ts",
+    "src/sap-x402.ts",
+    "src/sap.ts",
+    "src/x402-runtime.ts"
+  ]
 }

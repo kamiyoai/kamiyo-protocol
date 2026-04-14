@@ -23,6 +23,9 @@ import {
   swarmRunsTotal,
 } from '../metrics';
 import type { SwarmDagPlan, SwarmTeamMember } from './types';
+import { recordAgentPerformance } from '../agent-performance';
+import { scheduleGradeSwarmRun } from '../agent-grader';
+import { logger } from '../logger';
 
 const taskExecutorConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -864,6 +867,53 @@ export async function executeSwarmRun(
   }
 
   if (executionMode === 'execute') {
+    const kirokuReceiptId = kiroku.ok ? kiroku.receipt : null;
+    for (const node of options.plan.nodes) {
+      const nodeResult = dagResult.nodes[node.id];
+      if (!nodeResult) continue;
+      const member = memberById.get(node.memberId);
+      if (!member) continue;
+      const outcome: 'completed' | 'failed' | 'skipped' =
+        nodeResult.status === 'completed'
+          ? 'completed'
+          : nodeResult.status === 'skipped'
+            ? 'skipped'
+            : 'failed';
+      const nodeCost =
+        nodeResult.status === 'completed'
+          ? ((nodeResult.output as { amountDrawn?: number } | undefined)?.amountDrawn ?? 0)
+          : 0;
+      const latencyMs =
+        nodeResult.startedAtMs && nodeResult.completedAtMs
+          ? Math.max(0, nodeResult.completedAtMs - nodeResult.startedAtMs)
+          : 0;
+      try {
+        recordAgentPerformance({
+          agentId: member.agentId,
+          runId,
+          nodeId: node.id,
+          taskType: member.role || 'swarm.node',
+          cost: nodeCost,
+          latencyMs,
+          outcome,
+          receiptId: kirokuReceiptId,
+          metadata: {
+            teamId: options.teamId,
+            memberId: member.id,
+            budget: node.budget,
+          },
+        });
+      } catch (err) {
+        logger.warn('recordAgentPerformance failed', {
+          err: err instanceof Error ? err.message : String(err),
+          runId,
+          nodeId: node.id,
+        });
+      }
+    }
+
+    scheduleGradeSwarmRun(runId);
+
     const completedNodes = options.plan.nodes.filter(
       node => dagResult.nodes[node.id]?.status === 'completed'
     ).length;

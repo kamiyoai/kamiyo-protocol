@@ -4,39 +4,38 @@ import { agentService } from '../services/agents.js';
 
 export const earningsRouter = new Hono();
 
-earningsRouter.get('/agent/:agentId', (c) => {
+earningsRouter.get('/agent/:agentId', async (c) => {
   const agentId = c.req.param('agentId');
   const status = c.req.query('status');
 
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  let earnings = earningsService.getByAgent(agentId);
-
+  let earnings = await earningsService.getByAgent(agentId);
   if (status) {
-    earnings = earnings.filter(e => e.status === status);
+    earnings = earnings.filter((earning) => earning.status === status);
   }
 
   return c.json({ earnings });
 });
 
-earningsRouter.get('/agent/:agentId/stats', (c) => {
+earningsRouter.get('/agent/:agentId/stats', async (c) => {
   const agentId = c.req.param('agentId');
 
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  const stats = earningsService.getStats(agentId);
+  const stats = await earningsService.getStats(agentId);
   return c.json({ stats });
 });
 
-earningsRouter.get('/:id', (c) => {
+earningsRouter.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const earning = earningsService.getById(id);
+  const earning = await earningsService.getById(id);
 
   if (!earning) {
     return c.json({ error: 'Earning not found' }, 404);
@@ -45,16 +44,16 @@ earningsRouter.get('/:id', (c) => {
   return c.json({ earning });
 });
 
-earningsRouter.get('/agent/:agentId/pending', (c) => {
+earningsRouter.get('/agent/:agentId/pending', async (c) => {
   const agentId = c.req.param('agentId');
 
-  const agent = agentService.getById(agentId);
+  const agent = await agentService.getById(agentId);
   if (!agent) {
     return c.json({ error: 'Agent not found' }, 404);
   }
 
-  const pending = earningsService.getPending(agentId);
-  const total = earningsService.getTotalPending(agentId);
+  const pending = await earningsService.getPending(agentId);
+  const total = await earningsService.getTotalPending(agentId);
 
   return c.json({ earnings: pending, total });
 });

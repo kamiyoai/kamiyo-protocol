@@ -291,8 +291,14 @@ async function main() {
   }
 
   const rpc = process.env.BASE_RPC || 'https://mainnet.base.org';
+  const dkgEndpoint = process.env.DKG_ENDPOINT;
+  if (!dkgEndpoint) {
+    console.error('DKG_ENDPOINT env var required');
+    process.exit(1);
+  }
+
   const config: ParanetConfig & { rpc: string } = {
-    dkgEndpoint: process.env.DKG_ENDPOINT || 'https://positron.origin-trail.network',
+    dkgEndpoint,
     dkgPort: parseInt(process.env.DKG_PORT || '8900', 10),
     blockchain: 'base:8453',
     privateKey,

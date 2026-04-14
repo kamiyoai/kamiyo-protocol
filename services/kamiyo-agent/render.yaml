@@ -244,9 +244,9 @@ services:
         value: "1000000"
 
       - key: KAMIYO_STAKING_POOL
-        sync: false
+        value: 9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d
       - key: KAMIYO_ALLOWED_STAKING_POOLS
-        value: ""
+        value: 9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d
       - key: KAMIYO_REQUIRE_STAKING_POOL_ALLOWLIST
         value: "true"
       - key: KAMIYO_AUTO_STAKE_ENABLED

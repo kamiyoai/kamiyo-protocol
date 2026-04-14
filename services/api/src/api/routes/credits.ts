@@ -4,10 +4,12 @@ import { Router, Request, Response } from 'express';
 import type { Router as IRouter } from 'express-serve-static-core';
 import { Connection, PublicKey } from '@solana/web3.js';
 import {
+  debitCreditsInternal,
   getCreditAccount,
   getCreditBalance,
   getCreditDeposits,
   getCreditUsage,
+  getCreditInternalDebit,
   depositCredits,
   kamiyoToCredits,
   creditsToUsd,
@@ -22,6 +24,11 @@ import { getCreditsCapability } from '../../core-capabilities';
 const router: IRouter = Router();
 
 const TRANSFER_TOLERANCE = 0.99; // allow 1% slippage when matching sender
+const INTERNAL_TOKEN =
+  process.env.KIZUNA_INTERNAL_TOKEN?.trim() ||
+  process.env.COMPANY_INTERNAL_TOKEN?.trim() ||
+  process.env.COMPANION_INTERNAL_TOKEN?.trim() ||
+  '';
 
 let connection: Connection | null = null;
 
@@ -33,6 +40,32 @@ function isValidSolanaAddress(addr: string): boolean {
   } catch {
     return false;
   }
+}
+
+function requireInternalToken(req: Request, res: Response): boolean {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'Missing authorization header' },
+    });
+    return false;
+  }
+
+  if (!INTERNAL_TOKEN || authHeader.slice(7).trim() !== INTERNAL_TOKEN) {
+    res.status(401).json({
+      error: { code: 'UNAUTHORIZED', message: 'Invalid authorization token' },
+    });
+    return false;
+  }
+
+  return true;
+}
+
+function parsePositiveInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isSafeInteger(value) && value > 0) return value;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 export function initCreditsRoutes(): void {
@@ -75,6 +108,108 @@ router.get('/balance', (req: Request, res: Response) => {
     totalDeposited: account ? creditsToUsd(account.total_deposited_micro) : 0,
     totalSpent: account ? creditsToUsd(account.total_spent_micro) : 0,
   });
+});
+
+router.get('/internal/balance', (req: Request, res: Response) => {
+  if (!requireInternalToken(req, res)) return;
+
+  const wallet = req.query.wallet as string;
+  if (!wallet || !isValidSolanaAddress(wallet)) {
+    res.status(400).json({
+      error: { code: 'INVALID_WALLET', message: 'Valid Solana address required' },
+    });
+    return;
+  }
+
+  res.json({
+    wallet,
+    balanceMicro: String(getCreditBalance(wallet)),
+  });
+});
+
+router.post('/internal/debit', (req: Request, res: Response) => {
+  if (!requireInternalToken(req, res)) return;
+
+  const wallet = typeof req.body?.wallet === 'string' ? req.body.wallet.trim() : '';
+  const amountMicro = parsePositiveInteger(req.body?.amountMicro);
+  const endpoint = typeof req.body?.endpoint === 'string' ? req.body.endpoint.trim() : '';
+  const referenceId = typeof req.body?.referenceId === 'string' ? req.body.referenceId.trim() : '';
+  const description =
+    typeof req.body?.description === 'string' && req.body.description.trim() !== ''
+      ? req.body.description.trim()
+      : undefined;
+
+  if (!wallet || !isValidSolanaAddress(wallet)) {
+    res.status(400).json({
+      error: { code: 'INVALID_WALLET', message: 'Valid Solana address required' },
+    });
+    return;
+  }
+
+  if (!amountMicro || !endpoint || !referenceId) {
+    res.status(400).json({
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'wallet, amountMicro, endpoint, and referenceId are required',
+      },
+    });
+    return;
+  }
+
+  const existing = getCreditInternalDebit(referenceId);
+  if (
+    existing &&
+    (existing.wallet !== wallet ||
+      existing.amount_micro !== amountMicro ||
+      existing.endpoint !== endpoint)
+  ) {
+    res.status(409).json({
+      error: {
+        code: 'REFERENCE_CONFLICT',
+        message: 'referenceId already exists for a different debit request',
+      },
+    });
+    return;
+  }
+
+  try {
+    const debit = debitCreditsInternal({
+      wallet,
+      amountMicro,
+      endpoint,
+      referenceId,
+      description,
+    });
+
+    if (!debit) {
+      res.status(402).json({
+        error: {
+          code: 'INSUFFICIENT_CREDITS',
+          message: 'Insufficient balance for debit request',
+        },
+      });
+      return;
+    }
+
+    res.json({
+      wallet,
+      debitedMicro: String(debit.debitedMicro),
+      balanceMicro: String(debit.balanceMicro),
+      idempotent: debit.idempotent,
+    });
+  } catch (error) {
+    if ((error as Error).message === 'credit_internal_reference_conflict') {
+      res.status(409).json({
+        error: {
+          code: 'REFERENCE_CONFLICT',
+          message: 'referenceId already exists for a different debit request',
+        },
+      });
+      return;
+    }
+
+    throw error;
+  }
 });
 
 router.post('/verify', async (req: Request, res: Response) => {

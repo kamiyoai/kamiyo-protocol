@@ -10,7 +10,13 @@ import type { CompanionRuntimeState } from '../../runtime-profile';
 export type { ApiRouteGroup, ApiRouteGroupCollection, ApiRouteOwnership } from './types';
 export type { ApiEdgeRouteGroup } from './edge';
 export { EDGE_ROUTE_IDS, createEdgeRouteGroups, mountEdgeRouteGroups } from './edge';
-export const SUPPORT_ROUTE_IDS = ['hive-swarm', 'poch-store'] as const;
+export const SUPPORT_ROUTE_IDS = [
+  'hive-swarm',
+  'poch-store',
+  'agent-performance',
+  'company',
+  'internal-revenue',
+] as const;
 
 function createOwnershipHeaders(ownership: ApiRouteGroup['ownership']): RequestHandler {
   return (_req: Request, res: Response, next: NextFunction) => {
