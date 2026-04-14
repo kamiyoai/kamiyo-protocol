@@ -91,7 +91,7 @@
   },
   "devDependencies": {
     "@types/bs58": "^5.0.0",
-    "@types/node": "^20.19.24",
+    "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
     "eslint": "^8.57.0",
