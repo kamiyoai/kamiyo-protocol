@@ -8,6 +8,7 @@ import {
   validateGenome,
 } from './genome';
 import { sampleNormal, sampleStats, welchPTwoSided, welchT, type SampleStats } from './stats';
+import { variantsCreatedTotal, variantEntriesTotal, variantPromotionsTotal } from '../metrics';
 
 export type VariantStatus = 'active' | 'archived' | 'promoted';
 
@@ -96,6 +97,10 @@ export function createVariant(input: CreateVariantInput): AgentVariant {
   );
 
   const row = db.prepare('SELECT * FROM agent_variants WHERE id = ?').get(id) as VariantRow;
+  variantsCreatedTotal.inc({
+    task_type: input.taskType,
+    kind: input.parentId ? 'fork' : 'root',
+  });
   return rowToVariant(row);
 }
 
@@ -218,11 +223,12 @@ export function thompsonSample(variants: AgentVariant[]): AgentVariant | null {
   for (const v of variants) {
     const scores = getVariantScores(v.id);
     const stats = sampleStats(scores);
-    const successes = stats.mean * stats.n;
-    const failures = stats.n - successes;
+    const successes = Math.max(0, stats.mean * stats.n);
+    const failures = Math.max(0, stats.n - successes);
     const alpha = 1 + successes;
     const betaParam = 1 + failures;
-    const draw = beta(alpha, betaParam);
+    let draw = beta(alpha, betaParam);
+    if (!Number.isFinite(draw)) draw = Math.random();
     if (!best || draw > best.draw) best = { v, draw };
   }
   return best ? best.v : null;
@@ -277,20 +283,39 @@ export function evaluateAndPromote(
     if (!best || stats.mean > best.stats.mean) best = { variant: candidate, stats, p };
   }
 
-  if (!best) return { promoted: false, reason: 'no candidate meets threshold' };
+  if (!best) {
+    variantPromotionsTotal.inc({ task_type: taskType, result: 'skipped' });
+    return { promoted: false, reason: 'no candidate meets threshold' };
+  }
 
   const now = Math.trunc(Date.now() / 1000);
   const eventId = randomUUID();
 
-  const tx = db.transaction(() => {
+  type PromoteTx = { ok: true } | { ok: false; reason: string };
+
+  const tx = db.transaction<() => PromoteTx>(() => {
+    const raceCheck = db
+      .prepare(
+        `SELECT id FROM agent_variants WHERE task_type = ? AND status = 'promoted' ORDER BY promoted_at DESC LIMIT 1`
+      )
+      .get(taskType) as { id: string } | undefined;
+    if ((raceCheck?.id ?? null) !== (currentDefault?.id ?? null)) {
+      return { ok: false, reason: 'baseline changed during evaluation' };
+    }
+    const candidateRow = db
+      .prepare(`SELECT status FROM agent_variants WHERE id = ?`)
+      .get(best!.variant.id) as { status: VariantStatus } | undefined;
+    if (candidateRow?.status !== 'active') {
+      return { ok: false, reason: 'candidate no longer active' };
+    }
+
     if (currentDefault) {
-      db.prepare(`UPDATE agent_variants SET status = 'archived', archived_at = ? WHERE id = ?`).run(
-        now,
-        currentDefault.id
-      );
+      db.prepare(
+        `UPDATE agent_variants SET status = 'archived', archived_at = ? WHERE id = ? AND status = 'promoted'`
+      ).run(now, currentDefault.id);
     }
     db.prepare(
-      `UPDATE agent_variants SET status = 'promoted', promoted_at = ?, sample_count = ?, rep_score = ? WHERE id = ?`
+      `UPDATE agent_variants SET status = 'promoted', promoted_at = ?, sample_count = ?, rep_score = ? WHERE id = ? AND status = 'active'`
     ).run(now, best!.stats.n, best!.stats.mean, best!.variant.id);
 
     db.prepare(
@@ -307,9 +332,16 @@ export function evaluateAndPromote(
       }),
       options.receiptId ?? null
     );
+    return { ok: true };
   });
-  tx();
 
+  const result = tx();
+  if (!result.ok) {
+    variantPromotionsTotal.inc({ task_type: taskType, result: 'race' });
+    return { promoted: false, reason: result.reason };
+  }
+
+  variantPromotionsTotal.inc({ task_type: taskType, result: 'promoted' });
   return {
     promoted: true,
     variantId: best.variant.id,
@@ -321,6 +353,8 @@ export function evaluateAndPromote(
   };
 }
 
+export type RecordEntryResult = { ok: true; totalCost: number } | { ok: false; error: string };
+
 export function recordTournamentEntry(params: {
   tournamentId: string;
   variantId: string;
@@ -329,28 +363,72 @@ export function recordTournamentEntry(params: {
   cost?: number | null;
   latencyMs?: number | null;
   outcome?: string | null;
-}): void {
-  db.prepare(
-    `INSERT INTO variant_tournament_entries
-      (tournament_id, variant_id, performance_event_id, quality_score, cost, latency_ms, outcome)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    params.tournamentId,
-    params.variantId,
-    params.performanceEventId ?? null,
-    params.qualityScore ?? null,
-    params.cost ?? null,
-    params.latencyMs ?? null,
-    params.outcome ?? null
-  );
-
+}): RecordEntryResult {
   if (typeof params.qualityScore === 'number') {
-    const scores = getVariantScores(params.variantId);
-    const stats = sampleStats(scores);
-    db.prepare(`UPDATE agent_variants SET sample_count = ?, rep_score = ? WHERE id = ?`).run(
-      stats.n,
-      stats.mean,
-      params.variantId
-    );
+    if (!Number.isFinite(params.qualityScore)) {
+      variantEntriesTotal.inc({ result: 'invalid' });
+      return { ok: false, error: 'qualityScore must be finite' };
+    }
+    if (params.qualityScore < 0 || params.qualityScore > 1) {
+      variantEntriesTotal.inc({ result: 'invalid' });
+      return { ok: false, error: 'qualityScore out of [0,1]' };
+    }
   }
+  const cost =
+    typeof params.cost === 'number' && Number.isFinite(params.cost) ? Math.max(0, params.cost) : 0;
+
+  const tx = db.transaction<() => RecordEntryResult>(() => {
+    const tournament = db
+      .prepare(`SELECT status, budget_cap FROM variant_tournaments WHERE id = ?`)
+      .get(params.tournamentId) as { status: string; budget_cap: number } | undefined;
+    if (!tournament) return { ok: false, error: 'tournament not found' };
+    if (tournament.status === 'completed' || tournament.status === 'failed') {
+      return { ok: false, error: 'tournament already finalized' };
+    }
+
+    const variant = db.prepare(`SELECT id FROM agent_variants WHERE id = ?`).get(params.variantId);
+    if (!variant) return { ok: false, error: 'variant not found' };
+
+    const totalsRow = db
+      .prepare(
+        `SELECT COALESCE(SUM(cost), 0) AS total FROM variant_tournament_entries WHERE tournament_id = ?`
+      )
+      .get(params.tournamentId) as { total: number };
+    const projected = totalsRow.total + cost;
+    if (tournament.budget_cap > 0 && projected > tournament.budget_cap) {
+      return { ok: false, error: 'budget cap exceeded' };
+    }
+
+    db.prepare(
+      `INSERT INTO variant_tournament_entries
+        (tournament_id, variant_id, performance_event_id, quality_score, cost, latency_ms, outcome)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      params.tournamentId,
+      params.variantId,
+      params.performanceEventId ?? null,
+      typeof params.qualityScore === 'number' ? params.qualityScore : null,
+      cost,
+      typeof params.latencyMs === 'number' && Number.isFinite(params.latencyMs)
+        ? Math.max(0, Math.trunc(params.latencyMs))
+        : null,
+      typeof params.outcome === 'string' ? params.outcome : null
+    );
+
+    if (typeof params.qualityScore === 'number') {
+      const scores = getVariantScores(params.variantId);
+      const stats = sampleStats(scores);
+      db.prepare(`UPDATE agent_variants SET sample_count = ?, rep_score = ? WHERE id = ?`).run(
+        stats.n,
+        stats.mean,
+        params.variantId
+      );
+    }
+
+    return { ok: true, totalCost: projected };
+  });
+
+  const out = tx();
+  variantEntriesTotal.inc({ result: out.ok ? 'ok' : 'rejected' });
+  return out;
 }

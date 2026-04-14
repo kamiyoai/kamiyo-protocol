@@ -371,6 +371,35 @@ export const swarmActiveNodes = new Gauge({
   registers: [registry],
 });
 
+// Variant evolution metrics
+export const variantsCreatedTotal = new Counter({
+  name: 'variants_created_total',
+  help: 'Agent variants created',
+  labelNames: ['task_type', 'kind'] as const,
+  registers: [registry],
+});
+
+export const variantEntriesTotal = new Counter({
+  name: 'variant_tournament_entries_total',
+  help: 'Tournament entries recorded',
+  labelNames: ['result'] as const,
+  registers: [registry],
+});
+
+export const variantPromotionsTotal = new Counter({
+  name: 'variant_promotions_total',
+  help: 'Variant promotion attempts',
+  labelNames: ['task_type', 'result'] as const,
+  registers: [registry],
+});
+
+export const variantTournamentsTotal = new Counter({
+  name: 'variant_tournaments_total',
+  help: 'Tournaments created',
+  labelNames: ['task_type'] as const,
+  registers: [registry],
+});
+
 // Staking referral growth metrics
 export const stakingReferralSyncTotal = new Counter({
   name: 'staking_referral_sync_total',

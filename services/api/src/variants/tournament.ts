@@ -2,10 +2,12 @@ import { randomUUID } from 'crypto';
 import db from '../db';
 import {
   type AgentVariant,
+  type RecordEntryResult,
   listActiveVariants,
   recordTournamentEntry,
   thompsonSample,
 } from './service';
+import { variantTournamentsTotal } from '../metrics';
 
 export type TournamentStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -58,6 +60,8 @@ export function createTournament(opts: TournamentOptions): Tournament {
     if (idx >= 0) pool.splice(idx, 1);
   }
 
+  variantTournamentsTotal.inc({ task_type: opts.taskType });
+
   return {
     id,
     taskType: opts.taskType,
@@ -71,16 +75,37 @@ export function createTournament(opts: TournamentOptions): Tournament {
   };
 }
 
+const ALLOWED_TRANSITIONS: Record<TournamentStatus, TournamentStatus[]> = {
+  pending: ['running', 'failed'],
+  running: ['completed', 'failed'],
+  completed: [],
+  failed: [],
+};
+
+export type MarkStatusResult = { ok: true } | { ok: false; error: string };
+
 export function markTournamentStatus(
   id: string,
   status: TournamentStatus,
   winnerVariantId?: string | null
-): void {
+): MarkStatusResult {
+  const row = db.prepare(`SELECT status FROM variant_tournaments WHERE id = ?`).get(id) as
+    | { status: TournamentStatus }
+    | undefined;
+  if (!row) return { ok: false, error: 'tournament not found' };
+  if (!ALLOWED_TRANSITIONS[row.status].includes(status)) {
+    return { ok: false, error: `invalid transition ${row.status} → ${status}` };
+  }
   const completedAt =
     status === 'completed' || status === 'failed' ? Math.trunc(Date.now() / 1000) : null;
   db.prepare(
-    `UPDATE variant_tournaments SET status = ?, winner_variant_id = COALESCE(?, winner_variant_id), completed_at = COALESCE(?, completed_at) WHERE id = ?`
-  ).run(status, winnerVariantId ?? null, completedAt, id);
+    `UPDATE variant_tournaments
+       SET status = ?,
+           winner_variant_id = COALESCE(?, winner_variant_id),
+           completed_at = COALESCE(?, completed_at)
+     WHERE id = ? AND status = ?`
+  ).run(status, winnerVariantId ?? null, completedAt, id, row.status);
+  return { ok: true };
 }
 
 export function recordParticipantResult(params: {
@@ -91,8 +116,8 @@ export function recordParticipantResult(params: {
   cost?: number | null;
   latencyMs?: number | null;
   outcome?: string | null;
-}): void {
-  recordTournamentEntry(params);
+}): RecordEntryResult {
+  return recordTournamentEntry(params);
 }
 
 export function getTournament(id: string): Tournament | null {

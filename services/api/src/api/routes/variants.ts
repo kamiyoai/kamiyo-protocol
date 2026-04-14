@@ -118,7 +118,12 @@ router.post(
       res.status(400).json({ error: 'invalid status' });
       return;
     }
-    markTournamentStatus(req.params.id, status, req.body?.winnerVariantId ?? null);
+    const result = markTournamentStatus(req.params.id, status, req.body?.winnerVariantId ?? null);
+    if (!result.ok) {
+      const code = result.error === 'tournament not found' ? 404 : 409;
+      res.status(code).json({ error: result.error });
+      return;
+    }
     res.json({ ok: true });
   }
 );
@@ -133,7 +138,7 @@ router.post(
       res.status(400).json({ error: 'variantId required' });
       return;
     }
-    recordParticipantResult({
+    const result = recordParticipantResult({
       tournamentId: req.params.id,
       variantId,
       performanceEventId: body.performanceEventId ?? null,
@@ -142,7 +147,13 @@ router.post(
       latencyMs: typeof body.latencyMs === 'number' ? body.latencyMs : null,
       outcome: typeof body.outcome === 'string' ? body.outcome : null,
     });
-    res.json({ ok: true, totalCost: totalTournamentCost(req.params.id) });
+    if (!result.ok) {
+      const code =
+        result.error === 'tournament not found' || result.error === 'variant not found' ? 404 : 409;
+      res.status(code).json({ error: result.error });
+      return;
+    }
+    res.json({ ok: true, totalCost: result.totalCost });
   }
 );
 
