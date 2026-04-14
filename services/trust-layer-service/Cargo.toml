@@ -14,6 +14,6 @@ rdkafka = { version = "0.39", features = ["cmake-build", "tokio"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio-rustls"] }
-tokio = { version = "1.39", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio = { version = "1.51", features = ["macros", "rt-multi-thread", "signal", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
