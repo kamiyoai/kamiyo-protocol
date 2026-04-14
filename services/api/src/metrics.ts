@@ -400,6 +400,29 @@ export const variantTournamentsTotal = new Counter({
   registers: [registry],
 });
 
+// Judge metrics
+export const judgeCallsTotal = new Counter({
+  name: 'judge_calls_total',
+  help: 'LLM-as-judge invocations',
+  labelNames: ['task_type', 'result'] as const,
+  registers: [registry],
+});
+
+export const judgeLatency = new Histogram({
+  name: 'judge_latency_seconds',
+  help: 'Judge call latency',
+  labelNames: ['task_type', 'cache'] as const,
+  buckets: [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+  registers: [registry],
+});
+
+export const judgeCostUsd = new Counter({
+  name: 'judge_cost_usd_total',
+  help: 'Cumulative judge cost in USD',
+  labelNames: ['task_type'] as const,
+  registers: [registry],
+});
+
 // Staking referral growth metrics
 export const stakingReferralSyncTotal = new Counter({
   name: 'staking_referral_sync_total',

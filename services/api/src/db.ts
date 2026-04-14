@@ -1873,6 +1873,43 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_variant_events_variant ON variant_events(variant_id, created_at);
 
+  CREATE TABLE IF NOT EXISTS task_rubrics (
+    task_type TEXT PRIMARY KEY,
+    rubric TEXT NOT NULL,
+    weights_json TEXT,
+    model_id TEXT NOT NULL DEFAULT 'claude-haiku-4-5-20251001',
+    daily_budget_usd REAL NOT NULL DEFAULT 5.0,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE TABLE IF NOT EXISTS judge_cache (
+    cache_key TEXT PRIMARY KEY,
+    task_type TEXT NOT NULL,
+    score REAL NOT NULL,
+    rationale TEXT,
+    model_id TEXT NOT NULL,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    latency_ms INTEGER,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_judge_cache_task ON judge_cache(task_type, created_at);
+
+  CREATE TABLE IF NOT EXISTS judge_runs (
+    id TEXT PRIMARY KEY,
+    task_type TEXT NOT NULL,
+    variant_id TEXT,
+    cache_hit INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    score REAL,
+    cost_usd REAL NOT NULL DEFAULT 0,
+    latency_ms INTEGER,
+    error TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_judge_runs_task_day ON judge_runs(task_type, created_at);
+
   CREATE TABLE IF NOT EXISTS counterfactual_cases (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,

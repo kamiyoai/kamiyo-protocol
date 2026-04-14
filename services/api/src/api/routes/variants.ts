@@ -14,6 +14,7 @@ import {
   recordParticipantResult,
   totalTournamentCost,
 } from '../../variants/tournament';
+import { getRubric, recordJudgedEntry, upsertRubric } from '../../variants/judge';
 
 const router = Router();
 
@@ -180,5 +181,69 @@ router.post('/variants/promote/:taskType', requireInternalToken, (req: Request, 
   });
   res.json(result);
 });
+
+router.get('/variants/rubrics/:taskType', (req: Request, res: Response) => {
+  const rubric = getRubric(req.params.taskType);
+  if (!rubric) {
+    res.status(404).json({ error: 'rubric not found' });
+    return;
+  }
+  res.json(rubric);
+});
+
+router.put('/variants/rubrics/:taskType', requireInternalToken, (req: Request, res: Response) => {
+  try {
+    const body = req.body ?? {};
+    const rubric = upsertRubric({
+      taskType: req.params.taskType,
+      rubric: String(body.rubric ?? ''),
+      weights:
+        typeof body.weights === 'object' && body.weights !== null
+          ? (body.weights as Record<string, number>)
+          : null,
+      modelId: typeof body.modelId === 'string' ? body.modelId : undefined,
+      dailyBudgetUsd: typeof body.dailyBudgetUsd === 'number' ? body.dailyBudgetUsd : undefined,
+    });
+    res.json(rubric);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'invalid rubric' });
+  }
+});
+
+router.post(
+  '/variants/tournaments/:id/judged-entries',
+  requireInternalToken,
+  async (req: Request, res: Response) => {
+    const body = req.body ?? {};
+    const variantId = typeof body.variantId === 'string' ? body.variantId : '';
+    const input = typeof body.input === 'string' ? body.input : '';
+    const output = typeof body.output === 'string' ? body.output : '';
+    if (!variantId || !input || !output) {
+      res.status(400).json({ error: 'variantId, input, output required' });
+      return;
+    }
+    const result = await recordJudgedEntry({
+      tournamentId: req.params.id,
+      variantId,
+      input,
+      output,
+      performanceEventId: body.performanceEventId ?? null,
+      latencyMs: typeof body.latencyMs === 'number' ? body.latencyMs : null,
+      outcome: typeof body.outcome === 'string' ? body.outcome : null,
+      costOverride: typeof body.cost === 'number' ? body.cost : null,
+    });
+    if (!result.ok) {
+      const code =
+        result.error === 'variant not found' || result.error === 'tournament not found'
+          ? 404
+          : result.error === 'daily budget exhausted'
+            ? 429
+            : 409;
+      res.status(code).json({ error: result.error });
+      return;
+    }
+    res.json(result);
+  }
+);
 
 export default router;
