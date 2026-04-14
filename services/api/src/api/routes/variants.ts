@@ -15,6 +15,12 @@ import {
   totalTournamentCost,
 } from '../../variants/tournament';
 import { getRubric, recordJudgedEntry, upsertRubric } from '../../variants/judge';
+import {
+  getOrCreateStandingTournament,
+  isBanditRoutingEnabled,
+  routeVariant,
+  sweepPromotions,
+} from '../../variants/bandit';
 
 const router = Router();
 
@@ -245,5 +251,42 @@ router.post(
     res.json(result);
   }
 );
+
+router.get('/variants/route/:taskType', (req: Request, res: Response) => {
+  const taskType = req.params.taskType?.trim();
+  if (!taskType) {
+    res.status(400).json({ error: 'taskType required' });
+    return;
+  }
+  if (!isBanditRoutingEnabled()) {
+    res.status(503).json({ error: 'bandit routing disabled' });
+    return;
+  }
+  const agentId = typeof req.query.agentId === 'string' ? req.query.agentId : undefined;
+  const decision = routeVariant(taskType, { agentId });
+  if (!decision) {
+    res.status(404).json({ error: 'no variants available' });
+    return;
+  }
+  res.json(decision);
+});
+
+router.get('/variants/standing-tournament/:taskType', (req: Request, res: Response) => {
+  const taskType = req.params.taskType?.trim();
+  if (!taskType) {
+    res.status(400).json({ error: 'taskType required' });
+    return;
+  }
+  res.json(getOrCreateStandingTournament(taskType));
+});
+
+router.post('/variants/sweep', requireInternalToken, async (req: Request, res: Response) => {
+  const body = req.body ?? {};
+  const results = await sweepPromotions({
+    minSamples: typeof body.minSamples === 'number' ? body.minSamples : undefined,
+    pThreshold: typeof body.pThreshold === 'number' ? body.pThreshold : undefined,
+  });
+  res.json({ results });
+});
 
 export default router;

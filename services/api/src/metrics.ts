@@ -423,6 +423,21 @@ export const judgeCostUsd = new Counter({
   registers: [registry],
 });
 
+// Bandit routing metrics
+export const banditDecisionsTotal = new Counter({
+  name: 'bandit_decisions_total',
+  help: 'Variant routing decisions',
+  labelNames: ['task_type', 'strategy', 'result'] as const,
+  registers: [registry],
+});
+
+export const banditSweepPromotionsTotal = new Counter({
+  name: 'bandit_sweep_promotions_total',
+  help: 'Sweep-cycle promotion outcomes',
+  labelNames: ['task_type', 'result'] as const,
+  registers: [registry],
+});
+
 // Staking referral growth metrics
 export const stakingReferralSyncTotal = new Counter({
   name: 'staking_referral_sync_total',
