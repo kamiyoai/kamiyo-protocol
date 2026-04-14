@@ -10,6 +10,9 @@ import { publishKirokuDrop } from '../../kiroku';
 import { emitFairscaleFusionEvent } from '../../fairscale-fusion-emitter';
 import { acquireSwarmNodeSlot, clampMaxParallel, getSwarmGlobalActiveNodes, swarmRuntimeConfig } from '../../swarm/runtime';
 import { swarmActiveNodes, swarmNodeDuration, swarmNodesTotal, swarmRunDuration, swarmRunsTotal } from '../../metrics';
+import { recordAgentPerformance } from '../../agent-performance';
+import { scheduleGradeSwarmRun } from '../../agent-grader';
+import { logger } from '../../logger';
 
 const taskExecutorConfig = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -538,6 +541,42 @@ async function executeSwarmRun(options: {
     `).run(kiroku.error, runId);
   }
 
+  const kirokuReceiptId = kiroku.ok ? kiroku.receipt : null;
+  for (const n of options.plan.nodes) {
+    const r = dagResult.nodes[n.id];
+    if (!r) continue;
+    const member = memberById.get(n.memberId);
+    if (!member) continue;
+    const outcome: 'completed' | 'failed' | 'skipped' =
+      r.status === 'completed' ? 'completed' : r.status === 'skipped' ? 'skipped' : 'failed';
+    const cost = r.status === 'completed' ? ((r.output as any)?.amountDrawn ?? 0) : 0;
+    const latencyMs =
+      r.startedAtMs && r.completedAtMs ? Math.max(0, r.completedAtMs - r.startedAtMs) : 0;
+    try {
+      recordAgentPerformance({
+        agentId: member.agentId,
+        runId,
+        nodeId: n.id,
+        taskType: member.role || 'swarm.node',
+        cost,
+        latencyMs,
+        outcome,
+        receiptId: kirokuReceiptId,
+        metadata: {
+          teamId: options.teamId,
+          memberId: member.id,
+          budget: n.budget,
+        },
+      });
+    } catch (err) {
+      logger.warn('recordAgentPerformance failed', {
+        err: err instanceof Error ? err.message : String(err),
+        runId,
+        nodeId: n.id,
+      });
+    }
+  }
+
   const completedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'completed').length;
   const failedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'failed').length;
   const skippedNodes = options.plan.nodes.filter((node) => dagResult.nodes[node.id]?.status === 'skipped').length;
@@ -568,6 +607,8 @@ async function executeSwarmRun(options: {
       kirokuReceipt: kiroku.ok ? kiroku.receipt : null,
     },
   });
+
+  scheduleGradeSwarmRun(runId);
 
   return {
     runId,

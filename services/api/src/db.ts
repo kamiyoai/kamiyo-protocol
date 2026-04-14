@@ -1498,6 +1498,40 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run ON swarm_run_nodes(run_id);
   CREATE INDEX IF NOT EXISTS idx_swarm_run_nodes_run_status ON swarm_run_nodes(run_id, status);
+
+  CREATE TABLE IF NOT EXISTS agent_performance_events (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    run_id TEXT,
+    node_id TEXT,
+    task_type TEXT NOT NULL,
+    cost REAL NOT NULL DEFAULT 0,
+    latency_ms INTEGER NOT NULL DEFAULT 0,
+    quality_score REAL,
+    quality_rationale TEXT,
+    graded_by TEXT,
+    receipt_id TEXT,
+    reputation_delta REAL,
+    outcome TEXT NOT NULL,
+    metadata_json TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_perf_agent_created ON agent_performance_events(agent_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_agent_perf_task_score ON agent_performance_events(task_type, quality_score);
+  CREATE INDEX IF NOT EXISTS idx_agent_perf_run ON agent_performance_events(run_id);
+
+  CREATE TABLE IF NOT EXISTS agent_reputation (
+    agent_id TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    sample_count INTEGER NOT NULL DEFAULT 0,
+    ewma_score REAL NOT NULL DEFAULT 0,
+    ewma_cost REAL NOT NULL DEFAULT 0,
+    ewma_latency_ms REAL NOT NULL DEFAULT 0,
+    last_event_id TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (agent_id, task_type)
+  );
 `);
 
 // Migration: add owner_wallet column if it doesn't exist
