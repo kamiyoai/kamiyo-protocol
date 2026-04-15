@@ -22,7 +22,9 @@ describe('companion runtime profile', () => {
   });
 
   it('enables module and legacy workers only in full profile', () => {
-    expect(getCompanionRuntimeState({ COMPANION_RUNTIME_PROFILE: 'full' } as NodeJS.ProcessEnv)).toEqual({
+    expect(
+      getCompanionRuntimeState({ COMPANION_RUNTIME_PROFILE: 'full' } as NodeJS.ProcessEnv)
+    ).toEqual({
       profile: 'full',
       routeSurface: 'full',
       backgroundOwnerships: ['kizuna-core', 'module', 'legacy'],
@@ -61,6 +63,32 @@ describe('companion runtime profile', () => {
       moduleRoutesEnabled: false,
       legacyRoutesEnabled: false,
     });
+  });
+
+  it('runs module backgrounds only in engagement-only profile with a narrowed surface', () => {
+    expect(
+      getCompanionRuntimeState({
+        COMPANION_RUNTIME_PROFILE: 'engagement-only',
+      } as NodeJS.ProcessEnv)
+    ).toEqual({
+      profile: 'engagement-only',
+      routeSurface: 'kizuna-core',
+      backgroundOwnerships: ['kizuna-core', 'module'],
+      routeOwnerships: ['protected', 'kizuna-core'],
+      moduleBackgroundsEnabled: true,
+      legacyBackgroundsEnabled: false,
+      moduleRoutesEnabled: false,
+      legacyRoutesEnabled: false,
+    });
+  });
+
+  it('ignores a widened route surface in engagement-only profile', () => {
+    expect(
+      getCompanionRuntimeState({
+        COMPANION_RUNTIME_PROFILE: 'engagement-only',
+        COMPANION_ROUTE_SURFACE: 'full',
+      } as NodeJS.ProcessEnv).routeSurface
+    ).toBe('kizuna-core');
   });
 
   it('does not let kizuna-core mode widen the public surface', () => {
@@ -115,7 +143,12 @@ describe('api version runtime metadata', () => {
 
       const response = await fetch(`http://127.0.0.1:${address.port}/version`);
       const body = (await response.json()) as {
-        runtime: { profile: string; routeSurface: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
+        runtime: {
+          profile: string;
+          routeSurface: string;
+          backgroundOwnerships: string[];
+          routeOwnerships: string[];
+        };
         capabilities: {
           credits: { enabled: boolean; state: string; reason: string | null };
           x402: { enabled: boolean; state: string; reason: string | null };
@@ -127,7 +160,12 @@ describe('api version runtime metadata', () => {
       expect(body.runtime.profile).toBe('full');
       expect(body.runtime.routeSurface).toBe('full');
       expect(body.runtime.backgroundOwnerships).toEqual(['kizuna-core', 'module', 'legacy']);
-      expect(body.runtime.routeOwnerships).toEqual(['protected', 'kizuna-core', 'module', 'legacy']);
+      expect(body.runtime.routeOwnerships).toEqual([
+        'protected',
+        'kizuna-core',
+        'module',
+        'legacy',
+      ]);
       expect(body.capabilities.credits).toMatchObject({
         enabled: false,
         state: 'disabled',
@@ -208,7 +246,7 @@ describe('api version runtime metadata', () => {
       expect(response.status).toBe(200);
       expect(response.headers.get('x-kamiyo-route-ownership')).toBe('edge');
       expect(body.version).toBe(2);
-      expect(body.resources.map((resource) => resource.path)).toEqual(
+      expect(body.resources.map(resource => resource.path)).toEqual(
         expect.arrayContaining(['/api/paid/chat', '/api/paid/market', '/api/sap/execute'])
       );
       expect(body.links.sapMetadata).toContain('/api/sap/metadata');
@@ -239,7 +277,12 @@ describe('api version runtime metadata', () => {
       const moduleRoute = await fetch(`${baseUrl}/api/hive/health`);
       const legacyRoute = await fetch(`${baseUrl}/api/fusion/fairscale/health`);
       const body = (await version.json()) as {
-        runtime: { profile: string; routeSurface: string; backgroundOwnerships: string[]; routeOwnerships: string[] };
+        runtime: {
+          profile: string;
+          routeSurface: string;
+          backgroundOwnerships: string[];
+          routeOwnerships: string[];
+        };
       };
 
       expect(version.status).toBe(200);

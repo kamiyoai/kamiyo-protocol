@@ -1,4 +1,4 @@
-export type CompanionRuntimeProfile = 'kizuna-core' | 'full';
+export type CompanionRuntimeProfile = 'kizuna-core' | 'full' | 'engagement-only';
 export type CompanionRouteSurface = 'kizuna-core' | 'full';
 export type CompanionRuntimeOwnership = 'kizuna-core' | 'module' | 'legacy';
 export type CompanionRouteOwnership = 'protected' | 'kizuna-core' | 'module' | 'legacy';
@@ -16,10 +16,10 @@ export interface CompanionRuntimeState {
 
 const DEFAULT_PROFILE: CompanionRuntimeProfile = 'kizuna-core';
 
-export function resolveCompanionRuntimeProfile(
-  value: string | undefined
-): CompanionRuntimeProfile {
-  return value === 'full' ? 'full' : DEFAULT_PROFILE;
+export function resolveCompanionRuntimeProfile(value: string | undefined): CompanionRuntimeProfile {
+  if (value === 'full') return 'full';
+  if (value === 'engagement-only') return 'engagement-only';
+  return DEFAULT_PROFILE;
 }
 
 export function resolveCompanionRouteSurface(
@@ -27,7 +27,7 @@ export function resolveCompanionRouteSurface(
   profile: CompanionRuntimeProfile
 ): CompanionRouteSurface {
   if (profile !== 'full') {
-    return DEFAULT_PROFILE;
+    return 'kizuna-core';
   }
 
   return value === 'kizuna-core' ? 'kizuna-core' : 'full';
@@ -57,6 +57,19 @@ export function getCompanionRuntimeState(
       legacyBackgroundsEnabled: true,
       moduleRoutesEnabled: routeSurface === 'full',
       legacyRoutesEnabled: routeSurface === 'full',
+    };
+  }
+
+  if (profile === 'engagement-only') {
+    return {
+      profile,
+      routeSurface,
+      backgroundOwnerships: ['kizuna-core', 'module'],
+      routeOwnerships: getRouteOwnerships(routeSurface),
+      moduleBackgroundsEnabled: true,
+      legacyBackgroundsEnabled: false,
+      moduleRoutesEnabled: false,
+      legacyRoutesEnabled: false,
     };
   }
 
