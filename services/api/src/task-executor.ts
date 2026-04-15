@@ -7,30 +7,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages';
 import { createRequire } from 'module';
 import OpenAI from 'openai';
-import { isBanditRoutingEnabled, routeVariant, type RouteDecision } from './variants/bandit';
-
-function maybeRouteVariant(taskType: string): RouteDecision | null {
-  if (!isBanditRoutingEnabled()) return null;
-  try {
-    return routeVariant(taskType);
-  } catch {
-    return null;
-  }
-}
-
-function toVariantDecisionMeta(decision: RouteDecision): {
-  variantId: string;
-  tournamentId: string;
-  decisionId: string;
-  strategy: RouteDecision['strategy'];
-} {
-  return {
-    variantId: decision.variant.id,
-    tournamentId: decision.tournamentId,
-    decisionId: decision.decisionId,
-    strategy: decision.strategy,
-  };
-}
+import { maybeRouteVariant, toVariantDecisionMeta } from './variants/routing';
 
 type TaskInput = {
   taskId: string;
