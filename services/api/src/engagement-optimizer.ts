@@ -9,10 +9,26 @@ import { ENGAGEMENT_CONFIG, TIMING, THRESHOLDS } from './config';
 import { getUnrespondedTweets, markTweetResponded, InfluencerTweet } from './influencer-monitor';
 import { selfReview } from './approval';
 import { QueuedPost } from './autonomous';
-import { isRateLimited, recordRateLimit, recordSuccess, canWrite, waitForWrite, recordWrite } from './rate-limiter';
+import {
+  isRateLimited,
+  recordRateLimit,
+  recordSuccess,
+  canWrite,
+  waitForWrite,
+  recordWrite,
+} from './rate-limiter';
 import { forwardToTelegram } from './telegram-forward';
+import { maybeRouteVariant, applyGenomeOverrides, recordVariantEntry } from './variants/routing';
 
-const { proactiveRepliesEnabled, autoReplyEnabled, autoReplyMinScore, maxRepliesPerHour, maxQuotesPerDay } = ENGAGEMENT_CONFIG;
+const TWEET_REPLY_TASK_TYPE = 'tweet_reply';
+
+const {
+  proactiveRepliesEnabled,
+  autoReplyEnabled,
+  autoReplyMinScore,
+  maxRepliesPerHour,
+  maxQuotesPerDay,
+} = ENGAGEMENT_CONFIG;
 
 // Track reply/quote counts
 interface RateLimitState {
@@ -51,8 +67,12 @@ function loadRateState(): RateLimitState {
   const { hourMs, dayMs } = TIMING;
 
   // Get saved state
-  const hourStartRow = db.prepare('SELECT value FROM rate_state WHERE key = ?').get('hour_start') as { value: string } | undefined;
-  const dayStartRow = db.prepare('SELECT value FROM rate_state WHERE key = ?').get('day_start') as { value: string } | undefined;
+  const hourStartRow = db
+    .prepare('SELECT value FROM rate_state WHERE key = ?')
+    .get('hour_start') as { value: string } | undefined;
+  const dayStartRow = db.prepare('SELECT value FROM rate_state WHERE key = ?').get('day_start') as
+    | { value: string }
+    | undefined;
 
   let hourStart = hourStartRow ? parseInt(hourStartRow.value, 10) : now;
   let dayStart = dayStartRow ? parseInt(dayStartRow.value, 10) : now;
@@ -62,18 +82,24 @@ function loadRateState(): RateLimitState {
   if (now - dayStart > dayMs) dayStart = now;
 
   // Count from engagement_log for this period
-  const repliesThisHour = (db.prepare(
-    'SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?'
-  ).get('reply', hourStart) as { count: number }).count;
+  const repliesThisHour = (
+    db
+      .prepare('SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?')
+      .get('reply', hourStart) as { count: number }
+  ).count;
 
-  const quotesToday = (db.prepare(
-    'SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?'
-  ).get('quote', dayStart) as { count: number }).count;
+  const quotesToday = (
+    db
+      .prepare('SELECT COUNT(*) as count FROM engagement_log WHERE type = ? AND created_at > ?')
+      .get('quote', dayStart) as { count: number }
+  ).count;
 
   // Load per-user cooldowns from recent replies (last 24h)
-  const recentReplies = db.prepare(
-    'SELECT target_username, MAX(created_at) as last_reply FROM engagement_log WHERE type = ? AND created_at > ? GROUP BY target_username'
-  ).all('reply', now - dayMs) as Array<{ target_username: string; last_reply: number }>;
+  const recentReplies = db
+    .prepare(
+      'SELECT target_username, MAX(created_at) as last_reply FROM engagement_log WHERE type = ? AND created_at > ? GROUP BY target_username'
+    )
+    .all('reply', now - dayMs) as Array<{ target_username: string; last_reply: number }>;
 
   const lastReplyTo = new Map<string, number>();
   for (const row of recentReplies) {
@@ -81,7 +107,9 @@ function loadRateState(): RateLimitState {
   }
 
   // Persist timestamps
-  const stmt = db.prepare('INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)');
+  const stmt = db.prepare(
+    'INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)'
+  );
   stmt.run('hour_start', String(hourStart), now);
   stmt.run('day_start', String(dayStart), now);
 
@@ -113,7 +141,9 @@ export interface QuoteOpportunity {
 function checkRateLimitReset(): void {
   const now = Date.now();
   const { hourMs, dayMs } = TIMING;
-  const stmt = db.prepare('INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)');
+  const stmt = db.prepare(
+    'INSERT OR REPLACE INTO rate_state (key, value, updated_at) VALUES (?, ?, ?)'
+  );
 
   if (now - rateState.hourStart > hourMs) {
     rateState.repliesThisHour = 0;
@@ -133,7 +163,7 @@ function checkRateLimitReset(): void {
 function canReplyToUser(username: string): boolean {
   const lastReply = rateState.lastReplyTo.get(username);
   if (!lastReply) return true;
-  return (Date.now() - lastReply) > TIMING.userCooldownMs;
+  return Date.now() - lastReply > TIMING.userCooldownMs;
 }
 
 // Find reply opportunities (optimized - only calls API for top candidates)
@@ -166,7 +196,7 @@ export async function findReplyOpportunities(anthropic: Anthropic): Promise<Repl
     if (engagementVelocity > THRESHOLDS.minEngagementVelocity && minutesOld < windowMinutes) {
       candidates.push({
         tweet,
-        score: engagementVelocity * (windowMinutes - minutesOld) / 10,
+        score: (engagementVelocity * (windowMinutes - minutesOld)) / 10,
         urgency: Math.max(0, windowMinutes - minutesOld),
       });
     }
@@ -216,11 +246,7 @@ export async function generateStrategicReply(
   anthropic: Anthropic,
   opportunity: ReplyOpportunity
 ): Promise<string | null> {
-  try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 100,
-      system: `You are KAMIYO, a crypto-native AI entity. Generate a reply that:
+  const defaultSystem = `You are KAMIYO, a crypto-native AI entity. Generate a reply that:
 1. Adds genuine value or insight (NOT "great post" or generic praise)
 2. Shows your direct, crypto-native personality
 3. Is under 200 characters
@@ -236,12 +262,29 @@ CRITICAL: You ARE KAMIYO. NEVER make negative comments about $KAMIYO, the KAMIYO
 
 Suggested angle: ${opportunity.suggestedAngle}
 
-Be concise and impactful. Quality over quantity.`,
-      messages: [{
-        role: 'user',
-        content: `Reply to @${opportunity.tweet.author_username}: "${opportunity.tweet.content}"`,
-      }],
-    });
+Be concise and impactful. Quality over quantity.`;
+
+  const decision = maybeRouteVariant(TWEET_REPLY_TASK_TYPE);
+  const resolved = applyGenomeOverrides(decision, {
+    model: 'claude-sonnet-4-20250514',
+    system: defaultSystem,
+    maxTokens: 100,
+  });
+
+  const userInput = `Reply to @${opportunity.tweet.author_username}: "${opportunity.tweet.content}"`;
+  const startedAt = Date.now();
+
+  try {
+    const createParams: Anthropic.MessageCreateParamsNonStreaming = {
+      model: resolved.model,
+      max_tokens: resolved.maxTokens ?? 100,
+      system: resolved.system,
+      messages: [{ role: 'user', content: userInput }],
+    };
+    if (typeof resolved.temperature === 'number') {
+      createParams.temperature = resolved.temperature;
+    }
+    const response = await anthropic.messages.create(createParams);
 
     const reply = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -250,12 +293,15 @@ Be concise and impactful. Quality over quantity.`,
       .trim()
       .replace(/^["']|["']$/g, '');
 
-    // Enforce length limit
-    if (reply.length > 280) {
-      return reply.slice(0, 277) + '...';
-    }
+    const finalReply = reply.length > 280 ? reply.slice(0, 277) + '...' : reply;
 
-    return reply;
+    recordVariantEntry(decision, {
+      input: userInput,
+      output: finalReply,
+      latencyMs: Date.now() - startedAt,
+    });
+
+    return finalReply;
   } catch (err) {
     logger.error('Reply generation failed', { error: String(err) });
     return null;
@@ -322,10 +368,12 @@ export async function postStrategicReply(
       markTweetResponded(opportunity.tweet.tweet_id);
 
       // Log to database
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO engagement_log (type, target_tweet_id, target_username, our_tweet_id, content, created_at)
         VALUES ('reply', ?, ?, ?, ?, ?)
-      `).run(
+      `
+      ).run(
         opportunity.tweet.tweet_id,
         opportunity.tweet.author_username,
         result.data.id,
@@ -342,7 +390,12 @@ export async function postStrategicReply(
       return true;
     }
   } catch (err: unknown) {
-    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    const error = err as {
+      code?: number;
+      status?: number;
+      rateLimit?: { reset?: number };
+      message?: string;
+    };
     if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
       recordRateLimit(error.rateLimit?.reset);
       logger.warn('Strategic reply rate limited', { to: opportunity.tweet.author_username });
@@ -373,7 +426,9 @@ export async function findQuoteOpportunities(anthropic: Anthropic): Promise<Quot
   const cutoffStart = Date.now() - TIMING.quoteMaxAgeMs;
   const cutoffEnd = Date.now() - TIMING.quoteMinAgeMs;
 
-  const rows = db.prepare(`
+  const rows = db
+    .prepare(
+      `
     SELECT * FROM influencer_tweets
     WHERE responded = 0
     AND posted_at > ?
@@ -381,7 +436,11 @@ export async function findQuoteOpportunities(anthropic: Anthropic): Promise<Quot
     AND engagement_score > ?
     ORDER BY engagement_score DESC
     LIMIT 5
-  `).all(cutoffStart, cutoffEnd, THRESHOLDS.minQuoteEngagementScore) as Array<Omit<InfluencerTweet, 'topics'> & { topics: string }>;
+  `
+    )
+    .all(cutoffStart, cutoffEnd, THRESHOLDS.minQuoteEngagementScore) as Array<
+    Omit<InfluencerTweet, 'topics'> & { topics: string }
+  >;
 
   const tweets = rows.map(row => ({
     ...row,
@@ -396,11 +455,13 @@ export async function findQuoteOpportunities(anthropic: Anthropic): Promise<Quot
   const topTweet = eligible[0];
   const angle = await suggestReplyAngle(anthropic, topTweet);
 
-  return [{
-    tweet: topTweet,
-    score: topTweet.engagement_score,
-    suggestedAngle: angle,
-  }];
+  return [
+    {
+      tweet: topTweet,
+      score: topTweet.engagement_score,
+      suggestedAngle: angle,
+    },
+  ];
 }
 
 // Generate quote tweet content
@@ -426,10 +487,12 @@ CRITICAL: You ARE KAMIYO. NEVER make negative comments about $KAMIYO, the KAMIYO
 - If the quoted tweet mentions $KAMIYO negatively, redirect to technology/vision
 
 Suggested angle: ${opportunity.suggestedAngle}`,
-      messages: [{
-        role: 'user',
-        content: `Quote tweet @${opportunity.tweet.author_username}: "${opportunity.tweet.content}"`,
-      }],
+      messages: [
+        {
+          role: 'user',
+          content: `Quote tweet @${opportunity.tweet.author_username}: "${opportunity.tweet.content}"`,
+        },
+      ],
     });
 
     const content = response.content
@@ -505,10 +568,12 @@ export async function postQuoteTweet(
       rateState.lastReplyTo.set(opportunity.tweet.author_username, Date.now());
       markTweetResponded(opportunity.tweet.tweet_id);
 
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO engagement_log (type, target_tweet_id, target_username, our_tweet_id, content, created_at)
         VALUES ('quote', ?, ?, ?, ?, ?)
-      `).run(
+      `
+      ).run(
         opportunity.tweet.tweet_id,
         opportunity.tweet.author_username,
         result.data.id,
@@ -528,7 +593,12 @@ export async function postQuoteTweet(
       return true;
     }
   } catch (err: unknown) {
-    const error = err as { code?: number; status?: number; rateLimit?: { reset?: number }; message?: string };
+    const error = err as {
+      code?: number;
+      status?: number;
+      rateLimit?: { reset?: number };
+      message?: string;
+    };
     if (error.code === 429 || error.status === 429 || error.message?.includes('429')) {
       recordRateLimit(error.rateLimit?.reset);
       logger.warn('Quote tweet rate limited', { original: opportunity.tweet.author_username });
@@ -607,12 +677,16 @@ export async function startEngagementLoop(
 }
 
 // Get engagement stats
-export function getEngagementStats(): { repliesThisHour: number; quotesToday: number; totalReplies: number } {
+export function getEngagementStats(): {
+  repliesThisHour: number;
+  quotesToday: number;
+  totalReplies: number;
+} {
   checkRateLimitReset();
 
-  const totalReplies = db.prepare(
-    'SELECT COUNT(*) as count FROM engagement_log WHERE type = ?'
-  ).get('reply') as { count: number };
+  const totalReplies = db
+    .prepare('SELECT COUNT(*) as count FROM engagement_log WHERE type = ?')
+    .get('reply') as { count: number };
 
   return {
     repliesThisHour: rateState.repliesThisHour,

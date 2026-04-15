@@ -1,10 +1,7 @@
 import { Connection, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
 
 import { env } from '../config.js';
-import {
-  depositToStakingPeriod,
-  findLatestOpenStakingPeriod,
-} from '../tools/stakingPool.js';
+import { depositToStakingPeriod, findLatestOpenStakingPeriod } from '../tools/stakingPool.js';
 import { loadOperatorKeypair } from '../wallet.js';
 
 function readFlag(name: string): string | undefined {
@@ -47,22 +44,30 @@ async function main() {
     const minLamports = BigInt(Math.round(minSol * LAMPORTS_PER_SOL));
     const available = BigInt(balance) > reserveLamports ? BigInt(balance) - reserveLamports : 0n;
     if (available < minLamports) {
-      console.log(`skip: available=${available} below --min-sol ${minSol} (balance=${balance}, reserve=${reserveLamports})`);
+      console.log(
+        `skip: available=${available} below --min-sol ${minSol} (balance=${balance}, reserve=${reserveLamports})`
+      );
       return;
     }
     amountLamports = available;
   } else {
-    throw new Error('pass --amount-sol <N>, --amount-lamports <N>, or --drain [--reserve-sol X --min-sol Y]');
+    throw new Error(
+      'pass --amount-sol <N>, --amount-lamports <N>, or --drain [--reserve-sol X --min-sol Y]'
+    );
   }
   console.log(`depositor: ${keypair.publicKey.toBase58()} (source=${source})`);
   console.log(`balance:   ${balance} lamports (${balance / LAMPORTS_PER_SOL} SOL)`);
   console.log(`pool:      ${pool.toBase58()}`);
-  console.log(`amount:    ${amountLamports} lamports (${Number(amountLamports) / LAMPORTS_PER_SOL} SOL)`);
+  console.log(
+    `amount:    ${amountLamports} lamports (${Number(amountLamports) / LAMPORTS_PER_SOL} SOL)`
+  );
 
   const period = await findLatestOpenStakingPeriod(connection, pool);
   if (!period) throw new Error('no open staking period found');
   console.log(`period:    #${period.periodNumber} ${period.statusLabel} ${period.address}`);
-  console.log(`window:    ${new Date(period.startTime * 1000).toISOString()} → ${new Date(period.endTime * 1000).toISOString()}`);
+  console.log(
+    `window:    ${new Date(period.startTime * 1000).toISOString()} → ${new Date(period.endTime * 1000).toISOString()}`
+  );
   console.log(`treasury:  ${period.totalTreasuryLamports} lamports before deposit`);
 
   if (BigInt(balance) <= amountLamports) {
