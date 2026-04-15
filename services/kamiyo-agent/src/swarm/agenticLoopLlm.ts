@@ -341,7 +341,9 @@ export async function runAgenticLoopLlm(
     }
 
     const assistantMessage = choice.message;
-    const toolCalls = assistantMessage.tool_calls ?? [];
+    const toolCalls = (assistantMessage.tool_calls ?? []).filter(
+      (tc): tc is Extract<typeof tc, { type: 'function' }> => tc.type === 'function'
+    );
     const reasoning = assistantMessage.content ?? '';
 
     messages.push(assistantMessage);

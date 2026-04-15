@@ -25,7 +25,7 @@ test('KamiyoAgentEventBus tracks lastEvent', () => {
   assert.equal(bus.lastEvent, null);
 
   bus.emitKamiyoAgent({ kind: 'tick:start', tickId: 'tick-1', at: NOW });
-  assert.equal(bus.lastEvent?.kind, 'tick:start');
+  assert.equal((bus.lastEvent as KamiyoAgentEvent | null)?.kind, 'tick:start');
 
   bus.emitKamiyoAgent({
     kind: 'swarm:opportunities',
@@ -33,7 +33,7 @@ test('KamiyoAgentEventBus tracks lastEvent', () => {
     at: NOW,
     payload: { count: 5 },
   });
-  assert.equal(bus.lastEvent?.kind, 'swarm:opportunities');
+  assert.equal((bus.lastEvent as KamiyoAgentEvent | null)?.kind, 'swarm:opportunities');
 });
 
 test('KamiyoAgentEventBus tracks eventCount', () => {
