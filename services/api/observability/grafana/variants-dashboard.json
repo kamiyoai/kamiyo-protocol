@@ -1,0 +1,135 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "title": "Agent Variants — Self-Improvement Loop",
+  "uid": "kamiyo-variants",
+  "tags": ["kamiyo", "variants", "self-improvement"],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "current": {}
+      },
+      {
+        "name": "task_type",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(variant_tournament_entries_total, task_type)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": { "selected": true, "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Variants created (rate/min)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(variants_created_total[5m])) * 60", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Tournaments running",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" },
+      "targets": [{ "expr": "sum(increase(variant_tournaments_total[24h]))", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "Promotion success ratio (24h)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 0.2 }, { "color": "green", "value": 0.5 }] } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" },
+      "targets": [{ "expr": "sum(increase(variant_promotions_total{result=\"promoted\"}[24h])) / clamp_min(sum(increase(variant_promotions_total[24h])), 1)", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Judge spend ($/hr)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 3 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "area" },
+      "targets": [{ "expr": "sum(rate(judge_cost_usd_total{task_type=~\"$task_type\"}[5m])) * 3600", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "title": "Judge calls/sec by result",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [{ "expr": "sum by (result) (rate(judge_calls_total{task_type=~\"$task_type\"}[5m]))", "legendFormat": "{{result}}", "refId": "A" }]
+    },
+    {
+      "id": 11,
+      "title": "Judge latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(judge_latency_seconds_bucket{task_type=~\"$task_type\"}[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(judge_latency_seconds_bucket{task_type=~\"$task_type\"}[5m])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(judge_latency_seconds_bucket{task_type=~\"$task_type\"}[5m])))", "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Bandit routing decisions by strategy",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [{ "expr": "sum by (strategy) (rate(bandit_decisions_total{task_type=~\"$task_type\"}[5m]))", "legendFormat": "{{strategy}}", "refId": "A" }]
+    },
+    {
+      "id": 21,
+      "title": "Sweep promotion outcomes",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{ "expr": "sum by (task_type, result) (increase(bandit_sweep_promotions_total{task_type=~\"$task_type\"}[1h]))", "legendFormat": "{{task_type}} · {{result}}", "refId": "A" }]
+    },
+    {
+      "id": 30,
+      "title": "Tournament entries by result",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 20, "stacking": { "mode": "normal" } } } },
+      "targets": [{ "expr": "sum by (result) (rate(variant_tournament_entries_total[5m]))", "legendFormat": "{{result}}", "refId": "A" }]
+    },
+    {
+      "id": 31,
+      "title": "Judge cost rate by task_type ($/hr)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" } },
+      "targets": [{ "expr": "sum by (task_type) (rate(judge_cost_usd_total{task_type=~\"$task_type\"}[5m])) * 3600", "legendFormat": "{{task_type}}", "refId": "A" }]
+    }
+  ]
+}
