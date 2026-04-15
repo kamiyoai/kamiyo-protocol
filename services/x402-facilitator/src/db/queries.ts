@@ -64,15 +64,27 @@ export async function insertSettlement(
   return rows[0];
 }
 
-export async function updateSettlementStatus(id: string, status: string, txHash?: string): Promise<void> {
+export async function updateSettlementStatus(
+  id: string,
+  status: string,
+  txHash?: string
+): Promise<void> {
   if (txHash) {
-    await query('UPDATE settlements SET status = $1, tx_hash = $2 WHERE id = $3', [status, txHash, id]);
+    await query('UPDATE settlements SET status = $1, tx_hash = $2 WHERE id = $3', [
+      status,
+      txHash,
+      id,
+    ]);
   } else {
     await query('UPDATE settlements SET status = $1 WHERE id = $2', [status, id]);
   }
 }
 
-export async function updateSettlementConfirmed(id: string, txHash: string, feeAmount: number): Promise<void> {
+export async function updateSettlementConfirmed(
+  id: string,
+  txHash: string,
+  feeAmount: number
+): Promise<void> {
   await query('UPDATE settlements SET status = $1, tx_hash = $2, fee_amount = $3 WHERE id = $4', [
     'confirmed',
     txHash,
@@ -81,9 +93,7 @@ export async function updateSettlementConfirmed(id: string, txHash: string, feeA
   ]);
 }
 
-export async function getSettlementById(
-  id: string
-): Promise<({
+export async function getSettlementById(id: string): Promise<{
   id: string;
   merchant_wallet: string;
   payer_wallet: string;
@@ -93,7 +103,7 @@ export async function getSettlementById(
   tx_hash: string | null;
   status: string;
   network: string;
-}) | null> {
+} | null> {
   return queryOne(
     `SELECT id, merchant_wallet, payer_wallet, amount::text, fee_amount::text, asset, tx_hash, status, network
      FROM settlements WHERE id = $1`,
@@ -119,7 +129,10 @@ export async function reservePaymentNonce(
   return rows.length > 0;
 }
 
-export async function getPaymentNonceGuard(payerWallet: string, nonce: string): Promise<PaymentNonceGuardRow | null> {
+export async function getPaymentNonceGuard(
+  payerWallet: string,
+  nonce: string
+): Promise<PaymentNonceGuardRow | null> {
   return queryOne<PaymentNonceGuardRow>(
     `SELECT id, payer_wallet, nonce, usage, network, resource, amount::text, created_at, tx_hash, settlement_id::text
      FROM payment_nonce_guard
@@ -128,7 +141,11 @@ export async function getPaymentNonceGuard(payerWallet: string, nonce: string): 
   );
 }
 
-export async function setPaymentNonceSettlementId(payerWallet: string, nonce: string, settlementId: string): Promise<void> {
+export async function setPaymentNonceSettlementId(
+  payerWallet: string,
+  nonce: string,
+  settlementId: string
+): Promise<void> {
   await query(
     `UPDATE payment_nonce_guard SET settlement_id = $3
      WHERE payer_wallet = $1 AND nonce = $2`,
@@ -136,7 +153,11 @@ export async function setPaymentNonceSettlementId(payerWallet: string, nonce: st
   );
 }
 
-export async function setPaymentNonceTxHash(payerWallet: string, nonce: string, txHash: string): Promise<void> {
+export async function setPaymentNonceTxHash(
+  payerWallet: string,
+  nonce: string,
+  txHash: string
+): Promise<void> {
   await query(
     `UPDATE payment_nonce_guard SET tx_hash = $3
      WHERE payer_wallet = $1 AND nonce = $2`,
@@ -230,8 +251,12 @@ export async function insertPaymentSession(row: {
   return rows[0];
 }
 
-export async function getPaymentSessionByTokenHash(tokenHash: string): Promise<PaymentSessionRow | null> {
-  return queryOne<PaymentSessionRow>('SELECT * FROM payment_sessions WHERE token_hash = $1', [tokenHash]);
+export async function getPaymentSessionByTokenHash(
+  tokenHash: string
+): Promise<PaymentSessionRow | null> {
+  return queryOne<PaymentSessionRow>('SELECT * FROM payment_sessions WHERE token_hash = $1', [
+    tokenHash,
+  ]);
 }
 
 export async function revokePaymentSession(tokenHash: string): Promise<boolean> {
@@ -244,7 +269,10 @@ export async function revokePaymentSession(tokenHash: string): Promise<boolean> 
   return rows.length > 0;
 }
 
-export async function reservePaymentSessionSpend(tokenHash: string, deltaMicro: string): Promise<boolean> {
+export async function reservePaymentSessionSpend(
+  tokenHash: string,
+  deltaMicro: string
+): Promise<boolean> {
   const rows = await query<{ id: string }>(
     `UPDATE payment_sessions
      SET spent_micro = spent_micro + $2::numeric, last_used_at = NOW()
@@ -258,7 +286,10 @@ export async function reservePaymentSessionSpend(tokenHash: string, deltaMicro: 
   return rows.length > 0;
 }
 
-export async function releasePaymentSessionSpend(tokenHash: string, deltaMicro: string): Promise<void> {
+export async function releasePaymentSessionSpend(
+  tokenHash: string,
+  deltaMicro: string
+): Promise<void> {
   await query(
     `UPDATE payment_sessions
      SET spent_micro = GREATEST(spent_micro - $2::numeric, 0)
@@ -286,7 +317,9 @@ export async function insertEscrowRecord(
 }
 
 export async function getEscrowByAddress(address: string): Promise<EscrowRecord | null> {
-  return queryOne<EscrowRecord>('SELECT * FROM escrow_records WHERE escrow_address = $1', [address]);
+  return queryOne<EscrowRecord>('SELECT * FROM escrow_records WHERE escrow_address = $1', [
+    address,
+  ]);
 }
 
 export async function updateEscrowRelease(
@@ -316,7 +349,9 @@ export async function insertFeeLedger(
   );
 }
 
-export async function getSettlementStats(merchantWallet: string): Promise<{ totalSettlements: number; totalVolume: number; totalFees: number }> {
+export async function getSettlementStats(
+  merchantWallet: string
+): Promise<{ totalSettlements: number; totalVolume: number; totalFees: number }> {
   const row = await queryOne<{ count: string; volume: string; fees: string }>(
     `SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as volume, COALESCE(SUM(fee_amount), 0) as fees
      FROM settlements WHERE merchant_wallet = $1 AND status = 'confirmed'`,
@@ -329,7 +364,10 @@ export async function getSettlementStats(merchantWallet: string): Promise<{ tota
   };
 }
 
-export async function updateEscrowDisputed(escrowAddress: string, disputeId: string): Promise<void> {
+export async function updateEscrowDisputed(
+  escrowAddress: string,
+  disputeId: string
+): Promise<void> {
   await query('UPDATE escrow_records SET status = $1, dispute_id = $2 WHERE escrow_address = $3', [
     'disputed',
     disputeId,
@@ -359,10 +397,10 @@ export async function getDisputeById(id: string): Promise<DisputeRecord | null> 
 }
 
 export async function getDisputeByEscrow(escrowAddress: string): Promise<DisputeRecord | null> {
-  return queryOne<DisputeRecord>('SELECT * FROM disputes WHERE escrow_address = $1 AND status != $2', [
-    escrowAddress,
-    'resolved',
-  ]);
+  return queryOne<DisputeRecord>(
+    'SELECT * FROM disputes WHERE escrow_address = $1 AND status != $2',
+    [escrowAddress, 'resolved']
+  );
 }
 
 export async function updateDisputeStatus(id: string, status: string): Promise<void> {
@@ -411,10 +449,13 @@ export async function getOracleVotes(disputeId: string): Promise<OracleVoteRecor
   return query<OracleVoteRecord>('SELECT * FROM oracle_votes WHERE dispute_id = $1', [disputeId]);
 }
 
-export async function getRevealedVotes(disputeId: string): Promise<Array<{ oracle: string; quality_score: number }>> {
-  return query('SELECT oracle, quality_score FROM oracle_votes WHERE dispute_id = $1 AND quality_score IS NOT NULL', [
-    disputeId,
-  ]);
+export async function getRevealedVotes(
+  disputeId: string
+): Promise<Array<{ oracle: string; quality_score: number }>> {
+  return query(
+    'SELECT oracle, quality_score FROM oracle_votes WHERE dispute_id = $1 AND quality_score IS NOT NULL',
+    [disputeId]
+  );
 }
 
 export async function getWalletDisputeStats(
@@ -478,9 +519,7 @@ export async function getSettlementByNullifier(
   );
 }
 
-export async function getSettlementByNullifierFull(
-  nullifier: string
-): Promise<({
+export async function getSettlementByNullifierFull(nullifier: string): Promise<{
   id: string;
   merchant_wallet: string;
   payer_wallet: string;
@@ -493,7 +532,7 @@ export async function getSettlementByNullifierFull(
   shadow_commitment: string | null;
   shadow_nullifier: string | null;
   privacy_tier: string | null;
-}) | null> {
+} | null> {
   return queryOne(
     `SELECT id, merchant_wallet, payer_wallet, amount::text, fee_amount::text, asset, tx_hash, status, network,
             shadow_commitment, shadow_nullifier, privacy_tier
@@ -887,13 +926,7 @@ async function queueFairscaleTrustEventOutbox(
      )
      VALUES ($1,$2,$3,$4,$5::jsonb)
      ON CONFLICT (idempotency_key) DO NOTHING`,
-    [
-      eventId,
-      input.eventType,
-      input.entityId,
-      input.idempotencyKey,
-      JSON.stringify(payload),
-    ]
+    [eventId, input.eventType, input.entityId, input.idempotencyKey, JSON.stringify(payload)]
   );
 }
 
@@ -904,7 +937,7 @@ export async function leaseFairscaleTrustEventBatch(
   const safeLimit = Math.max(1, Math.min(limit, 100));
   const safeLease = `${Math.max(1, leaseMs)} milliseconds`;
 
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const result = await client.query<FairscaleTrustEventOutboxRow>(
       `WITH due AS (
          SELECT id
@@ -1028,7 +1061,9 @@ export async function getFairscaleTrustEventOutboxSummary(): Promise<FairscaleTr
   );
 }
 
-export async function listFairscaleTrustEventOutbox(limit: number = 10): Promise<FairscaleTrustEventOutboxRow[]> {
+export async function listFairscaleTrustEventOutbox(
+  limit: number = 10
+): Promise<FairscaleTrustEventOutboxRow[]> {
   const safeLimit = Math.max(1, Math.min(limit, 50));
   return query<FairscaleTrustEventOutboxRow>(
     `SELECT
@@ -1430,7 +1465,7 @@ export async function insertKizunaUnderwriteDecision(params: {
        envelope_version,
        decision_envelope_hash
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
      RETURNING
        id,
        agent_id,
@@ -1503,7 +1538,7 @@ export async function createKizunaReservation(params: {
   fundingMode?: KizunaFundingMode;
   lockedMicro?: string;
 }): Promise<KizunaReservationRow> {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const fundingMode: KizunaFundingMode =
       params.fundingMode || (params.lane === 'crypto-fast' ? 'collateralized' : 'none');
     const lockedMicro = parseMicro(params.lockedMicro);
@@ -1754,7 +1789,7 @@ export async function releaseKizunaReservation(
   reservationId: string,
   status: 'released' | 'expired'
 ): Promise<void> {
-  await withTransaction(async (client) => {
+  await withTransaction(async client => {
     const result = await client.query<{
       amount_micro: string;
       lane: KizunaLane;
@@ -1795,9 +1830,11 @@ export async function releaseKizunaReservation(
   });
 }
 
-export async function getKizunaDebtByReservationId(reservationId: string): Promise<KizunaDebtRow | null> {
+export async function getKizunaDebtByReservationId(
+  reservationId: string
+): Promise<KizunaDebtRow | null> {
   return queryOne<KizunaDebtRow>(
-     `SELECT
+    `SELECT
        id,
        agent_id,
        payer_wallet,
@@ -1822,9 +1859,11 @@ export async function getKizunaDebtByReservationId(reservationId: string): Promi
   );
 }
 
-export async function getKizunaDebtBySettlementId(settlementId: string): Promise<KizunaDebtRow | null> {
+export async function getKizunaDebtBySettlementId(
+  settlementId: string
+): Promise<KizunaDebtRow | null> {
   return queryOne<KizunaDebtRow>(
-     `SELECT
+    `SELECT
        id,
        agent_id,
        payer_wallet,
@@ -1859,7 +1898,7 @@ export async function finalizeKizunaSettlement(params: {
   poolId?: string;
   decisionEnvelopeHash?: string | null;
 }): Promise<KizunaFinalizeSettlementResult> {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const reservationResult = await client.query<{
       id: string;
       decision_id: string;
@@ -2124,7 +2163,8 @@ export async function finalizeKizunaSettlement(params: {
       merchantWallet,
       metadata: {
         decisionId: reservation.decision_id,
-        decisionEnvelopeHash: params.decisionEnvelopeHash ?? reservation.decision_envelope_hash ?? null,
+        decisionEnvelopeHash:
+          params.decisionEnvelopeHash ?? reservation.decision_envelope_hash ?? null,
         fundingConsumedMicro: isPrefundedEnterprise ? reservation.locked_micro : '0',
       },
     });
@@ -2254,7 +2294,7 @@ export async function applyKizunaRepayment(params: {
   idempotent: boolean;
   outstandingMicro: string;
 }> {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const scopeParams: unknown[] = [params.agentId];
     let scopeWhere = '';
     if (params.lane) {
@@ -2323,7 +2363,10 @@ export async function applyKizunaRepayment(params: {
       payerWallet: string;
       repayWallet: string;
     } | null = null;
-    const outstandingDeltas = new Map<string, { lane: KizunaLane; poolId: string; amount: bigint }>();
+    const outstandingDeltas = new Map<
+      string,
+      { lane: KizunaLane; poolId: string; amount: bigint }
+    >();
 
     for (const debt of debts.rows) {
       if (remaining <= 0n) break;
@@ -2446,7 +2489,9 @@ export async function applyKizunaRepayment(params: {
   });
 }
 
-export async function getKizunaCollateralAsset(assetId: string): Promise<KizunaCollateralAssetRow | null> {
+export async function getKizunaCollateralAsset(
+  assetId: string
+): Promise<KizunaCollateralAssetRow | null> {
   return queryOne<KizunaCollateralAssetRow>(
     `SELECT
        asset_id,
@@ -2590,7 +2635,7 @@ export async function applyKizunaFundingEvent(params: {
   event: KizunaFundingEventRow;
   balance: KizunaEnterpriseBalanceRow;
 }> {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const amount = parseMicro(params.amountMicro);
     if (amount <= 0n) {
       throw new Error('kizuna_funding_amount_invalid');
@@ -2779,7 +2824,7 @@ export async function getKizunaCollateralPosition(params: {
     collateralAccount: params.collateralAccount,
     totalAvailableMicro: totalAvailable.toString(10),
     effectiveCollateralMicro: totalEffective.toString(10),
-    assets: rows.map((row) => ({
+    assets: rows.map(row => ({
       assetId: row.asset_id,
       symbol: row.symbol,
       availableMicro: row.available_micro,
@@ -2824,7 +2869,8 @@ export async function getKizunaCollateralSummary(
   const effectiveCollateral = parseMicro(positionAggregate?.effective_collateral_micro);
   const totalAvailable = parseMicro(positionAggregate?.total_available_micro);
   const outstanding = parseMicro(reserve.outstanding_micro);
-  const ltvBpsRaw = effectiveCollateral > 0n ? Number((outstanding * 10_000n) / effectiveCollateral) : 0;
+  const ltvBpsRaw =
+    effectiveCollateral > 0n ? Number((outstanding * 10_000n) / effectiveCollateral) : 0;
   const ltvBps = Math.max(0, Math.min(10_000, ltvBpsRaw));
   const ltvCapBps = pool?.ltv_cap_bps || 6500;
   const healthFactor =
@@ -2896,7 +2942,7 @@ export async function applyKizunaCollateralEvent(params: {
     outstandingMicro: string;
   };
 }> {
-  return withTransaction(async (client) => {
+  return withTransaction(async client => {
     const existingEvent = await client.query<{ pool_id: string; lane: KizunaLane }>(
       `SELECT pool_id, lane
        FROM kizuna_collateral_events
@@ -3008,7 +3054,13 @@ export async function applyKizunaCollateralEvent(params: {
            status,
            created_at,
            updated_at`,
-        [params.agentId, params.poolId, params.collateralAccount, params.assetId, amount.toString(10)]
+        [
+          params.agentId,
+          params.poolId,
+          params.collateralAccount,
+          params.assetId,
+          amount.toString(10),
+        ]
       );
       position = positionResult.rows[0];
     } else {
@@ -3034,7 +3086,13 @@ export async function applyKizunaCollateralEvent(params: {
            status,
            created_at,
            updated_at`,
-        [params.agentId, params.poolId, params.collateralAccount, params.assetId, amount.toString(10)]
+        [
+          params.agentId,
+          params.poolId,
+          params.collateralAccount,
+          params.assetId,
+          amount.toString(10),
+        ]
       );
       position = positionResult.rows[0] || null;
       if (!position) {
