@@ -11,6 +11,7 @@ import { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes
 import { initCreditsRoutes } from './routes/credits';
 import internalRevenueRouter from './routes/internal-revenue';
 import agentPerformanceRouter from './routes/agent-performance';
+import variantsRouter from './routes/variants';
 import companyRouter from './routes/company';
 import { registry } from '../metrics';
 import { createMCPRoutes } from '../mcp/index.js';
@@ -24,7 +25,9 @@ import {
   mountEdgeRouteGroups,
 } from './route-groups';
 
-async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+async function checkSolanaRpc(
+  url: string
+): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
@@ -55,10 +58,15 @@ async function checkSolanaRpc(url: string): Promise<{ ok: boolean; latencyMs?: n
 }
 
 const READY_CHECK_CACHE_MS = 15000;
-let lastRpcCheck: { url: string; at: number; result: { ok: boolean; latencyMs?: number; error?: string } } | null =
-  null;
+let lastRpcCheck: {
+  url: string;
+  at: number;
+  result: { ok: boolean; latencyMs?: number; error?: string };
+} | null = null;
 
-async function checkSolanaRpcCached(url: string): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
+async function checkSolanaRpcCached(
+  url: string
+): Promise<{ ok: boolean; latencyMs?: number; error?: string }> {
   const now = Date.now();
   if (lastRpcCheck && lastRpcCheck.url === url && now - lastRpcCheck.at < READY_CHECK_CACHE_MS) {
     return lastRpcCheck.result;
@@ -81,8 +89,8 @@ const authRateLimiter = rateLimit({
       message: 'Too many authentication attempts. Please try again later.',
     },
   },
-  keyGenerator: (req) => req.ip || 'unknown',
-  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
+  keyGenerator: req => req.ip || 'unknown',
+  skip: req => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 // Stricter rate limiter for verify/refresh endpoints
@@ -97,8 +105,8 @@ const apiKeyRateLimiter = rateLimit({
       message: 'Too many API key generation attempts. Please try again later.',
     },
   },
-  keyGenerator: (req) => req.ip || 'unknown',
-  skip: (req) => req.method === 'OPTIONS', // Don't rate limit CORS preflight
+  keyGenerator: req => req.ip || 'unknown',
+  skip: req => req.method === 'OPTIONS', // Don't rate limit CORS preflight
 });
 
 // Rate limiter for public read endpoints that can trigger expensive RPC/graph operations.
@@ -113,8 +121,8 @@ const publicReadLimiter = rateLimit({
       message: 'Too many requests. Please slow down.',
     },
   },
-  keyGenerator: (req) => req.ip || 'unknown',
-  skip: (req) => req.method === 'OPTIONS',
+  keyGenerator: req => req.ip || 'unknown',
+  skip: req => req.method === 'OPTIONS',
 });
 
 // Allowed origins for CORS
@@ -135,7 +143,10 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   const app = express();
   const runtime = config.runtime ?? getCompanionRuntimeState();
   const corsOptions = {
-    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void
+    ) => {
       if (!origin) return callback(null, true);
       if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
       if (origin.startsWith('http://localhost:')) return callback(null, true);
@@ -229,10 +240,15 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   });
 
   mountEdgeRouteGroups(app, createEdgeRouteGroups(authRateLimiter, apiKeyRateLimiter));
-  mountApiRouteGroupCollection(app, createApiRouteGroupCollectionForRuntime(publicReadLimiter, runtime), runtime);
+  mountApiRouteGroupCollection(
+    app,
+    createApiRouteGroupCollectionForRuntime(publicReadLimiter, runtime),
+    runtime
+  );
   app.use('/api', companyRouter);
   app.use('/api/internal/revenue-events', internalRevenueRouter);
   app.use('/api', agentPerformanceRouter);
+  app.use('/api', variantsRouter);
 
   // MCP routes (OAuth + Streamable HTTP transport)
   app.use(createMCPRoutes());
@@ -269,7 +285,8 @@ const openApiSpec = {
   info: {
     title: 'KAMIYO Companion API',
     version: '1.0.0',
-    description: 'Companion API for Kizuna credits, payment support, and retained KAMIYO integrations.',
+    description:
+      'Companion API for Kizuna credits, payment support, and retained KAMIYO integrations.',
   },
   servers: [
     { url: 'https://api.kamiyo.ai', description: 'Production' },
@@ -289,9 +306,7 @@ const openApiSpec = {
     '/api/auth/challenge': {
       get: {
         summary: 'Get authentication challenge',
-        parameters: [
-          { name: 'wallet', in: 'query', required: true, schema: { type: 'string' } },
-        ],
+        parameters: [{ name: 'wallet', in: 'query', required: true, schema: { type: 'string' } }],
         responses: {
           200: {
             description: 'Challenge generated',
@@ -353,7 +368,8 @@ const openApiSpec = {
     '/api/v1/chat': {
       post: {
         summary: 'Chat completion with memory, market signals, and X search',
-        description: 'Hybrid Anthropic/Grok chat with conversation memory, real-time crypto context, proprietary signals, and X/Twitter search',
+        description:
+          'Hybrid Anthropic/Grok chat with conversation memory, real-time crypto context, proprietary signals, and X/Twitter search',
         requestBody: {
           content: {
             'application/json': {
@@ -371,16 +387,43 @@ const openApiSpec = {
                     },
                   },
                   stream: { type: 'boolean', default: false },
-                  clearHistory: { type: 'boolean', default: false, description: 'Clear conversation memory before this request' },
+                  clearHistory: {
+                    type: 'boolean',
+                    default: false,
+                    description: 'Clear conversation memory before this request',
+                  },
                   context: {
                     type: 'object',
                     properties: {
-                      includeCrypto: { type: 'boolean', default: true, description: 'Include BTC/ETH/KAMIYO prices' },
-                      includeSignals: { type: 'boolean', default: true, description: 'Include proprietary market signals' },
-                      includeTrends: { type: 'boolean', default: false, description: 'Include X/Twitter trending topics' },
-                      includeXSearch: { type: 'boolean', default: false, description: 'Search X for relevant content' },
-                      xSearchQuery: { type: 'string', description: 'Custom X search query (defaults to last message)' },
-                      xHandles: { type: 'array', items: { type: 'string' }, description: 'X handles to search (without @)' },
+                      includeCrypto: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Include BTC/ETH/KAMIYO prices',
+                      },
+                      includeSignals: {
+                        type: 'boolean',
+                        default: true,
+                        description: 'Include proprietary market signals',
+                      },
+                      includeTrends: {
+                        type: 'boolean',
+                        default: false,
+                        description: 'Include X/Twitter trending topics',
+                      },
+                      includeXSearch: {
+                        type: 'boolean',
+                        default: false,
+                        description: 'Search X for relevant content',
+                      },
+                      xSearchQuery: {
+                        type: 'string',
+                        description: 'Custom X search query (defaults to last message)',
+                      },
+                      xHandles: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'X handles to search (without @)',
+                      },
                     },
                   },
                 },
@@ -398,9 +441,21 @@ const openApiSpec = {
                   type: 'object',
                   properties: {
                     id: { type: 'string' },
-                    message: { type: 'object', properties: { role: { type: 'string' }, content: { type: 'string' } } },
-                    usage: { type: 'object', properties: { promptTokens: { type: 'number' }, completionTokens: { type: 'number' } } },
-                    context: { type: 'object', description: 'Market data, signals, and search results used' },
+                    message: {
+                      type: 'object',
+                      properties: { role: { type: 'string' }, content: { type: 'string' } },
+                    },
+                    usage: {
+                      type: 'object',
+                      properties: {
+                        promptTokens: { type: 'number' },
+                        completionTokens: { type: 'number' },
+                      },
+                    },
+                    context: {
+                      type: 'object',
+                      description: 'Market data, signals, and search results used',
+                    },
                     memory: { type: 'object', properties: { historyLength: { type: 'number' } } },
                   },
                 },
@@ -431,9 +486,7 @@ const openApiSpec = {
     '/api/v1/tokens/{query}': {
       get: {
         summary: 'Look up token by name, symbol, or address',
-        parameters: [
-          { name: 'query', in: 'path', required: true, schema: { type: 'string' } },
-        ],
+        parameters: [{ name: 'query', in: 'path', required: true, schema: { type: 'string' } }],
         responses: {
           200: { description: 'Token data' },
           404: { description: 'Token not found' },
@@ -505,7 +558,14 @@ const openApiSpec = {
                   proofHash: { type: 'string' },
                   metadata: { type: 'object' },
                 },
-                required: ['wallet', 'serviceId', 'qualityScore', 'refundPct', 'timestampMs', 'proofHash'],
+                required: [
+                  'wallet',
+                  'serviceId',
+                  'qualityScore',
+                  'refundPct',
+                  'timestampMs',
+                  'proofHash',
+                ],
               },
             },
           },
@@ -536,8 +596,16 @@ const openApiSpec = {
         summary: 'Get reliability metrics for a wallet',
         parameters: [
           { name: 'wallet', in: 'path', required: true, schema: { type: 'string' } },
-          { name: 'window_days', in: 'query', schema: { type: 'number', default: 30, maximum: 365 } },
-          { name: 'service_limit', in: 'query', schema: { type: 'number', default: 10, maximum: 25 } },
+          {
+            name: 'window_days',
+            in: 'query',
+            schema: { type: 'number', default: 30, maximum: 365 },
+          },
+          {
+            name: 'service_limit',
+            in: 'query',
+            schema: { type: 'number', default: 10, maximum: 25 },
+          },
         ],
         responses: {
           200: { description: 'Reliability metrics and service breakdown' },

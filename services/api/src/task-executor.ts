@@ -1,7 +1,36 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { Tool, MessageParam, ContentBlock, Message } from '@anthropic-ai/sdk/resources/messages';
+import type {
+  Tool,
+  MessageParam,
+  ContentBlock,
+  Message,
+} from '@anthropic-ai/sdk/resources/messages';
 import { createRequire } from 'module';
 import OpenAI from 'openai';
+import { isBanditRoutingEnabled, routeVariant, type RouteDecision } from './variants/bandit';
+
+function maybeRouteVariant(taskType: string): RouteDecision | null {
+  if (!isBanditRoutingEnabled()) return null;
+  try {
+    return routeVariant(taskType);
+  } catch {
+    return null;
+  }
+}
+
+function toVariantDecisionMeta(decision: RouteDecision): {
+  variantId: string;
+  tournamentId: string;
+  decisionId: string;
+  strategy: RouteDecision['strategy'];
+} {
+  return {
+    variantId: decision.variant.id,
+    tournamentId: decision.tournamentId,
+    decisionId: decision.decisionId,
+    strategy: decision.strategy,
+  };
+}
 
 type TaskInput = {
   taskId: string;
@@ -20,6 +49,12 @@ type TaskResult = {
   amountDrawn?: number;
   error?: string;
   riskFlags?: string[];
+  variantDecision?: {
+    variantId: string;
+    tournamentId: string;
+    decisionId: string;
+    strategy: 'thompson' | 'promoted' | 'fallback';
+  };
 };
 
 export interface TaskExecutorConfig {
@@ -130,24 +165,44 @@ Return structured output when possible.`,
 
 function inferTaskType(description: string): TaskType {
   const lower = description.toLowerCase();
-  if (lower.includes('wallet') || lower.includes('address') || /[1-9A-HJ-NP-Za-km-z]{32,44}/.test(description)) {
+  if (
+    lower.includes('wallet') ||
+    lower.includes('address') ||
+    /[1-9A-HJ-NP-Za-km-z]{32,44}/.test(description)
+  ) {
     return 'wallet_lookup';
   }
-  if (lower.includes('market') || lower.includes('token') || lower.includes('price') || lower.includes('chart')) {
+  if (
+    lower.includes('market') ||
+    lower.includes('token') ||
+    lower.includes('price') ||
+    lower.includes('chart')
+  ) {
     return 'market_analysis';
   }
-  if (lower.includes('research') || lower.includes('analyze') || lower.includes('investigate') || lower.includes('summarize')) {
+  if (
+    lower.includes('research') ||
+    lower.includes('analyze') ||
+    lower.includes('investigate') ||
+    lower.includes('summarize')
+  ) {
     return 'research';
   }
   return 'general';
 }
 
 function estimateAnthropicCost(usage: { input_tokens: number; output_tokens: number }): number {
-  return usage.input_tokens * ANTHROPIC_INPUT_COST_PER_TOKEN + usage.output_tokens * ANTHROPIC_OUTPUT_COST_PER_TOKEN;
+  return (
+    usage.input_tokens * ANTHROPIC_INPUT_COST_PER_TOKEN +
+    usage.output_tokens * ANTHROPIC_OUTPUT_COST_PER_TOKEN
+  );
 }
 
 function estimateOpenAICost(usage: { input_tokens: number; output_tokens: number }): number {
-  return usage.input_tokens * OPENAI_INPUT_COST_PER_TOKEN + usage.output_tokens * OPENAI_OUTPUT_COST_PER_TOKEN;
+  return (
+    usage.input_tokens * OPENAI_INPUT_COST_PER_TOKEN +
+    usage.output_tokens * OPENAI_OUTPUT_COST_PER_TOKEN
+  );
 }
 
 function safeJsonParse(raw: string): unknown {
@@ -210,47 +265,50 @@ function buildOpenAIProviderConfigs(config: TaskExecutorConfig): OpenAIProviderC
   const providers: OpenAIProviderConfig[] = [];
 
   const openclawApiKey = nonEmpty(config.openclawApiKey) ?? nonEmpty(process.env.OPENCLAW_API_KEY);
-  const openclawBaseUrl = nonEmpty(config.openclawBaseUrl) ?? nonEmpty(process.env.OPENCLAW_BASE_URL);
+  const openclawBaseUrl =
+    nonEmpty(config.openclawBaseUrl) ?? nonEmpty(process.env.OPENCLAW_BASE_URL);
   if (openclawApiKey && openclawBaseUrl) {
     providers.push({
       provider: 'openclaw',
       apiKey: openclawApiKey,
       baseUrl: normalizeBaseUrl(openclawBaseUrl),
       model:
-        nonEmpty(config.openclawModel)
-        ?? nonEmpty(process.env.SWARM_OPENCLAW_MODEL)
-        ?? nonEmpty(process.env.OPENCLAW_MODEL)
-        ?? OPENCLAW_DEFAULT_MODEL,
+        nonEmpty(config.openclawModel) ??
+        nonEmpty(process.env.SWARM_OPENCLAW_MODEL) ??
+        nonEmpty(process.env.OPENCLAW_MODEL) ??
+        OPENCLAW_DEFAULT_MODEL,
     });
   }
 
   const nanoclawApiKey = nonEmpty(config.nanoclawApiKey) ?? nonEmpty(process.env.NANOCLAW_API_KEY);
-  const nanoclawBaseUrl = nonEmpty(config.nanoclawBaseUrl) ?? nonEmpty(process.env.NANOCLAW_BASE_URL);
+  const nanoclawBaseUrl =
+    nonEmpty(config.nanoclawBaseUrl) ?? nonEmpty(process.env.NANOCLAW_BASE_URL);
   if (nanoclawApiKey && nanoclawBaseUrl) {
     providers.push({
       provider: 'nanoclaw',
       apiKey: nanoclawApiKey,
       baseUrl: normalizeBaseUrl(nanoclawBaseUrl),
       model:
-        nonEmpty(config.nanoclawModel)
-        ?? nonEmpty(process.env.SWARM_NANOCLAW_MODEL)
-        ?? nonEmpty(process.env.NANOCLAW_MODEL)
-        ?? NANOCLAW_DEFAULT_MODEL,
+        nonEmpty(config.nanoclawModel) ??
+        nonEmpty(process.env.SWARM_NANOCLAW_MODEL) ??
+        nonEmpty(process.env.NANOCLAW_MODEL) ??
+        NANOCLAW_DEFAULT_MODEL,
     });
   }
 
   const ironclawApiKey = nonEmpty(config.ironclawApiKey) ?? nonEmpty(process.env.IRONCLAW_API_KEY);
-  const ironclawBaseUrl = nonEmpty(config.ironclawBaseUrl) ?? nonEmpty(process.env.IRONCLAW_BASE_URL);
+  const ironclawBaseUrl =
+    nonEmpty(config.ironclawBaseUrl) ?? nonEmpty(process.env.IRONCLAW_BASE_URL);
   if (ironclawApiKey && ironclawBaseUrl) {
     providers.push({
       provider: 'ironclaw',
       apiKey: ironclawApiKey,
       baseUrl: normalizeBaseUrl(ironclawBaseUrl),
       model:
-        nonEmpty(config.ironclawModel)
-        ?? nonEmpty(process.env.SWARM_IRONCLAW_MODEL)
-        ?? nonEmpty(process.env.IRONCLAW_MODEL)
-        ?? IRONCLAW_DEFAULT_MODEL,
+        nonEmpty(config.ironclawModel) ??
+        nonEmpty(process.env.SWARM_IRONCLAW_MODEL) ??
+        nonEmpty(process.env.IRONCLAW_MODEL) ??
+        IRONCLAW_DEFAULT_MODEL,
     });
   }
 
@@ -260,9 +318,9 @@ function buildOpenAIProviderConfigs(config: TaskExecutorConfig): OpenAIProviderC
       provider: 'openai',
       apiKey: openaiApiKey,
       model:
-        nonEmpty(config.openaiModel)
-        ?? nonEmpty(process.env.SWARM_OPENAI_MODEL)
-        ?? OPENAI_DEFAULT_MODEL,
+        nonEmpty(config.openaiModel) ??
+        nonEmpty(process.env.SWARM_OPENAI_MODEL) ??
+        OPENAI_DEFAULT_MODEL,
     });
   }
 
@@ -309,9 +367,11 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
   function checkRateLimit(agentId: string): void {
     const now = Date.now();
     const timestamps = agentTaskTimestamps.get(agentId) || [];
-    const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+    const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
     if (recent.length >= MAX_TASKS_PER_AGENT_PER_WINDOW) {
-      throw new Error(`Agent ${agentId} rate limited: max ${MAX_TASKS_PER_AGENT_PER_WINDOW} tasks per minute`);
+      throw new Error(
+        `Agent ${agentId} rate limited: max ${MAX_TASKS_PER_AGENT_PER_WINDOW} tasks per minute`
+      );
     }
     recent.push(now);
     agentTaskTimestamps.set(agentId, recent);
@@ -323,14 +383,15 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
     if (!anthropic) throw new Error('Anthropic client not configured');
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        return await anthropic.messages.create({ ...params, stream: false }) as Message;
+        return (await anthropic.messages.create({ ...params, stream: false })) as Message;
       } catch (err: unknown) {
-        const isRetryable = err instanceof Error && (
-          'status' in err && ((err as { status: number }).status === 429 || (err as { status: number }).status >= 500)
-        );
+        const isRetryable =
+          err instanceof Error &&
+          'status' in err &&
+          ((err as { status: number }).status === 429 || (err as { status: number }).status >= 500);
         if (!isRetryable || attempt === MAX_RETRIES) throw err;
         const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
-        await new Promise((r) => setTimeout(r, backoff));
+        await new Promise(r => setTimeout(r, backoff));
       }
     }
     throw new Error('Exhausted retries'); // unreachable
@@ -344,12 +405,15 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       try {
         return await client.chat.completions.create(params);
       } catch (err: unknown) {
-        const status = (err && typeof err === 'object' && 'status' in err) ? (err as { status?: unknown }).status : undefined;
+        const status =
+          err && typeof err === 'object' && 'status' in err
+            ? (err as { status?: unknown }).status
+            : undefined;
         const code = typeof status === 'number' ? status : undefined;
         const isRetryable = code === 429 || (code !== undefined && code >= 500);
         if (!isRetryable || attempt === MAX_RETRIES) throw err;
         const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt) + Math.random() * 500;
-        await new Promise((r) => setTimeout(r, backoff));
+        await new Promise(r => setTimeout(r, backoff));
       }
     }
     throw new Error('Exhausted retries'); // unreachable
@@ -361,7 +425,9 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
     return createKamiyoExtension({
       rpcUrl: config.solanaRpcUrl || process.env.SOLANA_RPC_URL,
       privateKeyEnvVar: config.privateKeyEnvVar || 'SWARM_AGENT_WALLET_KEY',
-      network: (process.env.NODE_ENV === 'production' ? 'mainnet' : 'devnet') as 'mainnet' | 'devnet',
+      network: (process.env.NODE_ENV === 'production' ? 'mainnet' : 'devnet') as
+        | 'mainnet'
+        | 'devnet',
     });
   }
 
@@ -381,8 +447,10 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
     try {
       const meta = input.metadata as Record<string, unknown> | undefined;
       const agentId =
-        (meta && typeof meta.agentId === 'string' && meta.agentId.trim()) ? meta.agentId.trim()
-          : (meta && typeof meta.memberId === 'string' && meta.memberId.trim()) ? meta.memberId.trim()
+        meta && typeof meta.agentId === 'string' && meta.agentId.trim()
+          ? meta.agentId.trim()
+          : meta && typeof meta.memberId === 'string' && meta.memberId.trim()
+            ? meta.memberId.trim()
             : 'unknown';
       checkRateLimit(`${input.teamId}:${agentId}`);
     } catch (err) {
@@ -395,27 +463,34 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
     activeTasks++;
     const taskType = inferTaskType(input.description);
+    const variantDecision = maybeRouteVariant(taskType);
+    const stamp = <T extends TaskResult>(result: T): T =>
+      variantDecision
+        ? { ...result, variantDecision: toVariantDecisionMeta(variantDecision) }
+        : result;
 
     // Per-task extension instance (isolated state)
     const kamiyoExt = createExtension();
     const allActions = kamiyoExt.getActions() as ExtensionAction[];
-    const knownActionNames = new Set(allActions.map((action) => normalizeToolName(action.name)));
+    const knownActionNames = new Set(allActions.map(action => normalizeToolName(action.name)));
     const visibleToolNames = new Set(
       (input.executionMode === 'readonly'
-        ? (input.allowedTools?.length ? input.allowedTools : Array.from(READONLY_TASK_EXECUTOR_ALLOWED_TOOLS))
-        : (input.allowedTools ?? []))
-        .map((name) => normalizeToolName(name))
+        ? input.allowedTools?.length
+          ? input.allowedTools
+          : Array.from(READONLY_TASK_EXECUTOR_ALLOWED_TOOLS)
+        : (input.allowedTools ?? [])
+      ).map(name => normalizeToolName(name))
     );
     const kamiyoActions =
       visibleToolNames.size > 0
-        ? allActions.filter((action) => visibleToolNames.has(normalizeToolName(action.name)))
+        ? allActions.filter(action => visibleToolNames.has(normalizeToolName(action.name)))
         : allActions;
-    const toolsAnthropic: Tool[] = kamiyoActions.map((action) => ({
+    const toolsAnthropic: Tool[] = kamiyoActions.map(action => ({
       name: normalizeToolName(action.name),
       description: action.description,
       input_schema: action.schema as Tool['input_schema'],
     }));
-    const toolsOpenAI: OpenAI.Chat.Completions.ChatCompletionTool[] = kamiyoActions.map((action) => ({
+    const toolsOpenAI: OpenAI.Chat.Completions.ChatCompletionTool[] = kamiyoActions.map(action => ({
       type: 'function',
       function: {
         name: normalizeToolName(action.name),
@@ -424,9 +499,10 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       },
     }));
     const actionMap = new Map(
-      kamiyoActions.map(
-        (action): [string, ExtensionAction['handler']] => [normalizeToolName(action.name), action.handler]
-      )
+      kamiyoActions.map((action): [string, ExtensionAction['handler']] => [
+        normalizeToolName(action.name),
+        action.handler,
+      ])
     );
 
     try {
@@ -442,23 +518,34 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
         let totalOutputTokens = 0;
         const riskFlags = new Set<string>();
         const messages: MessageParam[] = [{ role: 'user', content: input.description }];
+        const modelForRun = variantDecision?.variant.genome.modelId ?? anthropicModel;
+        const systemForRun = variantDecision?.variant.genome.promptTemplate?.trim()
+          ? variantDecision.variant.genome.promptTemplate
+          : SYSTEM_PROMPTS[taskType];
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-          const runningCost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+          const runningCost = estimateAnthropicCost({
+            input_tokens: totalInputTokens,
+            output_tokens: totalOutputTokens,
+          });
           if (runningCost >= effectiveBudget) {
             return {
               taskId: input.taskId,
               status: 'completed',
-              output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              output: {
+                taskType,
+                result: 'Task terminated: cost limit reached',
+                tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+              },
               amountDrawn: runningCost,
               riskFlags: toRiskFlags(riskFlags),
             };
           }
 
           const response = await callAnthropicWithRetry({
-            model: anthropicModel,
+            model: modelForRun,
             max_tokens: 2048,
-            system: SYSTEM_PROMPTS[taskType],
+            system: systemForRun,
             tools: toolsAnthropic,
             messages,
           });
@@ -469,15 +556,22 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           if (response.stop_reason !== 'tool_use') {
             const output = response.content
               .filter((b): b is Extract<ContentBlock, { type: 'text' }> => b.type === 'text')
-              .map((b) => b.text)
+              .map(b => b.text)
               .join('\n');
 
-            const cost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+            const cost = estimateAnthropicCost({
+              input_tokens: totalInputTokens,
+              output_tokens: totalOutputTokens,
+            });
 
             return {
               taskId: input.taskId,
               status: 'completed',
-              output: { taskType, result: output, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              output: {
+                taskType,
+                result: output,
+                tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+              },
               amountDrawn: Math.min(cost, effectiveBudget),
               riskFlags: toRiskFlags(riskFlags),
             };
@@ -485,7 +579,8 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
           messages.push({ role: 'assistant', content: response.content });
 
-          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> = [];
+          const toolResults: Array<{ type: 'tool_result'; tool_use_id: string; content: string }> =
+            [];
 
           for (const block of response.content) {
             if (block.type !== 'tool_use') continue;
@@ -501,7 +596,10 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               }
             } else if (knownActionNames.has(block.name)) {
               riskFlags.add('mutating_tool_attempt');
-              result = { error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`, blockedTool: block.name };
+              result = {
+                error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`,
+                blockedTool: block.name,
+              };
             } else {
               result = { error: `Unknown tool: ${block.name}` };
             }
@@ -516,11 +614,18 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           messages.push({ role: 'user', content: toolResults });
         }
 
-        const cost = estimateAnthropicCost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+        const cost = estimateAnthropicCost({
+          input_tokens: totalInputTokens,
+          output_tokens: totalOutputTokens,
+        });
         return {
           taskId: input.taskId,
           status: 'completed',
-          output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+          output: {
+            taskType,
+            result: 'Task completed (max tool rounds reached)',
+            tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+          },
           amountDrawn: Math.min(cost, effectiveBudget),
           riskFlags: toRiskFlags(riskFlags),
         };
@@ -537,12 +642,19 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
         ];
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-          const runningCost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+          const runningCost = estimateOpenAICost({
+            input_tokens: totalInputTokens,
+            output_tokens: totalOutputTokens,
+          });
           if (runningCost >= effectiveBudget) {
             return {
               taskId: input.taskId,
               status: 'completed',
-              output: { taskType, result: 'Task terminated: cost limit reached', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              output: {
+                taskType,
+                result: 'Task terminated: cost limit reached',
+                tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+              },
               amountDrawn: runningCost,
               riskFlags: toRiskFlags(riskFlags),
             };
@@ -564,11 +676,18 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           const text = msg?.content ?? '';
 
           if (toolCalls.length === 0) {
-            const cost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+            const cost = estimateOpenAICost({
+              input_tokens: totalInputTokens,
+              output_tokens: totalOutputTokens,
+            });
             return {
               taskId: input.taskId,
               status: 'completed',
-              output: { taskType, result: text, tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+              output: {
+                taskType,
+                result: text,
+                tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+              },
               amountDrawn: Math.min(cost, effectiveBudget),
               riskFlags: toRiskFlags(riskFlags),
             };
@@ -605,7 +724,10 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
               }
             } else if (knownActionNames.has(name)) {
               riskFlags.add('mutating_tool_attempt');
-              result = { error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`, blockedTool: name };
+              result = {
+                error: `Tool not allowed in ${input.executionMode ?? 'execute'} mode`,
+                blockedTool: name,
+              };
             } else {
               result = { error: `Unknown tool: ${name}` };
             }
@@ -618,11 +740,18 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
           }
         }
 
-        const cost = estimateOpenAICost({ input_tokens: totalInputTokens, output_tokens: totalOutputTokens });
+        const cost = estimateOpenAICost({
+          input_tokens: totalInputTokens,
+          output_tokens: totalOutputTokens,
+        });
         return {
           taskId: input.taskId,
           status: 'completed',
-          output: { taskType, result: 'Task completed (max tool rounds reached)', tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens } },
+          output: {
+            taskType,
+            result: 'Task completed (max tool rounds reached)',
+            tokens: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens },
+          },
           amountDrawn: Math.min(cost, effectiveBudget),
           riskFlags: toRiskFlags(riskFlags),
         };
@@ -630,7 +759,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
 
       if (anthropic) {
         try {
-          return await runAnthropic();
+          return stamp(await runAnthropic());
         } catch (err) {
           if (openaiProviders.length === 0) throw err;
         }
@@ -639,7 +768,7 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       const openaiErrors: string[] = [];
       for (const provider of openaiProviders) {
         try {
-          return await runOpenAIProvider(provider);
+          return stamp(await runOpenAIProvider(provider));
         } catch (err) {
           openaiErrors.push(formatProviderError(provider.provider, err));
         }
@@ -650,11 +779,11 @@ export function createTaskExecutor(config: TaskExecutorConfig) {
       }
       throw new Error(TASK_EXECUTOR_UNAVAILABLE_REASON);
     } catch (err) {
-      return {
+      return stamp({
         taskId: input.taskId,
         status: 'failed',
         error: err instanceof Error ? err.message : 'Task execution failed',
-      };
+      });
     } finally {
       activeTasks--;
     }

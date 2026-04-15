@@ -178,6 +178,33 @@ function resolveTaskExecutor() {
   return taskExecutorOverride ?? taskExecutor;
 }
 
+function recordVariantEntryIfPresent(
+  result: { variantDecision?: { variantId: string; tournamentId: string }; output?: unknown },
+  input: string,
+  outputJson: string | null,
+  costUsd: number,
+  startedAt: number
+): void {
+  const decision = result.variantDecision;
+  if (!decision) return;
+  const latencyMs = Date.now() - startedAt;
+  const output = outputJson ?? '';
+  void import('../variants/judge')
+    .then(({ recordJudgedEntry }) =>
+      recordJudgedEntry({
+        tournamentId: decision.tournamentId,
+        variantId: decision.variantId,
+        input: input.slice(0, 16000),
+        output: output.slice(0, 16000),
+        latencyMs,
+        costOverride: costUsd,
+      })
+    )
+    .catch(() => {
+      // swallow — variant feedback is best-effort, must not fail the run
+    });
+}
+
 function getCancelReason(runId: string): string | null {
   const now = Date.now();
   for (const [id, entry] of cancelledRuns) {
@@ -741,6 +768,7 @@ export async function executeSwarmRun(
           updateNodeDone.run('completed', amountDrawn, outputJson, null, runId, spec.id);
           swarmNodesTotal.inc({ status: 'completed' });
           swarmNodeDuration.observe({ status: 'completed' }, (Date.now() - nodeStartedAt) / 1000);
+          recordVariantEntryIfPresent(result, description, outputJson, amountDrawn, nodeStartedAt);
           return { status: 'completed' as const, output: result };
         }
 

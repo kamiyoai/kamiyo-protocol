@@ -14,6 +14,7 @@ export const SUPPORT_ROUTE_IDS = [
   'hive-swarm',
   'poch-store',
   'agent-performance',
+  'variants',
   'company',
   'internal-revenue',
 ] as const;
@@ -37,7 +38,12 @@ export function mountApiRouteGroups(app: Express, groups: ApiRouteGroup[]): void
 export function listOwnedRouteIds(groups: ApiRouteGroupCollection): string[] {
   const routeIds = new Set<string>();
 
-  for (const group of [...groups.protectedRoutes, ...groups.kizunaCore, ...groups.modules, ...groups.legacy]) {
+  for (const group of [
+    ...groups.protectedRoutes,
+    ...groups.kizunaCore,
+    ...groups.modules,
+    ...groups.legacy,
+  ]) {
     for (const routeId of group.routeIds) {
       routeIds.add(routeId);
     }
@@ -46,7 +52,9 @@ export function listOwnedRouteIds(groups: ApiRouteGroupCollection): string[] {
   return [...routeIds].sort();
 }
 
-export function createApiRouteGroupCollection(publicReadLimiter: RequestHandler): ApiRouteGroupCollection {
+export function createApiRouteGroupCollection(
+  publicReadLimiter: RequestHandler
+): ApiRouteGroupCollection {
   return createApiRouteGroupCollectionForRuntime(publicReadLimiter);
 }
 
@@ -58,7 +66,8 @@ export function createApiRouteGroupCollectionForRuntime(
     protectedRoutes: createProtectedRouteGroups(),
     kizunaCore: createKizunaCoreRouteGroups(publicReadLimiter),
     modules: runtime && !runtime.moduleRoutesEnabled ? [] : createModuleRouteGroups(),
-    legacy: runtime && !runtime.legacyRoutesEnabled ? [] : createLegacyRouteGroups(publicReadLimiter),
+    legacy:
+      runtime && !runtime.legacyRoutesEnabled ? [] : createLegacyRouteGroups(publicReadLimiter),
   };
 }
 
