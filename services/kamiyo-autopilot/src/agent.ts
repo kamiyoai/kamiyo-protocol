@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { MODELS, type Config, type ModelTier } from './config';
 
