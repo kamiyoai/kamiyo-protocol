@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 import { Octokit } from '@octokit/rest';
 import type { Config } from './config';
 

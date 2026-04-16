@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 import 'dotenv/config';
 import { loadConfig } from './config';
 import { runAgentOnIssue } from './agent';
