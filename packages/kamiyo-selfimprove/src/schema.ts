@@ -178,6 +178,25 @@ CREATE INDEX IF NOT EXISTS idx_shadow_runs_task ON shadow_runs(task_type, create
 CREATE INDEX IF NOT EXISTS idx_shadow_runs_variant ON shadow_runs(variant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_shadow_runs_batch ON shadow_runs(batch_id);
 CREATE INDEX IF NOT EXISTS idx_shadow_runs_input_hash ON shadow_runs(task_type, input_hash);
+
+CREATE TABLE IF NOT EXISTS canary_rollouts (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  canary_variant_id TEXT NOT NULL,
+  baseline_variant_id TEXT NOT NULL,
+  traffic_pct REAL NOT NULL DEFAULT 0.1,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','promoted','rolled_back')),
+  min_samples INTEGER NOT NULL DEFAULT 50,
+  rollback_threshold REAL NOT NULL DEFAULT 0.05,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  decided_at INTEGER,
+  decision TEXT,
+  decision_event_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_canary_rollouts_task ON canary_rollouts(task_type, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_canary_rollouts_active
+  ON canary_rollouts(task_type) WHERE status = 'active';
 `;
 
 const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;

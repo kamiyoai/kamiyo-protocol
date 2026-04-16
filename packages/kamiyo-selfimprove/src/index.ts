@@ -166,3 +166,25 @@ export {
   replayVariant,
   rescoreShadowRuns,
 } from './replay';
+
+export { anthropicJudge, geminiJudge, genericChatJudge, openaiJudge } from './judge-adapters';
+
+export {
+  type CanaryDecision,
+  type CanaryPick,
+  type CanaryRollout,
+  type CanaryStatus,
+  type CanaryStepResult,
+  type EvaluateCanaryOptions,
+  type StartCanaryInput,
+  type StepCanaryOptions,
+  evaluateCanary,
+  getActiveCanary,
+  listCanaryRollouts,
+  pickCanaryArm,
+  promoteCanary,
+  rampCanary,
+  rollbackCanary,
+  startCanary,
+  stepCanary,
+} from './canary';

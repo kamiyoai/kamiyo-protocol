@@ -8,7 +8,10 @@ Drop-in self-improvement loop for LLM agents. Wrap your call site once; the libr
 - auto-promotes winners using **Welch's t-test** at `p<0.05` with `n≥50` samples
 - exposes metrics + events for Grafana / any Prometheus-compatible stack
 
-Zero external ML dependencies. SQLite + TypeScript. Judge is provider-agnostic (Anthropic, OpenAI, Google, local — see `JudgeLLM` adapter).
+- gradual **canary rollouts** with auto-rollback on regression
+- zero-dep **multi-provider judge adapters** (Anthropic, OpenAI, Gemini, or any custom gateway)
+
+Zero external ML dependencies. SQLite + TypeScript.
 
 Extracted from [kamiyo-protocol](https://github.com/kamiyoai/kamiyo-protocol), the stack powering the KAMIYO agent fleet in production since 2026-04.
 
@@ -128,6 +131,8 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `shadow` | parallel candidate scoring on live traffic, no user exposure |
 | `replay` | re-run variants on historical inputs + rescore on rubric change |
 | `routing` | convenience wrappers for request-path wiring |
+| `canary` | gradual traffic shift from baseline → candidate, auto-rollback on regression |
+| `judge-adapters` | zero-dep wrappers for Anthropic / OpenAI / Gemini SDK clients |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
 ## Why it works
@@ -310,16 +315,83 @@ const rescore = await rescoreShadowRuns({
 // -> { rescored: 500, meanBefore: 0.71, meanAfter: 0.68, delta: -0.03 }
 ```
 
+## Canary rollout
+
+After auto-promotion (or manually), you can ramp a candidate into production behind a traffic split with automatic rollback on regression:
+
+```ts
+import { startCanary, stepCanary, pickCanaryArm, recordJudgedEntry } from '@kamiyo-org/selfimprove';
+
+startCanary({
+  taskType: 'tweet_reply',
+  canaryVariantId: 'cand-b',
+  trafficPct: 0.1,
+  minSamples: 50,
+  rollbackThreshold: 0.05,
+});
+
+// on each request, route via canary pick:
+const pick = pickCanaryArm('tweet_reply');
+if (pick) {
+  const output = await runAgent(pick.variant.genome, input);
+  await recordJudgedEntry({ ... }); // scored normally
+}
+
+// run periodically (cron / sweep):
+const step = stepCanary({ taskType: 'tweet_reply' });
+// -> 'held' | 'ramped' | 'promoted' | 'rolled_back'
+```
+
+Default ramp path: 10% → 25% → 50% → 100%. Rolls back automatically if canary mean drops below baseline by more than `rollbackThreshold` (default 5 points). Promotes via Welch's t-test at `p<0.05` once canary mean is significantly ahead.
+
+Inspect from CLI:
+
+```bash
+kamiyo-si canary start --task tweet_reply --variant cand-b --traffic 0.1
+kamiyo-si canary status --task tweet_reply
+kamiyo-si canary step --task tweet_reply
+kamiyo-si canary rollback --task tweet_reply --reason "manual"
+```
+
+## Multi-provider judge
+
+Zero-dependency wrappers for popular SDKs. Pass your own client instance — no new deps pulled in.
+
+```ts
+import { anthropicJudge, openaiJudge, geminiJudge } from '@kamiyo-org/selfimprove';
+import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Anthropic
+const judgeLLM = anthropicJudge(new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }));
+
+// OpenAI
+const judgeLLM = openaiJudge(new OpenAI({ apiKey: process.env.OPENAI_API_KEY! }));
+
+// Gemini
+const gen = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const judgeLLM = geminiJudge(gen.getGenerativeModel({ model: 'gemini-2.5-pro' }));
+
+// Or roll your own (local model, custom gateway):
+import { genericChatJudge } from '@kamiyo-org/selfimprove';
+const judgeLLM = genericChatJudge(async ({ model, messages, temperature, max_tokens }) => {
+  const r = await fetch('http://localhost:11434/v1/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify({ model, messages, temperature, max_tokens }),
+  }).then(r => r.json());
+  return { text: r.choices[0].message.content, inputTokens: r.usage.prompt_tokens, outputTokens: r.usage.completion_tokens };
+});
+```
+
 ## Roadmap
 
-- **Benchmark suite**: standard task harness to measure auto-mutation lift (shipped — see `example/`)
 - **Lineage viz**: graphical ancestry tree on dashboard (currently table)
-- **Canary rollout**: gradual traffic shift from promoted → new promoted with rollback triggers
-- **Multi-provider judge**: OpenAI, Gemini, local model adapters alongside Anthropic
+- **Contextual bandit**: route by input features (LinUCB / neural) alongside Thompson
 
 ## Status
 
-`0.7.0` — API may shift before `1.0`. Schema migrations are stable.
+`1.0.0` — public API is stable. Semver from here. Schema migrations are additive.
 
 ## License
 
