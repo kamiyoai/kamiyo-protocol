@@ -16,6 +16,7 @@ Kizuna is the protocol's agentic trust and settlement layer. It provides trust s
 | Reality Fork | Counterfactual control-room package and launch assets | `packages/kamiyo-reality-fork` |
 | Trust infrastructure | Durable trust-event ingest, reads, replay, and service runtime | `services/trust-layer-service`, `crates/kamiyo-trust-layer` |
 | Identity and compliance | Passport, mandate, and compliance surfaces | `packages/kamiyo-meishi`, `services/meishi-compliance` |
+| Agents and automation | Daily cron tasks and agentic services | `services/kamiyo-marketing-agent`, `services/kamiyo-docs-agent`, `services/kamiyo-agent` |
 | Client and integration packages | SDKs, settlement libraries, and agent-facing integrations | `packages/` |
 | On-chain and proof systems | Solana programs, contracts, zero-knowledge components, and circuits | `programs/`, `contracts/`, `crates/kamiyo-zk`, `circuits/`, `noir/` |
 
@@ -54,6 +55,7 @@ The root defaults target the Kizuna core workspace. For module, legacy, and on-c
 - [Companion API](services/api/README.md): ledger, billing, integration, and protocol API surfaces
 - [Trust Layer Service](services/trust-layer-service/README.md): durable trust-event ingest, subject-state reads, replay tooling, and Kafka-backed delivery
 - [Meishi Compliance](services/meishi-compliance/README.md): identity and compliance services around Meishi passports
+- [Marketing Agent](services/kamiyo-marketing-agent/README.md): daily cron that drafts posts from GitHub commits and schedules them via Postiz
 - [CDP Onboarding](apps/cdp-onboarding/README.md): reference operator app for Kizuna account setup and control-plane actions
 
 ## Documentation
