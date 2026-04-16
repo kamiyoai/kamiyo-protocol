@@ -16,4 +16,4 @@ export {
   listActiveVariants,
   recordTournamentEntry,
   thompsonSample,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

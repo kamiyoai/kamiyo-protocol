@@ -1,5 +1,5 @@
 {
-  "name": "@kamiyo/selfimprove",
+  "name": "@kamiyo-org/selfimprove",
   "version": "0.1.0",
   "description": "Self-improving agent loop: genome-based variants, bandit routing, LLM-as-judge, auto-promotion.",
   "main": "dist/index.js",

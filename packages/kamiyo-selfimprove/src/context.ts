@@ -36,7 +36,7 @@ export function initSelfImprove(opts: InitOptions): SelfImproveContext {
 export function getContext(): SelfImproveContext {
   if (!current) {
     throw new Error(
-      '@kamiyo/selfimprove: context not initialized. Call initSelfImprove({ db, ... }) before using the library.'
+      '@kamiyo-org/selfimprove: context not initialized. Call initSelfImprove({ db, ... }) before using the library.'
     );
   }
   return current;

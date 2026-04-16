@@ -89,3 +89,12 @@ export {
   scoreOutput,
   upsertRubric,
 } from './judge';
+
+export {
+  type GenomeOverrides,
+  type VariantDecisionMeta,
+  applyGenomeOverrides,
+  maybeRouteVariant,
+  recordVariantEntry,
+  toVariantDecisionMeta,
+} from './routing';

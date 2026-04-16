@@ -1,4 +1,4 @@
-# @kamiyo/selfimprove
+# @kamiyo-org/selfimprove
 
 Drop-in self-improvement loop for LLM agents. Wrap your call site once; the library then:
 
@@ -10,69 +10,134 @@ Drop-in self-improvement loop for LLM agents. Wrap your call site once; the libr
 
 Zero external ML dependencies. SQLite + TypeScript. Judge is provider-agnostic (Anthropic, OpenAI, Google, local — see `JudgeLLM` adapter).
 
-## Status: 0.1 — extraction in progress
+Extracted from [kamiyo-protocol](https://github.com/kamiyoai/kamiyo-protocol), the stack powering the KAMIYO agent fleet in production since 2026-04.
 
-This package is being extracted from the [kamiyo-protocol](https://github.com/kamiyoai/kamiyo-protocol) monorepo, where it has been running in production against the KAMIYO Twitter bot since 2026-04.
+## Install
 
-### What's shipped in 0.1
+```bash
+npm install @kamiyo-org/selfimprove better-sqlite3
+```
 
-- `@kamiyo/selfimprove/genome` — canonical genome hashing, validation, mutation
-- `@kamiyo/selfimprove/stats` — Welch's t-test, two-sided p-value, Thompson gamma/beta sampling helpers
-- Adapter interfaces (`DatabaseAdapter`, `JudgeLLM`, `Logger`, `MetricsAdapter`) + context init
+## Quickstart
 
-### Remaining extraction (planned, one PR each)
+```ts
+import Database from 'better-sqlite3';
+import Anthropic from '@anthropic-ai/sdk';
+import {
+  initSelfImprove,
+  createVariant,
+  routeVariant,
+  recordJudgedEntry,
+  upsertRubric,
+  type JudgeLLM,
+} from '@kamiyo-org/selfimprove';
 
-- `service.ts` — variant CRUD, leaderboard, Thompson sampling, promotion
-- `tournament.ts` — standing/adhoc tournaments
-- `bandit.ts` — live routing
-- `judge.ts` — LLM-as-judge with multi-provider adapter
-- `routing.ts` — convenience wrapper for call sites
-- `sweep-worker.ts` — periodic promotion sweep
-- SQL schema migrations bundled with package
+const db = new Database('./agents.db');
+db.exec(/* run the SQL migrations shipped in this repo */);
 
-### Roadmap post-extraction
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+const judgeLLM: JudgeLLM = {
+  async generate(p) {
+    const r = await anthropic.messages.create({
+      model: p.model,
+      max_tokens: p.maxTokens,
+      temperature: p.temperature,
+      system: p.system,
+      messages: p.messages,
+    });
+    const text = r.content.find(c => c.type === 'text');
+    return {
+      text: text?.type === 'text' ? text.text : '',
+      inputTokens: r.usage.input_tokens,
+      outputTokens: r.usage.output_tokens,
+    };
+  },
+};
+
+initSelfImprove({ db, judgeLLM });
+
+upsertRubric({
+  taskType: 'tweet_reply',
+  rubric: 'Score on tone, relevance, brevity. 1.0 = perfect.',
+  dailyBudgetUsd: 5,
+});
+
+createVariant({
+  agentId: 'reply-bot',
+  taskType: 'tweet_reply',
+  genome: {
+    promptTemplate: 'Reply in one witty sentence.',
+    modelId: 'claude-sonnet-4-6',
+    toolAllowlist: [],
+    temperature: 0.7,
+    maxTokens: 200,
+    systemGuardrails: '',
+  },
+});
+
+const decision = routeVariant('tweet_reply');
+if (decision) {
+  const output = await runAgent(decision.variant.genome, input);
+
+  await recordJudgedEntry({
+    tournamentId: decision.tournamentId,
+    variantId: decision.variant.id,
+    input,
+    output,
+    latencyMs: 340,
+  });
+}
+```
+
+Run the sweep worker so promotions happen automatically:
+
+```ts
+import { startVariantSweepWorker } from '@kamiyo-org/selfimprove';
+process.env.VARIANT_SWEEP_ENABLED = 'true';
+startVariantSweepWorker(); // checks every 24h by default
+```
+
+## Adapters
+
+The package is provider-agnostic. Pass your own implementations via `initSelfImprove`:
+
+- **`db: DatabaseAdapter`** — any `better-sqlite3`-shaped driver (`prepare`, `transaction`, `exec`).
+- **`judgeLLM: JudgeLLM | null`** — wraps any provider SDK. Shape: `generate({ model, system, messages, maxTokens, temperature }) => { text, inputTokens, outputTokens }`.
+- **`metrics: MetricsAdapter`** — 9 Prometheus-shaped counters/histograms. Defaults to no-op.
+- **`logger: Logger`** — `info/warn/error`. Defaults to no-op.
+
+See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
+
+## What's inside
+
+| Module | Role |
+|---|---|
+| `genome` | validate, canonicalize, hash, mutate variants |
+| `stats` | sample stats, Welch's t-test, two-sided p-value |
+| `service` | variant CRUD, leaderboard, Thompson sampling, promotion |
+| `tournament` | standing tournaments, status transitions, budget caps |
+| `bandit` | routing, standing-tournament bookkeeping, sweep |
+| `judge` | LLM-as-judge with rubric, sha256 cache, daily USD budget |
+| `routing` | convenience wrappers for request-path wiring |
+| `sweep-worker` | periodic `evaluateAndPromote` across all task types |
+
+## Why it works
+
+- **Thompson sampling** explores new variants while exploiting known winners without needing a hand-tuned epsilon.
+- **Welch's t-test** handles unequal variances — no need for matched sample counts or equal noise across variants.
+- **LLM-as-judge + hash cache** turns quality signal from hand-labeled rare into automatic and cheap. Cache keyed on `(taskType, input, output, modelId)`; budget-gated per task type per day.
+- **Promotion is atomic** under a SQLite transaction with a re-check of the baseline, so concurrent sweeps can't race into an inconsistent state.
+
+## Roadmap
 
 - **Pairwise judge**: Bradley-Terry / Elo on top of pairwise preference (research shows big win over absolute scoring)
 - **Auto-mutation**: LLM proposes variant edits from top genomes; parameter jitter; crossover
-- **Lineage viz**: genome ancestry tree in the dashboard
+- **Lineage viz**: genome ancestry tree
 - **Cold start**: offline eval suite for new task types before bandit goes live
 
-## Usage (0.1)
+## Status
 
-```ts
-import {
-  initSelfImprove,
-  validateGenome,
-  hashGenome,
-  sampleStats,
-  welchT,
-  welchPTwoSided,
-} from '@kamiyo/selfimprove';
-import Database from 'better-sqlite3';
-
-// Initialize the shared context once at app boot.
-initSelfImprove({
-  db: new Database('variants.db'),
-  // logger, metrics, judgeLLM are optional — defaults are no-ops.
-});
-
-const genome = validateGenome({
-  promptTemplate: 'You are concise.',
-  modelId: 'claude-sonnet-4-5',
-  toolAllowlist: [],
-  temperature: 0.7,
-  maxTokens: 200,
-  systemGuardrails: '',
-});
-
-hashGenome(genome); // stable sha256
-
-const scores = [0.62, 0.71, 0.80, 0.55, 0.67];
-const stats = sampleStats(scores);
-// → { n: 5, mean: 0.67, variance: ... }
-```
-
-More usage examples land as the remaining modules migrate.
+`0.1.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 

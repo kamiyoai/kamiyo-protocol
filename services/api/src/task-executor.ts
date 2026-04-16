@@ -7,7 +7,8 @@ import type {
 } from '@anthropic-ai/sdk/resources/messages';
 import { createRequire } from 'module';
 import OpenAI from 'openai';
-import { maybeRouteVariant, toVariantDecisionMeta } from './variants/routing';
+import './variants/bootstrap';
+import { maybeRouteVariant, toVariantDecisionMeta } from '@kamiyo-org/selfimprove';
 
 type TaskInput = {
   taskId: string;

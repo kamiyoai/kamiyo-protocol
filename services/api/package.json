@@ -34,7 +34,7 @@
     "@kamiyo/hive": "workspace:*",
     "@kamiyo/reality-fork-dkg": "workspace:*",
     "@kamiyo/meishi": "workspace:*",
-    "@kamiyo/selfimprove": "workspace:*",
+    "@kamiyo-org/selfimprove": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.0",
     "@oobe-protocol-labs/synapse-sap-sdk": "0.4.1",

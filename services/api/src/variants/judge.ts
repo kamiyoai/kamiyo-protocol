@@ -8,10 +8,10 @@ import {
   type TaskRubric,
   recordJudgedEntry as packageRecordJudgedEntry,
   scoreOutput as packageScoreOutput,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';
 
 export { type JudgedEntryResult, type JudgeResult, type TaskRubric };
-export { getRubric, upsertRubric } from '@kamiyo/selfimprove';
+export { getRubric, upsertRubric } from '@kamiyo-org/selfimprove';
 
 type LegacyClient = Pick<Anthropic, 'messages'>;
 

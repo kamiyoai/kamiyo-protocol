@@ -1,26 +1,25 @@
 import { Router, Request, Response } from 'express';
+import '../../variants/bootstrap';
 import {
+  createTournament,
   createVariant,
   evaluateAndPromote,
   forkVariant,
   getLeaderboard,
-  getVariant,
-  listActiveVariants,
-} from '../../variants/service';
-import {
-  createTournament,
-  getTournament,
-  markTournamentStatus,
-  recordParticipantResult,
-  totalTournamentCost,
-} from '../../variants/tournament';
-import { getRubric, recordJudgedEntry, upsertRubric } from '../../variants/judge';
-import {
   getOrCreateStandingTournament,
+  getRubric,
+  getTournament,
+  getVariant,
   isBanditRoutingEnabled,
+  listActiveVariants,
+  markTournamentStatus,
+  recordJudgedEntry,
+  recordParticipantResult,
   routeVariant,
   sweepPromotions,
-} from '../../variants/bandit';
+  totalTournamentCost,
+  upsertRubric,
+} from '@kamiyo-org/selfimprove';
 
 const router = Router();
 
