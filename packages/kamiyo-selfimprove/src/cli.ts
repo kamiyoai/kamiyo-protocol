@@ -59,6 +59,14 @@ function parseArgs(argv: string[]): Args {
   return { command, sub, flags, positional };
 }
 
+function isJson(flags: Record<string, string>): boolean {
+  return flags.json === 'true';
+}
+
+function jsonOut(data: unknown): void {
+  console.log(JSON.stringify(data, null, 2));
+}
+
 function resolveDbPath(flags: Record<string, string>): string {
   const path = flags.db ?? process.env.SELFIMPROVE_DB;
   if (!path) {
@@ -145,22 +153,29 @@ function cmdVariantsList(flags: Record<string, string>): void {
 
   const variants = listActiveVariants(task, flags.agent);
   if (variants.length === 0) {
-    console.log(`no active variants for task: ${task}`);
+    if (isJson(flags)) jsonOut([]);
+    else console.log(`no active variants for task: ${task}`);
     return;
   }
 
   const limit = flags.limit ? Number(flags.limit) : 20;
-  const rows = variants.slice(0, limit).map(v => ({
-    id: v.id,
-    agent: v.agentId,
-    status: v.status,
-    samples: v.sampleCount,
-    score: v.repScore.toFixed(3),
-    model: v.genome.modelId,
-    temp: v.genome.temperature,
-    created: new Date(v.createdAt * 1000).toISOString(),
-  }));
-  console.table(rows);
+  const sliced = variants.slice(0, limit);
+  if (isJson(flags)) {
+    jsonOut(sliced);
+    return;
+  }
+  console.table(
+    sliced.map(v => ({
+      id: v.id,
+      agent: v.agentId,
+      status: v.status,
+      samples: v.sampleCount,
+      score: v.repScore.toFixed(3),
+      model: v.genome.modelId,
+      temp: v.genome.temperature,
+      created: new Date(v.createdAt * 1000).toISOString(),
+    }))
+  );
 }
 
 function cmdVariantsLineage(flags: Record<string, string>, positional: string[]): void {
@@ -190,7 +205,13 @@ function cmdLeaderboard(flags: Record<string, string>): void {
   const limit = flags.limit ? Number(flags.limit) : 10;
   const entries = getLeaderboard(task, limit);
   if (entries.length === 0) {
-    console.log(`no leaderboard entries for task: ${task}`);
+    if (isJson(flags)) jsonOut([]);
+    else console.log(`no leaderboard entries for task: ${task}`);
+    return;
+  }
+
+  if (isJson(flags)) {
+    jsonOut(entries);
     return;
   }
 
@@ -217,14 +238,23 @@ function cmdSweepRun(flags: Record<string, string>): void {
   const minSamples = flags['min-samples'] ? Number(flags['min-samples']) : 50;
   const p = flags.p ? Number(flags.p) : 0.05;
 
-  for (const t of tasks) {
-    const res = evaluateAndPromote(t, { minSamples, pThreshold: p });
+  const results = tasks.map(t => ({
+    taskType: t,
+    ...evaluateAndPromote(t, { minSamples, pThreshold: p }),
+  }));
+
+  if (isJson(flags)) {
+    jsonOut(results);
+    return;
+  }
+
+  for (const res of results) {
     if (res.promoted) {
       console.log(
-        `${t}: PROMOTED ${res.variantId} (uplift=${res.uplift.toFixed(3)}, p=${res.pValue.toExponential(2)}, n=${res.sampleCount})`
+        `${res.taskType}: PROMOTED ${res.variantId} (uplift=${res.uplift.toFixed(3)}, p=${res.pValue.toExponential(2)}, n=${res.sampleCount})`
       );
     } else {
-      console.log(`${t}: skip (${res.reason})`);
+      console.log(`${res.taskType}: skip (${res.reason})`);
     }
   }
 }
@@ -232,6 +262,10 @@ function cmdSweepRun(flags: Record<string, string>): void {
 function cmdTasksList(flags: Record<string, string>): void {
   initCtx(flags);
   const tasks = listTaskTypes();
+  if (isJson(flags)) {
+    jsonOut(tasks);
+    return;
+  }
   if (tasks.length === 0) {
     console.log('no task types');
     return;
@@ -297,9 +331,11 @@ function cmdCanaryStart(flags: Record<string, string>): void {
     minSamples: flags['min-samples'] ? Number(flags['min-samples']) : undefined,
     rollbackThreshold: flags.threshold ? Number(flags.threshold) : undefined,
   });
-  console.log(
-    `canary started: id=${r.id} canary=${r.canaryVariantId} baseline=${r.baselineVariantId} traffic=${(r.trafficPct * 100).toFixed(0)}%`
-  );
+  if (isJson(flags)) jsonOut(r);
+  else
+    console.log(
+      `canary started: id=${r.id} canary=${r.canaryVariantId} baseline=${r.baselineVariantId} traffic=${(r.trafficPct * 100).toFixed(0)}%`
+    );
 }
 
 function cmdCanaryStatus(flags: Record<string, string>): void {
@@ -309,6 +345,10 @@ function cmdCanaryStatus(flags: Record<string, string>): void {
   const active = getActiveCanary(task);
   if (!active) {
     const history = listCanaryRollouts(task, 5);
+    if (isJson(flags)) {
+      jsonOut({ active: null, history });
+      return;
+    }
     if (history.length === 0) {
       console.log(`no canary rollouts for task: ${task}`);
       return;
@@ -325,6 +365,10 @@ function cmdCanaryStatus(flags: Record<string, string>): void {
     return;
   }
   const decision = evaluateCanary({ taskType: task });
+  if (isJson(flags)) {
+    jsonOut({ active, decision });
+    return;
+  }
   console.log(`active canary: ${active.id}`);
   console.log(`  canary:   ${active.canaryVariantId}`);
   console.log(`  baseline: ${active.baselineVariantId}`);
@@ -346,6 +390,10 @@ function cmdCanaryStep(flags: Record<string, string>): void {
   const task = flags.task;
   if (!task) throw new Error('--task required');
   const r = stepCanary({ taskType: task });
+  if (isJson(flags)) {
+    jsonOut(r);
+    return;
+  }
   console.log(`step: ${r.action}`);
   console.log(JSON.stringify(r, null, 2));
 }
@@ -409,12 +457,21 @@ commands:
 
 global flags:
   --db <path>                  path to SQLite DB (or set SELFIMPROVE_DB)
+  --json                       output as JSON (for scripting)
 
 examples:
   kamiyo-si init --db ./agents.db
   kamiyo-si rubric set --task tweet_reply --file ./rubric.md --budget 5
-  kamiyo-si leaderboard --task tweet_reply
+  kamiyo-si leaderboard --task tweet_reply --json
   kamiyo-si sweep run
+
+  # canary workflow
+  kamiyo-si canary start --task tweet_reply --variant <id> --traffic 0.1
+  kamiyo-si canary status --task tweet_reply
+  kamiyo-si canary step --task tweet_reply        # auto-ramp or promote/rollback
+  kamiyo-si canary ramp --task tweet_reply --traffic 0.5
+  kamiyo-si canary promote --task tweet_reply      # force full promotion
+  kamiyo-si canary rollback --task tweet_reply --reason "regression"
 `);
 }
 

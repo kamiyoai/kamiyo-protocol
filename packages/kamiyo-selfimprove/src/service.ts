@@ -8,6 +8,7 @@ import {
   validateGenome,
 } from './genome';
 import { sampleNormal, sampleStats, welchPTwoSided, welchT, type SampleStats } from './stats';
+import { getOrCreateStandingTournament } from './bandit';
 
 export type VariantStatus = 'active' | 'archived' | 'promoted';
 
@@ -64,12 +65,17 @@ function rowToVariant(row: VariantRow): AgentVariant {
 export type CreateVariantInput = {
   agentId: string;
   taskType: string;
-  genome: AgentGenome | unknown;
+  genome: AgentGenome;
   parentId?: string | null;
   notes?: string | null;
 };
 
-export function createVariant(input: CreateVariantInput): AgentVariant {
+export type CreateVariantResult = {
+  variant: AgentVariant;
+  created: boolean;
+};
+
+export function createVariant(input: CreateVariantInput): CreateVariantResult {
   const { db, metrics } = getContext();
   const genome = validateGenome(input.genome);
   const hash = hashGenome(genome);
@@ -81,7 +87,7 @@ export function createVariant(input: CreateVariantInput): AgentVariant {
     )
     .get(input.agentId, input.taskType, hash) as VariantRow | undefined;
 
-  if (existing) return rowToVariant(existing);
+  if (existing) return { variant: rowToVariant(existing), created: false };
 
   db.prepare(
     `INSERT INTO agent_variants (id, parent_id, agent_id, task_type, genome_hash, genome_json, status, notes)
@@ -101,7 +107,7 @@ export function createVariant(input: CreateVariantInput): AgentVariant {
     task_type: input.taskType,
     kind: input.parentId ? 'fork' : 'root',
   });
-  return rowToVariant(row);
+  return { variant: rowToVariant(row), created: true };
 }
 
 export function forkVariant(parentId: string, patch: GenomeMutation, notes?: string): AgentVariant {
@@ -114,7 +120,7 @@ export function forkVariant(parentId: string, patch: GenomeMutation, notes?: str
     genome,
     parentId: parent.id,
     notes: notes ?? null,
-  });
+  }).variant;
 }
 
 export function getVariant(id: string): AgentVariant | null {
@@ -283,11 +289,13 @@ export function evaluateAndPromote(
   const baselineStats = sampleStats(baselineScores);
 
   let best: { variant: AgentVariant; stats: SampleStats; p: number } | null = null;
+  let anyTestedAboveMinSamples = false;
 
   for (const candidate of candidates) {
     if (candidate.id === baseline.id) continue;
     const scores = getVariantScores(candidate.id);
     if (scores.length < minSamples) continue;
+    anyTestedAboveMinSamples = true;
     const stats = sampleStats(scores);
     if (stats.mean <= baselineStats.mean) continue;
     const tw = welchT(stats, baselineStats);
@@ -299,7 +307,10 @@ export function evaluateAndPromote(
 
   if (!best) {
     metrics.variantPromotions.inc({ task_type: taskType, result: 'skipped' });
-    return { promoted: false, reason: 'no candidate meets threshold' };
+    const reason = anyTestedAboveMinSamples
+      ? 'no candidate beats baseline at significance threshold'
+      : `all candidates below minSamples (${minSamples})`;
+    return { promoted: false, reason };
   }
 
   const now = Math.trunc(Date.now() / 1000);
@@ -446,4 +457,24 @@ export function recordTournamentEntry(params: {
   const out = tx();
   metrics.variantEntries.inc({ result: out.ok ? 'ok' : 'rejected' });
   return out;
+}
+
+export type RecordScoreInput = {
+  variantId: string;
+  qualityScore: number;
+  cost?: number;
+  latencyMs?: number;
+};
+
+export function recordScore(input: RecordScoreInput): RecordEntryResult {
+  const variant = getVariant(input.variantId);
+  if (!variant) return { ok: false, error: 'variant not found' };
+  const tournament = getOrCreateStandingTournament(variant.taskType);
+  return recordTournamentEntry({
+    tournamentId: tournament.id,
+    variantId: input.variantId,
+    qualityScore: input.qualityScore,
+    cost: input.cost ?? null,
+    latencyMs: input.latencyMs ?? null,
+  });
 }

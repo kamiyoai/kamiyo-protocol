@@ -35,7 +35,7 @@ export function seedFromPrompts(input: SeedFromPromptsInput): AgentVariant[] {
         taskType: input.taskType,
         genome,
         notes: input.notes ?? 'cold-start seed',
-      })
+      }).variant
     );
   }
 

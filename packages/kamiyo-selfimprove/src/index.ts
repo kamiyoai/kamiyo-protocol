@@ -35,9 +35,11 @@ export {
 export {
   type AgentVariant,
   type CreateVariantInput,
+  type CreateVariantResult,
   type LeaderboardEntry,
   type PromotionResult,
   type RecordEntryResult,
+  type RecordScoreInput,
   type VariantStatus,
   createVariant,
   evaluateAndPromote,
@@ -46,6 +48,7 @@ export {
   getVariant,
   getVariantScores,
   listActiveVariants,
+  recordScore,
   recordTournamentEntry,
   thompsonSample,
 } from './service';
