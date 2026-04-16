@@ -269,7 +269,16 @@ export function evaluateAndPromote(
     .get(taskType) as VariantRow | undefined;
   if (promoted) currentDefault = rowToVariant(promoted);
 
-  const baseline = currentDefault ?? candidates[candidates.length - 1];
+  let baseline: AgentVariant;
+  if (currentDefault) {
+    baseline = currentDefault;
+  } else {
+    const withSamples = candidates.filter(c => c.sampleCount >= minSamples);
+    baseline =
+      withSamples.length > 0
+        ? withSamples.reduce((a, b) => (a.repScore <= b.repScore ? a : b))
+        : candidates.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+  }
   const baselineScores = getVariantScores(baseline.id);
   const baselineStats = sampleStats(baselineScores);
 

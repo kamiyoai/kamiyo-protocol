@@ -141,7 +141,13 @@ function fromPromoted(taskType: string, row: Record<string, unknown>): RouteDeci
 export function listTaskTypes(): string[] {
   const { db } = getContext();
   const rows = db
-    .prepare(`SELECT DISTINCT task_type FROM agent_variants WHERE status IN ('active','promoted')`)
+    .prepare(
+      `SELECT task_type FROM (
+        SELECT DISTINCT task_type FROM agent_variants WHERE status IN ('active','promoted')
+        UNION
+        SELECT task_type FROM task_rubrics
+      ) ORDER BY task_type`
+    )
     .all() as Array<{ task_type: string }>;
   return rows.map(r => r.task_type);
 }
