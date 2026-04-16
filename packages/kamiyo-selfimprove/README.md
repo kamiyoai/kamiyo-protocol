@@ -24,6 +24,7 @@ npm install @kamiyo-org/selfimprove better-sqlite3
 import Database from 'better-sqlite3';
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  applySchema,
   initSelfImprove,
   createVariant,
   routeVariant,
@@ -33,7 +34,7 @@ import {
 } from '@kamiyo-org/selfimprove';
 
 const db = new Database('./agents.db');
-db.exec(/* run the SQL migrations shipped in this repo */);
+applySchema(db);
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const judgeLLM: JudgeLLM = {

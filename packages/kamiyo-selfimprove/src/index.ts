@@ -98,3 +98,5 @@ export {
   recordVariantEntry,
   toVariantDecisionMeta,
 } from './routing';
+
+export { SCHEMA_SQL, applySchema } from './schema';
