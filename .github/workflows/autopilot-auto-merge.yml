@@ -1,0 +1,52 @@
+name: autopilot-auto-merge
+
+on:
+  pull_request_target:
+    types: [labeled, synchronize, opened, reopened]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.AUTOPILOT_PAT || github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: "open", per_page: 100,
+            });
+            const eligible = prs.filter(pr =>
+              pr.user?.login === "kamiyobot" &&
+              pr.labels.some(l => l.name === "agent-approved") &&
+              !pr.labels.some(l => l.name === "halt-autopilot") &&
+              pr.base.ref === "main" &&
+              pr.draft === false
+            );
+            for (const pr of eligible) {
+              const { data: full } = await github.rest.pulls.get({
+                owner, repo, pull_number: pr.number,
+              });
+              if (full.mergeable_state !== "clean") {
+                core.info(`#${pr.number} not clean (${full.mergeable_state}), skipping`);
+                continue;
+              }
+              try {
+                await github.rest.pulls.merge({
+                  owner, repo, pull_number: pr.number,
+                  merge_method: "squash",
+                });
+                core.info(`merged #${pr.number}`);
+              } catch (e) {
+                core.warning(`merge failed for #${pr.number}: ${e.message}`);
+              }
+            }
