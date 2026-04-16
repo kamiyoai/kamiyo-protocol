@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { initSelfImprove, type JudgeLLM, type MetricsAdapter } from '@kamiyo/selfimprove';
+import { initSelfImprove, type JudgeLLM, type MetricsAdapter } from '@kamiyo-org/selfimprove';
 import db from '../db';
 import { logger } from '../logger';
 import {

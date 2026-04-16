@@ -10,4 +10,4 @@ export {
   markTournamentStatus,
   recordParticipantResult,
   totalTournamentCost,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

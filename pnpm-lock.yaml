@@ -2120,6 +2120,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.31.1
         version: 0.31.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo-org/selfimprove':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-selfimprove
       '@kamiyo/agent-paranet':
         specifier: workspace:*
         version: link:../../packages/kamiyo-agent-paranet
@@ -2138,9 +2141,6 @@ importers:
       '@kamiyo/reality-fork-dkg':
         specifier: workspace:*
         version: link:../../packages/kamiyo-reality-fork-dkg
-      '@kamiyo/selfimprove':
-        specifier: workspace:*
-        version: link:../../packages/kamiyo-selfimprove
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../../packages/kamiyo-x402-client

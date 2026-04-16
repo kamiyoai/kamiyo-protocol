@@ -19,7 +19,7 @@ import {
   sweepPromotions,
   totalTournamentCost,
   upsertRubric,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';
 
 const router = Router();
 

@@ -9,4 +9,4 @@ export {
   listTaskTypes,
   routeVariant,
   sweepPromotions,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

@@ -8,7 +8,7 @@ import type {
 import { createRequire } from 'module';
 import OpenAI from 'openai';
 import './variants/bootstrap';
-import { maybeRouteVariant, toVariantDecisionMeta } from '@kamiyo/selfimprove';
+import { maybeRouteVariant, toVariantDecisionMeta } from '@kamiyo-org/selfimprove';
 
 type TaskInput = {
   taskId: string;

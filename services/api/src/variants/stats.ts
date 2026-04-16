@@ -4,4 +4,4 @@ export {
   sampleStats,
   welchPTwoSided,
   welchT,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

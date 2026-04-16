@@ -19,7 +19,11 @@ import {
 } from './rate-limiter';
 import { forwardToTelegram } from './telegram-forward';
 import './variants/bootstrap';
-import { maybeRouteVariant, applyGenomeOverrides, recordVariantEntry } from '@kamiyo/selfimprove';
+import {
+  maybeRouteVariant,
+  applyGenomeOverrides,
+  recordVariantEntry,
+} from '@kamiyo-org/selfimprove';
 
 const TWEET_REPLY_TASK_TYPE = 'tweet_reply';
 

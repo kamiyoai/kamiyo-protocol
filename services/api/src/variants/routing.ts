@@ -8,4 +8,4 @@ export {
   maybeRouteVariant,
   recordVariantEntry,
   toVariantDecisionMeta,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

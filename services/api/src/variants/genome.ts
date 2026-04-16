@@ -5,4 +5,4 @@ export {
   hashGenome,
   mutateGenome,
   validateGenome,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';

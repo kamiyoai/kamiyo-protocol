@@ -4,4 +4,4 @@ export {
   runVariantSweepNow,
   startVariantSweepWorker,
   stopVariantSweepWorker,
-} from '@kamiyo/selfimprove';
+} from '@kamiyo-org/selfimprove';
