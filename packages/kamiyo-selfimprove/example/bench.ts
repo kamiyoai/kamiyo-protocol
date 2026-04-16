@@ -118,7 +118,7 @@ async function main(): Promise<void> {
     systemGuardrails: '',
   };
 
-  const baseline = createVariant({
+  const { variant: baseline } = createVariant({
     agentId: 'reply-bot',
     taskType: 'tweet_reply',
     genome: baselineGenome,

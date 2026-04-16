@@ -255,6 +255,8 @@ export async function rescoreShadowRuns(opts: RescoreOptions): Promise<RescoreRe
         }
       });
       delTx();
+    } else {
+      db.prepare(`DELETE FROM judge_cache WHERE task_type = ?`).run(opts.taskType);
     }
   } else {
     db.prepare(`DELETE FROM judge_cache WHERE task_type = ?`).run(opts.taskType);

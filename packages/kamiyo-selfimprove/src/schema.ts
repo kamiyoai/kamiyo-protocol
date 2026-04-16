@@ -205,7 +205,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_canary_rollouts_active
 const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;
 
 export function applySchema(db: DatabaseAdapter): void {
-  db.exec(SCHEMA_SQL);
+  const schemaWithoutPartialIndexes = SCHEMA_SQL.replace(
+    /CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_variants_one_promoted[^;]*;/,
+    ''
+  ).replace(/CREATE UNIQUE INDEX IF NOT EXISTS idx_canary_rollouts_active[^;]*;/, '');
+  db.exec(schemaWithoutPartialIndexes);
+
+  const partialIndexes = [
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_variants_one_promoted ON agent_variants(task_type) WHERE status = 'promoted'`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_canary_rollouts_active ON canary_rollouts(task_type) WHERE status = 'active'`,
+  ];
+  for (const ddl of partialIndexes) {
+    try {
+      db.exec(ddl);
+    } catch {
+      // dirty DB: constraint violation from existing data — skip index
+    }
+  }
+
   try {
     db.exec(ELO_MIGRATION);
   } catch {

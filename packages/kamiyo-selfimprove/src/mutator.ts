@@ -175,7 +175,7 @@ export async function autoMutateTaskType(
 
   for (const p of proposals) {
     totalCost += p.costUsd;
-    const newVariant = createVariant({
+    const { variant: newVariant } = createVariant({
       agentId: variantAgentId(p.parentVariantId),
       taskType,
       genome: p.proposedGenome,
@@ -197,7 +197,7 @@ export async function autoMutateTaskType(
       const jittered = jitterGenome(p.parentGenome);
       if (canonicalizeGenome(jittered) === canonicalizeGenome(p.parentGenome)) continue;
 
-      const newVariant = createVariant({
+      const { variant: newVariant } = createVariant({
         agentId: variantAgentId(p.parentVariantId),
         taskType,
         genome: jittered,
