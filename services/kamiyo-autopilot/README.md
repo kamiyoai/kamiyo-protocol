@@ -1,6 +1,6 @@
 # @kamiyo/autopilot
 
-Headless autonomous dev loop. Reads GitHub issues labeled `agent`, drafts a branch + PR via the Claude Agent SDK, runs tests, and lets `autopilot-auto-merge.yml` squash-merge once `agent-approved` is applied and CI is green.
+Headless autonomous dev loop. Reads GitHub issues labeled `agent`, drafts a branch + PR via the Claude Agent SDK, runs tests, and lets the `autopilot-auto-merge.yml` workflow squash-merge once `agent-approved` is applied and CI is green.
 
 ## Runtime
 
@@ -23,7 +23,7 @@ Set in repo secrets:
 
 Runtime config (env):
 
-- `CLAUDE_MODEL` (default `claude-opus-4-6`)
+- `CLAUDE_MODEL` (default `claude-opus-4.6`)
 - `MAX_TURNS` (default `30`)
 - `DAILY_USD_MAX` (default `50`, workflow sets `25`) — hard stop per invocation
 - `AGENT_LABEL` / `APPROVED_LABEL` / `HALT_LABEL` / `BOT_LOGIN` — defaults are `agent` / `agent-approved` / `halt-autopilot` / `kamiyo-bot`
@@ -61,7 +61,7 @@ Open each of these labeled `agent` to verify the loop end-to-end. Start with tri
 4. **Add a `services/kamiyo-autopilot/CHANGELOG.md` with initial `0.1.0` entry** — docs.
 5. **Replace hardcoded default model string with a shared constant** — small refactor.
 
-After each merges cleanly, retire the issue. If any fails, inspect the PR + comment, tighten the system prompt in `src/agent.ts`, retry.
+After each merges cleanly, retire the issue. If any fail, inspect the PR and comment, tighten the system prompt in `src/agent.ts`, and retry.
 
 ## Kill switch
 
