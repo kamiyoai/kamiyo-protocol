@@ -57,8 +57,7 @@ jobs:
         id: skip
         run: |
           msg=$(git log -1 --format=%s)
-          email=$(git log -1 --format=%ae)
-          if [[ "$msg" == docs-agent:* && "$email" == kamiyo-ai@users.noreply.github.com ]]; then
+          if [[ "$msg" == docs-agent:* ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
