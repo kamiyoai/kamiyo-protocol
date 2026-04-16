@@ -119,6 +119,7 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `tournament` | standing tournaments, status transitions, budget caps |
 | `bandit` | routing, standing-tournament bookkeeping, sweep |
 | `judge` | LLM-as-judge with rubric, sha256 cache, daily USD budget |
+| `pairwise` | pairwise LLM judge, Elo online update, Bradley-Terry MLE |
 | `routing` | convenience wrappers for request-path wiring |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
@@ -129,16 +130,43 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 - **LLM-as-judge + hash cache** turns quality signal from hand-labeled rare into automatic and cheap. Cache keyed on `(taskType, input, output, modelId)`; budget-gated per task type per day.
 - **Promotion is atomic** under a SQLite transaction with a re-check of the baseline, so concurrent sweeps can't race into an inconsistent state.
 
+## Pairwise judge (Elo + Bradley-Terry)
+
+Absolute scores drift. Pairwise comparison is what research consistently finds more stable:
+
+```ts
+import { comparePair, recordPairwiseMatch, fitBradleyTerry } from '@kamiyo-org/selfimprove';
+
+const cmp = await comparePair({
+  taskType: 'tweet_reply',
+  input,
+  outputA: replyFromVariantX,
+  outputB: replyFromVariantY,
+});
+if (cmp.ok) {
+  recordPairwiseMatch({
+    taskType: 'tweet_reply',
+    variantIdA: 'variant-x',
+    variantIdB: 'variant-y',
+    winner: cmp.winner,
+  });
+}
+
+const skill = fitBradleyTerry(matches);
+```
+
+- **Online Elo** updates `agent_variants.elo_rating` on every match (k=32 default).
+- **Bradley-Terry MLE** fits a skill vector from batch match history; use for calibrated leaderboards.
+
 ## Roadmap
 
-- **Pairwise judge**: Bradley-Terry / Elo on top of pairwise preference (research shows big win over absolute scoring)
 - **Auto-mutation**: LLM proposes variant edits from top genomes; parameter jitter; crossover
 - **Lineage viz**: genome ancestry tree
 - **Cold start**: offline eval suite for new task types before bandit goes live
 
 ## Status
 
-`0.1.0` — API may shift before `1.0`. Schema migrations are stable.
+`0.3.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 

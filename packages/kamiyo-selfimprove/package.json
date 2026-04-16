@@ -1,6 +1,6 @@
 {
   "name": "@kamiyo-org/selfimprove",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Self-improving agent loop: genome-based variants, bandit routing, LLM-as-judge, auto-promotion.",
   "main": "dist/index.js",
   "module": "dist/index.js",
