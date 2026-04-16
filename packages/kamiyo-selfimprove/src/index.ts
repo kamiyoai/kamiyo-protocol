@@ -49,3 +49,32 @@ export {
   recordTournamentEntry,
   thompsonSample,
 } from './service';
+
+export {
+  type MarkStatusResult,
+  type Tournament,
+  type TournamentOptions,
+  type TournamentStatus,
+  createTournament,
+  getTournament,
+  markTournamentStatus,
+  recordParticipantResult,
+  totalTournamentCost,
+} from './tournament';
+
+export {
+  type RouteDecision,
+  type StandingTournament,
+  type SweepResult,
+  getOrCreateStandingTournament,
+  isBanditRoutingEnabled,
+  listTaskTypes,
+  routeVariant,
+  sweepPromotions,
+} from './bandit';
+
+export {
+  runVariantSweepNow,
+  startVariantSweepWorker,
+  stopVariantSweepWorker,
+} from './sweep-worker';
