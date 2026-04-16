@@ -1,0 +1,44 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+categories:
+  - title: "Autopilot"
+    labels:
+      - "agent-approved"
+  - title: "Features"
+    labels:
+      - "feature"
+      - "enhancement"
+  - title: "Fixes"
+    labels:
+      - "fix"
+      - "bug"
+  - title: "Docs"
+    labels:
+      - "docs"
+  - title: "Chores"
+    labels:
+      - "chore"
+      - "refactor"
+      - "ci"
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+version-resolver:
+  major:
+    labels: ["breaking"]
+  minor:
+    labels: ["feature", "enhancement"]
+  patch:
+    labels: ["fix", "bug", "chore", "docs", "agent-approved"]
+  default: patch
+exclude-labels:
+  - "skip-release"
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Autonomous stack stats:**
+  - Autopilot PRs: see "Autopilot" section
+  - Docs regeneration: automatic on merge via docs-agent
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
