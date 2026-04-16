@@ -100,3 +100,16 @@ export {
 } from './routing';
 
 export { SCHEMA_SQL, applySchema } from './schema';
+
+export {
+  type BradleyTerryResult,
+  type ComparePairInput,
+  type MatchResult,
+  type PairwiseResult,
+  type PairwiseWinner,
+  type RecordMatchInput,
+  comparePair,
+  fitBradleyTerry,
+  recordPairwiseMatch,
+  updateElo,
+} from './pairwise';

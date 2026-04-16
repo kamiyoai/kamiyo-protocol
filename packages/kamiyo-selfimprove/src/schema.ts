@@ -97,8 +97,45 @@ CREATE TABLE IF NOT EXISTS judge_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_judge_runs_task_day ON judge_runs(task_type, created_at);
+
+CREATE TABLE IF NOT EXISTS pairwise_matches (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  variant_a TEXT NOT NULL,
+  variant_b TEXT NOT NULL,
+  winner TEXT NOT NULL CHECK (winner IN ('a','b','tie')),
+  input_hash TEXT,
+  elo_a_before REAL NOT NULL,
+  elo_b_before REAL NOT NULL,
+  elo_a_after REAL NOT NULL,
+  elo_b_after REAL NOT NULL,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_pairwise_matches_task ON pairwise_matches(task_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_pairwise_matches_variants ON pairwise_matches(variant_a, variant_b);
+
+CREATE TABLE IF NOT EXISTS pairwise_cache (
+  cache_key TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  winner TEXT NOT NULL CHECK (winner IN ('a','b','tie')),
+  rationale TEXT,
+  model_id TEXT NOT NULL,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  latency_ms INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_pairwise_cache_task ON pairwise_cache(task_type, created_at);
 `;
+
+const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;
 
 export function applySchema(db: DatabaseAdapter): void {
   db.exec(SCHEMA_SQL);
+  try {
+    db.exec(ELO_MIGRATION);
+  } catch {
+    // column already exists
+  }
 }
