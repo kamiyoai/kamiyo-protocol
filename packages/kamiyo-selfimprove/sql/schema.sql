@@ -157,3 +157,44 @@ CREATE TABLE IF NOT EXISTS coldstart_evals (
 
 CREATE INDEX IF NOT EXISTS idx_coldstart_evals_variant ON coldstart_evals(variant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_coldstart_evals_task ON coldstart_evals(task_type, created_at);
+
+CREATE TABLE IF NOT EXISTS shadow_runs (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  variant_id TEXT NOT NULL,
+  primary_variant_id TEXT NOT NULL,
+  batch_id TEXT NOT NULL,
+  input_hash TEXT NOT NULL,
+  input_text TEXT,
+  output_text TEXT,
+  quality_score REAL,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  latency_ms INTEGER,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_task ON shadow_runs(task_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_variant ON shadow_runs(variant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_batch ON shadow_runs(batch_id);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_input_hash ON shadow_runs(task_type, input_hash);
+
+CREATE TABLE IF NOT EXISTS canary_rollouts (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  canary_variant_id TEXT NOT NULL,
+  baseline_variant_id TEXT NOT NULL,
+  traffic_pct REAL NOT NULL DEFAULT 0.1,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','promoted','rolled_back')),
+  min_samples INTEGER NOT NULL DEFAULT 50,
+  rollback_threshold REAL NOT NULL DEFAULT 0.05,
+  started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  decided_at INTEGER,
+  decision TEXT,
+  decision_event_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_canary_rollouts_task ON canary_rollouts(task_type, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_canary_rollouts_active
+  ON canary_rollouts(task_type) WHERE status = 'active';

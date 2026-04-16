@@ -9,6 +9,17 @@ import { getLeaderboard, getVariant, listActiveVariants, evaluateAndPromote } fr
 import { listTaskTypes } from './bandit';
 import { startDashboard } from './dashboard';
 import { getParetoFrontier } from './pareto';
+import { getShadowStats } from './shadow';
+import {
+  evaluateCanary,
+  getActiveCanary,
+  listCanaryRollouts,
+  promoteCanary,
+  rampCanary,
+  rollbackCanary,
+  startCanary,
+  stepCanary,
+} from './canary';
 
 type Args = {
   command: string;
@@ -250,6 +261,121 @@ function cmdPareto(flags: Record<string, string>): void {
   );
 }
 
+function cmdShadowStats(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const hoursAgo = flags.hours ? Number(flags.hours) : undefined;
+  const since = typeof hoursAgo === 'number' ? hoursAgo * 3600 : undefined;
+  const stats = getShadowStats(task, since);
+  if (stats.length === 0) {
+    console.log(`no shadow runs for task: ${task}`);
+    return;
+  }
+  console.table(
+    stats.map(s => ({
+      id: s.variantId.slice(0, 8),
+      n: s.n,
+      score: s.meanScore.toFixed(3),
+      cost: `$${s.meanCost.toFixed(4)}`,
+      latency: `${Math.round(s.meanLatencyMs)}ms`,
+    }))
+  );
+}
+
+function cmdCanaryStart(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const variant = flags.variant;
+  if (!variant) throw new Error('--variant required (canary variant id)');
+  const r = startCanary({
+    taskType: task,
+    canaryVariantId: variant,
+    baselineVariantId: flags.baseline,
+    trafficPct: flags.traffic ? Number(flags.traffic) : undefined,
+    minSamples: flags['min-samples'] ? Number(flags['min-samples']) : undefined,
+    rollbackThreshold: flags.threshold ? Number(flags.threshold) : undefined,
+  });
+  console.log(
+    `canary started: id=${r.id} canary=${r.canaryVariantId} baseline=${r.baselineVariantId} traffic=${(r.trafficPct * 100).toFixed(0)}%`
+  );
+}
+
+function cmdCanaryStatus(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const active = getActiveCanary(task);
+  if (!active) {
+    const history = listCanaryRollouts(task, 5);
+    if (history.length === 0) {
+      console.log(`no canary rollouts for task: ${task}`);
+      return;
+    }
+    console.log('no active canary. recent rollouts:');
+    console.table(
+      history.map(r => ({
+        id: r.id.slice(0, 8),
+        status: r.status,
+        decision: r.decision ?? '-',
+        started: new Date(r.startedAt * 1000).toISOString(),
+      }))
+    );
+    return;
+  }
+  const decision = evaluateCanary({ taskType: task });
+  console.log(`active canary: ${active.id}`);
+  console.log(`  canary:   ${active.canaryVariantId}`);
+  console.log(`  baseline: ${active.baselineVariantId}`);
+  console.log(`  traffic:  ${(active.trafficPct * 100).toFixed(0)}%`);
+  console.log(`  decision: ${decision.kind}`);
+  if (decision.kind === 'hold') console.log(`  reason:   ${decision.reason}`);
+  if (decision.kind === 'promote') {
+    console.log(
+      `  uplift:   ${decision.uplift.toFixed(3)} (p=${decision.pValue.toExponential(2)})`
+    );
+  }
+  if (decision.kind === 'rollback') {
+    console.log(`  delta:    ${decision.delta.toFixed(3)}`);
+  }
+}
+
+function cmdCanaryStep(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const r = stepCanary({ taskType: task });
+  console.log(`step: ${r.action}`);
+  console.log(JSON.stringify(r, null, 2));
+}
+
+function cmdCanaryRamp(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const traffic = flags.traffic;
+  if (!traffic) throw new Error('--traffic required (0-1)');
+  const r = rampCanary(task, Number(traffic));
+  console.log(`ramped to ${(r.trafficPct * 100).toFixed(0)}%`);
+}
+
+function cmdCanaryPromote(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const r = promoteCanary(task);
+  console.log(`promoted: ${r.promotedVariantId} (archived ${r.archivedVariantId})`);
+}
+
+function cmdCanaryRollback(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const r = rollbackCanary(task, flags.reason ?? 'manual');
+  console.log(`rolled back: archived ${r.archivedVariantId}`);
+}
+
 function cmdDashboard(flags: Record<string, string>): void {
   initCtx(flags);
   const port = flags.port ? Number(flags.port) : 4100;
@@ -273,6 +399,13 @@ commands:
   tasks list                   list all task types
   dashboard [--port 4100]      start web dashboard (read-only, localhost)
   pareto --task <t>            show pareto-optimal variants (quality/cost/latency)
+  shadow stats --task <t>      shadow-run aggregates (--hours to scope window)
+  canary start --task <t> --variant <id> [--baseline <id>] [--traffic 0.1]
+  canary status --task <t>     show active canary + decision
+  canary step --task <t>       auto-ramp/promote/rollback one step
+  canary ramp --task <t> --traffic <0-1>
+  canary promote --task <t>    force full promotion
+  canary rollback --task <t> [--reason <text>]
 
 global flags:
   --db <path>                  path to SQLite DB (or set SELFIMPROVE_DB)
@@ -319,6 +452,19 @@ async function main(): Promise<void> {
         break;
       case 'pareto':
         cmdPareto(args.flags);
+        break;
+      case 'shadow':
+        if (args.sub === 'stats') cmdShadowStats(args.flags);
+        else throw new Error(`unknown shadow subcommand: ${args.sub}`);
+        break;
+      case 'canary':
+        if (args.sub === 'start') cmdCanaryStart(args.flags);
+        else if (args.sub === 'status') cmdCanaryStatus(args.flags);
+        else if (args.sub === 'step') cmdCanaryStep(args.flags);
+        else if (args.sub === 'ramp') cmdCanaryRamp(args.flags);
+        else if (args.sub === 'promote') cmdCanaryPromote(args.flags);
+        else if (args.sub === 'rollback') cmdCanaryRollback(args.flags);
+        else throw new Error(`unknown canary subcommand: ${args.sub}`);
         break;
       case 'help':
       case '--help':
