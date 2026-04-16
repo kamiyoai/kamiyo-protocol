@@ -18,8 +18,9 @@ async function main() {
   if (issues.length === 0) return;
 
   const issue = issues[0];
+  const labels = issue.labels.map(l => (typeof l === 'string' ? l : (l.name ?? '')));
   console.log(`[autopilot] working on #${issue.number}: ${issue.title}`);
-  await runAgentOnIssue(cfg, issue.number, issue.title, issue.body ?? '');
+  await runAgentOnIssue(cfg, issue.number, issue.title, issue.body ?? '', labels);
 }
 
 main().catch(err => {

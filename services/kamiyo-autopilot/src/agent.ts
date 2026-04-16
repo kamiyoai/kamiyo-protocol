@@ -1,5 +1,13 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Config } from './config';
+import { MODELS, type Config, type ModelTier } from './config';
+
+export function pickModel(cfg: Config, labels: string[]): string {
+  const tier = labels
+    .map(l => l.toLowerCase())
+    .map(l => (l.startsWith('agent:') ? (l.slice(6) as ModelTier) : null))
+    .find((t): t is ModelTier => t !== null && t in MODELS);
+  return tier ? MODELS[tier] : cfg.CLAUDE_MODEL;
+}
 
 const SYSTEM_PROMPT = `You are kamiyo-autopilot, an autonomous developer for the kamiyo-protocol monorepo.
 
@@ -17,8 +25,12 @@ export async function runAgentOnIssue(
   cfg: Config,
   issueNumber: number,
   title: string,
-  body: string
+  body: string,
+  labels: string[] = []
 ) {
+  const model = pickModel(cfg, labels);
+  console.log(`[autopilot] model=${model} labels=${labels.join(',') || '-'}`);
+
   const userPrompt = `Issue #${issueNumber}: ${title}
 
 ${body}
@@ -30,7 +42,7 @@ Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}`;
   const iterator = query({
     prompt: userPrompt,
     options: {
-      model: cfg.CLAUDE_MODEL,
+      model,
       systemPrompt: SYSTEM_PROMPT,
       maxTurns: cfg.MAX_TURNS,
       permissionMode: cfg.DRY_RUN ? 'plan' : 'acceptEdits',
