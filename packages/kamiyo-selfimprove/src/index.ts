@@ -78,3 +78,14 @@ export {
   startVariantSweepWorker,
   stopVariantSweepWorker,
 } from './sweep-worker';
+
+export {
+  type JudgedEntryResult,
+  type JudgeResult,
+  type ScoreOutputInput,
+  type TaskRubric,
+  getRubric,
+  recordJudgedEntry,
+  scoreOutput,
+  upsertRubric,
+} from './judge';
