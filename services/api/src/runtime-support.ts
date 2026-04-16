@@ -15,7 +15,8 @@ import { getEngagementStats } from './engagement-optimizer';
 import { startBurnWorker, stopBurnWorker } from './burn-service';
 import { startBuybackWorker, stopBuybackWorker } from './buyback-service';
 import { startStakingReferralWorker, stopStakingReferralWorker } from './staking-referrals';
-import { startVariantSweepWorker, stopVariantSweepWorker } from './variants/sweep-worker';
+import './variants/bootstrap';
+import { startVariantSweepWorker, stopVariantSweepWorker } from '@kamiyo/selfimprove';
 
 let operationalIntervals: NodeJS.Timeout[] = [];
 

@@ -18,7 +18,8 @@ import {
   recordWrite,
 } from './rate-limiter';
 import { forwardToTelegram } from './telegram-forward';
-import { maybeRouteVariant, applyGenomeOverrides, recordVariantEntry } from './variants/routing';
+import './variants/bootstrap';
+import { maybeRouteVariant, applyGenomeOverrides, recordVariantEntry } from '@kamiyo/selfimprove';
 
 const TWEET_REPLY_TASK_TYPE = 'tweet_reply';
 
