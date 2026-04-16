@@ -52,11 +52,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.AUTOPILOT_PAT || github.token }}
 
-      - name: Skip if last commit is a docs-agent commit
+      - name: Skip if last commit was made by docs-agent itself
         id: skip
         run: |
           msg=$(git log -1 --format=%s)
-          if [[ "$msg" == docs-agent:* ]]; then
+          email=$(git log -1 --format=%ae)
+          if [[ "$msg" == docs-agent:* && "$email" == kamiyo-ai@users.noreply.github.com ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
