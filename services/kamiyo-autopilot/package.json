@@ -11,7 +11,8 @@
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "run:issue": "tsx src/run-issue.ts"
+    "run:issue": "tsx src/run-issue.ts",
+    "test": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
   }
 }
