@@ -139,3 +139,11 @@ export {
 } from './coldstart';
 
 export { type DashboardOptions, startDashboard } from './dashboard';
+
+export {
+  type ParetoEntry,
+  type ParetoObjective,
+  type ParetoOptions,
+  getAllWithDomination,
+  getParetoFrontier,
+} from './pareto';

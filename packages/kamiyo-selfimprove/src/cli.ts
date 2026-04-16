@@ -8,6 +8,7 @@ import { upsertRubric, getRubric } from './judge';
 import { getLeaderboard, getVariant, listActiveVariants, evaluateAndPromote } from './service';
 import { listTaskTypes } from './bandit';
 import { startDashboard } from './dashboard';
+import { getParetoFrontier } from './pareto';
 
 type Args = {
   command: string;
@@ -227,6 +228,28 @@ function cmdTasksList(flags: Record<string, string>): void {
   for (const t of tasks) console.log(t);
 }
 
+function cmdPareto(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const minSamples = flags['min-samples'] ? Number(flags['min-samples']) : 10;
+  const frontier = getParetoFrontier(task, { minSamples });
+  if (frontier.length === 0) {
+    console.log(`no pareto-optimal variants (need n ≥ ${minSamples} per variant)`);
+    return;
+  }
+  console.table(
+    frontier.map(e => ({
+      id: e.variantId.slice(0, 8),
+      status: e.status,
+      n: e.sampleCount,
+      quality: e.meanQuality.toFixed(3),
+      cost: `$${e.meanCost.toFixed(4)}`,
+      latency: `${Math.round(e.meanLatencyMs)}ms`,
+    }))
+  );
+}
+
 function cmdDashboard(flags: Record<string, string>): void {
   initCtx(flags);
   const port = flags.port ? Number(flags.port) : 4100;
@@ -249,6 +272,7 @@ commands:
   sweep run [--task <t>]       run evaluate-and-promote (all tasks if omitted)
   tasks list                   list all task types
   dashboard [--port 4100]      start web dashboard (read-only, localhost)
+  pareto --task <t>            show pareto-optimal variants (quality/cost/latency)
 
 global flags:
   --db <path>                  path to SQLite DB (or set SELFIMPROVE_DB)
@@ -292,6 +316,9 @@ async function main(): Promise<void> {
         break;
       case 'dashboard':
         cmdDashboard(args.flags);
+        break;
+      case 'pareto':
+        cmdPareto(args.flags);
         break;
       case 'help':
       case '--help':
