@@ -7,6 +7,7 @@ import { initSelfImprove } from './context';
 import { upsertRubric, getRubric } from './judge';
 import { getLeaderboard, getVariant, listActiveVariants, evaluateAndPromote } from './service';
 import { listTaskTypes } from './bandit';
+import { startDashboard } from './dashboard';
 
 type Args = {
   command: string;
@@ -226,6 +227,13 @@ function cmdTasksList(flags: Record<string, string>): void {
   for (const t of tasks) console.log(t);
 }
 
+function cmdDashboard(flags: Record<string, string>): void {
+  initCtx(flags);
+  const port = flags.port ? Number(flags.port) : 4100;
+  const host = flags.host ?? '127.0.0.1';
+  startDashboard({ port, host });
+}
+
 function printHelp(): void {
   console.log(`kamiyo-si — self-improvement CLI
 
@@ -240,6 +248,7 @@ commands:
   leaderboard --task <t>       top variants by score (--limit)
   sweep run [--task <t>]       run evaluate-and-promote (all tasks if omitted)
   tasks list                   list all task types
+  dashboard [--port 4100]      start web dashboard (read-only, localhost)
 
 global flags:
   --db <path>                  path to SQLite DB (or set SELFIMPROVE_DB)
@@ -280,6 +289,9 @@ async function main(): Promise<void> {
       case 'tasks':
         if (args.sub === 'list') cmdTasksList(args.flags);
         else throw new Error(`unknown tasks subcommand: ${args.sub}`);
+        break;
+      case 'dashboard':
+        cmdDashboard(args.flags);
         break;
       case 'help':
       case '--help':

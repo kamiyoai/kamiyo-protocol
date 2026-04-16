@@ -137,3 +137,5 @@ export {
   offlineEval,
   seedFromPrompts,
 } from './coldstart';
+
+export { type DashboardOptions, startDashboard } from './dashboard';

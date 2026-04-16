@@ -123,6 +123,7 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `mutator` | LLM-proposed prompt edits, parameter jitter, crossover |
 | `coldstart` | seed variants from prompt lists, offline eval harness |
 | `cli` | `kamiyo-si` command-line tool for init / inspect / sweep |
+| `dashboard` | read-only local web UI over the SQLite DB |
 | `routing` | convenience wrappers for request-path wiring |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
@@ -234,15 +235,31 @@ kamiyo-si variants lineage <variant-id>       # ancestry chain
 
 Set `SELFIMPROVE_DB=/path/to.db` to skip `--db` on every call.
 
+## Dashboard
+
+Read-only local web UI over the same SQLite DB:
+
+```bash
+kamiyo-si dashboard --db ./agents.db --port 4100
+```
+
+Then open <http://127.0.0.1:4100/>. Pages:
+
+- `/` — task types with top mean + sample count
+- `/tasks/:taskType` — leaderboard, promotion events, genome proposals
+- `/variants/:id` — genome JSON, lineage chain, descendants, recent scores
+
+Zero build step. Server-rendered HTML. No external deps beyond `better-sqlite3`.
+
 ## Roadmap
 
-- **Dashboard**: web UI for variants + lineage + promotion events
 - **Multi-objective**: pareto frontier promotion across (quality, cost, latency)
 - **Benchmark suite**: standard task harness to measure auto-mutation lift
+- **Lineage viz**: graphical ancestry tree on dashboard (currently table)
 
 ## Status
 
-`0.5.0` — API may shift before `1.0`. Schema migrations are stable.
+`0.6.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 
