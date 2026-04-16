@@ -121,6 +121,9 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `judge` | LLM-as-judge with rubric, sha256 cache, daily USD budget |
 | `pairwise` | pairwise LLM judge, Elo online update, Bradley-Terry MLE |
 | `mutator` | LLM-proposed prompt edits, parameter jitter, crossover |
+| `coldstart` | seed variants from prompt lists, offline eval harness |
+| `cli` | `kamiyo-si` command-line tool for init / inspect / sweep |
+| `dashboard` | read-only local web UI over the SQLite DB |
 | `routing` | convenience wrappers for request-path wiring |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
@@ -178,14 +181,85 @@ const result = await autoMutateTaskType('tweet_reply', { topK: 3 });
 - **Crossover**: `crossoverGenomes(a, b)` — picks discrete fields from either parent, averages numeric ones.
 - Every proposal is logged in `genome_proposals` (kind + parent + cost).
 
+## Cold start
+
+Seed a new task type with candidate prompts, then run an offline eval before exposing them to live traffic:
+
+```ts
+import { seedFromPrompts, coldStartRank } from '@kamiyo-org/selfimprove';
+
+const variants = seedFromPrompts({
+  agentId: 'reply-bot',
+  taskType: 'tweet_reply',
+  prompts: [
+    'Reply in one witty sentence.',
+    'Reply with a question that nudges engagement.',
+    'Reply concisely, match their tone.',
+  ],
+  baseGenome: {
+    modelId: 'claude-sonnet-4-6',
+    toolAllowlist: [],
+    temperature: 0.7,
+    maxTokens: 200,
+    systemGuardrails: '',
+  },
+});
+
+const ranked = await coldStartRank({
+  taskType: 'tweet_reply',
+  evalSet: [{ input: 'just launched something cool!' }, { input: 'big layoffs today' }],
+  runVariant: async (genome, input) => runAgent(genome, input),
+  minScore: 0.5,
+  archiveFailures: true,
+});
+```
+
+- **`seedFromPrompts`** creates one variant per prompt, reusing a shared `baseGenome`.
+- **`offlineEval`** runs a single variant against an eval set and scores with the judge.
+- **`coldStartRank`** ranks all active variants; optionally archives ones below `minScore`.
+
+Offline eval rows persist in `coldstart_evals` for audit.
+
+## CLI
+
+```bash
+npm i -g @kamiyo-org/selfimprove better-sqlite3
+kamiyo-si init --db ./agents.db
+
+kamiyo-si rubric set --task tweet_reply --file ./rubric.md --budget 5
+kamiyo-si variants list --task tweet_reply
+kamiyo-si leaderboard --task tweet_reply
+kamiyo-si sweep run                           # all task types
+kamiyo-si variants lineage <variant-id>       # ancestry chain
+```
+
+Set `SELFIMPROVE_DB=/path/to.db` to skip `--db` on every call.
+
+## Dashboard
+
+Read-only local web UI over the same SQLite DB:
+
+```bash
+kamiyo-si dashboard --db ./agents.db --port 4100
+```
+
+Then open <http://127.0.0.1:4100/>. Pages:
+
+- `/` — task types with top mean + sample count
+- `/tasks/:taskType` — leaderboard, promotion events, genome proposals
+- `/variants/:id` — genome JSON, lineage chain, descendants, recent scores
+
+Zero build step. Server-rendered HTML. No external deps beyond `better-sqlite3`.
+
 ## Roadmap
 
-- **Lineage viz**: genome ancestry tree
-- **Cold start**: offline eval suite for new task types before bandit goes live
+- **Multi-objective**: pareto frontier promotion across (quality, cost, latency)
+- **Benchmark suite**: standard task harness to measure auto-mutation lift
+- **Lineage viz**: graphical ancestry tree on dashboard (currently table)
 
 ## Status
 
-`0.4.0` — API may shift before `1.0`. Schema migrations are stable.
+`0.6.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 

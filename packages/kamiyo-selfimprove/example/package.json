@@ -1,0 +1,21 @@
+{
+  "name": "@kamiyo-org/selfimprove-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end demo of @kamiyo-org/selfimprove: tweet_reply task with baseline vs auto-mutation.",
+  "scripts": {
+    "bench": "tsx bench.ts",
+    "dashboard": "kamiyo-si dashboard --db ./agents.db --port 4100"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@kamiyo-org/selfimprove": "^0.6.0",
+    "better-sqlite3": "^11.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.0.0"
+  }
+}

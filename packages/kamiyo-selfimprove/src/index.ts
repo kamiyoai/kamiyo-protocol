@@ -124,3 +124,26 @@ export {
   jitterGenome,
   proposeMutations,
 } from './mutator';
+
+export {
+  type ColdStartRankEntry,
+  type ColdStartRankInput,
+  type EvalCase,
+  type OfflineEvalInput,
+  type OfflineEvalResult,
+  type RunVariantFn,
+  type SeedFromPromptsInput,
+  coldStartRank,
+  offlineEval,
+  seedFromPrompts,
+} from './coldstart';
+
+export { type DashboardOptions, startDashboard } from './dashboard';
+
+export {
+  type ParetoEntry,
+  type ParetoObjective,
+  type ParetoOptions,
+  getAllWithDomination,
+  getParetoFrontier,
+} from './pareto';
