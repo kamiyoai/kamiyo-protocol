@@ -36,6 +36,9 @@ Runtime config (env):
 | `agent` | Issue is queued for the autopilot |
 | `agent-approved` | Applied by the PR-review agent (week 3) or a human; eligible for auto-merge |
 | `halt-autopilot` | Any open issue with this label disables the autopilot workflow and auto-merge |
+| `agent:haiku` | Use Haiku 4.5 for this issue (~$0.05–0.15 per PR, trivial edits) |
+| `agent:sonnet` | Use Sonnet 4.6 explicitly (default, ~$0.20–0.50 per PR) |
+| `agent:opus` | Escalate to Opus 4.6 (~$1–3 per PR, complex reasoning) |
 
 ## Branch protection (configure manually once on `main`)
 

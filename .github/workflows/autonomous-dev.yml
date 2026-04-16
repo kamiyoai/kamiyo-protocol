@@ -49,8 +49,8 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.KAMIYO_CANARY_ANTHROPIC_API_KEY }}
       GITHUB_REPO: ${{ github.repository }}
-      CLAUDE_MODEL: claude-opus-4-6
-      DAILY_USD_MAX: "25"
+      CLAUDE_MODEL: claude-sonnet-4-6
+      DAILY_USD_MAX: "10"
     steps:
       - uses: actions/checkout@v4
         with:

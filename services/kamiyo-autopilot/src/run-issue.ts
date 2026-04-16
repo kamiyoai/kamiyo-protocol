@@ -19,7 +19,8 @@ async function main() {
     process.exit(2);
   }
 
-  await runAgentOnIssue(cfg, data.number, data.title, data.body ?? '');
+  const labels = data.labels.map(l => (typeof l === 'string' ? l : (l.name ?? '')));
+  await runAgentOnIssue(cfg, data.number, data.title, data.body ?? '', labels);
 }
 
 main().catch(err => {
