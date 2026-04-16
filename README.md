@@ -14,6 +14,7 @@ Kizuna is the protocol's agentic trust and settlement layer. It provides trust s
 | --- | --- | --- |
 | Kizuna core services | Verification, settlement, funding, repayment, and operator APIs | `services/x402-facilitator`, `services/wallet-control-plane`, `services/api`, `apps/cdp-onboarding` |
 | Reality Fork | Counterfactual control-room package and launch assets | `packages/kamiyo-reality-fork` |
+| Self-improvement | Agent variant management, bandit routing, LLM-as-judge, auto-promotion | `packages/kamiyo-selfimprove` |
 | Trust infrastructure | Durable trust-event ingest, reads, replay, and service runtime | `services/trust-layer-service`, `crates/kamiyo-trust-layer` |
 | Identity and compliance | Passport, mandate, and compliance surfaces | `packages/kamiyo-meishi`, `services/meishi-compliance` |
 | Client and integration packages | SDKs, settlement libraries, and agent-facing integrations | `packages/` |
@@ -49,6 +50,7 @@ The root defaults target the Kizuna core workspace. For module, legacy, and on-c
 ## Key Components
 
 - [Reality Fork package](packages/kamiyo-reality-fork/README.md): portable scenario and control-room package built on the protocol rails
+- [Self-Improve library](packages/kamiyo-selfimprove/README.md): agent variant management, Thompson-sampling bandit routing, LLM-as-judge scoring, and statistical auto-promotion
 - [x402 Facilitator](services/x402-facilitator/README.md): verification, settlement, funding locks, collateralized approvals, and repayment flows
 - [Wallet Control Plane](services/wallet-control-plane/README.md): mandates, linked wallets, enterprise funding limits, and collateral checks
 - [Companion API](services/api/README.md): ledger, billing, integration, and protocol API surfaces
