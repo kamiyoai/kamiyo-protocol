@@ -1,9 +1,13 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { type JudgeLLM } from './adapters';
 import { getContext } from './context';
-import { scoreOutput } from './judge';
+import { getRubric, scoreOutput } from './judge';
 import { getVariant } from './service';
 import { type VariantRunner } from './shadow';
+
+function cacheKeyOf(taskType: string, input: string, output: string, modelId: string): string {
+  return createHash('sha256').update(`${modelId}\0${taskType}\0${input}\0${output}`).digest('hex');
+}
 
 export type ReplayResult = {
   variantId: string;
@@ -241,7 +245,20 @@ export async function rescoreShadowRuns(opts: RescoreOptions): Promise<RescoreRe
   const before = rows.map(r => r.quality_score).filter((s): s is number => typeof s === 'number');
   const meanBefore = before.length > 0 ? before.reduce((a, b) => a + b, 0) / before.length : 0;
 
-  db.prepare(`DELETE FROM judge_cache WHERE task_type = ?`).run(opts.taskType);
+  if (opts.variantId) {
+    const rubric = getRubric(opts.taskType);
+    if (rubric) {
+      const del = db.prepare(`DELETE FROM judge_cache WHERE cache_key = ?`);
+      const delTx = db.transaction(() => {
+        for (const r of rows) {
+          del.run(cacheKeyOf(opts.taskType, r.input_text, r.output_text, rubric.modelId));
+        }
+      });
+      delTx();
+    }
+  } else {
+    db.prepare(`DELETE FROM judge_cache WHERE task_type = ?`).run(opts.taskType);
+  }
 
   let totalCost = 0;
   let rescored = 0;

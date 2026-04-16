@@ -73,44 +73,53 @@ export function startCanary(input: StartCanaryInput): CanaryRollout {
     throw new Error('canary variant taskType mismatch');
   }
 
-  let baselineId = input.baselineVariantId ?? null;
-  if (!baselineId) {
-    const row = db
-      .prepare(
-        `SELECT id FROM agent_variants
-         WHERE task_type = ? AND status = 'promoted'
-         ORDER BY promoted_at DESC LIMIT 1`
-      )
-      .get(input.taskType) as { id: string } | undefined;
-    if (!row) throw new Error('no promoted baseline for taskType; pass baselineVariantId');
-    baselineId = row.id;
-  }
-  if (baselineId === input.canaryVariantId) {
-    throw new Error('canary and baseline cannot be the same variant');
-  }
-
-  const existing = db
-    .prepare(`SELECT id FROM canary_rollouts WHERE task_type = ? AND status = 'active'`)
-    .get(input.taskType) as { id: string } | undefined;
-  if (existing) throw new Error('active canary already exists for this task type');
-
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO canary_rollouts
-      (id, task_type, canary_variant_id, baseline_variant_id, traffic_pct, min_samples, rollback_threshold)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    id,
-    input.taskType,
-    input.canaryVariantId,
-    baselineId,
-    trafficPct,
-    minSamples,
-    rollbackThreshold
-  );
 
-  const row = db.prepare(`SELECT * FROM canary_rollouts WHERE id = ?`).get(id) as RolloutRow;
-  return rowToRollout(row);
+  const tx = db.transaction<CanaryRollout>(() => {
+    let baselineId = input.baselineVariantId ?? null;
+    if (!baselineId) {
+      const row = db
+        .prepare(
+          `SELECT id FROM agent_variants
+           WHERE task_type = ? AND status = 'promoted'
+           ORDER BY promoted_at DESC LIMIT 1`
+        )
+        .get(input.taskType) as { id: string } | undefined;
+      if (!row) throw new Error('no promoted baseline for taskType; pass baselineVariantId');
+      baselineId = row.id;
+    }
+    if (baselineId === input.canaryVariantId) {
+      throw new Error('canary and baseline cannot be the same variant');
+    }
+
+    try {
+      db.prepare(
+        `INSERT INTO canary_rollouts
+          (id, task_type, canary_variant_id, baseline_variant_id, traffic_pct, min_samples, rollback_threshold)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        id,
+        input.taskType,
+        input.canaryVariantId,
+        baselineId,
+        trafficPct,
+        minSamples,
+        rollbackThreshold
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/UNIQUE|constraint/i.test(msg)) {
+        throw new Error('active canary already exists for this task type');
+      }
+      throw err;
+    }
+
+    return rowToRollout(
+      db.prepare(`SELECT * FROM canary_rollouts WHERE id = ?`).get(id) as RolloutRow
+    );
+  });
+
+  return tx();
 }
 
 export function getActiveCanary(taskType: string): CanaryRollout | null {
@@ -268,36 +277,50 @@ export function promoteCanary(taskType: string): {
   eventId: string;
 } {
   const { db } = getContext();
-  const rollout = getActiveCanary(taskType);
-  if (!rollout) throw new Error('no active canary to promote');
-
   const now = Math.trunc(Date.now() / 1000);
   const eventId = randomUUID();
 
-  const tx = db.transaction(() => {
+  type PromoteTx =
+    | { ok: true; rolloutId: string; canaryId: string; baselineId: string }
+    | { ok: false; reason: string };
+
+  const tx = db.transaction<PromoteTx>(() => {
+    const rolloutRow = db
+      .prepare(`SELECT * FROM canary_rollouts WHERE task_type = ? AND status = 'active' LIMIT 1`)
+      .get(taskType) as RolloutRow | undefined;
+    if (!rolloutRow) return { ok: false, reason: 'no active canary to promote' };
+    const rollout = rowToRollout(rolloutRow);
+
     const canaryRow = db
       .prepare(`SELECT status FROM agent_variants WHERE id = ?`)
       .get(rollout.canaryVariantId) as { status: string } | undefined;
-    if (!canaryRow) throw new Error('canary variant missing');
+    if (!canaryRow) return { ok: false, reason: 'canary variant missing' };
+    if (canaryRow.status !== 'active' && canaryRow.status !== 'promoted') {
+      return { ok: false, reason: `canary variant unexpected status: ${canaryRow.status}` };
+    }
 
-    db.prepare(
-      `UPDATE agent_variants SET status = 'archived', archived_at = ?
-       WHERE id = ? AND status = 'promoted'`
-    ).run(now, rollout.baselineVariantId);
+    const baselineRow = db
+      .prepare(`SELECT status FROM agent_variants WHERE id = ?`)
+      .get(rollout.baselineVariantId) as { status: string } | undefined;
+    if (!baselineRow) return { ok: false, reason: 'baseline variant missing' };
+    if (baselineRow.status === 'promoted') {
+      db.prepare(
+        `UPDATE agent_variants SET status = 'archived', archived_at = ?
+         WHERE id = ? AND status = 'promoted'`
+      ).run(now, rollout.baselineVariantId);
+    }
 
     if (canaryRow.status === 'active') {
-      db.prepare(`UPDATE agent_variants SET status = 'promoted', promoted_at = ? WHERE id = ?`).run(
-        now,
-        rollout.canaryVariantId
-      );
-    } else if (canaryRow.status !== 'promoted') {
-      throw new Error(`canary variant unexpected status: ${canaryRow.status}`);
+      db.prepare(
+        `UPDATE agent_variants SET status = 'promoted', promoted_at = ?
+         WHERE id = ? AND status = 'active'`
+      ).run(now, rollout.canaryVariantId);
     }
 
     db.prepare(
       `UPDATE canary_rollouts
        SET status = 'promoted', decided_at = ?, decision = 'promote', decision_event_id = ?
-       WHERE id = ?`
+       WHERE id = ? AND status = 'active'`
     ).run(now, eventId, rollout.id);
 
     db.prepare(
@@ -312,13 +335,22 @@ export function promoteCanary(taskType: string): {
         trafficPct: rollout.trafficPct,
       })
     );
+
+    return {
+      ok: true,
+      rolloutId: rollout.id,
+      canaryId: rollout.canaryVariantId,
+      baselineId: rollout.baselineVariantId,
+    };
   });
 
-  tx();
+  const result = tx();
+  if (!result.ok) throw new Error(result.reason);
+
   return {
-    rolloutId: rollout.id,
-    promotedVariantId: rollout.canaryVariantId,
-    archivedVariantId: rollout.baselineVariantId,
+    rolloutId: result.rolloutId,
+    promotedVariantId: result.canaryId,
+    archivedVariantId: result.baselineId,
     eventId,
   };
 }
@@ -328,22 +360,36 @@ export function rollbackCanary(
   reason = 'manual'
 ): { rolloutId: string; archivedVariantId: string; eventId: string } {
   const { db } = getContext();
-  const rollout = getActiveCanary(taskType);
-  if (!rollout) throw new Error('no active canary to roll back');
-
   const now = Math.trunc(Date.now() / 1000);
   const eventId = randomUUID();
 
-  const tx = db.transaction(() => {
-    db.prepare(
-      `UPDATE agent_variants SET status = 'archived', archived_at = ?
-       WHERE id = ? AND status = 'active'`
-    ).run(now, rollout.canaryVariantId);
+  type RollbackTx =
+    | { ok: true; rolloutId: string; canaryId: string }
+    | { ok: false; reason: string };
+
+  const tx = db.transaction<RollbackTx>(() => {
+    const rolloutRow = db
+      .prepare(`SELECT * FROM canary_rollouts WHERE task_type = ? AND status = 'active' LIMIT 1`)
+      .get(taskType) as RolloutRow | undefined;
+    if (!rolloutRow) return { ok: false, reason: 'no active canary to roll back' };
+    const rollout = rowToRollout(rolloutRow);
+
+    const canaryRow = db
+      .prepare(`SELECT status FROM agent_variants WHERE id = ?`)
+      .get(rollout.canaryVariantId) as { status: string } | undefined;
+    const priorStatus = canaryRow?.status ?? 'missing';
+
+    if (priorStatus === 'active' || priorStatus === 'promoted') {
+      db.prepare(
+        `UPDATE agent_variants SET status = 'archived', archived_at = ?
+         WHERE id = ? AND status = ?`
+      ).run(now, rollout.canaryVariantId, priorStatus);
+    }
 
     db.prepare(
       `UPDATE canary_rollouts
        SET status = 'rolled_back', decided_at = ?, decision = ?, decision_event_id = ?
-       WHERE id = ?`
+       WHERE id = ? AND status = 'active'`
     ).run(now, `rollback:${reason}`, eventId, rollout.id);
 
     db.prepare(
@@ -355,15 +401,20 @@ export function rollbackCanary(
       JSON.stringify({
         rolloutId: rollout.id,
         baselineVariantId: rollout.baselineVariantId,
+        priorStatus,
         reason,
       })
     );
+
+    return { ok: true, rolloutId: rollout.id, canaryId: rollout.canaryVariantId };
   });
 
-  tx();
+  const result = tx();
+  if (!result.ok) throw new Error(result.reason);
+
   return {
-    rolloutId: rollout.id,
-    archivedVariantId: rollout.canaryVariantId,
+    rolloutId: result.rolloutId,
+    archivedVariantId: result.canaryId,
     eventId,
   };
 }
