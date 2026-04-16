@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse, type Server } 
 import { getContext } from './context';
 import { getLeaderboard, getVariant, listActiveVariants } from './service';
 import { listTaskTypes } from './bandit';
+import { getActiveCanary, evaluateCanary, listCanaryRollouts } from './canary';
 
 export type DashboardOptions = {
   port?: number;
@@ -49,6 +50,7 @@ function layout(title: string, tasks: string[], body: string): string {
   .pill-active { background: #1e3a8a; color: #bfdbfe; }
   .pill-promoted { background: #065f46; color: #a7f3d0; }
   .pill-archived { background: #404040; color: #a3a3a3; }
+  .pill-rolled_back { background: #7f1d1d; color: #fca5a5; }
   .empty { color: #737373; font-style: italic; padding: 24px 0; }
   .score { font-family: ui-monospace, Menlo, monospace; font-weight: 500; }
 </style></head>
@@ -95,6 +97,43 @@ function renderHome(tasks: string[]): string {
        <tbody>${rows}</tbody>
      </table>`
   );
+}
+
+function renderCanarySection(taskType: string): string {
+  const active = getActiveCanary(taskType);
+  const history = listCanaryRollouts(taskType, 5);
+
+  if (!active && history.length === 0) return '';
+
+  let html = '<h3>Canary rollout</h3>';
+
+  if (active) {
+    const decision = evaluateCanary({ taskType });
+    html += `<table><tbody>
+      <tr><td>Status</td><td>${statusPill('active')}</td></tr>
+      <tr><td>Canary</td><td class="mono"><a href="/variants/${encodeURIComponent(active.canaryVariantId)}">${escape(active.canaryVariantId.slice(0, 8))}</a></td></tr>
+      <tr><td>Baseline</td><td class="mono"><a href="/variants/${encodeURIComponent(active.baselineVariantId)}">${escape(active.baselineVariantId.slice(0, 8))}</a></td></tr>
+      <tr><td>Traffic</td><td>${(active.trafficPct * 100).toFixed(0)}%</td></tr>
+      <tr><td>Decision</td><td>${escape(decision.kind)}${decision.kind === 'hold' ? ` — ${escape(decision.reason)}` : ''}${decision.kind === 'promote' ? ` — uplift=${decision.uplift.toFixed(3)} p=${decision.pValue.toExponential(2)}` : ''}${decision.kind === 'rollback' ? ` — delta=${decision.delta.toFixed(3)}` : ''}</td></tr>
+    </tbody></table>`;
+  }
+
+  if (history.length > 0) {
+    const rows = history
+      .map(
+        r => `<tr>
+      <td class="mono">${escape(r.id.slice(0, 8))}</td>
+      <td>${statusPill(r.status)}</td>
+      <td class="mono"><a href="/variants/${encodeURIComponent(r.canaryVariantId)}">${escape(r.canaryVariantId.slice(0, 8))}</a></td>
+      <td>${escape(r.decision ?? '-')}</td>
+      <td>${new Date(r.startedAt * 1000).toISOString()}</td>
+    </tr>`
+      )
+      .join('');
+    html += `<table><thead><tr><th>Rollout</th><th>Status</th><th>Canary</th><th>Decision</th><th>Started</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  return html;
 }
 
 function renderTask(taskType: string, tasks: string[]): string {
@@ -198,6 +237,8 @@ function renderTask(taskType: string, tasks: string[]): string {
         ? `<table><thead><tr><th>When</th><th>Kind</th><th>Parent</th><th>Proposed</th><th>Cost</th><th>Rationale</th></tr></thead><tbody>${propRows}</tbody></table>`
         : '<p class="empty">No proposals</p>'
     }
+
+    ${renderCanarySection(taskType)}
   `;
 
   return layout(taskType, tasks, body);
