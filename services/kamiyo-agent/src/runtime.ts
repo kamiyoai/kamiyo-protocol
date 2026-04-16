@@ -3392,16 +3392,32 @@ export class KamiyoAgentRuntime {
 
     const reserveLamports = BigInt(this.runtimeEnv.KAMIYO_AUTO_STAKE_RESERVE_LAMPORTS);
     const minLamports = BigInt(this.runtimeEnv.KAMIYO_AUTO_STAKE_MIN_LAMPORTS);
-    const availableLamports =
-      balanceLamports > reserveLamports ? balanceLamports - reserveLamports : 0n;
-    const targetLamports =
-      (availableLamports * BigInt(this.executionPolicy.autoStakeAvailableBps)) / 10_000n;
-    const maxLamportsPerTx = BigInt(this.executionPolicy.autoStakeMaxLamportsPerTx);
 
-    const routeLamports =
+    const baselineKey = `auto_stake_baseline:${params.depositor.publicKey.toBase58()}`;
+    const baselineRaw = this.db.kvGet(baselineKey);
+    if (baselineRaw == null) {
+      this.db.kvSet(baselineKey, balanceLamports.toString());
+      return params.budget;
+    }
+    let baselineLamports = BigInt(baselineRaw);
+    if (balanceLamports < baselineLamports) {
+      this.db.kvSet(baselineKey, balanceLamports.toString());
+      baselineLamports = balanceLamports;
+      return params.budget;
+    }
+
+    if (balanceLamports <= reserveLamports) return params.budget;
+    const inflowLamports = balanceLamports - baselineLamports;
+    const targetLamports =
+      (inflowLamports * BigInt(this.executionPolicy.autoStakeAvailableBps)) / 10_000n;
+    const maxLamportsPerTx = BigInt(this.executionPolicy.autoStakeMaxLamportsPerTx);
+    const maxByReserve = balanceLamports - reserveLamports;
+
+    let routeLamports =
       maxLamportsPerTx > 0n && targetLamports > maxLamportsPerTx
         ? maxLamportsPerTx
         : targetLamports;
+    if (routeLamports > maxByReserve) routeLamports = maxByReserve;
 
     if (routeLamports < minLamports) return params.budget;
 
@@ -3523,6 +3539,7 @@ export class KamiyoAgentRuntime {
     });
 
     this.status.treasury.lastRouteSignature = depositResult.signature;
+    this.db.kvSet(baselineKey, (baselineLamports + routeLamports).toString());
 
     return {
       ...params.budget,

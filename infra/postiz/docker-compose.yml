@@ -1,0 +1,64 @@
+services:
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: unless-stopped
+    environment:
+      MAIN_URL: ${POSTIZ_MAIN_URL:-http://localhost:5000}
+      FRONTEND_URL: ${POSTIZ_FRONTEND_URL:-http://localhost:5000}
+      NEXT_PUBLIC_BACKEND_URL: ${POSTIZ_BACKEND_URL:-http://localhost:5000/api}
+      JWT_SECRET: ${POSTIZ_JWT_SECRET}
+      DATABASE_URL: postgresql://postiz:${POSTIZ_DB_PASSWORD}@postgres:5432/postiz
+      REDIS_URL: redis://redis:6379
+      BACKEND_INTERNAL_URL: http://localhost:3000
+      IS_GENERAL: "true"
+      DISABLE_REGISTRATION: ${POSTIZ_DISABLE_REGISTRATION:-true}
+      STORAGE_PROVIDER: local
+      UPLOAD_DIRECTORY: /uploads
+      NEXT_PUBLIC_UPLOAD_DIRECTORY: /uploads
+      X_API_KEY: ${POSTIZ_X_API_KEY:-}
+      X_API_SECRET: ${POSTIZ_X_API_SECRET:-}
+    volumes:
+      - postiz-config:/config
+      - postiz-uploads:/uploads
+    ports:
+      - "${POSTIZ_PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postiz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postiz
+      POSTGRES_PASSWORD: ${POSTIZ_DB_PASSWORD}
+      POSTGRES_DB: postiz
+    volumes:
+      - postiz-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postiz -d postiz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: postiz-redis
+    restart: unless-stopped
+    volumes:
+      - postiz-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postiz-config:
+  postiz-uploads:
+  postiz-postgres:
+  postiz-redis:
