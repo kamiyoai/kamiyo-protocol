@@ -50,6 +50,7 @@ The root defaults target the Kizuna core workspace. For module, legacy, and on-c
 ## Key Components
 
 - [Reality Fork package](packages/kamiyo-reality-fork/README.md): portable scenario and control-room package built on the protocol rails
+- [Self-Improve package](packages/kamiyo-selfimprove/README.md): variant selection, tournament scheduling, and A/B testing framework with pluggable adapters
 - [x402 Facilitator](services/x402-facilitator/README.md): verification, settlement, funding locks, collateralized approvals, and repayment flows
 - [Wallet Control Plane](services/wallet-control-plane/README.md): mandates, linked wallets, enterprise funding limits, and collateral checks
 - [Companion API](services/api/README.md): ledger, billing, integration, and protocol API surfaces

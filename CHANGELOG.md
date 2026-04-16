@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
-- Self-improvement judge.ts extracted to @kamiyo/selfimprove package with multi-provider JudgeLLM adapter interface. scoreOutput() and recordJudgedEntry() now accept optional JudgeLLM implementation for testing and alternative providers. services/api bootstrap wires default Anthropic implementation from ANTHROPIC_API_KEY. Legacy client parameter in scoreOutput() and recordJudgedEntry() wrapped to JudgeLLM adapter for backward compatibility.
-- Self-improvement modules extracted to @kamiyo/selfimprove package: tournament, bandit, sweep-worker, and service modules now use dependency injection via getContext(). services/api maintains re-export shims for backward compatibility.
-
 ### Added
-- Marketing Agent service: daily cron that pulls recent commits from GitHub, drafts posts with Claude, and schedules them via Postiz. Includes daily workflow and full configuration support.
+- Self-improvement package (@kamiyo-org/selfimprove) extracted as portable library with complete variant selection, tournament scheduling, and bandit routing. Published to npm registry with install instructions and quickstart guide.
+- Routing helpers (maybeRouteVariant, toVariantDecisionMeta, applyGenomeOverrides, recordVariantEntry) moved to @kamiyo-org/selfimprove package.
+
+### Changed
+- Self-improvement judge.ts extracted to @kamiyo-org/selfimprove package with multi-provider JudgeLLM adapter interface. scoreOutput() and recordJudgedEntry() now accept optional JudgeLLM implementation for testing and alternative providers. services/api bootstrap wires default Anthropic implementation from ANTHROPIC_API_KEY. Legacy client parameter in scoreOutput() and recordJudgedEntry() wrapped to JudgeLLM adapter for backward compatibility.
+- Self-improvement modules (service, tournament, bandit, sweep-worker) extracted to @kamiyo-org/selfimprove package and use dependency injection via getContext(). services/api maintains re-export shims for backward compatibility.
+- Production call sites (runtime-support, task-executor, engagement-optimizer, api/routes/variants) now import directly from @kamiyo-org/selfimprove instead of services/api shims.
