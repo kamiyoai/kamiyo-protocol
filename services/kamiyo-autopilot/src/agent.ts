@@ -33,6 +33,23 @@ Hard constraints:
 
 type ToolUse = { type: 'tool_use'; name: string; input: Record<string, unknown> };
 
+export interface MetricData {
+  ts: string;
+  issue: number;
+  model: string;
+  labels: string[];
+  cost_usd: number;
+  duration_ms: number;
+  tool_uses: number;
+  opened_pr: boolean;
+  commented: boolean;
+}
+
+export function emitMetric(data: MetricData): void {
+  const json = JSON.stringify(data);
+  console.log(`[autopilot-metric] ${json}`);
+}
+
 function didOpenPr(toolUses: ToolUse[]): boolean {
   return toolUses.some(t => {
     if (t.name !== 'Bash') return false;
@@ -81,6 +98,7 @@ export async function runAgentOnIssue(
   const model = pickModel(cfg, labels);
   console.log(`[autopilot] model=${model} labels=${labels.join(',') || '-'}`);
 
+  const startTime = Date.now();
   const userPrompt = `Issue #${issueNumber}: ${title}
 
 ${body}
@@ -105,6 +123,7 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
 
   const toolUses: ToolUse[] = [];
   let totalCostUsd = 0;
+  let lastDurationMs = 0;
   for await (const msg of iterator) {
     if (msg.type === 'assistant') {
       const content = msg.message.content as Array<{
@@ -125,8 +144,9 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       }
     } else if (msg.type === 'result') {
       totalCostUsd = msg.total_cost_usd ?? 0;
+      lastDurationMs = msg.duration_ms ?? 0;
       console.log(
-        `[autopilot] turn complete: cost=$${totalCostUsd.toFixed(4)} duration=${msg.duration_ms}ms`
+        `[autopilot] turn complete: cost=$${totalCostUsd.toFixed(4)} duration=${lastDurationMs}ms`
       );
       if (totalCostUsd > cfg.DAILY_USD_MAX) {
         throw new Error(`cost cap exceeded: $${totalCostUsd} > $${cfg.DAILY_USD_MAX}`);
@@ -143,6 +163,20 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
   if (!cfg.DRY_RUN && !openedPr && !commented) {
     postFallbackComment(cfg, issueNumber, totalCostUsd);
   }
+
+  // Emit structured metric
+  const totalDurationMs = Date.now() - startTime;
+  emitMetric({
+    ts: new Date().toISOString(),
+    issue: issueNumber,
+    model,
+    labels,
+    cost_usd: totalCostUsd,
+    duration_ms: totalDurationMs,
+    tool_uses: toolUses.length,
+    opened_pr: openedPr,
+    commented,
+  });
 
   return { costUsd: totalCostUsd, openedPr, commented };
 }
