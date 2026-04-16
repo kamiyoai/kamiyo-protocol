@@ -1778,6 +1778,18 @@ importers:
         specifier: ^5.0.0
         version: 5.9.3
 
+  packages/kamiyo-selfimprove:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.0
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/kamiyo-settlement:
     dependencies:
       '@solana/web3.js':
@@ -2126,6 +2138,9 @@ importers:
       '@kamiyo/reality-fork-dkg':
         specifier: workspace:*
         version: link:../../packages/kamiyo-reality-fork-dkg
+      '@kamiyo/selfimprove':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-selfimprove
       '@kamiyo/x402-client':
         specifier: workspace:*
         version: link:../../packages/kamiyo-x402-client
