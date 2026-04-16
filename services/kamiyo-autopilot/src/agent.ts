@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MIT
+import { execFileSync } from 'node:child_process';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { MODELS, type Config, type ModelTier } from './config';
 
@@ -12,15 +13,63 @@ export function pickModel(cfg: Config, labels: string[]): string {
 
 const SYSTEM_PROMPT = `You are kamiyo-autopilot, an autonomous developer for the kamiyo-protocol monorepo.
 
-Rules:
-- Work on one issue at a time. Stay strictly within its scope.
-- Create a branch named autopilot/issue-<N>-<slug>.
-- Run pnpm -w install and the relevant tests before opening a PR.
-- Open a PR titled "autopilot: <concise summary> (closes #<N>)" with body describing changes, risks, and test output.
-- If you cannot complete safely, post a comment on the issue explaining what is blocked and exit without opening a PR.
-- Never edit .github/workflows/*, packages/kamiyo-autopilot/**, or files matching *secret*, *.env*, or vendor/**.
+Operating mode: act, do not plan. You already have permission to edit files and run commands. Do not call ExitPlanMode. Do not ask for approval. Do not stop to present a plan. Make the change end-to-end in one run.
+
+Required workflow:
+1. Create a branch named autopilot/issue-<N>-<slug>.
+2. Make the edits the issue asks for.
+3. Run pnpm -w install and the relevant tests; fix until green.
+4. git add, commit, git push -u origin <branch>.
+5. gh pr create with title "autopilot: <concise summary> (closes #<N>)", label agent-approved, and body describing changes + test output.
+
+If the issue is genuinely ambiguous or cannot be done safely:
+- Post a comment on the issue via \`gh issue comment <N>\` that explains the blocker in one paragraph.
+- Then exit.
+
+Hard constraints:
+- Never edit .github/workflows/*, services/kamiyo-autopilot/**, or files matching *secret*, *.env*, or vendor/**.
 - Never force-push or delete branches.
-- Prefer small diffs. If the issue is ambiguous, ask in a comment and exit.`;
+- Prefer small diffs. Stay strictly in the issue's scope.`;
+
+type ToolUse = { type: 'tool_use'; name: string; input: Record<string, unknown> };
+
+function didOpenPr(toolUses: ToolUse[]): boolean {
+  return toolUses.some(t => {
+    if (t.name !== 'Bash') return false;
+    const cmd = String(t.input.command ?? '');
+    return /gh\s+pr\s+create/.test(cmd);
+  });
+}
+
+function didCommentOnIssue(toolUses: ToolUse[], issueNumber: number): boolean {
+  return toolUses.some(t => {
+    if (t.name !== 'Bash') return false;
+    const cmd = String(t.input.command ?? '');
+    return new RegExp(`gh\\s+issue\\s+comment\\s+${issueNumber}`).test(cmd);
+  });
+}
+
+function postFallbackComment(cfg: Config, issueNumber: number, costUsd: number): void {
+  const body = [
+    `Autopilot run finished without opening a PR or posting a status comment.`,
+    ``,
+    `- Cost: $${costUsd.toFixed(4)}`,
+    `- Likely cause: agent entered plan mode and exited before making edits.`,
+    ``,
+    `A human should either (a) re-trigger the \`autonomous-dev\` workflow for this issue via \`workflow_dispatch\`, or (b) refine the issue scope.`,
+  ].join('\n');
+  try {
+    execFileSync(
+      'gh',
+      ['issue', 'comment', String(issueNumber), '-R', cfg.GITHUB_REPO, '--body', body],
+      {
+        stdio: 'inherit',
+      }
+    );
+  } catch (err) {
+    console.error('[autopilot] failed to post fallback comment:', err);
+  }
+}
 
 export async function runAgentOnIssue(
   cfg: Config,
@@ -38,7 +87,9 @@ ${body}
 
 Repo: ${cfg.GITHUB_REPO}
 Bot login: ${cfg.BOT_LOGIN}
-Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}`;
+Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}
+
+Start now. Make the edits, commit, push, and open the PR in this single run.`;
 
   const iterator = query({
     prompt: userPrompt,
@@ -48,17 +99,30 @@ Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}`;
       maxTurns: cfg.MAX_TURNS,
       permissionMode: cfg.DRY_RUN ? 'plan' : 'acceptEdits',
       allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
+      disallowedTools: ['ExitPlanMode'],
     },
   });
 
+  const toolUses: ToolUse[] = [];
   let totalCostUsd = 0;
   for await (const msg of iterator) {
     if (msg.type === 'assistant') {
-      const text = (msg.message.content as Array<{ type: string; text?: string }>)
+      const content = msg.message.content as Array<{
+        type: string;
+        text?: string;
+        name?: string;
+        input?: Record<string, unknown>;
+      }>;
+      const text = content
         .filter(c => c.type === 'text')
         .map(c => c.text ?? '')
         .join('');
       if (text) console.log(`[agent] ${text}`);
+      for (const c of content) {
+        if (c.type === 'tool_use' && c.name) {
+          toolUses.push({ type: 'tool_use', name: c.name, input: c.input ?? {} });
+        }
+      }
     } else if (msg.type === 'result') {
       totalCostUsd = msg.total_cost_usd ?? 0;
       console.log(
@@ -70,5 +134,15 @@ Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}`;
     }
   }
 
-  return { costUsd: totalCostUsd };
+  const openedPr = didOpenPr(toolUses);
+  const commented = didCommentOnIssue(toolUses, issueNumber);
+  console.log(
+    `[autopilot] openedPr=${openedPr} commented=${commented} toolUses=${toolUses.length}`
+  );
+
+  if (!cfg.DRY_RUN && !openedPr && !commented) {
+    postFallbackComment(cfg, issueNumber, totalCostUsd);
+  }
+
+  return { costUsd: totalCostUsd, openedPr, commented };
 }
