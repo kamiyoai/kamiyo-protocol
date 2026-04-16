@@ -15,6 +15,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   halt-check:
@@ -95,13 +96,24 @@ jobs:
         working-directory: services/kamiyo-docs-agent
         run: node dist/index.js
 
-      - name: Commit regenerated docs
+      - name: Open PR with regenerated docs
         if: steps.skip.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOPILOT_PAT || github.token }}
         run: |
           if git diff --quiet -- README.md CHANGELOG.md services/*/CHANGELOG.md services/*/README.md; then
             echo "no doc changes"
             exit 0
           fi
+          short="${MERGE_SHA:0:7}"
+          branch="docs-agent/regen-${short}"
+          git checkout -b "$branch"
           git add README.md CHANGELOG.md services/*/CHANGELOG.md services/*/README.md 2>/dev/null || true
-          git commit -m "docs-agent: regenerate for ${MERGE_SHA:0:7}"
-          git push
+          git commit -m "docs-agent: regenerate for ${short}"
+          git push -u origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "docs-agent: regenerate for ${short}" \
+            --body "Automated docs refresh for commit ${short}. Review diff, squash-merge." \
+            --label agent-approved || true
