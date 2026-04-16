@@ -136,23 +136,26 @@ export async function shadowRun(opts: ShadowRunOptions): Promise<ShadowRunSummar
          input_text, output_text, quality_score, cost_usd, latency_ms, is_primary, error)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
-    for (const r of results) {
-      insert.run(
-        randomUUID(),
-        opts.taskType,
-        r.variant.id,
-        primary.id,
-        batchId,
-        hash,
-        opts.input,
-        r.output,
-        r.score,
-        r.costUsd,
-        r.latencyMs,
-        r.isPrimary ? 1 : 0,
-        r.error ?? null
-      );
-    }
+    const persistTx = db.transaction(() => {
+      for (const r of results) {
+        insert.run(
+          randomUUID(),
+          opts.taskType,
+          r.variant.id,
+          primary.id,
+          batchId,
+          hash,
+          opts.input,
+          r.output,
+          r.score,
+          r.costUsd,
+          r.latencyMs,
+          r.isPrimary ? 1 : 0,
+          r.error ?? null
+        );
+      }
+    });
+    persistTx();
   }
 
   return {

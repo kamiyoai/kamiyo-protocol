@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS agent_variants (
 CREATE INDEX IF NOT EXISTS idx_agent_variants_agent_task ON agent_variants(agent_id, task_type);
 CREATE INDEX IF NOT EXISTS idx_agent_variants_status ON agent_variants(task_type, status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_variants_genome ON agent_variants(agent_id, task_type, genome_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_variants_one_promoted
+  ON agent_variants(task_type) WHERE status = 'promoted';
 
 CREATE TABLE IF NOT EXISTS variant_tournaments (
   id TEXT PRIMARY KEY,
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS variant_tournament_entries (
 
 CREATE INDEX IF NOT EXISTS idx_variant_entries_tournament ON variant_tournament_entries(tournament_id);
 CREATE INDEX IF NOT EXISTS idx_variant_entries_variant ON variant_tournament_entries(variant_id);
+CREATE INDEX IF NOT EXISTS idx_variant_entries_variant_time ON variant_tournament_entries(variant_id, created_at);
 
 CREATE TABLE IF NOT EXISTS variant_events (
   id TEXT PRIMARY KEY,
