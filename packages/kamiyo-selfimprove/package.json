@@ -1,10 +1,13 @@
 {
   "name": "@kamiyo-org/selfimprove",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Self-improving agent loop: genome-based variants, bandit routing, LLM-as-judge, auto-promotion.",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "kamiyo-si": "dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -37,7 +40,7 @@
     "agent-infrastructure"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js",
     "prepare": "npm run build",
     "test": "vitest run",
     "lint": "eslint src/**/*.ts"

@@ -141,6 +141,21 @@ CREATE TABLE IF NOT EXISTS genome_proposals (
 
 CREATE INDEX IF NOT EXISTS idx_genome_proposals_task ON genome_proposals(task_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_genome_proposals_parent ON genome_proposals(parent_variant_id);
+
+CREATE TABLE IF NOT EXISTS coldstart_evals (
+  id TEXT PRIMARY KEY,
+  variant_id TEXT NOT NULL,
+  task_type TEXT NOT NULL,
+  sample_count INTEGER NOT NULL,
+  mean_score REAL NOT NULL,
+  errors INTEGER NOT NULL DEFAULT 0,
+  total_cost_usd REAL NOT NULL DEFAULT 0,
+  payload_json TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_coldstart_evals_variant ON coldstart_evals(variant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_coldstart_evals_task ON coldstart_evals(task_type, created_at);
 `;
 
 const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;
