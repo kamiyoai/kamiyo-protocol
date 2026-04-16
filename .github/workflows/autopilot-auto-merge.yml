@@ -26,7 +26,7 @@ jobs:
               owner, repo, state: "open", per_page: 100,
             });
             const eligible = prs.filter(pr =>
-              pr.user?.login === "kamiyo-bot" &&
+              pr.user?.login === "kamiyobot" &&
               pr.labels.some(l => l.name === "agent-approved") &&
               !pr.labels.some(l => l.name === "halt-autopilot") &&
               pr.base.ref === "main" &&
