@@ -9,6 +9,7 @@ import { getLeaderboard, getVariant, listActiveVariants, evaluateAndPromote } fr
 import { listTaskTypes } from './bandit';
 import { startDashboard } from './dashboard';
 import { getParetoFrontier } from './pareto';
+import { getShadowStats } from './shadow';
 
 type Args = {
   command: string;
@@ -250,6 +251,28 @@ function cmdPareto(flags: Record<string, string>): void {
   );
 }
 
+function cmdShadowStats(flags: Record<string, string>): void {
+  initCtx(flags);
+  const task = flags.task;
+  if (!task) throw new Error('--task required');
+  const hoursAgo = flags.hours ? Number(flags.hours) : undefined;
+  const since = typeof hoursAgo === 'number' ? hoursAgo * 3600 : undefined;
+  const stats = getShadowStats(task, since);
+  if (stats.length === 0) {
+    console.log(`no shadow runs for task: ${task}`);
+    return;
+  }
+  console.table(
+    stats.map(s => ({
+      id: s.variantId.slice(0, 8),
+      n: s.n,
+      score: s.meanScore.toFixed(3),
+      cost: `$${s.meanCost.toFixed(4)}`,
+      latency: `${Math.round(s.meanLatencyMs)}ms`,
+    }))
+  );
+}
+
 function cmdDashboard(flags: Record<string, string>): void {
   initCtx(flags);
   const port = flags.port ? Number(flags.port) : 4100;
@@ -273,6 +296,7 @@ commands:
   tasks list                   list all task types
   dashboard [--port 4100]      start web dashboard (read-only, localhost)
   pareto --task <t>            show pareto-optimal variants (quality/cost/latency)
+  shadow stats --task <t>      shadow-run aggregates (--hours to scope window)
 
 global flags:
   --db <path>                  path to SQLite DB (or set SELFIMPROVE_DB)
@@ -319,6 +343,10 @@ async function main(): Promise<void> {
         break;
       case 'pareto':
         cmdPareto(args.flags);
+        break;
+      case 'shadow':
+        if (args.sub === 'stats') cmdShadowStats(args.flags);
+        else throw new Error(`unknown shadow subcommand: ${args.sub}`);
         break;
       case 'help':
       case '--help':

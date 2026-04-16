@@ -156,6 +156,28 @@ CREATE TABLE IF NOT EXISTS coldstart_evals (
 
 CREATE INDEX IF NOT EXISTS idx_coldstart_evals_variant ON coldstart_evals(variant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_coldstart_evals_task ON coldstart_evals(task_type, created_at);
+
+CREATE TABLE IF NOT EXISTS shadow_runs (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  variant_id TEXT NOT NULL,
+  primary_variant_id TEXT NOT NULL,
+  batch_id TEXT NOT NULL,
+  input_hash TEXT NOT NULL,
+  input_text TEXT,
+  output_text TEXT,
+  quality_score REAL,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  latency_ms INTEGER,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_task ON shadow_runs(task_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_variant ON shadow_runs(variant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_batch ON shadow_runs(batch_id);
+CREATE INDEX IF NOT EXISTS idx_shadow_runs_input_hash ON shadow_runs(task_type, input_hash);
 `;
 
 const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;

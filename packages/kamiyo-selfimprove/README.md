@@ -124,6 +124,9 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `coldstart` | seed variants from prompt lists, offline eval harness |
 | `cli` | `kamiyo-si` command-line tool for init / inspect / sweep |
 | `dashboard` | read-only local web UI over the SQLite DB |
+| `pareto` | non-dominated frontier across (quality, cost, latency) |
+| `shadow` | parallel candidate scoring on live traffic, no user exposure |
+| `replay` | re-run variants on historical inputs + rescore on rubric change |
 | `routing` | convenience wrappers for request-path wiring |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
@@ -251,15 +254,72 @@ Then open <http://127.0.0.1:4100/>. Pages:
 
 Zero build step. Server-rendered HTML. No external deps beyond `better-sqlite3`.
 
+## Shadow mode
+
+Run N candidate variants in parallel with the primary on the same input. Score them all, return only the primary's output. Use this to evaluate new variants on live traffic without exposing users to unproven changes.
+
+```ts
+import { shadowRun } from '@kamiyo-org/selfimprove';
+
+const summary = await shadowRun({
+  taskType: 'tweet_reply',
+  input: 'What do you think of SOL?',
+  runVariant: async (genome, input) => {
+    const t0 = Date.now();
+    const output = await callLLM(genome.modelId, genome.promptTemplate, input);
+    return { output, latencyMs: Date.now() - t0, costUsd: 0.0012 };
+  },
+  candidateLimit: 3,
+  concurrency: 3,
+});
+
+// Return summary.primaryOutput to the user.
+// summary.runs contains scores for all variants (primary + shadows).
+```
+
+Shadow results persist in `shadow_runs`. Inspect via:
+
+```bash
+kamiyo-si shadow stats --task tweet_reply --hours 24
+```
+
+## Replay + rescore
+
+Re-run a variant against historical inputs (pulled from `shadow_runs`) without waiting for live traffic. Useful for: promotion of candidates with low organic sample count, regression testing after a prompt edit, or validating a new variant on yesterday's queries.
+
+```ts
+import { replayVariant, rescoreShadowRuns } from '@kamiyo-org/selfimprove';
+
+// Forward-replay: target variant runs on sourceVariant's historical inputs.
+const replay = await replayVariant({
+  variantId: 'cand-b',
+  sourceVariantId: 'primary-a',
+  taskType: 'tweet_reply',
+  runVariant: myRunner,
+  limit: 100,
+  concurrency: 3,
+});
+// -> { inputs: 100, scored: 98, meanScore: 0.82, totalCostUsd: 0.07 }
+
+// Rescore: re-judge existing (input, output) pairs after a rubric update.
+// Drops judge_cache for the task and re-runs all scores.
+const rescore = await rescoreShadowRuns({
+  taskType: 'tweet_reply',
+  limit: 500,
+});
+// -> { rescored: 500, meanBefore: 0.71, meanAfter: 0.68, delta: -0.03 }
+```
+
 ## Roadmap
 
-- **Multi-objective**: pareto frontier promotion across (quality, cost, latency)
-- **Benchmark suite**: standard task harness to measure auto-mutation lift
+- **Benchmark suite**: standard task harness to measure auto-mutation lift (shipped — see `example/`)
 - **Lineage viz**: graphical ancestry tree on dashboard (currently table)
+- **Canary rollout**: gradual traffic shift from promoted → new promoted with rollback triggers
+- **Multi-provider judge**: OpenAI, Gemini, local model adapters alongside Anthropic
 
 ## Status
 
-`0.6.0` — API may shift before `1.0`. Schema migrations are stable.
+`0.7.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 

@@ -147,3 +147,22 @@ export {
   getAllWithDomination,
   getParetoFrontier,
 } from './pareto';
+
+export {
+  type VariantRunner,
+  type ShadowRunOptions,
+  type ShadowRunResult,
+  type ShadowRunSummary,
+  type ShadowStats,
+  getShadowStats,
+  shadowRun,
+} from './shadow';
+
+export {
+  type ReplayOptions,
+  type ReplayResult,
+  type RescoreOptions,
+  type RescoreResult,
+  replayVariant,
+  rescoreShadowRuns,
+} from './replay';
