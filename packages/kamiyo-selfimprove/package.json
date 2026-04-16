@@ -1,0 +1,57 @@
+{
+  "name": "@kamiyo/selfimprove",
+  "version": "0.1.0",
+  "description": "Self-improving agent loop: genome-based variants, bandit routing, LLM-as-judge, auto-promotion.",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyoai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-selfimprove"
+  },
+  "bugs": {
+    "url": "https://github.com/kamiyoai/kamiyo-protocol/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "self-improvement",
+    "bandit",
+    "thompson-sampling",
+    "llm-as-judge",
+    "prompt-optimization",
+    "evolutionary",
+    "variants",
+    "tournaments",
+    "welchs-t-test",
+    "rlhf",
+    "agent-infrastructure"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/**/*.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
