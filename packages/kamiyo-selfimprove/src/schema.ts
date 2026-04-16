@@ -127,6 +127,20 @@ CREATE TABLE IF NOT EXISTS pairwise_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_pairwise_cache_task ON pairwise_cache(task_type, created_at);
+
+CREATE TABLE IF NOT EXISTS genome_proposals (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,
+  parent_variant_id TEXT NOT NULL,
+  proposed_variant_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('llm','jitter','crossover')),
+  rationale TEXT,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_genome_proposals_task ON genome_proposals(task_type, created_at);
+CREATE INDEX IF NOT EXISTS idx_genome_proposals_parent ON genome_proposals(parent_variant_id);
 `;
 
 const ELO_MIGRATION = `ALTER TABLE agent_variants ADD COLUMN elo_rating REAL NOT NULL DEFAULT 1200`;

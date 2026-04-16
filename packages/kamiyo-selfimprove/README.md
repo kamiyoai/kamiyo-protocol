@@ -120,6 +120,7 @@ See [`src/adapters.ts`](./src/adapters.ts) for full interfaces.
 | `bandit` | routing, standing-tournament bookkeeping, sweep |
 | `judge` | LLM-as-judge with rubric, sha256 cache, daily USD budget |
 | `pairwise` | pairwise LLM judge, Elo online update, Bradley-Terry MLE |
+| `mutator` | LLM-proposed prompt edits, parameter jitter, crossover |
 | `routing` | convenience wrappers for request-path wiring |
 | `sweep-worker` | periodic `evaluateAndPromote` across all task types |
 
@@ -158,15 +159,33 @@ const skill = fitBradleyTerry(matches);
 - **Online Elo** updates `agent_variants.elo_rating` on every match (k=32 default).
 - **Bradley-Terry MLE** fits a skill vector from batch match history; use for calibrated leaderboards.
 
+## Auto-mutation
+
+Evolve variants without hand-tuning prompts:
+
+```ts
+import { autoMutateTaskType } from '@kamiyo-org/selfimprove';
+
+const result = await autoMutateTaskType('tweet_reply', { topK: 3 });
+// For each of the top 3 variants:
+//   - LLM proposes a prompt-template edit against the rubric
+//   - Deterministic param jitter fork (temperature + maxTokens)
+// Both new variants enter the bandit under the parent's lineage.
+```
+
+- **LLM-proposed prompts**: `proposeMutations(taskType)` sends rubric + current prompt + sample count → model returns a focused edit with rationale.
+- **Param jitter**: `jitterGenome(g)` — pure random walk on `temperature` and `maxTokens`, clamped in-bounds.
+- **Crossover**: `crossoverGenomes(a, b)` — picks discrete fields from either parent, averages numeric ones.
+- Every proposal is logged in `genome_proposals` (kind + parent + cost).
+
 ## Roadmap
 
-- **Auto-mutation**: LLM proposes variant edits from top genomes; parameter jitter; crossover
 - **Lineage viz**: genome ancestry tree
 - **Cold start**: offline eval suite for new task types before bandit goes live
 
 ## Status
 
-`0.3.0` — API may shift before `1.0`. Schema migrations are stable.
+`0.4.0` — API may shift before `1.0`. Schema migrations are stable.
 
 ## License
 

@@ -113,3 +113,14 @@ export {
   recordPairwiseMatch,
   updateElo,
 } from './pairwise';
+
+export {
+  type AutoMutateResult,
+  type JitterOptions,
+  type Proposal,
+  type ProposeOptions,
+  autoMutateTaskType,
+  crossoverGenomes,
+  jitterGenome,
+  proposeMutations,
+} from './mutator';
