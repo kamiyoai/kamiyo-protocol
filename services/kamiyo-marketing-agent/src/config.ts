@@ -11,8 +11,8 @@ const Schema = z
     ANTHROPIC_API_KEY: z.string().min(1),
     GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
     GITHUB_TOKEN: z.string().min(1),
-    POSTIZ_URL: z.string().url().optional(),
-    POSTIZ_API_KEY: z.string().min(1).optional(),
+    POSTIZ_URL: z.preprocess(v => (v === '' ? undefined : v), z.string().url().optional()),
+    POSTIZ_API_KEY: z.preprocess(v => (v === '' ? undefined : v), z.string().min(1).optional()),
     POSTIZ_INTEGRATIONS: z
       .string()
       .default('')
