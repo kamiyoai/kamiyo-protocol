@@ -39,30 +39,22 @@ jobs:
   draft-and-schedule:
     needs: halt-check
     if: needs.halt-check.outputs.halted == 'false'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.KAMIYO_CANARY_ANTHROPIC_API_KEY }}
+      LLM_BASE_URL: http://localhost:11434/v1
+      LLM_API_KEY: ollama
       GITHUB_REPO: ${{ github.repository }}
       GITHUB_TOKEN: ${{ github.token }}
       POSTIZ_URL: ${{ secrets.POSTIZ_URL }}
       POSTIZ_API_KEY: ${{ secrets.POSTIZ_API_KEY }}
       POSTIZ_INTEGRATIONS: ${{ secrets.POSTIZ_INTEGRATIONS }}
-      CLAUDE_MODEL: claude-haiku-4-5-20251001
-      DAILY_USD_MAX: "3"
+      CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      DAILY_USD_MAX: "0"
       POSTS_PER_DAY: "2"
       DRY_RUN: ${{ github.event.inputs.dry_run || '' }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
 
       - name: Install marketing-agent deps
         working-directory: services/kamiyo-marketing-agent

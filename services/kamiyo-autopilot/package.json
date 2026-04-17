@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/autopilot",
   "version": "0.1.0",
-  "description": "Headless autonomous dev loop: reads agent-labeled issues, drafts PRs via Claude Agent SDK",
+  "description": "Headless autonomous dev loop: reads agent-labeled issues, drafts PRs via local LLM",
   "main": "dist/index.js",
   "bin": {
     "kamiyo-autopilot": "dist/index.js"
@@ -15,8 +15,7 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
-    "@anthropic-ai/sdk": "^0.77.0",
+    "@kamiyo/local-agent": "file:../../packages/local-agent",
     "@octokit/rest": "^21.0.0",
     "dotenv": "^16.3.1",
     "zod": "^3.23.0"

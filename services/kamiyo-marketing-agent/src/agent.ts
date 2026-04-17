@@ -1,4 +1,4 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { runAgent } from '@kamiyo/local-agent';
 import type { Config } from './config';
 
 const SYSTEM_PROMPT = `You are kamiyo-marketing-agent. Your job: draft concise social posts about real changes shipped to the kamiyo-protocol repo.
@@ -20,34 +20,26 @@ ${mergeContext}
 
 Return JSON only.`;
 
-  const iterator = query({
-    prompt: userPrompt,
-    options: {
-      model,
-      systemPrompt: SYSTEM_PROMPT,
-      maxTurns: cfg.MAX_TURNS,
-      permissionMode: 'bypassPermissions',
-      allowedTools: [],
+  let output = '';
+  const iterator = runAgent(userPrompt, {
+    model,
+    systemPrompt: SYSTEM_PROMPT,
+    maxTurns: cfg.MAX_TURNS,
+    tools: [],
+    baseUrl: cfg.LLM_BASE_URL,
+    apiKey: cfg.LLM_API_KEY,
+    onText: text => {
+      output += text;
     },
   });
 
-  let output = '';
-  let totalCostUsd = 0;
+  let durationMs = 0;
   for await (const msg of iterator) {
     if (msg.type === 'assistant') {
-      const text = (msg.message.content as Array<{ type: string; text?: string }>)
-        .filter(c => c.type === 'text')
-        .map(c => c.text ?? '')
-        .join('');
-      output += text;
+      output += msg.text;
     } else if (msg.type === 'result') {
-      totalCostUsd = msg.total_cost_usd ?? 0;
-      console.log(
-        `[marketing-agent] draft complete: cost=$${totalCostUsd.toFixed(4)} duration=${msg.duration_ms}ms`
-      );
-      if (totalCostUsd > cfg.DAILY_USD_MAX) {
-        throw new Error(`cost cap exceeded: $${totalCostUsd} > $${cfg.DAILY_USD_MAX}`);
-      }
+      durationMs = msg.durationMs;
+      console.log(`[marketing-agent] draft complete: duration=${durationMs}ms`);
     }
   }
 
@@ -56,5 +48,5 @@ Return JSON only.`;
     throw new Error(`no JSON array in agent output: ${output}`);
   }
   const parsed = JSON.parse(match[0]) as Array<{ text: string; reason: string }>;
-  return { posts: parsed, costUsd: totalCostUsd };
+  return { posts: parsed, costUsd: 0 };
 }

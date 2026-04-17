@@ -1,14 +1,15 @@
 import { z } from 'zod';
 
 export const MODELS = {
-  haiku: 'claude-haiku-4-5-20251001',
-  sonnet: 'claude-sonnet-4-6',
-  opus: 'claude-opus-4-6',
+  haiku: 'hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M',
+  sonnet: 'hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M',
+  opus: 'hf.co/NousResearch/Hermes-4.3-36B-GGUF:Q4_K_M',
 } as const;
 
 const Schema = z
   .object({
-    ANTHROPIC_API_KEY: z.string().min(1),
+    LLM_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
+    LLM_API_KEY: z.string().default('ollama'),
     GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
     GITHUB_TOKEN: z.string().min(1),
     POSTIZ_URL: z.preprocess(v => (v === '' ? undefined : v), z.string().url().optional()),

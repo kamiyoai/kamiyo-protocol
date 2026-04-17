@@ -44,27 +44,19 @@ jobs:
     if: >-
       needs.halt-check.outputs.halted == 'false' &&
       (github.event_name != 'issues' || github.event.label.name == 'agent')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 45
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.KAMIYO_CANARY_ANTHROPIC_API_KEY }}
+      LLM_BASE_URL: http://localhost:11434/v1
+      LLM_API_KEY: ollama
       GITHUB_REPO: ${{ github.repository }}
-      CLAUDE_MODEL: claude-sonnet-4-6
-      DAILY_USD_MAX: "10"
+      CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      DAILY_USD_MAX: "0"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.AUTOPILOT_PAT || github.token }}
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "pnpm"
 
       - name: Configure git identity
         run: |

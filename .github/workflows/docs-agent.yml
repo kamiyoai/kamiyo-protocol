@@ -39,13 +39,14 @@ jobs:
   regenerate:
     needs: halt-check
     if: needs.halt-check.outputs.halted == 'false'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.KAMIYO_CANARY_ANTHROPIC_API_KEY }}
+      LLM_BASE_URL: http://localhost:11434/v1
+      LLM_API_KEY: ollama
       GITHUB_REPO: ${{ github.repository }}
-      CLAUDE_MODEL: claude-haiku-4-5-20251001
-      DAILY_USD_MAX: "5"
+      CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      DAILY_USD_MAX: "0"
       MERGE_SHA: ${{ github.event.inputs.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -62,17 +63,6 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - uses: pnpm/action-setup@v4
-        if: steps.skip.outputs.skip == 'false'
-        with:
-          version: 9
-
-      - uses: actions/setup-node@v4
-        if: steps.skip.outputs.skip == 'false'
-        with:
-          node-version: "20"
-          cache: "pnpm"
 
       - name: Configure git identity
         if: steps.skip.outputs.skip == 'false'
