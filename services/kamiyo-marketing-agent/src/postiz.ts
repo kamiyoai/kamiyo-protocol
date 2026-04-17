@@ -11,7 +11,7 @@ export class PostizClient {
 
   private headers() {
     return {
-      Authorization: this.cfg.POSTIZ_API_KEY,
+      Authorization: this.cfg.POSTIZ_API_KEY ?? '',
       'Content-Type': 'application/json',
     };
   }
@@ -22,6 +22,9 @@ export class PostizClient {
         `[postiz] DRY_RUN would schedule at ${draft.scheduledFor.toISOString()}: ${draft.text}`
       );
       return { id: 'dry-run' };
+    }
+    if (!this.cfg.POSTIZ_URL || !this.cfg.POSTIZ_API_KEY) {
+      throw new Error('POSTIZ_URL and POSTIZ_API_KEY required for live scheduling');
     }
     const body = {
       type: 'schedule',
@@ -43,6 +46,9 @@ export class PostizClient {
   }
 
   async listUpcoming(): Promise<Array<{ id: string; scheduledFor: string }>> {
+    if (!this.cfg.POSTIZ_URL || !this.cfg.POSTIZ_API_KEY) {
+      throw new Error('POSTIZ_URL and POSTIZ_API_KEY required for listing posts');
+    }
     const res = await fetch(`${this.cfg.POSTIZ_URL}/public/v1/posts?status=SCHEDULED`, {
       headers: this.headers(),
     });
