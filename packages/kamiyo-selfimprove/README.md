@@ -32,6 +32,7 @@ import {
   createVariant,
   routeVariant,
   recordJudgedEntry,
+  recordScore,
   upsertRubric,
   type JudgeLLM,
 } from '@kamiyo-org/selfimprove';
@@ -66,7 +67,7 @@ upsertRubric({
   dailyBudgetUsd: 5,
 });
 
-createVariant({
+const { variant } = createVariant({
   agentId: 'reply-bot',
   taskType: 'tweet_reply',
   genome: {
@@ -78,6 +79,7 @@ createVariant({
     systemGuardrails: '',
   },
 });
+// variant: AgentVariant — .created is true if new, false if genome already existed
 
 const decision = routeVariant('tweet_reply');
 if (decision) {
@@ -91,6 +93,15 @@ if (decision) {
     latencyMs: 340,
   });
 }
+```
+
+Or skip manual tournament wiring and record a score directly:
+
+```ts
+import { recordScore } from '@kamiyo-org/selfimprove';
+
+recordScore({ variantId: variant.id, qualityScore: 0.85, cost: 0.001, latencyMs: 340 });
+// Finds or creates a standing tournament for the variant's task type, then records the entry.
 ```
 
 Run the sweep worker so promotions happen automatically:
@@ -239,7 +250,10 @@ kamiyo-si variants list --task tweet_reply
 kamiyo-si leaderboard --task tweet_reply
 kamiyo-si sweep run                           # all task types
 kamiyo-si variants lineage <variant-id>       # ancestry chain
+kamiyo-si leaderboard --task tweet_reply --json  # machine-readable output
 ```
+
+All read commands accept `--json` for scripting / piping into `jq`.
 
 Set `SELFIMPROVE_DB=/path/to.db` to skip `--db` on every call.
 
@@ -389,9 +403,13 @@ const judgeLLM = genericChatJudge(async ({ model, messages, temperature, max_tok
 - **Lineage viz**: graphical ancestry tree on dashboard (currently table)
 - **Contextual bandit**: route by input features (LinUCB / neural) alongside Thompson
 
+## ESM only
+
+This package ships ESM (`"type": "module"`). If your project uses CommonJS, set `"type": "module"` in your `package.json` or use dynamic `import()`.
+
 ## Status
 
-`1.0.0` — public API is stable. Semver from here. Schema migrations are additive.
+`1.1.0` — public API stable. `createVariant` return type changed (breaking from 1.0.x). Semver from here. Schema migrations are additive.
 
 ## License
 
