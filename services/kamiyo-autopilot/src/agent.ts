@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { execFileSync } from 'node:child_process';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { runAgent } from '@kamiyo/local-agent';
 import { MODELS, type Config, type ModelTier } from './config';
 
 export function pickModel(cfg: Config, labels: string[]): string {
@@ -13,7 +13,9 @@ export function pickModel(cfg: Config, labels: string[]): string {
 
 const SYSTEM_PROMPT = `You are kamiyo-autopilot, an autonomous developer for the kamiyo-protocol monorepo.
 
-Operating mode: act, do not plan. You already have permission to edit files and run commands. Do not call ExitPlanMode. Do not ask for approval. Do not stop to present a plan. Make the change end-to-end in one run.
+Operating mode: act, do not plan. You already have permission to edit files and run commands. Do not ask for approval. Do not stop to present a plan. Make the change end-to-end in one run.
+
+You have these tools available: bash, read_file, write_file, edit_file, grep, glob.
 
 Required workflow:
 1. Create a branch named autopilot/issue-<N>-<slug>.
@@ -24,7 +26,7 @@ Required workflow:
 
 If the issue is genuinely ambiguous or cannot be done safely:
 - Post a comment on the issue via \`gh issue comment <N>\` that explains the blocker in one paragraph.
-- Then exit.
+- Then stop.
 
 Hard constraints:
 - Never edit .github/workflows/*, services/kamiyo-autopilot/**, or files matching *secret*, *.env*, or vendor/**.
@@ -52,7 +54,7 @@ export function emitMetric(data: MetricData): void {
 
 function didOpenPr(toolUses: ToolUse[]): boolean {
   return toolUses.some(t => {
-    if (t.name !== 'Bash') return false;
+    if (t.name !== 'bash') return false;
     const cmd = String(t.input.command ?? '');
     return /gh\s+pr\s+create/.test(cmd);
   });
@@ -60,18 +62,18 @@ function didOpenPr(toolUses: ToolUse[]): boolean {
 
 function didCommentOnIssue(toolUses: ToolUse[], issueNumber: number): boolean {
   return toolUses.some(t => {
-    if (t.name !== 'Bash') return false;
+    if (t.name !== 'bash') return false;
     const cmd = String(t.input.command ?? '');
     return new RegExp(`gh\\s+issue\\s+comment\\s+${issueNumber}`).test(cmd);
   });
 }
 
-function postFallbackComment(cfg: Config, issueNumber: number, costUsd: number): void {
+function postFallbackComment(cfg: Config, issueNumber: number): void {
   const body = [
     `Autopilot run finished without opening a PR or posting a status comment.`,
     ``,
-    `- Cost: $${costUsd.toFixed(4)}`,
-    `- Likely cause: agent entered plan mode and exited before making edits.`,
+    `- Model: local LLM`,
+    `- Likely cause: agent did not produce actionable edits.`,
     ``,
     `A human should either (a) re-trigger the \`autonomous-dev\` workflow for this issue via \`workflow_dispatch\`, or (b) refine the issue scope.`,
   ].join('\n');
@@ -79,9 +81,7 @@ function postFallbackComment(cfg: Config, issueNumber: number, costUsd: number):
     execFileSync(
       'gh',
       ['issue', 'comment', String(issueNumber), '-R', cfg.GITHUB_REPO, '--body', body],
-      {
-        stdio: 'inherit',
-      }
+      { stdio: 'inherit' }
     );
   } catch (err) {
     console.error('[autopilot] failed to post fallback comment:', err);
@@ -109,48 +109,35 @@ Dry run: ${cfg.DRY_RUN ? 'YES — plan only, do not commit or push' : 'no'}
 
 Start now. Make the edits, commit, push, and open the PR in this single run.`;
 
-  const iterator = query({
-    prompt: userPrompt,
-    options: {
-      model,
-      systemPrompt: SYSTEM_PROMPT,
-      maxTurns: cfg.MAX_TURNS,
-      permissionMode: cfg.DRY_RUN ? 'plan' : 'acceptEdits',
-      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
-      disallowedTools: ['ExitPlanMode'],
+  const toolUses: ToolUse[] = [];
+
+  const iterator = runAgent(userPrompt, {
+    model,
+    systemPrompt: SYSTEM_PROMPT,
+    maxTurns: cfg.MAX_TURNS,
+    baseUrl: cfg.LLM_BASE_URL,
+    apiKey: cfg.LLM_API_KEY,
+    cwd: process.cwd(),
+    onText: text => console.log(`[agent] ${text}`),
+    onToolCall: (name, args) => {
+      toolUses.push({ type: 'tool_use', name, input: args });
+      console.log(`[agent] tool=${name} args=${JSON.stringify(args).slice(0, 200)}`);
+    },
+    onToolResult: (name, result) => {
+      const preview = result.output.slice(0, 200);
+      console.log(`[agent] ${name} → ${result.error ? 'ERROR: ' : ''}${preview}`);
     },
   });
 
-  const toolUses: ToolUse[] = [];
-  let totalCostUsd = 0;
-  let lastDurationMs = 0;
+  let totalDurationMs = 0;
+  let totalToolCalls = 0;
   for await (const msg of iterator) {
-    if (msg.type === 'assistant') {
-      const content = msg.message.content as Array<{
-        type: string;
-        text?: string;
-        name?: string;
-        input?: Record<string, unknown>;
-      }>;
-      const text = content
-        .filter(c => c.type === 'text')
-        .map(c => c.text ?? '')
-        .join('');
-      if (text) console.log(`[agent] ${text}`);
-      for (const c of content) {
-        if (c.type === 'tool_use' && c.name) {
-          toolUses.push({ type: 'tool_use', name: c.name, input: c.input ?? {} });
-        }
-      }
-    } else if (msg.type === 'result') {
-      totalCostUsd = msg.total_cost_usd ?? 0;
-      lastDurationMs = msg.duration_ms ?? 0;
+    if (msg.type === 'result') {
+      totalDurationMs = msg.durationMs;
+      totalToolCalls = msg.totalToolCalls;
       console.log(
-        `[autopilot] turn complete: cost=$${totalCostUsd.toFixed(4)} duration=${lastDurationMs}ms`
+        `[autopilot] complete: duration=${totalDurationMs}ms tool_calls=${totalToolCalls}`
       );
-      if (totalCostUsd > cfg.DAILY_USD_MAX) {
-        throw new Error(`cost cap exceeded: $${totalCostUsd} > $${cfg.DAILY_USD_MAX}`);
-      }
     }
   }
 
@@ -161,22 +148,21 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
   );
 
   if (!cfg.DRY_RUN && !openedPr && !commented) {
-    postFallbackComment(cfg, issueNumber, totalCostUsd);
+    postFallbackComment(cfg, issueNumber);
   }
 
-  // Emit structured metric
-  const totalDurationMs = Date.now() - startTime;
+  const elapsed = Date.now() - startTime;
   emitMetric({
     ts: new Date().toISOString(),
     issue: issueNumber,
     model,
     labels,
-    cost_usd: totalCostUsd,
-    duration_ms: totalDurationMs,
+    cost_usd: 0,
+    duration_ms: elapsed,
     tool_uses: toolUses.length,
     opened_pr: openedPr,
     commented,
   });
 
-  return { costUsd: totalCostUsd, openedPr, commented };
+  return { costUsd: 0, openedPr, commented };
 }

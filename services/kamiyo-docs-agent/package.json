@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/docs-agent",
   "version": "0.1.0",
-  "description": "Regenerates README and CHANGELOG on merge to main via Claude Agent SDK",
+  "description": "Regenerates README and CHANGELOG on merge to main via local LLM",
   "main": "dist/index.js",
   "bin": {
     "kamiyo-docs-agent": "dist/index.js"
@@ -13,8 +13,7 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
-    "@anthropic-ai/sdk": "^0.77.0",
+    "@kamiyo/local-agent": "file:../../packages/local-agent",
     "dotenv": "^16.3.1",
     "zod": "^3.23.0"
   },

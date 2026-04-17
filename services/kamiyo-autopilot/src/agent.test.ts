@@ -5,7 +5,8 @@ import { MODELS, type Config } from './config';
 
 // Mock config with default CLAUDE_MODEL
 const mockConfig: Config = {
-  ANTHROPIC_API_KEY: 'test-key',
+  LLM_BASE_URL: 'http://localhost:11434/v1',
+  LLM_API_KEY: 'ollama',
   GITHUB_TOKEN: 'test-token',
   GITHUB_REPO: 'test/repo',
   CLAUDE_MODEL: MODELS.sonnet,
@@ -29,29 +30,29 @@ describe('pickModel', () => {
     expect(result).toBe(MODELS.sonnet);
   });
 
-  it('resolves agent:haiku label to claude-haiku-4-5-20251001', () => {
+  it('resolves agent:haiku label to hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M', () => {
     const result = pickModel(mockConfig, ['agent:haiku']);
-    expect(result).toBe('claude-haiku-4-5-20251001');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 
-  it('resolves agent:sonnet label to claude-sonnet-4-6', () => {
+  it('resolves agent:sonnet label to hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M', () => {
     const result = pickModel(mockConfig, ['agent:sonnet']);
-    expect(result).toBe('claude-sonnet-4-6');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 
-  it('resolves agent:opus label to claude-opus-4-6', () => {
+  it('resolves agent:opus label to hf.co/NousResearch/Hermes-4.3-36B-GGUF:Q4_K_M', () => {
     const result = pickModel(mockConfig, ['agent:opus']);
-    expect(result).toBe('claude-opus-4-6');
+    expect(result).toBe('hf.co/NousResearch/Hermes-4.3-36B-GGUF:Q4_K_M');
   });
 
   it('is case-insensitive for labels (AGENT:HAIKU works)', () => {
     const result = pickModel(mockConfig, ['AGENT:HAIKU']);
-    expect(result).toBe('claude-haiku-4-5-20251001');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 
   it('is case-insensitive for labels (Agent:Sonnet works)', () => {
     const result = pickModel(mockConfig, ['Agent:Sonnet']);
-    expect(result).toBe('claude-sonnet-4-6');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 
   it('falls back to default when unknown agent: label is provided', () => {
@@ -66,12 +67,12 @@ describe('pickModel', () => {
 
   it('uses first valid agent: label when multiple are provided', () => {
     const result = pickModel(mockConfig, ['bug', 'agent:haiku', 'agent:opus']);
-    expect(result).toBe('claude-haiku-4-5-20251001');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 
   it('uses valid agent: label among mixed labels', () => {
     const result = pickModel(mockConfig, ['bug', 'agent:opus', 'enhancement']);
-    expect(result).toBe('claude-opus-4-6');
+    expect(result).toBe('hf.co/NousResearch/Hermes-4.3-36B-GGUF:Q4_K_M');
   });
 
   it('respects custom CLAUDE_MODEL default', () => {
@@ -89,7 +90,7 @@ describe('pickModel', () => {
       CLAUDE_MODEL: 'claude-custom-model',
     };
     const result = pickModel(customConfig, ['agent:haiku']);
-    expect(result).toBe('claude-haiku-4-5-20251001');
+    expect(result).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
   });
 });
 
@@ -100,7 +101,7 @@ describe('emitMetric', () => {
     const metricData: MetricData = {
       ts: '2026-04-16T21:50:00.000Z',
       issue: 212,
-      model: 'claude-sonnet-4-6',
+      model: 'hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M',
       labels: ['agent', 'feature'],
       cost_usd: 0.0234,
       duration_ms: 5000,
@@ -122,7 +123,7 @@ describe('emitMetric', () => {
     expect(parsed).toEqual(metricData);
     expect(parsed.ts).toBe('2026-04-16T21:50:00.000Z');
     expect(parsed.issue).toBe(212);
-    expect(parsed.model).toBe('claude-sonnet-4-6');
+    expect(parsed.model).toBe('hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M');
     expect(parsed.labels).toEqual(['agent', 'feature']);
     expect(parsed.cost_usd).toBe(0.0234);
     expect(parsed.duration_ms).toBe(5000);
@@ -139,7 +140,7 @@ describe('emitMetric', () => {
     const metricData: MetricData = {
       ts: '2026-04-16T22:00:00.000Z',
       issue: 100,
-      model: 'claude-haiku-4-5-20251001',
+      model: 'hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M',
       labels: [],
       cost_usd: 0.005,
       duration_ms: 1000,

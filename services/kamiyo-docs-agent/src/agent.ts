@@ -1,7 +1,9 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { runAgent } from '@kamiyo/local-agent';
 import type { Config } from './config';
 
 const SYSTEM_PROMPT = `You are kamiyo-docs-agent. Your job: keep README.md and CHANGELOG.md current after every merge to main.
+
+You have these tools available: bash, read_file, write_file, edit_file, grep, glob.
 
 Rules:
 - Only edit README.md and CHANGELOG.md. Never touch source code, workflows, or configs.
@@ -28,35 +30,25 @@ Steps:
 4. Prepend a CHANGELOG.md entry for this merge under Unreleased.
 5. Stop. The workflow will commit.`;
 
-  const iterator = query({
-    prompt: userPrompt,
-    options: {
-      model,
-      systemPrompt: SYSTEM_PROMPT,
-      maxTurns: cfg.MAX_TURNS,
-      permissionMode: cfg.DRY_RUN ? 'plan' : 'acceptEdits',
-      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
-    },
+  const iterator = runAgent(userPrompt, {
+    model,
+    systemPrompt: SYSTEM_PROMPT,
+    maxTurns: cfg.MAX_TURNS,
+    baseUrl: cfg.LLM_BASE_URL,
+    apiKey: cfg.LLM_API_KEY,
+    cwd: process.cwd(),
+    onText: text => console.log(`[agent] ${text}`),
+    onToolCall: (name, args) =>
+      console.log(`[agent] tool=${name} args=${JSON.stringify(args).slice(0, 200)}`),
   });
 
-  let totalCostUsd = 0;
+  let durationMs = 0;
   for await (const msg of iterator) {
-    if (msg.type === 'assistant') {
-      const text = (msg.message.content as Array<{ type: string; text?: string }>)
-        .filter(c => c.type === 'text')
-        .map(c => c.text ?? '')
-        .join('');
-      if (text) console.log(`[agent] ${text}`);
-    } else if (msg.type === 'result') {
-      totalCostUsd = msg.total_cost_usd ?? 0;
-      console.log(
-        `[docs-agent] complete: cost=$${totalCostUsd.toFixed(4)} duration=${msg.duration_ms}ms`
-      );
-      if (totalCostUsd > cfg.DAILY_USD_MAX) {
-        throw new Error(`cost cap exceeded: $${totalCostUsd} > $${cfg.DAILY_USD_MAX}`);
-      }
+    if (msg.type === 'result') {
+      durationMs = msg.durationMs;
+      console.log(`[docs-agent] complete: duration=${durationMs}ms`);
     }
   }
 
-  return { costUsd: totalCostUsd };
+  return { costUsd: 0 };
 }
