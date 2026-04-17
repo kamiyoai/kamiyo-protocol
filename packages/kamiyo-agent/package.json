@@ -1,0 +1,72 @@
+{
+  "name": "@kamiyo-org/agent",
+  "version": "0.1.0",
+  "description": "Self-improving agent framework. Tool-use native, goal-driven, with Thompson sampling + LLM-as-judge evolution built in.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "kamiyo-agent": "dist/cli.js"
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyoai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-agent"
+  },
+  "keywords": [
+    "ai-agents",
+    "self-improvement",
+    "agent-framework",
+    "llm",
+    "tool-use",
+    "thompson-sampling",
+    "function-calling",
+    "autonomous-agents",
+    "goal-driven"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.24.0"
+  },
+  "peerDependencies": {
+    "@kamiyo-org/selfimprove": "^1.2.0",
+    "better-sqlite3": "^11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@kamiyo-org/selfimprove": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@kamiyo-org/selfimprove": "workspace:*",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^25.6.0",
+    "better-sqlite3": "^11.8.1",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

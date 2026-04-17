@@ -1,0 +1,38 @@
+{
+  "name": "@kamiyo-org/agent-multi",
+  "version": "0.1.0",
+  "description": "Multi-agent orchestration for @kamiyo-org/agent: channels, delegation, shared memory.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyoai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-agent-multi"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "@kamiyo-org/agent": "^0.1.0"
+  },
+  "devDependencies": {
+    "@kamiyo-org/agent": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18.0.0" }
+}

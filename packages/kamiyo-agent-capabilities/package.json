@@ -1,0 +1,59 @@
+{
+  "name": "@kamiyo-org/agent-capabilities",
+  "version": "0.1.0",
+  "description": "Built-in capabilities for @kamiyo-org/agent: HTTP, web, email, files, code, calendar, communication, payments.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "license": "MIT",
+  "homepage": "https://kamiyo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyoai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-agent-capabilities"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-tools",
+    "capabilities",
+    "http",
+    "email",
+    "web-scraping",
+    "payments"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "peerDependencies": {
+    "@kamiyo-org/agent": "^0.1.0",
+    "nodemailer": "^6.9.0",
+    "playwright": "^1.40.0",
+    "stripe": "^17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "nodemailer": { "optional": true },
+    "playwright": { "optional": true },
+    "stripe": { "optional": true }
+  },
+  "devDependencies": {
+    "@kamiyo-org/agent": "workspace:*",
+    "@types/node": "^25.6.0",
+    "@types/nodemailer": "^6.4.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.0"
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18.0.0" }
+}
