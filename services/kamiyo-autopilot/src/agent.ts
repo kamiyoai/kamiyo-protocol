@@ -71,6 +71,23 @@ function postFallbackComment(cfg: Config, issueNumber: number, costUsd: number):
   }
 }
 
+export interface MetricPayload {
+  ts: string;
+  issue: number;
+  model: string;
+  labels: string[];
+  cost_usd: number;
+  duration_ms: number;
+  tool_uses: number;
+  opened_pr: boolean;
+  commented: boolean;
+}
+
+export function emitMetric(payload: MetricPayload): void {
+  const json = JSON.stringify(payload);
+  console.log(`[autopilot-metric] ${json}`);
+}
+
 export async function runAgentOnIssue(
   cfg: Config,
   issueNumber: number,
@@ -78,6 +95,7 @@ export async function runAgentOnIssue(
   body: string,
   labels: string[] = []
 ) {
+  const startTime = Date.now();
   const model = pickModel(cfg, labels);
   console.log(`[autopilot] model=${model} labels=${labels.join(',') || '-'}`);
 
@@ -139,6 +157,20 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
   console.log(
     `[autopilot] openedPr=${openedPr} commented=${commented} toolUses=${toolUses.length}`
   );
+
+  const duration = Date.now() - startTime;
+  const metric: MetricPayload = {
+    ts: new Date().toISOString(),
+    issue: issueNumber,
+    model,
+    labels,
+    cost_usd: totalCostUsd,
+    duration_ms: duration,
+    tool_uses: toolUses.length,
+    opened_pr: openedPr,
+    commented,
+  };
+  emitMetric(metric);
 
   if (!cfg.DRY_RUN && !openedPr && !commented) {
     postFallbackComment(cfg, issueNumber, totalCostUsd);

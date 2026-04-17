@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
-import { describe, it, expect } from 'vitest';
-import { pickModel } from './agent';
+import { describe, it, expect, vi } from 'vitest';
+import { pickModel, emitMetric, type MetricPayload } from './agent';
 import { MODELS, type Config } from './config';
 
 // Mock config with default CLAUDE_MODEL
@@ -90,5 +90,53 @@ describe('pickModel', () => {
     };
     const result = pickModel(customConfig, ['agent:haiku']);
     expect(result).toBe('claude-haiku-4-5-20251001');
+  });
+});
+
+describe('emitMetric', () => {
+  it('emits correct JSON shape with [autopilot-metric] prefix', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const payload: MetricPayload = {
+      ts: '2025-04-17T10:30:00.000Z',
+      issue: 212,
+      model: 'claude-sonnet-4-6',
+      labels: ['agent', 'feature'],
+      cost_usd: 0.1234,
+      duration_ms: 5000,
+      tool_uses: 3,
+      opened_pr: true,
+      commented: false,
+    };
+    emitMetric(payload);
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[autopilot-metric]'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"issue":212'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"model":"claude-sonnet-4-6"'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"cost_usd":0.1234'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"duration_ms":5000'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"tool_uses":3'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"opened_pr":true'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('"commented":false'));
+    consoleSpy.mockRestore();
+  });
+
+  it('emits valid JSON that can be parsed', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const payload: MetricPayload = {
+      ts: '2025-04-17T10:30:00.000Z',
+      issue: 100,
+      model: 'claude-haiku-4-5-20251001',
+      labels: ['urgent'],
+      cost_usd: 0.05,
+      duration_ms: 2000,
+      tool_uses: 1,
+      opened_pr: false,
+      commented: true,
+    };
+    emitMetric(payload);
+    const call = consoleSpy.mock.calls[0][0] as string;
+    const jsonPart = call.replace(/^\[autopilot-metric\]\s/, '');
+    const parsed = JSON.parse(jsonPart);
+    expect(parsed).toEqual(payload);
+    consoleSpy.mockRestore();
   });
 });
