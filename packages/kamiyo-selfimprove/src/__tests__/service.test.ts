@@ -136,9 +136,9 @@ describe('evaluateAndPromote', () => {
   });
 
   it('returns significance message when samples exist but no winner', () => {
-    const db = freshDb();
+    freshDb();
     const scores = Array.from({ length: 50 }, () => 0.5 + (Math.random() - 0.5) * 0.01);
-    seedVariantsWithScores(db, 'test', [
+    seedVariantsWithScores('test', [
       { prompt: 'v1', scores },
       { prompt: 'v2', scores: scores.map(s => s - 0.001) },
     ]);
@@ -151,10 +151,10 @@ describe('evaluateAndPromote', () => {
   });
 
   it('promotes a clearly better variant', () => {
-    const db = freshDb();
+    freshDb();
     const low = Array.from({ length: 60 }, () => 0.3 + Math.random() * 0.05);
     const high = Array.from({ length: 60 }, () => 0.8 + Math.random() * 0.05);
-    seedVariantsWithScores(db, 'test', [
+    seedVariantsWithScores('test', [
       { prompt: 'weak', scores: low },
       { prompt: 'strong', scores: high },
     ]);

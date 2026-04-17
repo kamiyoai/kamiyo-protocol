@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs';
 import { createRequire } from 'module';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import { applySchema } from './schema';
 import { initSelfImprove } from './context';
 import { upsertRubric, getRubric } from './judge';
-import { getLeaderboard, getVariant, listActiveVariants, evaluateAndPromote } from './service';
+import {
+  createVariant,
+  evaluateAndPromote,
+  getLeaderboard,
+  getVariant,
+  listActiveVariants,
+  recordTournamentEntry,
+} from './service';
+import { createTournament } from './tournament';
 import { listTaskTypes } from './bandit';
 import { startDashboard } from './dashboard';
 import { getParetoFrontier } from './pareto';
@@ -431,6 +440,255 @@ function cmdDashboard(flags: Record<string, string>): void {
   startDashboard({ port, host });
 }
 
+function cmdDemo(flags: Record<string, string>): void {
+  const dbPath = flags.db ?? join(tmpdir(), `kamiyo-si-demo-${Date.now()}.db`);
+  flags.db = dbPath;
+  initCtx(flags);
+
+  const port = flags.port ? Number(flags.port) : 4100;
+  const rng = seededRng(42);
+
+  console.log('seeding demo data…');
+
+  // --- task 1: tweet_reply (promoted winner, canary history) ---
+  upsertRubric({
+    taskType: 'tweet_reply',
+    rubric:
+      'Score reply quality 0–1. Axes: relevance, tone-match, brevity, wit. Return JSON: {"score": <number>, "rationale": "<text>"}',
+    modelId: 'claude-haiku-4-5-20251001',
+    dailyBudgetUsd: 10,
+  });
+
+  const tweetVariants = [
+    {
+      prompt: 'Reply in one witty sentence. Match their tone. No hashtags.',
+      temp: 0.7,
+      notes: 'baseline',
+    },
+    {
+      prompt: 'Reply with a question that nudges engagement. Keep it under 200 chars.',
+      temp: 0.6,
+      notes: 'engagement fork',
+    },
+    {
+      prompt: "Be contrarian but respectful. Challenge the tweet's premise briefly.",
+      temp: 0.8,
+      notes: 'contrarian fork',
+    },
+    {
+      prompt: 'Agree and extend: add one concrete example or insight. < 240 chars.',
+      temp: 0.7,
+      notes: 'agree-extend',
+    },
+  ];
+
+  const tweetCreated = tweetVariants.map(
+    v =>
+      createVariant({
+        agentId: 'reply-bot',
+        taskType: 'tweet_reply',
+        genome: {
+          promptTemplate: v.prompt,
+          modelId: 'claude-haiku-4-5-20251001',
+          toolAllowlist: [],
+          temperature: v.temp,
+          maxTokens: 200,
+          systemGuardrails: '',
+        },
+        notes: v.notes,
+      }).variant
+  );
+
+  const tweetMeans = [0.62, 0.78, 0.55, 0.71];
+  const t1 = createTournament({ taskType: 'tweet_reply', maxParticipants: 10, budgetCap: 50 });
+  for (let i = 0; i < 200; i++) {
+    const vi = i % tweetCreated.length;
+    const score = clamp01(tweetMeans[vi] + (rng() - 0.5) * 0.15);
+    recordTournamentEntry({
+      tournamentId: t1.id,
+      variantId: tweetCreated[vi].id,
+      qualityScore: score,
+      cost: 0.0008 + rng() * 0.0004,
+      latencyMs: 80 + Math.floor(rng() * 120),
+    });
+  }
+
+  const tweetPromo = evaluateAndPromote('tweet_reply', { minSamples: 10 });
+  if (tweetPromo.promoted) {
+    console.log(
+      `  tweet_reply: promoted ${tweetPromo.variantId.slice(0, 8)} (uplift ${tweetPromo.uplift.toFixed(3)})`
+    );
+
+    // add canary history (rolled-back)
+    const nonPromoted = tweetCreated.find(v => v.id !== tweetPromo.variantId);
+    if (nonPromoted) {
+      try {
+        startCanary({
+          taskType: 'tweet_reply',
+          canaryVariantId: nonPromoted.id,
+          trafficPct: 0.1,
+          minSamples: 5,
+          rollbackThreshold: 0.03,
+        });
+        // simulate canary regression
+        const canaryT = createTournament({
+          taskType: 'tweet_reply',
+          maxParticipants: 5,
+          budgetCap: 10,
+        });
+        for (let i = 0; i < 20; i++) {
+          recordTournamentEntry({
+            tournamentId: canaryT.id,
+            variantId: nonPromoted.id,
+            qualityScore: clamp01(0.45 + (rng() - 0.5) * 0.1),
+            cost: 0.001,
+            latencyMs: 100,
+          });
+          recordTournamentEntry({
+            tournamentId: canaryT.id,
+            variantId: tweetPromo.variantId,
+            qualityScore: clamp01(0.78 + (rng() - 0.5) * 0.1),
+            cost: 0.001,
+            latencyMs: 100,
+          });
+        }
+        try {
+          stepCanary({ taskType: 'tweet_reply' });
+        } catch {
+          /* may already resolve */
+        }
+        console.log('  tweet_reply: canary history seeded');
+      } catch {
+        /* partial unique constraint etc */
+      }
+    }
+  }
+
+  // --- task 2: summarize (close race, no promotion yet) ---
+  upsertRubric({
+    taskType: 'summarize',
+    rubric:
+      'Score summary quality 0–1. Axes: accuracy, conciseness, coverage of key points. JSON: {"score": <number>, "rationale": "<text>"}',
+    modelId: 'claude-haiku-4-5-20251001',
+    dailyBudgetUsd: 5,
+  });
+
+  const sumVariants = [
+    {
+      prompt: 'Summarize in 2-3 sentences. Capture the main argument.',
+      temp: 0.3,
+      notes: 'baseline',
+    },
+    { prompt: 'Bullet-point summary. Max 5 bullets. No fluff.', temp: 0.2, notes: 'bullets fork' },
+    { prompt: 'One-sentence TLDR, then 2 supporting details.', temp: 0.4, notes: 'tldr fork' },
+  ];
+
+  const sumCreated = sumVariants.map(
+    v =>
+      createVariant({
+        agentId: 'summary-bot',
+        taskType: 'summarize',
+        genome: {
+          promptTemplate: v.prompt,
+          modelId: 'claude-sonnet-4-6',
+          toolAllowlist: [],
+          temperature: v.temp,
+          maxTokens: 400,
+          systemGuardrails: '',
+        },
+        notes: v.notes,
+      }).variant
+  );
+
+  const sumMeans = [0.72, 0.74, 0.73];
+  const t2 = createTournament({ taskType: 'summarize', maxParticipants: 5, budgetCap: 20 });
+  for (let i = 0; i < 90; i++) {
+    const vi = i % sumCreated.length;
+    recordTournamentEntry({
+      tournamentId: t2.id,
+      variantId: sumCreated[vi].id,
+      qualityScore: clamp01(sumMeans[vi] + (rng() - 0.5) * 0.12),
+      cost: 0.003 + rng() * 0.002,
+      latencyMs: 200 + Math.floor(rng() * 300),
+    });
+  }
+
+  const sumPromo = evaluateAndPromote('summarize', { minSamples: 10 });
+  console.log(
+    `  summarize: ${sumPromo.promoted ? 'promoted ' + sumPromo.variantId.slice(0, 8) : sumPromo.reason}`
+  );
+
+  // --- task 3: code_review (fresh, few samples) ---
+  upsertRubric({
+    taskType: 'code_review',
+    rubric:
+      'Score code review quality 0–1. Axes: correctness of findings, actionability, false-positive rate. JSON: {"score": <number>, "rationale": "<text>"}',
+    modelId: 'claude-sonnet-4-6',
+    dailyBudgetUsd: 15,
+  });
+
+  const crVariants = [
+    {
+      prompt: 'Review this diff. List bugs, then style issues. Be specific with line numbers.',
+      temp: 0.2,
+      notes: 'baseline',
+    },
+    {
+      prompt: 'Focus only on correctness bugs. Ignore style. One sentence per finding.',
+      temp: 0.1,
+      notes: 'bugs-only fork',
+    },
+  ];
+
+  const crCreated = crVariants.map(
+    v =>
+      createVariant({
+        agentId: 'review-bot',
+        taskType: 'code_review',
+        genome: {
+          promptTemplate: v.prompt,
+          modelId: 'claude-sonnet-4-6',
+          toolAllowlist: [],
+          temperature: v.temp,
+          maxTokens: 1000,
+          systemGuardrails:
+            'Never suggest changes that alter behavior without explicit justification.',
+        },
+        notes: v.notes,
+      }).variant
+  );
+
+  const t3 = createTournament({ taskType: 'code_review', maxParticipants: 5, budgetCap: 20 });
+  for (let i = 0; i < 15; i++) {
+    const vi = i % crCreated.length;
+    const means = [0.68, 0.72];
+    recordTournamentEntry({
+      tournamentId: t3.id,
+      variantId: crCreated[vi].id,
+      qualityScore: clamp01(means[vi] + (rng() - 0.5) * 0.2),
+      cost: 0.008 + rng() * 0.005,
+      latencyMs: 500 + Math.floor(rng() * 800),
+    });
+  }
+
+  console.log('  code_review: 15 samples seeded (too few to promote)');
+  console.log(`\ndemo db → ${dbPath}`);
+
+  startDashboard({ port, host: '127.0.0.1' });
+}
+
+function seededRng(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+function clamp01(n: number): number {
+  return Math.max(0, Math.min(1, n));
+}
+
 function printHelp(): void {
   console.log(`kamiyo-si — self-improvement CLI
 
@@ -446,6 +704,7 @@ commands:
   sweep run [--task <t>]       run evaluate-and-promote (all tasks if omitted)
   tasks list                   list all task types
   dashboard [--port 4100]      start web dashboard (read-only, localhost)
+  demo [--port 4100]           seed fake data + launch dashboard (no API key needed)
   pareto --task <t>            show pareto-optimal variants (quality/cost/latency)
   shadow stats --task <t>      shadow-run aggregates (--hours to scope window)
   canary start --task <t> --variant <id> [--baseline <id>] [--traffic 0.1]
@@ -506,6 +765,9 @@ async function main(): Promise<void> {
         break;
       case 'dashboard':
         cmdDashboard(args.flags);
+        break;
+      case 'demo':
+        cmdDemo(args.flags);
         break;
       case 'pareto':
         cmdPareto(args.flags);

@@ -257,6 +257,16 @@ All read commands accept `--json` for scripting / piping into `jq`.
 
 Set `SELFIMPROVE_DB=/path/to.db` to skip `--db` on every call.
 
+## Demo
+
+Try it in one command — no API key, no setup:
+
+```bash
+npx @kamiyo-org/selfimprove demo
+```
+
+Seeds 3 task types (tweet_reply, summarize, code_review) with variants, scores, a promoted winner, and a rolled-back canary, then launches the dashboard at `http://127.0.0.1:4100`.
+
 ## Dashboard
 
 Read-only local web UI over the same SQLite DB:
