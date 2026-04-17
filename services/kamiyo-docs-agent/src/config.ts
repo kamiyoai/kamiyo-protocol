@@ -12,7 +12,7 @@ const Schema = z.object({
   GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
   CLAUDE_MODEL: z.string().default(MODELS.haiku),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
-  DAILY_USD_MAX: z.coerce.number().positive().default(5),
+  DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
   MERGE_SHA: z.string().optional(),
   DRY_RUN: z
     .string()
