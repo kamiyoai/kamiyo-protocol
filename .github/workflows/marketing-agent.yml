@@ -56,6 +56,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build local-agent
+        working-directory: packages/local-agent
+        run: pnpm install --ignore-workspace && pnpm build
+
       - name: Install marketing-agent deps
         working-directory: services/kamiyo-marketing-agent
         run: pnpm install --ignore-workspace

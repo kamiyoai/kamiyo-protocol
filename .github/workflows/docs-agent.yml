@@ -70,6 +70,11 @@ jobs:
           git config user.name "kamiyobot"
           git config user.email "kamiyo-ai@users.noreply.github.com"
 
+      - name: Build local-agent
+        if: steps.skip.outputs.skip == 'false'
+        working-directory: packages/local-agent
+        run: pnpm install --ignore-workspace && pnpm build
+
       - name: Install docs-agent deps
         if: steps.skip.outputs.skip == 'false'
         working-directory: services/kamiyo-docs-agent

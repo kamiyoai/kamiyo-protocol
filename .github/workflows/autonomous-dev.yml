@@ -63,6 +63,10 @@ jobs:
           git config user.name "kamiyo-bot"
           git config user.email "bot@kamiyo.dev"
 
+      - name: Build local-agent
+        working-directory: packages/local-agent
+        run: pnpm install --ignore-workspace && pnpm build
+
       - name: Install autopilot deps
         working-directory: services/kamiyo-autopilot
         run: pnpm install --ignore-workspace
