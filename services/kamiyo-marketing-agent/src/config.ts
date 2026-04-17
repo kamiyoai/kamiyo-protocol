@@ -25,7 +25,7 @@ const Schema = z
       ),
     CLAUDE_MODEL: z.string().default(MODELS.haiku),
     MAX_TURNS: z.coerce.number().int().positive().default(25),
-    DAILY_USD_MAX: z.coerce.number().positive().default(3),
+    DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
     POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
     DRY_RUN: z
       .string()

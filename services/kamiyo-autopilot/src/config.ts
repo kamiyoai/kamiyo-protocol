@@ -16,7 +16,7 @@ const Schema = z.object({
   GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
   CLAUDE_MODEL: z.string().default(MODELS.sonnet),
   MAX_TURNS: z.coerce.number().int().positive().default(30),
-  DAILY_USD_MAX: z.coerce.number().positive().default(50),
+  DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
   AGENT_LABEL: z.string().default('agent'),
   APPROVED_LABEL: z.string().default('agent-approved'),
   HALT_LABEL: z.string().default('halt-autopilot'),
