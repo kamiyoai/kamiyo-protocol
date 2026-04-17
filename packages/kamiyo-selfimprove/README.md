@@ -403,10 +403,6 @@ const judgeLLM = genericChatJudge(async ({ model, messages, temperature, max_tok
 - **Lineage viz**: graphical ancestry tree on dashboard (currently table)
 - **Contextual bandit**: route by input features (LinUCB / neural) alongside Thompson
 
-## ESM only
-
-This package ships ESM (`"type": "module"`). If your project uses CommonJS, set `"type": "module"` in your `package.json` or use dynamic `import()`.
-
 ## Status
 
 `1.1.0` — public API stable. `createVariant` return type changed (breaking from 1.0.x). Semver from here. Schema migrations are additive.
