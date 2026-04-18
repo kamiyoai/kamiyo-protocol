@@ -40,7 +40,7 @@ async function fetchObservatory<T>(path: string): Promise<T | null> {
 function buildDashboardStats(
   obs: ObservatoryStats | null,
   recentEvents: ObservatoryEvent[] | null,
-  burnStats: { totalBurnedKamiyo: string; totalUsdValue: string; burnCount: number } | null
+  burnStats: { totalBurnedKamiyo: string; totalUsdValue: number; burnCount: number } | null
 ) {
   const totalSettlements = obs?.totalEscrows ?? 0;
   const released = obs?.byStatus?.['released'] ?? 0;
@@ -71,7 +71,7 @@ function buildDashboardStats(
       ? parseFloat((qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length).toFixed(1))
       : 0;
 
-  const burnUsd = burnStats ? parseFloat(burnStats.totalUsdValue) || 0 : 0;
+  const burnUsd = burnStats?.totalUsdValue ?? 0;
 
   return {
     totalSettlements,
