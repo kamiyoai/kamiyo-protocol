@@ -14,6 +14,7 @@ import fairscaleFusionRoutes from '../routes/fairscale-fusion';
 import realityForkRoutes from '../routes/reality-fork';
 import buybackRoutes from '../routes/buyback';
 import kamiyoTokenRoutes from '../routes/kamiyo-token';
+import kizunaDashboardRoutes from '../routes/kizuna-dashboard';
 import type { ApiRouteGroup } from './types';
 
 export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): ApiRouteGroup[] {
@@ -91,6 +92,12 @@ export function createKizunaCoreRouteGroups(publicReadLimiter: RequestHandler): 
       routeIds: ['kamiyo-token'],
       path: '/api/kamiyo',
       handlers: [publicReadLimiter, kamiyoTokenRoutes],
+    },
+    {
+      ownership: 'kizuna-core',
+      routeIds: ['kizuna-dashboard'],
+      path: '/api/kizuna',
+      handlers: [publicReadLimiter, kizunaDashboardRoutes],
     },
   ];
 }
