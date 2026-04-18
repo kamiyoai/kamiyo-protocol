@@ -2121,6 +2121,9 @@ importers:
         specifier: ^4.86.0
         version: 4.104.0(ws@8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76)
     devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -2409,7 +2412,7 @@ importers:
   services/kamiyo-autopilot:
     dependencies:
       '@kamiyo/local-agent':
-        specifier: workspace:*
+        specifier: file:../../packages/local-agent
         version: link:../../packages/local-agent
       '@octokit/rest':
         specifier: ^21.0.0
@@ -2437,7 +2440,7 @@ importers:
   services/kamiyo-docs-agent:
     dependencies:
       '@kamiyo/local-agent':
-        specifier: workspace:*
+        specifier: file:../../packages/local-agent
         version: link:../../packages/local-agent
       dotenv:
         specifier: ^16.3.1
@@ -2459,7 +2462,7 @@ importers:
   services/kamiyo-marketing-agent:
     dependencies:
       '@kamiyo/local-agent':
-        specifier: workspace:*
+        specifier: file:../../packages/local-agent
         version: link:../../packages/local-agent
       dotenv:
         specifier: ^16.3.1
@@ -2517,6 +2520,37 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.8
         version: 7.6.13
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  services/kamiyo-protocol-tick:
+    dependencies:
+      '@coral-xyz/anchor':
+        specifier: ^0.32.1
+        version: 0.32.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/solana-inference':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-solana-inference
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      openai:
+        specifier: ^4.86.0
+        version: 4.104.0(ws@8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(zod@3.25.76)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -28755,7 +28789,7 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@25.6.0)(lightningcss@1.31.1)(terser@5.46.0)
 
-  '@vitest/mocker@3.2.4(vite@5.4.21(@types/node@25.6.0))':
+  '@vitest/mocker@3.2.4(vite@5.4.21(@types/node@25.6.0)(lightningcss@1.31.1)(terser@5.46.0))':
     dependencies:
       '@vitest/spy': 3.2.4
       estree-walker: 3.0.3
@@ -38764,7 +38798,7 @@ snapshots:
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.4
-      '@vitest/mocker': 3.2.4(vite@5.4.21(@types/node@25.6.0))
+      '@vitest/mocker': 3.2.4(vite@5.4.21(@types/node@25.6.0)(lightningcss@1.31.1)(terser@5.46.0))
       '@vitest/pretty-format': 3.2.4
       '@vitest/runner': 3.2.4
       '@vitest/snapshot': 3.2.4
