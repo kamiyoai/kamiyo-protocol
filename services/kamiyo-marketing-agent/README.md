@@ -1,6 +1,6 @@
 # @kamiyo/marketing-agent
 
-Daily cron. Pulls recent merges from GitHub, drafts short posts with the shared Kamiyo agent runtime against an OpenAI-compatible local LLM endpoint by default, then schedules them via the self-hosted Postiz API.
+Daily cron. Pulls recent merges from GitHub, drafts short posts with the shared Kamiyo agent runtime against an OpenAI-compatible local LLM endpoint by default, records outcomes into a SQLite-backed self-improve loop, then schedules approved drafts via the self-hosted Postiz API.
 
 ## Flow
 
@@ -32,11 +32,17 @@ Set `DRY_RUN=1` to log intended posts without hitting Postiz.
 | `POSTIZ_API_KEY` | — | issued via Postiz UI |
 | `POSTIZ_INTEGRATIONS` | — | comma-separated integration IDs from Postiz |
 | `CLAUDE_MODEL` | `hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M` | |
+| `MARKETING_AGENT_DB_PATH` | `.marketing-agent/agent.db` | SQLite path for variant memory and scoring |
 | `MAX_TURNS` | 25 | |
 | `DAILY_USD_MAX` | 0 | informational run cost cap |
 | `POSTS_PER_DAY` | 2 | cap on drafts per run |
+| `SELF_IMPROVE_ENABLED` | `true` | turn on DB-backed variant routing and scoring |
+| `SELF_IMPROVE_TASK_TYPE` | `marketing_post_drafting` | variant task bucket |
+| `SELF_IMPROVE_JUDGE_MODEL` | `hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M` | rubric judge model id |
+| `SELF_IMPROVE_MIN_SAMPLES` | 5 | promotion sample floor |
+| `SELF_IMPROVE_P_THRESHOLD` | 0.1 | promotion significance threshold |
 | `DRY_RUN` | — | `1` = no network writes |
 
 ## CI
 
-`.github/workflows/marketing-agent.yml` runs daily at 09:00 UTC, builds the shared agent runtime, and then runs the marketing agent.
+`.github/workflows/marketing-agent.yml` runs daily at 09:00 UTC, builds the shared agent runtime and self-improve package on Node 20, and then runs the marketing agent with its SQLite-backed self-improve path enabled.

@@ -22,53 +22,64 @@ async function main() {
     .map(c => `- ${c.sha} ${c.subject}${c.body ? `\n  ${c.body.split('\n').join('\n  ')}` : ''}`)
     .join('\n');
 
-  const { posts, durationMs, variantId, variantStrategy } = await draftPosts(cfg, context);
-  console.log(`[marketing-agent] drafted ${posts.length} post(s)`);
+  const draft = await draftPosts(cfg, context);
 
-  if (posts.length === 0) {
-    console.log('[marketing-agent] nothing worth posting, exiting');
+  try {
+    console.log(`[marketing-agent] drafted ${draft.posts.length} post(s)`);
+
+    if (draft.posts.length === 0) {
+      console.log('[marketing-agent] nothing worth posting, exiting');
+      const assessment = assessMarketingOutcome({
+        model: cfg.CLAUDE_MODEL,
+        durationMs: draft.durationMs,
+        turnCount: draft.turnCount,
+        postsPerDay: cfg.POSTS_PER_DAY,
+        posts: [],
+        scheduledCount: 0,
+        dryRun: cfg.DRY_RUN,
+        costUsd: draft.costUsd,
+        variantId: draft.variantId,
+        variantStrategy: draft.variantStrategy,
+      });
+      emitOutcomeMetric(assessment.metric);
+      draft.recordOutcomeScore(assessment);
+      return;
+    }
+
+    const postiz = new PostizClient(cfg);
+    const spacing = Math.floor((12 * 60) / Math.max(draft.posts.length, 1));
+
+    let scheduledCount = 0;
+    for (let i = 0; i < draft.posts.length; i++) {
+      const post = draft.posts[i];
+      const scheduledFor = pickSlot(15 + i * spacing);
+      console.log(`[marketing-agent] ${scheduledFor.toISOString()}: ${post.text}`);
+      const { id } = await postiz.schedule({
+        text: post.text,
+        scheduledFor,
+        integrations: cfg.POSTIZ_INTEGRATIONS,
+      });
+      scheduledCount += 1;
+      console.log(`[marketing-agent] scheduled ${id}`);
+    }
+
     const assessment = assessMarketingOutcome({
       model: cfg.CLAUDE_MODEL,
-      durationMs,
+      durationMs: draft.durationMs,
+      turnCount: draft.turnCount,
       postsPerDay: cfg.POSTS_PER_DAY,
-      posts: [],
-      scheduledCount: 0,
+      posts: draft.posts,
+      scheduledCount,
       dryRun: cfg.DRY_RUN,
-      variantId,
-      variantStrategy,
+      costUsd: draft.costUsd,
+      variantId: draft.variantId,
+      variantStrategy: draft.variantStrategy,
     });
     emitOutcomeMetric(assessment.metric);
-    return;
+    draft.recordOutcomeScore(assessment);
+  } finally {
+    await draft.cleanup();
   }
-
-  const postiz = new PostizClient(cfg);
-  const spacing = Math.floor((12 * 60) / Math.max(posts.length, 1));
-
-  let scheduledCount = 0;
-  for (let i = 0; i < posts.length; i++) {
-    const post = posts[i];
-    const scheduledFor = pickSlot(15 + i * spacing);
-    console.log(`[marketing-agent] ${scheduledFor.toISOString()}: ${post.text}`);
-    const { id } = await postiz.schedule({
-      text: post.text,
-      scheduledFor,
-      integrations: cfg.POSTIZ_INTEGRATIONS,
-    });
-    scheduledCount += 1;
-    console.log(`[marketing-agent] scheduled ${id}`);
-  }
-
-  const assessment = assessMarketingOutcome({
-    model: cfg.CLAUDE_MODEL,
-    durationMs,
-    postsPerDay: cfg.POSTS_PER_DAY,
-    posts,
-    scheduledCount,
-    dryRun: cfg.DRY_RUN,
-    variantId,
-    variantStrategy,
-  });
-  emitOutcomeMetric(assessment.metric);
 }
 
 main().catch(err => {

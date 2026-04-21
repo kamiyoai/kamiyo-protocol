@@ -50,8 +50,14 @@ jobs:
       POSTIZ_API_KEY: ${{ secrets.POSTIZ_API_KEY }}
       POSTIZ_INTEGRATIONS: ${{ secrets.POSTIZ_INTEGRATIONS }}
       CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      MARKETING_AGENT_DB_PATH: .marketing-agent/agent.db
       DAILY_USD_MAX: "0"
       POSTS_PER_DAY: "2"
+      SELF_IMPROVE_ENABLED: "true"
+      SELF_IMPROVE_TASK_TYPE: marketing_post_drafting
+      SELF_IMPROVE_JUDGE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      SELF_IMPROVE_MIN_SAMPLES: "5"
+      SELF_IMPROVE_P_THRESHOLD: "0.1"
       DRY_RUN: ${{ github.event.inputs.dry_run || '' }}
     steps:
       - uses: actions/checkout@v4

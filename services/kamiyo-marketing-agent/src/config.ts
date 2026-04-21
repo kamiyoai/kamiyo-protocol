@@ -24,9 +24,18 @@ const Schema = z
           .filter(Boolean)
       ),
     CLAUDE_MODEL: z.string().default(MODELS.haiku),
+    MARKETING_AGENT_DB_PATH: z.string().default('.marketing-agent/agent.db'),
     MAX_TURNS: z.coerce.number().int().positive().default(25),
     DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
     POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
+    SELF_IMPROVE_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform(v => v === 'true'),
+    SELF_IMPROVE_TASK_TYPE: z.string().min(1).default('marketing_post_drafting'),
+    SELF_IMPROVE_JUDGE_MODEL: z.string().default(MODELS.haiku),
+    SELF_IMPROVE_MIN_SAMPLES: z.coerce.number().int().positive().default(5),
+    SELF_IMPROVE_P_THRESHOLD: z.coerce.number().min(0).max(1).default(0.1),
     DRY_RUN: z
       .string()
       .optional()
