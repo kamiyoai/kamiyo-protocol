@@ -56,8 +56,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build local-agent
-        working-directory: packages/local-agent
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build selfimprove
+        working-directory: packages/kamiyo-selfimprove
+        run: pnpm install --ignore-workspace && pnpm build
+
+      - name: Build agent runtime
+        working-directory: packages/kamiyo-agent
         run: pnpm install --ignore-workspace && pnpm build
 
       - name: Install marketing-agent deps
