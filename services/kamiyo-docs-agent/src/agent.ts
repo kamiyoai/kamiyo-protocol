@@ -1,16 +1,20 @@
 import path from 'node:path';
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import {
   assessAgentOutcome,
   createAgent,
+  type DB,
   emitOutcomeMetric,
   genericProvider,
   parseTaggedFields,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
+import { createVariant, genericChatJudge } from '@kamiyo-org/selfimprove';
 import type { Config } from './config';
 import { createDocsAgentTools } from './tools';
+
+type DocsDatabase = DB & { close(): void };
 
 const SYSTEM_PROMPT = `You are kamiyo-docs-agent. Your job: keep README.md and CHANGELOG.md current after every merge to main.
 
@@ -31,6 +35,20 @@ OUTCOME: <updated_docs|no_changes>
 SUMMARY: <2-4 concise sentences about what changed or why no update was needed>
 FILES: <comma-separated list of edited files or none>`;
 
+const SELF_IMPROVE_RUBRIC = `Score the final execution summary for a docs regeneration run.
+
+Give high scores only when the summary reflects all of the following:
+- The reported outcome matches the actual docs edits: updated docs when real README/CHANGELOG changes were needed, or no_changes when no docs update was justified.
+- The README and CHANGELOG stay tightly aligned to the merge diff, with no invented features or speculative claims.
+- The CHANGELOG entry is present when docs were updated and the touched files stay inside the docs-only scope.
+- The summary and reported files are explicit and internally consistent.
+
+Penalize:
+- Claimed file edits that did not happen, or real edits not reflected in the response.
+- README edits for internal-only or workflow-only changes.
+- Missing or inaccurate CHANGELOG updates.
+- Any drift outside README.md or CHANGELOG.md.`;
+
 function toToolInput(input: unknown): Record<string, unknown> {
   return input && typeof input === 'object' && !Array.isArray(input)
     ? (input as Record<string, unknown>)
@@ -47,6 +65,101 @@ function collectDocSnapshots(repoRoot: string): Map<string, string> {
     snapshots.set(relative, readFileSync(filePath, 'utf-8'));
   }
   return snapshots;
+}
+
+function resolveDocsDbPath(dbPath: string): string {
+  const resolved = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+  mkdirSync(path.dirname(resolved), { recursive: true });
+  return resolved;
+}
+
+function openDocsDatabase(dbPath: string): DocsDatabase {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+  const Database = require('better-sqlite3') as new (filename: string) => DocsDatabase;
+  return new Database(resolveDocsDbPath(dbPath));
+}
+
+function createDocsJudge(cfg: Config) {
+  const baseUrl = cfg.LLM_BASE_URL.replace(/\/$/, '');
+  return genericChatJudge(async request => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (cfg.LLM_API_KEY) {
+      headers.Authorization = `Bearer ${cfg.LLM_API_KEY}`;
+    }
+
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: request.model,
+        temperature: request.temperature,
+        max_tokens: request.max_tokens,
+        messages: request.messages,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`judge HTTP ${response.status}: ${errorText}`);
+    }
+
+    const raw = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      text: raw.choices?.[0]?.message?.content ?? '',
+      inputTokens: raw.usage?.prompt_tokens ?? 0,
+      outputTokens: raw.usage?.completion_tokens ?? 0,
+    };
+  });
+}
+
+function seedDocsVariants(
+  agentId: string,
+  taskType: string,
+  model: string,
+  toolAllowlist: string[]
+): void {
+  const variants = [
+    {
+      promptTemplate: SYSTEM_PROMPT,
+      temperature: 0.1,
+      maxTokens: 3072,
+      notes: 'baseline-docs-agent',
+    },
+    {
+      promptTemplate: `${SYSTEM_PROMPT}\n\nExecution style: prefer no_changes over speculative edits. Update only when the merge clearly changes public behavior, setup, or release notes.`,
+      temperature: 0.05,
+      maxTokens: 2560,
+      notes: 'conservative-docs-agent',
+    },
+    {
+      promptTemplate: `${SYSTEM_PROMPT}\n\nExecution style: make the CHANGELOG exact and minimal first, then touch README only if the merge changes setup, public capabilities, or operator-facing behavior.`,
+      temperature: 0.15,
+      maxTokens: 3072,
+      notes: 'changelog-first-docs-agent',
+    },
+  ];
+
+  for (const variant of variants) {
+    createVariant({
+      agentId,
+      taskType,
+      notes: variant.notes,
+      genome: {
+        promptTemplate: variant.promptTemplate,
+        modelId: model,
+        toolAllowlist,
+        temperature: variant.temperature,
+        maxTokens: variant.maxTokens,
+        systemGuardrails:
+          'Only edit README.md and CHANGELOG.md files that live inside the repository. Never touch source code, workflows, or configs.',
+      },
+    });
+  }
 }
 
 function detectChangedDocs(repoRoot: string, before: Map<string, string>): string[] {
@@ -134,8 +247,10 @@ export function assessDocsOutcome(params: {
 export async function runDocsAgent(cfg: Config, mergeContext: string) {
   const model = cfg.CLAUDE_MODEL;
   console.log(`[docs-agent] model=${model}`);
+  const startTime = Date.now();
   const repoRoot = path.resolve(process.cwd(), '../..');
   const beforeDocs = collectDocSnapshots(repoRoot);
+  const db = cfg.SELF_IMPROVE_ENABLED ? openDocsDatabase(cfg.DOCS_AGENT_DB_PATH) : undefined;
   const agent = createAgent({
     id: 'kamiyo-docs-agent',
     name: 'kamiyo-docs-agent',
@@ -152,6 +267,20 @@ export async function runDocsAgent(cfg: Config, mergeContext: string) {
     maxTurns: cfg.MAX_TURNS,
     toolTimeoutMs: 120_000,
     onError: 'return',
+    db,
+    selfImprove: cfg.SELF_IMPROVE_ENABLED
+      ? {
+          enabled: true,
+          taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+          rubric: SELF_IMPROVE_RUBRIC,
+          rubricModel: cfg.SELF_IMPROVE_JUDGE_MODEL,
+          rubricBudgetUsd: cfg.DAILY_USD_MAX,
+          minSamples: cfg.SELF_IMPROVE_MIN_SAMPLES,
+          pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
+          sweepIntervalMs: 12 * 60 * 60 * 1000,
+        }
+      : { enabled: false },
+    selfImproveInit: cfg.SELF_IMPROVE_ENABLED ? { judgeLLM: createDocsJudge(cfg) } : undefined,
   });
   for (const tool of createDocsAgentTools(repoRoot)) {
     agent.useTool(tool);
@@ -175,6 +304,9 @@ Steps:
   let outcomeAssessment: AgentOutcomeAssessment | null = null;
   try {
     await agent.start();
+    if (cfg.SELF_IMPROVE_ENABLED) {
+      seedDocsVariants(agent.id, agent.selfImprove.taskType, model, agent.tools);
+    }
 
     for await (const event of agent.stream(userPrompt)) {
       if (event.type === 'text' && event.text.trim()) {
@@ -206,7 +338,7 @@ Steps:
     outcomeAssessment = assessDocsOutcome({
       mergeSha: cfg.MERGE_SHA,
       model,
-      durationMs,
+      durationMs: durationMs || Date.now() - startTime,
       toolUses,
       finalText,
       changedFiles,
@@ -223,6 +355,7 @@ Steps:
     });
   } finally {
     await agent.stop();
+    db?.close();
   }
 
   return { costUsd: 0, assessment: outcomeAssessment };

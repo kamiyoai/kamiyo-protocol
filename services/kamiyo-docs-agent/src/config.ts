@@ -11,8 +11,17 @@ const Schema = z.object({
   LLM_API_KEY: z.string().default('ollama'),
   GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
   CLAUDE_MODEL: z.string().default(MODELS.haiku),
+  DOCS_AGENT_DB_PATH: z.string().default('.docs-agent/agent.db'),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
   DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
+  SELF_IMPROVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  SELF_IMPROVE_TASK_TYPE: z.string().min(1).default('docs_regeneration'),
+  SELF_IMPROVE_JUDGE_MODEL: z.string().default(MODELS.haiku),
+  SELF_IMPROVE_MIN_SAMPLES: z.coerce.number().int().positive().default(5),
+  SELF_IMPROVE_P_THRESHOLD: z.coerce.number().min(0).max(1).default(0.1),
   MERGE_SHA: z.string().optional(),
   DRY_RUN: z
     .string()
