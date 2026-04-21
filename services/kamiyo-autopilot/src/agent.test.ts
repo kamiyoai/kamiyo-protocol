@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { describe, it, expect, vi } from 'vitest';
-import { pickModel, emitMetric, type MetricData } from './agent';
+import { assessAutopilotOutcome, pickModel, emitMetric, type MetricData } from './agent';
 import { MODELS, type Config } from './config';
 
 // Mock config with default CLAUDE_MODEL
@@ -165,5 +165,56 @@ describe('emitMetric', () => {
     expect(parsed.commented).toBe(true);
 
     consoleSpy.mockRestore();
+  });
+});
+
+describe('assessAutopilotOutcome', () => {
+  it('scores PR-opening runs as successful outcomes', () => {
+    const assessment = assessAutopilotOutcome({
+      issueNumber: 212,
+      labels: ['agent', 'feature'],
+      model: MODELS.haiku,
+      durationMs: 5000,
+      toolUses: 12,
+      openedPr: true,
+      commented: false,
+      finalText: [
+        'OUTCOME: opened_pr',
+        'BRANCH: autopilot/issue-212-shared-outcomes',
+        'SUMMARY: Landed the fix and opened the PR.',
+        'TESTS: pnpm test (passed)',
+        'PR: https://github.com/kamiyoai/kamiyo-protocol/pull/999',
+        'ISSUE_COMMENT: no',
+      ].join('\n'),
+    });
+
+    expect(assessment.metric.status).toBe('success');
+    expect(assessment.metric.outcome).toBe('opened_pr');
+    expect(assessment.metric.signals.opened_pr).toBe(1);
+    expect(assessment.metric.signals.outcome_matches_actions).toBe(1);
+  });
+
+  it('treats clean no-action runs as neutral', () => {
+    const assessment = assessAutopilotOutcome({
+      issueNumber: 213,
+      labels: ['agent'],
+      model: MODELS.haiku,
+      durationMs: 1500,
+      toolUses: 3,
+      openedPr: false,
+      commented: false,
+      finalText: [
+        'OUTCOME: no_action',
+        'BRANCH: none',
+        'SUMMARY: Nothing actionable was found.',
+        'TESTS: none',
+        'PR: none',
+        'ISSUE_COMMENT: no',
+      ].join('\n'),
+    });
+
+    expect(assessment.metric.status).toBe('neutral');
+    expect(assessment.metric.outcome).toBe('no_action');
+    expect(assessment.metric.signals.opened_pr).toBe(0);
   });
 });

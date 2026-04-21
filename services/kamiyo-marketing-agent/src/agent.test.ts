@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseDraftPosts } from './agent';
+import { assessMarketingOutcome, parseDraftPosts } from './agent';
 
 test('parseDraftPosts extracts the JSON array from surrounding text', () => {
   const posts = parseDraftPosts(
@@ -37,4 +37,34 @@ test('parseDraftPosts rejects posts that exceed the X length cap', () => {
     () => parseDraftPosts(JSON.stringify([{ text: tooLong, reason: 'too long' }]), 1),
     /String must contain at most 280 character\(s\)/
   );
+});
+
+test('assessMarketingOutcome scores scheduled posts as success', () => {
+  const assessment = assessMarketingOutcome({
+    model: 'local-model',
+    durationMs: 1400,
+    postsPerDay: 2,
+    posts: [{ text: 'Shared runtime landed', reason: 'real shipped change' }],
+    scheduledCount: 1,
+    dryRun: false,
+  });
+
+  assert.equal(assessment.metric.status, 'success');
+  assert.equal(assessment.metric.outcome, 'scheduled_posts');
+  assert.equal(assessment.metric.signals.schedule_coverage, 1);
+});
+
+test('assessMarketingOutcome treats empty post sets as a clean neutral skip', () => {
+  const assessment = assessMarketingOutcome({
+    model: 'local-model',
+    durationMs: 700,
+    postsPerDay: 2,
+    posts: [],
+    scheduledCount: 0,
+    dryRun: true,
+  });
+
+  assert.equal(assessment.metric.status, 'neutral');
+  assert.equal(assessment.metric.outcome, 'no_posts');
+  assert.equal(assessment.metric.signals.clean_skip, 1);
 });

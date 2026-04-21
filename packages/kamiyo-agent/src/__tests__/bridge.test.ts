@@ -10,6 +10,7 @@ import {
   resetContextForTests,
   listActiveVariants,
   getRubric,
+  getVariantScores,
 } from '@kamiyo-org/selfimprove';
 
 function freshSetup() {
@@ -224,6 +225,28 @@ describe('SelfImproveBridge', () => {
         costUsd: 0.001,
       });
     }).not.toThrow();
+  });
+
+  it('recordOutcomeScore stores an explicit production score for the current variant', async () => {
+    const db = freshSetup();
+    const events = new EventEmitter();
+    const bridge = new SelfImproveBridge('test-bot', {}, events);
+
+    await bridge.init(db);
+    bridge.seedVariant('prompt', 'model');
+    const variantId = listActiveVariants('test-bot')[0]?.id;
+
+    const recorded = bridge.recordOutcomeScore({
+      qualityScore: 0.82,
+      latencyMs: 120,
+      costUsd: 0.001,
+      outcome: 'opened_pr',
+      variantId,
+    });
+
+    expect(recorded).toBe(true);
+    expect(variantId).toBeTruthy();
+    expect(getVariantScores(variantId!)).toContain(0.82);
   });
 
   it('double init is idempotent', async () => {

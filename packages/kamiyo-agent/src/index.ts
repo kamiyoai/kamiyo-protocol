@@ -39,6 +39,18 @@ export {
   executeStream,
 } from './runtime';
 
+export {
+  DEFAULT_OUTCOME_METRIC_PREFIX,
+  type OutcomeSignal,
+  type OutcomeStatus,
+  type OutcomeMetric,
+  type OutcomeAssessment,
+  type AssessOutcomeInput,
+  assessAgentOutcome,
+  emitOutcomeMetric,
+  parseTaggedFields,
+} from './outcomes';
+
 export { EventEmitter, type AgentEventMap } from './events';
 
 export {

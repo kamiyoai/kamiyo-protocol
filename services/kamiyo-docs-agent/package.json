@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
-    "test": "pnpm build && node --test dist/tools.test.js",
+    "test": "pnpm build && node --test dist/tools.test.js dist/agent.test.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },

@@ -3,7 +3,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { createAgent, genericProvider } from '@kamiyo-org/agent';
+import {
+  assessAgentOutcome,
+  createAgent,
+  emitOutcomeMetric,
+  genericProvider,
+  parseTaggedFields,
+  type OutcomeAssessment as AgentOutcomeAssessment,
+} from '@kamiyo-org/agent';
 import { createVariant, genericChatJudge } from '@kamiyo-org/selfimprove';
 import { MODELS, type Config, type ModelTier } from './config';
 import { createAutopilotTools } from './tools';
@@ -63,7 +70,6 @@ Penalize:
 - Ambiguous outcomes or failure to follow the required workflow.`;
 
 type ToolUse = { type: 'tool_use'; name: string; input: Record<string, unknown> };
-
 export interface MetricData {
   ts: string;
   issue: number;
@@ -81,6 +87,76 @@ export function emitMetric(data: MetricData): void {
   console.log(`[autopilot-metric] ${json}`);
 }
 
+export function assessAutopilotOutcome(params: {
+  issueNumber: number;
+  labels: string[];
+  model: string;
+  durationMs: number;
+  toolUses: number;
+  openedPr: boolean;
+  commented: boolean;
+  finalText: string;
+  resolvedOutcome?: string;
+  costUsd?: number;
+  variantId?: string | null;
+  variantStrategy?: string | null;
+}): AgentOutcomeAssessment {
+  const fields = parseTaggedFields(params.finalText);
+  const testsField = fields.TESTS?.trim() ?? '';
+  const outcome =
+    params.resolvedOutcome ?? fields.OUTCOME ?? inferAutopilotOutcome(params.openedPr, params.commented);
+  const hasError = params.finalText.trim().startsWith('Error:');
+  const status = hasError
+    ? 'failure'
+    : params.openedPr
+      ? 'success'
+      : params.commented
+        ? 'partial'
+        : 'neutral';
+  const hasVerification = testsField !== '' && !/\b(none|not run|not_run|blocked)\b/i.test(testsField);
+  const outcomeMatchesActions =
+    (outcome === 'opened_pr' && params.openedPr) ||
+    (outcome === 'commented_blocker' && params.commented) ||
+    (outcome === 'no_action' && !params.openedPr && !params.commented);
+  const branchNamed = Boolean(fields.BRANCH && fields.BRANCH !== 'none');
+  const linkedPr = Boolean(fields.PR && fields.PR !== 'none');
+  const issueCommentMatches =
+    !fields.ISSUE_COMMENT ||
+    (fields.ISSUE_COMMENT === 'yes' && params.commented) ||
+    (fields.ISSUE_COMMENT === 'no' && !params.commented);
+
+  return assessAgentOutcome({
+    service: 'kamiyo-autopilot',
+    taskType: 'autopilot_issue_resolution',
+    status,
+    outcome,
+    model: params.model,
+    durationMs: params.durationMs,
+    costUsd: params.costUsd ?? 0,
+    toolUses: params.toolUses,
+    variantId: params.variantId,
+    variantStrategy: params.variantStrategy,
+    signals: [
+      { name: 'explicit_outcome', value: Boolean(fields.OUTCOME), weight: 1 },
+      { name: 'opened_pr', value: params.openedPr, weight: 4 },
+      { name: 'left_blocker_comment', value: params.commented, weight: 2 },
+      { name: 'reported_verification', value: hasVerification, weight: 2 },
+      { name: 'branch_named', value: branchNamed, weight: 1 },
+      { name: 'linked_pr', value: linkedPr, weight: 1.5 },
+      { name: 'outcome_matches_actions', value: outcomeMatchesActions, weight: 3 },
+      { name: 'issue_comment_matches_actions', value: issueCommentMatches, weight: 1 },
+      { name: 'clean_exit', value: !hasError, weight: 2 },
+    ],
+    metadata: {
+      issue: params.issueNumber,
+      labels: params.labels,
+      branch: fields.BRANCH ?? 'none',
+      pr: fields.PR ?? 'none',
+      tests: testsField || 'none',
+    },
+  });
+}
+
 function didOpenPr(toolUses: ToolUse[]): boolean {
   return toolUses.some(t => {
     if (t.name !== 'bash') return false;
@@ -95,6 +171,12 @@ function didCommentOnIssue(toolUses: ToolUse[], issueNumber: number): boolean {
     const cmd = String(t.input.command ?? '');
     return new RegExp(`gh\\s+issue\\s+comment\\s+${issueNumber}`).test(cmd);
   });
+}
+
+function inferAutopilotOutcome(openedPr: boolean, commented: boolean): string {
+  if (openedPr) return 'opened_pr';
+  if (commented) return 'commented_blocker';
+  return 'no_action';
 }
 
 function postFallbackComment(cfg: Config, issueNumber: number): void {
@@ -277,6 +359,11 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
   const toolUses: ToolUse[] = [];
   let totalDurationMs = 0;
   let totalToolCalls = 0;
+  let finalText = '';
+  let outcomeAssessment: AgentOutcomeAssessment | null = null;
+  let openedPr = false;
+  let commented = false;
+  let fallbackCommented = false;
 
   try {
     await agent.start();
@@ -306,25 +393,49 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       if (event.type === 'done') {
         totalDurationMs = event.result.durationMs;
         totalToolCalls = toolUses.length;
+        finalText = event.result.text;
         console.log(
           `[autopilot] complete: duration=${totalDurationMs}ms tool_calls=${totalToolCalls}`
         );
       }
     }
+
+    openedPr = didOpenPr(toolUses);
+    commented = didCommentOnIssue(toolUses, issueNumber);
+    if (!cfg.DRY_RUN && !openedPr && !commented) {
+      postFallbackComment(cfg, issueNumber);
+      fallbackCommented = true;
+    }
+
+    outcomeAssessment = assessAutopilotOutcome({
+      issueNumber,
+      labels,
+      model,
+      durationMs: totalDurationMs || Date.now() - startTime,
+      toolUses: toolUses.length,
+      openedPr,
+      commented: commented || fallbackCommented,
+      finalText,
+      resolvedOutcome: inferAutopilotOutcome(openedPr, commented || fallbackCommented),
+      costUsd: 0,
+      variantId: agent.selfImprove.currentVariantId,
+      variantStrategy: agent.selfImprove.currentStrategy,
+    });
+    agent.selfImprove.recordOutcomeScore({
+      qualityScore: outcomeAssessment.qualityScore,
+      latencyMs: outcomeAssessment.metric.duration_ms,
+      costUsd: 0,
+      outcome: outcomeAssessment.metric.outcome,
+    });
   } finally {
     await agent.stop();
     db?.close();
   }
 
-  const openedPr = didOpenPr(toolUses);
-  const commented = didCommentOnIssue(toolUses, issueNumber);
+  commented = commented || fallbackCommented;
   console.log(
     `[autopilot] openedPr=${openedPr} commented=${commented} toolUses=${toolUses.length}`
   );
-
-  if (!cfg.DRY_RUN && !openedPr && !commented) {
-    postFallbackComment(cfg, issueNumber);
-  }
 
   const elapsed = Date.now() - startTime;
   emitMetric({
@@ -338,6 +449,9 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
     opened_pr: openedPr,
     commented,
   });
+  if (outcomeAssessment) {
+    emitOutcomeMetric(outcomeAssessment.metric);
+  }
 
   return { costUsd: 0, openedPr, commented };
 }

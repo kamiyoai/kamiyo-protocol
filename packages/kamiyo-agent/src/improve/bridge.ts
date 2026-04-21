@@ -27,6 +27,16 @@ interface SelfImproveAPI {
     modelId?: string;
     dailyBudgetUsd?: number;
   }): void;
+  getOrCreateStandingTournament(taskType: string): { id: string };
+  recordTournamentEntry(params: {
+    tournamentId: string;
+    variantId: string;
+    performanceEventId?: string | null;
+    qualityScore?: number | null;
+    cost?: number | null;
+    latencyMs?: number | null;
+    outcome?: string | null;
+  }): { ok: true; totalCost: number } | { ok: false; error: string };
   scoreOutput(params: {
     taskType: string;
     input: string;
@@ -119,6 +129,14 @@ export class SelfImproveBridge {
     return this.config.taskType ?? this.agentId;
   }
 
+  get currentVariantId(): string | null {
+    return this.decision?.variant.id ?? null;
+  }
+
+  get currentStrategy(): RouteDecision['strategy'] | null {
+    return this.decision?.strategy ?? null;
+  }
+
   async init(db: unknown, init?: SelfImproveInitOptions): Promise<void> {
     if (this.initialized) return;
 
@@ -179,6 +197,43 @@ export class SelfImproveBridge {
       latencyMs: params.latencyMs,
       costUsd: params.costUsd,
     });
+  }
+
+  recordOutcomeScore(params: {
+    qualityScore: number;
+    latencyMs?: number;
+    costUsd?: number;
+    outcome?: string | null;
+    variantId?: string | null;
+  }): boolean {
+    if (!this.api || !this.enabled) return false;
+    const variantId = params.variantId ?? this.decision?.variant.id ?? null;
+    if (!variantId) return false;
+
+    try {
+      const tournament = this.api.getOrCreateStandingTournament(this.taskType);
+      const result = this.api.recordTournamentEntry({
+        tournamentId: tournament.id,
+        variantId,
+        qualityScore: params.qualityScore,
+        cost: params.costUsd ?? null,
+        latencyMs: params.latencyMs ?? null,
+        outcome: params.outcome ?? null,
+      });
+      if (!result.ok) {
+        this.events.emit('improve:error', {
+          taskType: this.taskType,
+          error: result.error,
+        });
+      }
+      return result.ok;
+    } catch (error) {
+      this.events.emit('improve:error', {
+        taskType: this.taskType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
   }
 
   async scoreInteraction(params: {
