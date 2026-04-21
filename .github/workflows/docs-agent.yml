@@ -64,15 +64,25 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: actions/setup-node@v4
+        if: steps.skip.outputs.skip == 'false'
+        with:
+          node-version: 20
+
       - name: Configure git identity
         if: steps.skip.outputs.skip == 'false'
         run: |
           git config user.name "kamiyobot"
           git config user.email "kamiyo-ai@users.noreply.github.com"
 
-      - name: Build local-agent
+      - name: Build selfimprove
         if: steps.skip.outputs.skip == 'false'
-        working-directory: packages/local-agent
+        working-directory: packages/kamiyo-selfimprove
+        run: pnpm install --ignore-workspace && pnpm build
+
+      - name: Build agent runtime
+        if: steps.skip.outputs.skip == 'false'
+        working-directory: packages/kamiyo-agent
         run: pnpm install --ignore-workspace && pnpm build
 
       - name: Install docs-agent deps

@@ -1,7 +1,7 @@
 {
   "name": "@kamiyo/docs-agent",
   "version": "0.1.0",
-  "description": "Regenerates README and CHANGELOG on merge to main via local LLM",
+  "description": "Regenerates README and CHANGELOG on merge to main via the shared Kamiyo agent runtime",
   "main": "dist/index.js",
   "bin": {
     "kamiyo-docs-agent": "dist/index.js"
@@ -9,11 +9,12 @@
   "scripts": {
     "build": "tsc",
     "lint": "tsc --noEmit",
+    "test": "pnpm build && node --test dist/tools.test.js",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
-    "@kamiyo/local-agent": "file:../../packages/local-agent",
+    "@kamiyo-org/agent": "file:../../packages/kamiyo-agent",
     "dotenv": "^16.3.1",
     "zod": "^3.23.0"
   },
