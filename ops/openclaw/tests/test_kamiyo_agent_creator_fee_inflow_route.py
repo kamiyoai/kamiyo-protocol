@@ -92,6 +92,30 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         self.assertAlmostEqual(float(rows[0].get('routedSol')), 0.2, places=9)
         self.assertEqual(rows[0].get('sourceWallet'), self.mod.WATCH_WALLET)
 
+    def test_partial_route_keeps_unrouted_remainder_pending(self):
+        self.mod.ROUTE_CMD = 'custom-route'
+        self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.STATE_PATH.write_text(json.dumps({'baselineBalanceSol': 1.0}), encoding='utf-8')
+
+        with (
+            patch.object(self.mod, 'read_balance_sol', side_effect=[1.4, 1.3]),
+            patch.object(
+                self.mod,
+                'run_custom_route_command',
+                return_value={'txSignature': 'sig-partial', 'routedSol': 0.1, 'method': 'custom_cmd'},
+            ),
+        ):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'routed')
+        self.assertAlmostEqual(float(summary.get('routeSol')), 0.1, places=9)
+
+        state = json.loads(self.mod.STATE_PATH.read_text(encoding='utf-8'))
+        self.assertAlmostEqual(float(state.get('baselineBalanceSol')), 1.1, places=9)
+        self.assertAlmostEqual(float(state.get('lastObservedBalanceSol')), 1.3, places=9)
+        self.assertAlmostEqual(float(state.get('pendingPositiveDeltaSol')), 0.2, places=9)
+
     def test_blocked_route_keeps_pending_delta(self):
         self.mod.DRY_RUN = False
         self.mod.KEYPAIR_PATH = ''

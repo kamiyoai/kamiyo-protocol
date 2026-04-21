@@ -138,6 +138,12 @@ def format_sol(value: float) -> str:
     return text if text else '0'
 
 
+def baseline_after_route(*, baseline_balance_sol: float, observed_after_sol: float, routed_sol: float) -> float:
+    advanced_baseline = floor_precision(Decimal(str(max(0.0, baseline_balance_sol))) + Decimal(str(max(0.0, routed_sol))), 9)
+    capped_observed_balance = floor_precision(max(0.0, observed_after_sol), 9)
+    return min(capped_observed_balance, advanced_baseline)
+
+
 def parse_signature(stdout: str) -> str:
     text = stdout.strip()
     if not text:
@@ -584,7 +590,13 @@ def run() -> int:
         observed_after_sol = read_balance_sol(WATCH_WALLET)
     except Exception:
         observed_after_sol = max(0.0, current_balance_sol - routed_sol)
-    new_baseline_balance_sol = observed_after_sol
+    # Advance the baseline only by the amount that actually routed so any
+    # leftover inflow remains pending for the next run.
+    new_baseline_balance_sol = baseline_after_route(
+        baseline_balance_sol=baseline_balance_sol,
+        observed_after_sol=observed_after_sol,
+        routed_sol=routed_sol,
+    )
 
     receipt = {
         'source': 'creator_fee_inflow',
