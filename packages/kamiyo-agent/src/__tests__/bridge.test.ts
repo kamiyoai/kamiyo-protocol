@@ -9,6 +9,7 @@ import {
   initSelfImprove,
   resetContextForTests,
   listActiveVariants,
+  getRubric,
 } from '@kamiyo-org/selfimprove';
 
 function freshSetup() {
@@ -159,6 +160,36 @@ describe('SelfImproveBridge', () => {
     });
     // no judgeLLM configured, scoring returns null
     expect(score).toBeNull();
+  });
+
+  it('init applies rubric model and judge overrides', async () => {
+    const db = freshSetup();
+    const events = new EventEmitter();
+    const bridge = new SelfImproveBridge(
+      'test-bot',
+      { rubric: 'Score for correctness.', rubricModel: 'judge-model-local' },
+      events
+    );
+
+    await bridge.init(db, {
+      judgeLLM: {
+        async generate() {
+          return {
+            text: '{"score":0.91,"rationale":"looks good"}',
+            inputTokens: 12,
+            outputTokens: 8,
+          };
+        },
+      },
+    });
+
+    expect(getRubric('test-bot')?.modelId).toBe('judge-model-local');
+    const score = await bridge.scoreInteraction({
+      input: 'Fix the bug',
+      output: 'OUTCOME: opened_pr',
+      runId: 'run-judge',
+    });
+    expect(score).toBe(0.91);
   });
 
   it('getOverrides clamps invalid temperature from genome', async () => {

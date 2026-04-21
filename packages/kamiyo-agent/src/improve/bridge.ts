@@ -21,7 +21,12 @@ interface SelfImproveAPI {
     decision: RouteDecision | null,
     params: { input: string; output: string; latencyMs: number; costUsd?: number }
   ): void;
-  upsertRubric(input: { taskType: string; rubric: string; dailyBudgetUsd?: number }): void;
+  upsertRubric(input: {
+    taskType: string;
+    rubric: string;
+    modelId?: string;
+    dailyBudgetUsd?: number;
+  }): void;
   scoreOutput(params: {
     taskType: string;
     input: string;
@@ -74,10 +79,17 @@ export interface SelfImproveConfig {
   autoScore?: boolean;
   autoMutate?: boolean;
   rubric?: string;
+  rubricModel?: string;
   rubricBudgetUsd?: number;
   minSamples?: number;
   pThreshold?: number;
   sweepIntervalMs?: number;
+}
+
+export interface SelfImproveInitOptions {
+  judgeLLM?: unknown | null;
+  logger?: unknown;
+  metrics?: unknown;
 }
 
 export interface BridgeOverrides {
@@ -107,19 +119,25 @@ export class SelfImproveBridge {
     return this.config.taskType ?? this.agentId;
   }
 
-  async init(db: unknown, judgeLLM?: unknown): Promise<void> {
+  async init(db: unknown, init?: SelfImproveInitOptions): Promise<void> {
     if (this.initialized) return;
 
     this.api = loadSelfImprove();
     if (!this.api) return;
 
-    this.api.initSelfImprove({ db, judgeLLM: judgeLLM ?? null });
+    this.api.initSelfImprove({
+      db,
+      judgeLLM: init?.judgeLLM ?? null,
+      logger: init?.logger,
+      metrics: init?.metrics,
+    });
     this.api.applySchema(db);
 
     if (this.config.rubric) {
       this.api.upsertRubric({
         taskType: this.taskType,
         rubric: this.config.rubric,
+        modelId: this.config.rubricModel,
         dailyBudgetUsd: this.config.rubricBudgetUsd ?? 5,
       });
     }
@@ -217,23 +235,49 @@ export class SelfImproveBridge {
     }
   }
 
-  seedVariant(systemPrompt: string, model: string): void {
+  seedVariant(
+    systemPrompt: string,
+    model: string,
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      toolAllowlist?: string[];
+      systemGuardrails?: string;
+    }
+  ): void {
     if (!this.api || !systemPrompt) return;
     this.api.createVariant({
       agentId: this.agentId,
       taskType: this.taskType,
-      genome: this.buildGenome(systemPrompt, model),
+      genome: this.buildGenome(systemPrompt, model, options),
     });
   }
 
-  private buildGenome(promptTemplate: string, modelId: string): AgentGenome {
+  private buildGenome(
+    promptTemplate: string,
+    modelId: string,
+    options?: {
+      temperature?: number;
+      maxTokens?: number;
+      toolAllowlist?: string[];
+      systemGuardrails?: string;
+    }
+  ): AgentGenome {
     return {
       promptTemplate,
       modelId,
-      toolAllowlist: [],
-      temperature: 0.7,
-      maxTokens: 4096,
-      systemGuardrails: '',
+      toolAllowlist: Array.isArray(options?.toolAllowlist)
+        ? [...new Set(options.toolAllowlist.filter(tool => typeof tool === 'string' && tool.trim()))]
+        : [],
+      temperature:
+        typeof options?.temperature === 'number' && Number.isFinite(options.temperature)
+          ? options.temperature
+          : 0.7,
+      maxTokens:
+        typeof options?.maxTokens === 'number' && Number.isFinite(options.maxTokens)
+          ? Math.max(1, Math.floor(options.maxTokens))
+          : 4096,
+      systemGuardrails: options?.systemGuardrails ?? '',
     };
   }
 }

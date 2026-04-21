@@ -1,5 +1,5 @@
 import type { LLMProvider } from './provider';
-import type { SelfImproveConfig } from './improve';
+import type { SelfImproveConfig, SelfImproveInitOptions } from './improve';
 import type { DB } from './db-types';
 import { AgentError } from './errors';
 
@@ -20,6 +20,7 @@ export interface AgentConfig {
 
   db?: DB;
   selfImprove?: SelfImproveConfig;
+  selfImproveInit?: SelfImproveInitOptions;
 }
 
 export interface ResolvedConfig {

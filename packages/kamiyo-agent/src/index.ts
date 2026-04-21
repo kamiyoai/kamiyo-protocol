@@ -41,7 +41,12 @@ export {
 
 export { EventEmitter, type AgentEventMap } from './events';
 
-export { SelfImproveBridge, type SelfImproveConfig, type BridgeOverrides } from './improve';
+export {
+  SelfImproveBridge,
+  type SelfImproveConfig,
+  type SelfImproveInitOptions,
+  type BridgeOverrides,
+} from './improve';
 
 export {
   WorkingMemory,

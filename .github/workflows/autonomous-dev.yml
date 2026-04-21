@@ -58,13 +58,21 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.AUTOPILOT_PAT || github.token }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Configure git identity
         run: |
           git config user.name "kamiyo-bot"
           git config user.email "bot@kamiyo.dev"
 
-      - name: Build local-agent
-        working-directory: packages/local-agent
+      - name: Build selfimprove
+        working-directory: packages/kamiyo-selfimprove
+        run: pnpm install --ignore-workspace && pnpm build
+
+      - name: Build agent runtime
+        working-directory: packages/kamiyo-agent
         run: pnpm install --ignore-workspace && pnpm build
 
       - name: Install autopilot deps

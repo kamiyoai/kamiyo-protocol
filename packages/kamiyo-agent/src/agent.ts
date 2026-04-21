@@ -58,8 +58,12 @@ export class Agent {
 
     if (this.rawConfig.db) {
       applyAgentSchema(this.rawConfig.db);
-      await this.bridge.init(this.rawConfig.db);
-      this.bridge.seedVariant(this.config.systemPrompt, this.config.model);
+      await this.bridge.init(this.rawConfig.db, this.rawConfig.selfImproveInit);
+      this.bridge.seedVariant(this.config.systemPrompt, this.config.model, {
+        temperature: this.config.temperature,
+        maxTokens: this.config.maxTokens,
+        toolAllowlist: this.tools,
+      });
     }
 
     for (const cap of this.capabilities) {
