@@ -76,4 +76,51 @@ export class GitHubClient {
       state_reason: 'completed',
     });
   }
+
+  async getPullRequestState(prUrl: string): Promise<{
+    number: number;
+    url: string;
+    headSha: string;
+    merged: boolean;
+    draft: boolean;
+    mergeableState: string | null;
+    checkState: 'success' | 'failure' | 'pending' | 'unknown';
+  } | null> {
+    const match = prUrl.match(/\/pull\/(\d+)(?:\/|$)/);
+    if (!match) return null;
+
+    const prNumber = Number(match[1]);
+    if (!Number.isFinite(prNumber) || prNumber <= 0) return null;
+
+    const { data: pr } = await this.octokit.pulls.get({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: prNumber,
+    });
+
+    let checkState: 'success' | 'failure' | 'pending' | 'unknown' = 'unknown';
+    try {
+      const { data: status } = await this.octokit.repos.getCombinedStatusForRef({
+        owner: this.owner,
+        repo: this.repo,
+        ref: pr.head.sha,
+      });
+
+      if (status.state === 'success' || status.state === 'failure' || status.state === 'pending') {
+        checkState = status.state;
+      }
+    } catch {
+      checkState = 'unknown';
+    }
+
+    return {
+      number: pr.number,
+      url: pr.html_url,
+      headSha: pr.head.sha,
+      merged: Boolean(pr.merged_at),
+      draft: Boolean(pr.draft),
+      mergeableState: pr.mergeable_state ?? null,
+      checkState,
+    };
+  }
 }

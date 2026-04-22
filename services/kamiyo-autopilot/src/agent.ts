@@ -9,10 +9,12 @@ import {
   emitOutcomeMetric,
   genericProvider,
   parseTaggedFields,
+  recordAgentRunReceipt,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
 import { createVariant, genericChatJudge } from '@kamiyo-org/selfimprove';
 import { MODELS, type Config, type ModelTier } from './config';
+import { GitHubClient } from './github';
 import { createAutopilotTools } from './tools';
 
 export function pickModel(cfg: Config, labels: string[]): string {
@@ -100,6 +102,10 @@ export function assessAutopilotOutcome(params: {
   costUsd?: number;
   variantId?: string | null;
   variantStrategy?: string | null;
+  prMerged?: boolean;
+  prDraft?: boolean;
+  prMergeableState?: string | null;
+  ciStatus?: 'success' | 'failure' | 'pending' | 'unknown';
 }): AgentOutcomeAssessment {
   const fields = parseTaggedFields(params.finalText);
   const testsField = fields.TESTS?.trim() ?? '';
@@ -124,6 +130,17 @@ export function assessAutopilotOutcome(params: {
     !fields.ISSUE_COMMENT ||
     (fields.ISSUE_COMMENT === 'yes' && params.commented) ||
     (fields.ISSUE_COMMENT === 'no' && !params.commented);
+  const testsPassed =
+    testsField !== '' &&
+    /\b(pass|passed|green|success)\b/i.test(testsField) &&
+    !/\b(fail|failed|error|blocked|not run|not_run)\b/i.test(testsField);
+  const ciGreen = params.ciStatus === 'success';
+  const prReady =
+    params.openedPr &&
+    params.prDraft !== true &&
+    (params.prMergeableState === 'clean' ||
+      params.prMergeableState === 'has_hooks' ||
+      params.prMergeableState === 'unstable');
 
   return assessAgentOutcome({
     service: 'kamiyo-autopilot',
@@ -141,8 +158,12 @@ export function assessAutopilotOutcome(params: {
       { name: 'opened_pr', value: params.openedPr, weight: 4 },
       { name: 'left_blocker_comment', value: params.commented, weight: 2 },
       { name: 'reported_verification', value: hasVerification, weight: 2 },
+      { name: 'tests_passed', value: testsPassed, weight: 2 },
       { name: 'branch_named', value: branchNamed, weight: 1 },
       { name: 'linked_pr', value: linkedPr, weight: 1.5 },
+      { name: 'ci_green', value: ciGreen, weight: 1.5 },
+      { name: 'pr_ready', value: prReady, weight: 1.5 },
+      { name: 'pr_merged', value: params.prMerged === true, weight: 4 },
       { name: 'outcome_matches_actions', value: outcomeMatchesActions, weight: 3 },
       { name: 'issue_comment_matches_actions', value: issueCommentMatches, weight: 1 },
       { name: 'clean_exit', value: !hasError, weight: 2 },
@@ -153,6 +174,10 @@ export function assessAutopilotOutcome(params: {
       branch: fields.BRANCH ?? 'none',
       pr: fields.PR ?? 'none',
       tests: testsField || 'none',
+      ci_status: params.ciStatus ?? 'unknown',
+      pr_merged: params.prMerged ?? false,
+      pr_draft: params.prDraft ?? false,
+      pr_mergeable_state: params.prMergeableState ?? 'unknown',
     },
   });
 }
@@ -177,6 +202,21 @@ function inferAutopilotOutcome(openedPr: boolean, commented: boolean): string {
   if (openedPr) return 'opened_pr';
   if (commented) return 'commented_blocker';
   return 'no_action';
+}
+
+function parsePrUrl(finalText: string): string | null {
+  const fields = parseTaggedFields(finalText);
+  const pr = fields.PR?.trim();
+  if (!pr || pr === 'none') return null;
+  return /^https?:\/\//i.test(pr) ? pr : null;
+}
+
+function parsePrNumber(prUrl: string | null): number | null {
+  if (!prUrl) return null;
+  const match = prUrl.match(/\/pull\/(\d+)(?:\/|$)/);
+  if (!match) return null;
+  const prNumber = Number(match[1]);
+  return Number.isFinite(prNumber) && prNumber > 0 ? prNumber : null;
 }
 
 function postFallbackComment(cfg: Config, issueNumber: number): void {
@@ -309,6 +349,7 @@ export async function runAgentOnIssue(
   const db = cfg.SELF_IMPROVE_ENABLED
     ? new Database(resolveAutopilotDbPath(cfg.AUTOPILOT_DB_PATH))
     : undefined;
+  const github = cfg.DRY_RUN ? null : new GitHubClient(cfg);
   const agent = createAgent({
     id: 'kamiyo-autopilot',
     name: 'kamiyo-autopilot',
@@ -364,6 +405,12 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
   let openedPr = false;
   let commented = false;
   let fallbackCommented = false;
+  let runId = '';
+  let ciStatus: 'success' | 'failure' | 'pending' | 'unknown' = 'unknown';
+  let prMerged = false;
+  let prDraft = false;
+  let prMergeableState: string | null = null;
+  let prHeadSha: string | null = null;
 
   try {
     await agent.start();
@@ -391,6 +438,7 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       }
 
       if (event.type === 'done') {
+        runId = event.result.runId;
         totalDurationMs = event.result.durationMs;
         totalToolCalls = toolUses.length;
         finalText = event.result.text;
@@ -402,6 +450,21 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
 
     openedPr = didOpenPr(toolUses);
     commented = didCommentOnIssue(toolUses, issueNumber);
+    const prUrl = parsePrUrl(finalText);
+    if (openedPr && github && prUrl) {
+      try {
+        const prState = await github.getPullRequestState(prUrl);
+        if (prState) {
+          ciStatus = prState.checkState;
+          prMerged = prState.merged;
+          prDraft = prState.draft;
+          prMergeableState = prState.mergeableState;
+          prHeadSha = prState.headSha;
+        }
+      } catch (error) {
+        console.error('[autopilot] failed to fetch PR state:', error);
+      }
+    }
     if (!cfg.DRY_RUN && !openedPr && !commented) {
       postFallbackComment(cfg, issueNumber);
       fallbackCommented = true;
@@ -420,6 +483,10 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       costUsd: 0,
       variantId: agent.selfImprove.currentVariantId,
       variantStrategy: agent.selfImprove.currentStrategy,
+      prMerged,
+      prDraft,
+      prMergeableState,
+      ciStatus,
     });
     agent.selfImprove.recordOutcomeScore({
       qualityScore: outcomeAssessment.qualityScore,
@@ -427,6 +494,39 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       costUsd: 0,
       outcome: outcomeAssessment.metric.outcome,
     });
+    if (db && runId) {
+      const fields = parseTaggedFields(finalText);
+      recordAgentRunReceipt(db, {
+        runId,
+        agentId: agent.id,
+        service: 'kamiyo-autopilot',
+        taskType: agent.selfImprove.taskType,
+        subjectType: 'issue',
+        subjectId: String(issueNumber),
+        variantId: agent.selfImprove.currentVariantId,
+        variantStrategy: agent.selfImprove.currentStrategy,
+        outcome: outcomeAssessment.metric.outcome,
+        qualityScore: outcomeAssessment.qualityScore,
+        costUsd: 0,
+        durationMs: outcomeAssessment.metric.duration_ms,
+        reconcileAfter: cfg.DRY_RUN ? null : Math.floor(Date.now() / 1000) + 6 * 60 * 60,
+        receipt: {
+          issueNumber,
+          labels,
+          branch: fields.BRANCH?.trim() || null,
+          tests: fields.TESTS?.trim() || null,
+          prUrl,
+          prNumber: parsePrNumber(prUrl),
+          prHeadSha,
+          openedPr,
+          commented: commented || fallbackCommented,
+          ciStatus,
+          prMerged,
+          prDraft,
+          prMergeableState,
+        },
+      });
+    }
   } finally {
     await agent.stop();
     db?.close();

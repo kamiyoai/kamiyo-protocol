@@ -26,6 +26,7 @@ async function main() {
 
   try {
     console.log(`[marketing-agent] drafted ${draft.posts.length} post(s)`);
+    const commitShas = commits.map(commit => commit.sha);
 
     if (draft.posts.length === 0) {
       console.log('[marketing-agent] nothing worth posting, exiting');
@@ -43,6 +44,24 @@ async function main() {
       });
       emitOutcomeMetric(assessment.metric);
       draft.recordOutcomeScore(assessment);
+      draft.recordRunReceipt({
+        outcome: assessment.metric.outcome,
+        qualityScore: assessment.qualityScore,
+        costUsd: draft.costUsd,
+        durationMs: assessment.metric.duration_ms,
+        receipt: {
+          repo: cfg.GITHUB_REPO,
+          commitShas,
+          postsDrafted: 0,
+          postsScheduled: 0,
+          postsVerifiedInQueue: 0,
+          scheduledIds: [],
+          scheduledFor: [],
+          publishedPostIds: [],
+          dryRun: cfg.DRY_RUN,
+          integrationIds: cfg.POSTIZ_INTEGRATIONS,
+        },
+      });
       return;
     }
 
@@ -50,6 +69,8 @@ async function main() {
     const spacing = Math.floor((12 * 60) / Math.max(draft.posts.length, 1));
 
     let scheduledCount = 0;
+    const scheduledIds: string[] = [];
+    const scheduledForTimes: string[] = [];
     for (let i = 0; i < draft.posts.length; i++) {
       const post = draft.posts[i];
       const scheduledFor = pickSlot(15 + i * spacing);
@@ -60,7 +81,19 @@ async function main() {
         integrations: cfg.POSTIZ_INTEGRATIONS,
       });
       scheduledCount += 1;
+      scheduledIds.push(id);
+      scheduledForTimes.push(scheduledFor.toISOString());
       console.log(`[marketing-agent] scheduled ${id}`);
+    }
+
+    let verifiedScheduledCount = scheduledCount;
+    if (!cfg.DRY_RUN && scheduledIds.length > 0) {
+      const upcoming = await postiz.listUpcoming();
+      const queuedIds = new Set(upcoming.map(post => post.id));
+      verifiedScheduledCount = scheduledIds.filter(id => queuedIds.has(id)).length;
+      console.log(
+        `[marketing-agent] verified ${verifiedScheduledCount}/${scheduledIds.length} scheduled post(s) in queue`
+      );
     }
 
     const assessment = assessMarketingOutcome({
@@ -70,6 +103,9 @@ async function main() {
       postsPerDay: cfg.POSTS_PER_DAY,
       posts: draft.posts,
       scheduledCount,
+      verifiedScheduledCount,
+      integrationCount: cfg.POSTIZ_INTEGRATIONS.length,
+      uniquePostCount: new Set(draft.posts.map(post => post.text.trim().toLowerCase())).size,
       dryRun: cfg.DRY_RUN,
       costUsd: draft.costUsd,
       variantId: draft.variantId,
@@ -77,6 +113,30 @@ async function main() {
     });
     emitOutcomeMetric(assessment.metric);
     draft.recordOutcomeScore(assessment);
+    const latestScheduledMs = scheduledForTimes.reduce((maxMs, value) => {
+      const ms = Date.parse(value);
+      return Number.isFinite(ms) ? Math.max(maxMs, ms) : maxMs;
+    }, 0);
+    draft.recordRunReceipt({
+      outcome: assessment.metric.outcome,
+      qualityScore: assessment.qualityScore,
+      costUsd: draft.costUsd,
+      durationMs: assessment.metric.duration_ms,
+      reconcileAfter:
+        !cfg.DRY_RUN && latestScheduledMs > 0 ? Math.floor(latestScheduledMs / 1000) + 2 * 60 * 60 : null,
+      receipt: {
+        repo: cfg.GITHUB_REPO,
+        commitShas,
+        postsDrafted: draft.posts.length,
+        postsScheduled: scheduledCount,
+        postsVerifiedInQueue: verifiedScheduledCount,
+        scheduledIds,
+        scheduledFor: scheduledForTimes,
+        publishedPostIds: [],
+        dryRun: cfg.DRY_RUN,
+        integrationIds: cfg.POSTIZ_INTEGRATIONS,
+      },
+    });
   } finally {
     await draft.cleanup();
   }

@@ -8,6 +8,7 @@ import {
   emitOutcomeMetric,
   genericProvider,
   parseTaggedFields,
+  recordAgentRunReceipt,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
 import { createVariant, genericChatJudge } from '@kamiyo-org/selfimprove';
@@ -180,6 +181,55 @@ function detectChangedDocs(repoRoot: string, before: Map<string, string>): strin
   return [...changed].sort();
 }
 
+function collectMergeChangedPaths(repoRoot: string, mergeSha?: string): string[] {
+  const target = mergeSha ?? 'HEAD';
+  try {
+    const output = execSync(`git show --name-only --format= ${target}`, {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+    });
+    return output
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .sort();
+  } catch (error) {
+    console.error('[docs-agent] failed to collect merge paths:', error);
+    return [];
+  }
+}
+
+function deriveExpectedDocTargets(mergeChangedPaths: string[]): string[] {
+  if (mergeChangedPaths.length === 0) return [];
+
+  const targets = new Set<string>(['CHANGELOG.md']);
+  const scopedAreas = new Set<string>();
+
+  for (const changedPath of mergeChangedPaths) {
+    if (!changedPath) continue;
+    if (!changedPath.includes('/')) {
+      targets.add('README.md');
+      targets.add('CHANGELOG.md');
+      continue;
+    }
+
+    const parts = changedPath.split('/');
+    const scope =
+      (parts[0] === 'services' || parts[0] === 'packages') && parts.length >= 2
+        ? `${parts[0]}/${parts[1]}`
+        : parts[0];
+    scopedAreas.add(scope);
+    targets.add(`${scope}/README.md`);
+    targets.add(`${scope}/CHANGELOG.md`);
+  }
+
+  if (scopedAreas.size > 1) {
+    targets.add('README.md');
+  }
+
+  return [...targets].sort();
+}
+
 function parseReportedFiles(value: string | undefined): string[] {
   if (!value || value === 'none') return [];
   return value
@@ -201,6 +251,7 @@ export function assessDocsOutcome(params: {
   toolUses: number;
   finalText: string;
   changedFiles: string[];
+  mergeChangedPaths?: string[];
   costUsd?: number;
   variantId?: string | null;
   variantStrategy?: string | null;
@@ -210,11 +261,18 @@ export function assessDocsOutcome(params: {
   const hasError = params.finalText.trim().startsWith('Error:');
   const outcome = fields.OUTCOME ?? (params.changedFiles.length > 0 ? 'updated_docs' : 'no_changes');
   const status = hasError ? 'failure' : params.changedFiles.length > 0 ? 'success' : 'neutral';
+  const expectedDocTargets = deriveExpectedDocTargets(params.mergeChangedPaths ?? []);
   const outcomeMatchesFiles =
     (outcome === 'updated_docs' && params.changedFiles.length > 0) ||
     (outcome === 'no_changes' && params.changedFiles.length === 0);
   const changelogSatisfied =
     params.changedFiles.length === 0 || params.changedFiles.some(file => file.endsWith('CHANGELOG.md'));
+  const docsScopedToChangedAreas =
+    params.changedFiles.length === 0 ||
+    expectedDocTargets.length === 0 ||
+    params.changedFiles.every(file => expectedDocTargets.includes(file));
+  const rootReadmeReasonable =
+    !params.changedFiles.includes('README.md') || expectedDocTargets.includes('README.md');
 
   return assessAgentOutcome({
     service: 'kamiyo-docs-agent',
@@ -233,6 +291,8 @@ export function assessDocsOutcome(params: {
       { name: 'docs_updated', value: params.changedFiles.length > 0, weight: 3 },
       { name: 'outcome_matches_files', value: outcomeMatchesFiles, weight: 3 },
       { name: 'reported_files_match_actual', value: sameFileList(reportedFiles, params.changedFiles), weight: 2 },
+      { name: 'docs_scoped_to_changed_areas', value: docsScopedToChangedAreas, weight: 2.5 },
+      { name: 'root_readme_reasonable', value: rootReadmeReasonable, weight: 1.5 },
       { name: 'updated_changelog_when_needed', value: changelogSatisfied, weight: 1.5 },
       { name: 'clean_exit', value: !hasError, weight: 2 },
     ],
@@ -240,6 +300,8 @@ export function assessDocsOutcome(params: {
       merge_sha: params.mergeSha ?? 'HEAD',
       changed_files: params.changedFiles,
       reported_files: reportedFiles,
+      merge_changed_paths: params.mergeChangedPaths ?? [],
+      expected_doc_targets: expectedDocTargets,
     },
   });
 }
@@ -250,6 +312,7 @@ export async function runDocsAgent(cfg: Config, mergeContext: string) {
   const startTime = Date.now();
   const repoRoot = path.resolve(process.cwd(), '../..');
   const beforeDocs = collectDocSnapshots(repoRoot);
+  const mergeChangedPaths = collectMergeChangedPaths(repoRoot, cfg.MERGE_SHA);
   const db = cfg.SELF_IMPROVE_ENABLED ? openDocsDatabase(cfg.DOCS_AGENT_DB_PATH) : undefined;
   const agent = createAgent({
     id: 'kamiyo-docs-agent',
@@ -301,6 +364,7 @@ Steps:
   let durationMs = 0;
   let toolUses = 0;
   let finalText = '';
+  let runId = '';
   let outcomeAssessment: AgentOutcomeAssessment | null = null;
   try {
     await agent.start();
@@ -328,6 +392,7 @@ Steps:
       }
 
       if (event.type === 'done') {
+        runId = event.result.runId;
         durationMs = event.result.durationMs;
         finalText = event.result.text;
         console.log(`[docs-agent] complete: duration=${durationMs}ms`);
@@ -342,6 +407,7 @@ Steps:
       toolUses,
       finalText,
       changedFiles,
+      mergeChangedPaths,
       costUsd: 0,
       variantId: agent.selfImprove.currentVariantId,
       variantStrategy: agent.selfImprove.currentStrategy,
@@ -353,6 +419,34 @@ Steps:
       costUsd: 0,
       outcome: outcomeAssessment.metric.outcome,
     });
+    if (db && runId) {
+      const fields = parseTaggedFields(finalText);
+      recordAgentRunReceipt(db, {
+        runId,
+        agentId: agent.id,
+        service: 'kamiyo-docs-agent',
+        taskType: agent.selfImprove.taskType,
+        subjectType: 'merge',
+        subjectId: cfg.MERGE_SHA ?? 'HEAD',
+        variantId: agent.selfImprove.currentVariantId,
+        variantStrategy: agent.selfImprove.currentStrategy,
+        outcome: outcomeAssessment.metric.outcome,
+        qualityScore: outcomeAssessment.qualityScore,
+        costUsd: 0,
+        durationMs: outcomeAssessment.metric.duration_ms,
+        reconcileAfter:
+          changedFiles.length > 0 ? Math.floor(Date.now() / 1000) + 60 * 60 : null,
+        receipt: {
+          mergeSha: cfg.MERGE_SHA ?? 'HEAD',
+          changedFiles,
+          mergeChangedPaths,
+          summary: fields.SUMMARY?.trim() || null,
+          followUpBranch: null,
+          followUpPrUrl: null,
+          followUpPrNumber: null,
+        },
+      });
+    }
   } finally {
     await agent.stop();
     db?.close();

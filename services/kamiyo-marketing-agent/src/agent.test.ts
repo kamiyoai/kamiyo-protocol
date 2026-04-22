@@ -46,12 +46,17 @@ test('assessMarketingOutcome scores scheduled posts as success', () => {
     postsPerDay: 2,
     posts: [{ text: 'Shared runtime landed', reason: 'real shipped change' }],
     scheduledCount: 1,
+    verifiedScheduledCount: 1,
+    integrationCount: 2,
+    uniquePostCount: 1,
     dryRun: false,
   });
 
   assert.equal(assessment.metric.status, 'success');
   assert.equal(assessment.metric.outcome, 'scheduled_posts');
   assert.equal(assessment.metric.signals.schedule_coverage, 1);
+  assert.equal(assessment.metric.signals.queue_verification_coverage, 1);
+  assert.equal(assessment.metric.signals.integration_targets_configured, 1);
 });
 
 test('assessMarketingOutcome treats empty post sets as a clean neutral skip', () => {
@@ -67,4 +72,24 @@ test('assessMarketingOutcome treats empty post sets as a clean neutral skip', ()
   assert.equal(assessment.metric.status, 'neutral');
   assert.equal(assessment.metric.outcome, 'no_posts');
   assert.equal(assessment.metric.signals.clean_skip, 1);
+});
+
+test('assessMarketingOutcome reflects duplicate drafts or missing queue verification', () => {
+  const assessment = assessMarketingOutcome({
+    model: 'local-model',
+    durationMs: 900,
+    postsPerDay: 2,
+    posts: [
+      { text: 'Shared runtime landed', reason: 'real shipped change' },
+      { text: 'Shared runtime landed', reason: 'duplicate' },
+    ],
+    scheduledCount: 2,
+    verifiedScheduledCount: 1,
+    integrationCount: 1,
+    uniquePostCount: 1,
+    dryRun: false,
+  });
+
+  assert.equal(assessment.metric.signals.queue_verification_coverage, 0.5);
+  assert.equal(assessment.metric.signals.unique_post_coverage, 0.5);
 });

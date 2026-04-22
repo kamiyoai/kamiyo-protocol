@@ -82,6 +82,37 @@ CREATE TRIGGER IF NOT EXISTS trg_episodes_fts_insert
     INSERT INTO agent_episodes_fts(rowid, input, output, summary, tags)
     VALUES (NEW.rowid, NEW.input, NEW.output, NEW.summary, NEW.tags);
   END;
+
+CREATE TABLE IF NOT EXISTS agent_run_receipts (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL UNIQUE,
+  agent_id TEXT NOT NULL,
+  service TEXT NOT NULL,
+  task_type TEXT NOT NULL,
+  subject_type TEXT,
+  subject_id TEXT,
+  variant_id TEXT,
+  variant_strategy TEXT,
+  outcome TEXT,
+  quality_score REAL,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  receipt_json TEXT NOT NULL,
+  reconcile_after INTEGER,
+  reconciled_at INTEGER,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+  updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_receipts_service_created
+  ON agent_run_receipts(service, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_run_receipts_subject
+  ON agent_run_receipts(service, subject_type, subject_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_run_receipts_reconcile
+  ON agent_run_receipts(reconcile_after, reconciled_at)
+  WHERE reconcile_after IS NOT NULL;
 `;
 
 export function applyAgentSchema(db: Pick<import('./db-types').DB, 'exec'>): void {

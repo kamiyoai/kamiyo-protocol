@@ -121,9 +121,17 @@ jobs:
           git add README.md CHANGELOG.md services/*/CHANGELOG.md services/*/README.md 2>/dev/null || true
           git commit -m "docs-agent: regenerate for ${short}"
           git push -u origin "$branch"
-          gh pr create \
+          pr_url=$(gh pr create \
             --base main \
             --head "$branch" \
             --title "docs-agent: regenerate for ${short}" \
             --body "Automated docs refresh for commit ${short}. Review diff, squash-merge." \
-            --label agent-approved || true
+            --label agent-approved 2>/dev/null || true)
+          if [[ -z "$pr_url" ]]; then
+            pr_url=$(gh pr view "$branch" --json url --jq .url 2>/dev/null || true)
+          fi
+          pr_number=""
+          if [[ -n "$pr_url" ]]; then
+            pr_number=$(gh pr view "$branch" --json number --jq .number 2>/dev/null || true)
+          fi
+          node services/kamiyo-docs-agent/dist/update-ledger.js "$MERGE_SHA" "$branch" "$pr_url" "$pr_number"

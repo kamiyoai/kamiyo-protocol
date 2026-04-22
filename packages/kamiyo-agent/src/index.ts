@@ -93,6 +93,18 @@ export {
 export { AGENT_SCHEMA_SQL, applyAgentSchema } from './schema';
 
 export {
+  type AgentRunReceipt,
+  type AgentRunReceiptInput,
+  type AgentRunReceiptPatch,
+  type AgentRunReceiptLookup,
+  recordAgentRunReceipt,
+  getAgentRunReceipt,
+  updateAgentRunReceipt,
+  updateLatestAgentRunReceipt,
+  listPendingAgentRunReceipts,
+} from './run-ledger';
+
+export {
   AgentError,
   ProviderError,
   ToolError,

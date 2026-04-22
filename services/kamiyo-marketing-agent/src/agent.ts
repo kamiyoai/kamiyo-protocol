@@ -4,6 +4,7 @@ import {
   assessAgentOutcome,
   createAgent,
   genericProvider,
+  recordAgentRunReceipt,
   type DB,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
@@ -46,6 +47,7 @@ Penalize:
 - Partial scheduling that is not reflected in the recorded outcome.`;
 
 export interface MarketingDraftResult {
+  runId: string;
   posts: Array<{ text: string; reason: string }>;
   costUsd: number;
   durationMs: number;
@@ -53,6 +55,14 @@ export interface MarketingDraftResult {
   variantId: string | null;
   variantStrategy: string | null;
   recordOutcomeScore(assessment: AgentOutcomeAssessment): boolean;
+  recordRunReceipt(params: {
+    outcome?: string | null;
+    qualityScore?: number | null;
+    costUsd?: number;
+    durationMs?: number;
+    receipt: Record<string, unknown>;
+    reconcileAfter?: number | Date | null;
+  }): boolean;
   cleanup(): Promise<void>;
 }
 
@@ -166,6 +176,9 @@ export function assessMarketingOutcome(params: {
   postsPerDay: number;
   posts: Array<{ text: string; reason: string }>;
   scheduledCount: number;
+  verifiedScheduledCount?: number;
+  integrationCount?: number;
+  uniquePostCount?: number;
   dryRun: boolean;
   costUsd?: number;
   variantId?: string | null;
@@ -173,9 +186,14 @@ export function assessMarketingOutcome(params: {
 }): AgentOutcomeAssessment {
   const drafted = params.posts.length;
   const scheduleCoverage = drafted === 0 ? 1 : params.scheduledCount / drafted;
+  const verifiedCoverage =
+    drafted === 0 ? 1 : Math.min((params.verifiedScheduledCount ?? params.scheduledCount) / drafted, 1);
   const draftCoverage = params.postsPerDay > 0 ? Math.min(drafted / params.postsPerDay, 1) : 0;
   const scheduledAll = drafted === 0 || params.scheduledCount >= drafted;
   const status = drafted === 0 ? 'neutral' : scheduledAll ? 'success' : 'partial';
+  const uniquePostCoverage =
+    drafted === 0 ? 1 : Math.min((params.uniquePostCount ?? drafted) / drafted, 1);
+  const integrationConfigured = params.dryRun || drafted === 0 || (params.integrationCount ?? 0) > 0;
 
   return assessAgentOutcome({
     service: 'kamiyo-marketing-agent',
@@ -192,6 +210,9 @@ export function assessMarketingOutcome(params: {
       { name: 'valid_json_response', value: true, weight: 1.5 },
       { name: 'draft_coverage', value: draftCoverage, weight: 2 },
       { name: 'schedule_coverage', value: Math.min(scheduleCoverage, 1), weight: 3 },
+      { name: 'queue_verification_coverage', value: verifiedCoverage, weight: 2.5 },
+      { name: 'unique_post_coverage', value: uniquePostCoverage, weight: 1.5 },
+      { name: 'integration_targets_configured', value: integrationConfigured, weight: 1 },
       { name: 'reasons_present', value: params.posts.every(post => post.reason.trim().length > 0), weight: 1 },
       { name: 'within_x_length_cap', value: params.posts.every(post => post.text.length <= 280), weight: 1 },
       { name: 'clean_skip', value: drafted === 0, weight: 1 },
@@ -200,7 +221,10 @@ export function assessMarketingOutcome(params: {
     metadata: {
       posts_drafted: drafted,
       posts_scheduled: params.scheduledCount,
+      posts_verified_in_queue: params.verifiedScheduledCount ?? params.scheduledCount,
       posts_per_day: params.postsPerDay,
+      integration_count: params.integrationCount ?? 0,
+      unique_post_count: params.uniquePostCount ?? drafted,
       dry_run: params.dryRun,
     },
   });
@@ -250,6 +274,7 @@ Return JSON only.`;
   let output = '';
   let durationMs = 0;
   let turnCount = 0;
+  let runId = '';
   let cleanedUp = false;
 
   const cleanup = async () => {
@@ -272,6 +297,7 @@ Return JSON only.`;
       }
 
       if (event.type === 'done') {
+        runId = event.result.runId;
         durationMs = event.result.durationMs;
         turnCount = event.result.turns;
         console.log(`[marketing-agent] draft complete: duration=${durationMs}ms`);
@@ -284,6 +310,7 @@ Return JSON only.`;
 
   try {
     return {
+      runId,
       posts: parseDraftPosts(output, cfg.POSTS_PER_DAY),
       costUsd: 0,
       durationMs,
@@ -298,6 +325,29 @@ Return JSON only.`;
           outcome: assessment.metric.outcome,
           variantId: assessment.metric.variant_id,
         });
+      },
+      recordRunReceipt(params) {
+        if (!db || !runId) return false;
+        recordAgentRunReceipt(db, {
+          runId,
+          agentId: agent.id,
+          service: 'kamiyo-marketing-agent',
+          taskType: agent.selfImprove.taskType,
+          subjectType: 'repo',
+          subjectId: cfg.GITHUB_REPO,
+          variantId: agent.selfImprove.currentVariantId,
+          variantStrategy: agent.selfImprove.currentStrategy,
+          outcome: params.outcome ?? null,
+          qualityScore:
+            params.qualityScore !== undefined && params.qualityScore !== null
+              ? params.qualityScore
+              : null,
+          costUsd: params.costUsd ?? 0,
+          durationMs: params.durationMs ?? durationMs,
+          receipt: params.receipt,
+          reconcileAfter: params.reconcileAfter ?? null,
+        });
+        return true;
       },
       cleanup,
     };

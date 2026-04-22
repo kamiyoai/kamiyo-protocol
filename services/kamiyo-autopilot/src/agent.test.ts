@@ -186,11 +186,16 @@ describe('assessAutopilotOutcome', () => {
         'PR: https://github.com/kamiyoai/kamiyo-protocol/pull/999',
         'ISSUE_COMMENT: no',
       ].join('\n'),
+      ciStatus: 'success',
+      prMergeableState: 'clean',
     });
 
     expect(assessment.metric.status).toBe('success');
     expect(assessment.metric.outcome).toBe('opened_pr');
     expect(assessment.metric.signals.opened_pr).toBe(1);
+    expect(assessment.metric.signals.tests_passed).toBe(1);
+    expect(assessment.metric.signals.ci_green).toBe(1);
+    expect(assessment.metric.signals.pr_ready).toBe(1);
     expect(assessment.metric.signals.outcome_matches_actions).toBe(1);
   });
 
@@ -216,5 +221,33 @@ describe('assessAutopilotOutcome', () => {
     expect(assessment.metric.status).toBe('neutral');
     expect(assessment.metric.outcome).toBe('no_action');
     expect(assessment.metric.signals.opened_pr).toBe(0);
+  });
+
+  it('captures failed downstream validation when verification or CI fail', () => {
+    const assessment = assessAutopilotOutcome({
+      issueNumber: 214,
+      labels: ['agent'],
+      model: MODELS.haiku,
+      durationMs: 2200,
+      toolUses: 6,
+      openedPr: true,
+      commented: false,
+      finalText: [
+        'OUTCOME: opened_pr',
+        'BRANCH: autopilot/issue-214-fix',
+        'SUMMARY: Opened a PR but tests failed.',
+        'TESTS: pnpm test (failed)',
+        'PR: https://github.com/kamiyoai/kamiyo-protocol/pull/1001',
+        'ISSUE_COMMENT: no',
+      ].join('\n'),
+      ciStatus: 'failure',
+      prDraft: true,
+      prMergeableState: 'dirty',
+    });
+
+    expect(assessment.metric.signals.tests_passed).toBe(0);
+    expect(assessment.metric.signals.ci_green).toBe(0);
+    expect(assessment.metric.signals.pr_ready).toBe(0);
+    expect(assessment.metric.metadata.ci_status).toBe('failure');
   });
 });
