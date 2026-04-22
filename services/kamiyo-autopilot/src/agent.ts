@@ -509,12 +509,16 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
         qualityScore: outcomeAssessment.qualityScore,
         costUsd: 0,
         durationMs: outcomeAssessment.metric.duration_ms,
-        reconcileAfter: cfg.DRY_RUN ? null : Math.floor(Date.now() / 1000) + 6 * 60 * 60,
+        reconcileAfter:
+          cfg.DRY_RUN ? null : Math.floor(Date.now() / 1000) + cfg.RECONCILE_DELAY_HOURS * 60 * 60,
         receipt: {
           issueNumber,
+          model,
           labels,
           branch: fields.BRANCH?.trim() || null,
           tests: fields.TESTS?.trim() || null,
+          initialOutcome: outcomeAssessment.metric.outcome,
+          initialQualityScore: outcomeAssessment.qualityScore,
           prUrl,
           prNumber: parsePrNumber(prUrl),
           prHeadSha,

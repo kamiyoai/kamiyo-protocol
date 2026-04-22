@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
+    "reconcile": "tsx src/reconcile.ts",
     "run:issue": "tsx src/run-issue.ts",
     "test": "vitest"
   },

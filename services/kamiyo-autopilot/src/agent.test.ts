@@ -13,6 +13,7 @@ const mockConfig: Config = {
   AUTOPILOT_DB_PATH: '.autopilot/test.db',
   MAX_TURNS: 30,
   DAILY_USD_MAX: 0,
+  RECONCILE_DELAY_HOURS: 6,
   SELF_IMPROVE_ENABLED: true,
   SELF_IMPROVE_TASK_TYPE: 'autopilot_issue_resolution',
   SELF_IMPROVE_JUDGE_MODEL: MODELS.haiku,

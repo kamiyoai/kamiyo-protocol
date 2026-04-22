@@ -18,6 +18,7 @@ const Schema = z.object({
   AUTOPILOT_DB_PATH: z.string().default('.autopilot/agent.db'),
   MAX_TURNS: z.coerce.number().int().positive().default(30),
   DAILY_USD_MAX: z.coerce.number().nonnegative().default(0),
+  RECONCILE_DELAY_HOURS: z.coerce.number().positive().default(6),
   SELF_IMPROVE_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

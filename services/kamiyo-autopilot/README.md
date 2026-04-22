@@ -2,6 +2,8 @@
 
 Headless autonomous dev loop. Reads GitHub issues labeled `agent`, drafts a branch + PR via the Claude Agent SDK, runs tests, and lets the `autopilot-auto-merge.yml` workflow squash-merge once `agent-approved` is applied and CI is green.
 
+Autopilot also keeps a SQLite-backed run ledger and periodically reconciles due receipts against live GitHub PR state so merged outcomes can feed back into variant scoring after the initial run.
+
 ## Runtime
 
 Driven by `.github/workflows/autonomous-dev.yml`:
@@ -24,8 +26,10 @@ Set in repo secrets:
 Runtime config (env):
 
 - `CLAUDE_MODEL` (default `claude-opus-4.6`)
+- `AUTOPILOT_DB_PATH` (default `.autopilot/agent.db`)
 - `MAX_TURNS` (default `30`)
 - `DAILY_USD_MAX` (default `50`, workflow sets `25`) — hard stop per invocation
+- `RECONCILE_DELAY_HOURS` (default `6`) — minimum wait before a newly opened PR is rechecked for final outcome
 - `AGENT_LABEL` / `APPROVED_LABEL` / `HALT_LABEL` / `BOT_LOGIN` — defaults are `agent` / `agent-approved` / `halt-autopilot` / `kamiyo-bot`
 - `DRY_RUN=1` — plan only, no writes
 
@@ -86,4 +90,5 @@ export GITHUB_REPO=your-org/kamiyo-protocol
 export DRY_RUN=1
 pnpm dev                 # picks next agent-labeled issue
 pnpm run:issue -- 42     # runs on a specific issue
+pnpm reconcile           # reconciles due receipts against live PR state
 ```

@@ -80,10 +80,13 @@ export class GitHubClient {
   async getPullRequestState(prUrl: string): Promise<{
     number: number;
     url: string;
+    state: 'open' | 'closed';
     headSha: string;
     merged: boolean;
     draft: boolean;
     mergeableState: string | null;
+    mergedAt: string | null;
+    closedAt: string | null;
     checkState: 'success' | 'failure' | 'pending' | 'unknown';
   } | null> {
     const match = prUrl.match(/\/pull\/(\d+)(?:\/|$)/);
@@ -116,10 +119,13 @@ export class GitHubClient {
     return {
       number: pr.number,
       url: pr.html_url,
+      state: pr.state === 'closed' ? 'closed' : 'open',
       headSha: pr.head.sha,
       merged: Boolean(pr.merged_at),
       draft: Boolean(pr.draft),
       mergeableState: pr.mergeable_state ?? null,
+      mergedAt: pr.merged_at ?? null,
+      closedAt: pr.closed_at ?? null,
       checkState,
     };
   }

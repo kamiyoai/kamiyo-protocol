@@ -51,7 +51,9 @@ jobs:
       LLM_API_KEY: ollama
       GITHUB_REPO: ${{ github.repository }}
       CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      AUTOPILOT_DB_PATH: .autopilot/agent.db
       DAILY_USD_MAX: "0"
+      RECONCILE_DELAY_HOURS: "6"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -96,3 +98,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.AUTOPILOT_PAT || github.token }}
         run: node dist/run-issue.js ${{ github.event.inputs.issue }}
+
+      - name: Reconcile autopilot receipts
+        working-directory: services/kamiyo-autopilot
+        env:
+          GITHUB_TOKEN: ${{ secrets.AUTOPILOT_PAT || github.token }}
+        run: node dist/reconcile.js
