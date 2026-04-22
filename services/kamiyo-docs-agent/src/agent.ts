@@ -244,6 +244,8 @@ function sameFileList(left: string[], right: string[]): boolean {
   return left.every((file, index) => file === right[index]);
 }
 
+export { deriveExpectedDocTargets, sameFileList };
+
 export function assessDocsOutcome(params: {
   mergeSha?: string;
   model: string;
@@ -435,12 +437,17 @@ Steps:
         costUsd: 0,
         durationMs: outcomeAssessment.metric.duration_ms,
         reconcileAfter:
-          changedFiles.length > 0 ? Math.floor(Date.now() / 1000) + 60 * 60 : null,
+          changedFiles.length > 0
+            ? Math.floor(Date.now() / 1000) + cfg.RECONCILE_DELAY_HOURS * 60 * 60
+            : null,
         receipt: {
           mergeSha: cfg.MERGE_SHA ?? 'HEAD',
+          model,
           changedFiles,
           mergeChangedPaths,
           summary: fields.SUMMARY?.trim() || null,
+          initialOutcome: outcomeAssessment.metric.outcome,
+          initialQualityScore: outcomeAssessment.qualityScore,
           followUpBranch: null,
           followUpPrUrl: null,
           followUpPrNumber: null,

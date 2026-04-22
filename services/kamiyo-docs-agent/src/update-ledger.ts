@@ -22,6 +22,12 @@ function parsePrNumber(value: string | undefined): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function getReconcileDelayHours(): number {
+  const raw = process.env.RECONCILE_DELAY_HOURS;
+  const parsed = raw ? Number(raw) : 4;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 4;
+}
+
 function main() {
   const [mergeSha, branch, prUrl, prNumberRaw] = process.argv.slice(2);
   if (!mergeSha) {
@@ -30,6 +36,7 @@ function main() {
   }
 
   const dbPath = process.env.DOCS_AGENT_DB_PATH || '.docs-agent/agent.db';
+  const reconcileDelayHours = getReconcileDelayHours();
   const db = openDocsDatabase(dbPath);
   try {
     const updated = updateLatestAgentRunReceipt(
@@ -45,7 +52,8 @@ function main() {
           followUpPrUrl: prUrl || null,
           followUpPrNumber: parsePrNumber(prNumberRaw),
         },
-        reconcileAfter: prUrl ? Math.floor(Date.now() / 1000) + 4 * 60 * 60 : null,
+        reconcileAfter:
+          branch || prUrl ? Math.floor(Date.now() / 1000) + reconcileDelayHours * 60 * 60 : null,
       }
     );
 

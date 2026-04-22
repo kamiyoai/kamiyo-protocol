@@ -10,6 +10,7 @@ const Schema = z.object({
   LLM_BASE_URL: z.string().url().default('http://localhost:11434/v1'),
   LLM_API_KEY: z.string().default('ollama'),
   GITHUB_REPO: z.string().regex(/^[^/]+\/[^/]+$/, 'expected owner/repo'),
+  GITHUB_TOKEN: z.string().default(''),
   CLAUDE_MODEL: z.string().default(MODELS.haiku),
   DOCS_AGENT_DB_PATH: z.string().default('.docs-agent/agent.db'),
   MAX_TURNS: z.coerce.number().int().positive().default(20),
@@ -22,6 +23,7 @@ const Schema = z.object({
   SELF_IMPROVE_JUDGE_MODEL: z.string().default(MODELS.haiku),
   SELF_IMPROVE_MIN_SAMPLES: z.coerce.number().int().positive().default(5),
   SELF_IMPROVE_P_THRESHOLD: z.coerce.number().min(0).max(1).default(0.1),
+  RECONCILE_DELAY_HOURS: z.coerce.number().int().positive().default(4),
   MERGE_SHA: z.string().optional(),
   DRY_RUN: z
     .string()

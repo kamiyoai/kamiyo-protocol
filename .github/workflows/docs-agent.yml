@@ -53,6 +53,7 @@ jobs:
       SELF_IMPROVE_JUDGE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
       SELF_IMPROVE_MIN_SAMPLES: "5"
       SELF_IMPROVE_P_THRESHOLD: "0.1"
+      RECONCILE_DELAY_HOURS: "4"
       MERGE_SHA: ${{ github.event.inputs.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -71,33 +72,27 @@ jobs:
           fi
 
       - uses: actions/setup-node@v4
-        if: steps.skip.outputs.skip == 'false'
         with:
           node-version: 20
 
       - name: Configure git identity
-        if: steps.skip.outputs.skip == 'false'
         run: |
           git config user.name "kamiyobot"
           git config user.email "kamiyo-ai@users.noreply.github.com"
 
       - name: Build selfimprove
-        if: steps.skip.outputs.skip == 'false'
         working-directory: packages/kamiyo-selfimprove
         run: pnpm install --ignore-workspace && pnpm build
 
       - name: Build agent runtime
-        if: steps.skip.outputs.skip == 'false'
         working-directory: packages/kamiyo-agent
         run: pnpm install --ignore-workspace && pnpm build
 
       - name: Install docs-agent deps
-        if: steps.skip.outputs.skip == 'false'
         working-directory: services/kamiyo-docs-agent
         run: pnpm install --ignore-workspace
 
       - name: Build docs-agent
-        if: steps.skip.outputs.skip == 'false'
         working-directory: services/kamiyo-docs-agent
         run: pnpm build
 
@@ -135,3 +130,9 @@ jobs:
             pr_number=$(gh pr view "$branch" --json number --jq .number 2>/dev/null || true)
           fi
           node services/kamiyo-docs-agent/dist/update-ledger.js "$MERGE_SHA" "$branch" "$pr_url" "$pr_number"
+
+      - name: Reconcile docs-agent receipts
+        env:
+          GITHUB_TOKEN: ${{ secrets.AUTOPILOT_PAT || github.token }}
+        working-directory: services/kamiyo-docs-agent
+        run: node dist/reconcile.js
