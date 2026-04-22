@@ -25,21 +25,24 @@ function baseInput(): ExecutionPolicyInput {
   };
 }
 
-test('canary_1 enforces lower tx/spend caps and disables routing', () => {
+test('canary_1 keeps staking enabled while clamping to live canary caps', () => {
   const policy = buildExecutionPolicy({
     ...baseInput(),
     KAMIYO_EXECUTION_STAGE: 'canary_1',
+    KAMIYO_SOL_DAILY_CAP: 2,
+    KAMIYO_SOL_PER_TX_CAP: 0.5,
+    KAMIYO_MAX_TX_PER_DAY: 500,
   });
 
   assert.equal(policy.stage, 'canary_1');
-  assert.equal(policy.dailyCapSol, 0.02);
-  assert.equal(policy.perTxCapSol, 0.003);
-  assert.equal(policy.maxTxPerDay, 4);
+  assert.equal(policy.dailyCapSol, 0.5);
+  assert.equal(policy.perTxCapSol, 0.05);
+  assert.equal(policy.maxTxPerDay, 48);
   assert.equal(policy.swarmJobExecutionEnabled, true);
   assert.equal(policy.swarmJobExecutionsPerTick, 1);
-  assert.equal(policy.autoStakeEnabled, false);
-  assert.equal(policy.autoStakeAvailableBps, 0);
-  assert.equal(policy.autoStakeMaxLamportsPerTx, 0);
+  assert.equal(policy.autoStakeEnabled, true);
+  assert.equal(policy.autoStakeAvailableBps, 1500);
+  assert.equal(policy.autoStakeMaxLamportsPerTx, 25_000_000);
 });
 
 test('hard stop disables all mutating operations', () => {
@@ -76,6 +79,12 @@ test('configured staking targets are auto-allowlisted', () => {
     KAMIYO_AGENT_STAKING_POOL: 'Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx',
   });
 
-  assert.equal(policy.allowedStakingPools.has('9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d'), true);
-  assert.equal(policy.allowedStakingPools.has('Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx'), true);
+  assert.equal(
+    policy.allowedStakingPools.has('9mEd5iRcdbNUwaCmkPqYggLfg25B2DsTn1w6gNrgvC9d'),
+    true
+  );
+  assert.equal(
+    policy.allowedStakingPools.has('Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx'),
+    true
+  );
 });

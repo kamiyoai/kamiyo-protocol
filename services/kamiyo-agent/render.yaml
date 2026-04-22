@@ -36,11 +36,11 @@ services:
         value: output/kamiyo-agent/outbox
 
       - key: KAMIYO_SOL_DAILY_CAP
-        value: "0.05"
+        value: "0.5"
       - key: KAMIYO_SOL_PER_TX_CAP
-        value: "0.01"
+        value: "0.05"
       - key: KAMIYO_MAX_TX_PER_DAY
-        value: "10"
+        value: "48"
 
       - key: KAMIYO_SWARM_ENABLED
         value: "true"

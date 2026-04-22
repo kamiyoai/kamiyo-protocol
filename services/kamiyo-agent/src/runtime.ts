@@ -300,6 +300,159 @@ function lamportsToSol(lamports: bigint): number {
   return Number(lamports) / 1e9;
 }
 
+export type AutoStakeRouteSnapshot = {
+  txSignature: string;
+  routedAt: string;
+  postRouteBalanceLamports: bigint;
+};
+
+function pickAccountKey(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || null;
+  }
+  if (value instanceof PublicKey) return value.toBase58();
+  if (typeof value === 'object') {
+    const pubkey = (value as { pubkey?: unknown }).pubkey;
+    if (pubkey instanceof PublicKey) return pubkey.toBase58();
+    if (typeof pubkey === 'string') {
+      const trimmed = pubkey.trim();
+      return trimmed || null;
+    }
+  }
+  return null;
+}
+
+function getTransactionAccountKeys(
+  tx: Awaited<ReturnType<Connection['getTransaction']>>
+): string[] {
+  const message = tx?.transaction?.message as
+    | {
+        staticAccountKeys?: unknown[];
+        accountKeys?: unknown[];
+      }
+    | undefined;
+  const keys = message?.staticAccountKeys ?? message?.accountKeys ?? [];
+  return keys.flatMap(key => {
+    const normalized = pickAccountKey(key);
+    return normalized ? [normalized] : [];
+  });
+}
+
+export function advanceAutoStakeBaseline(params: {
+  baselineLamports: bigint;
+  routedLamports: bigint;
+  observedBalanceLamports?: bigint | null;
+}): bigint {
+  const advanced = params.baselineLamports + params.routedLamports;
+  if (
+    params.observedBalanceLamports != null &&
+    params.observedBalanceLamports >= 0n &&
+    params.observedBalanceLamports < advanced
+  ) {
+    return params.observedBalanceLamports;
+  }
+  return advanced;
+}
+
+export function reconcileAutoStakeBaseline(params: {
+  currentBalanceLamports: bigint;
+  baselineLamports?: bigint | null;
+  lastRouteSignature?: string | null;
+  lastRoutedAt?: string | null;
+  latestRoute: AutoStakeRouteSnapshot | null;
+}): {
+  baselineLamports: bigint | null;
+  lastRouteSignature: string;
+  lastRoutedAt: string;
+  reconciledFromChain: boolean;
+} {
+  let baselineLamports = params.baselineLamports ?? null;
+  let lastRouteSignature = params.lastRouteSignature?.trim() ?? '';
+  let lastRoutedAt = params.lastRoutedAt?.trim() ?? '';
+  let reconciledFromChain = false;
+
+  const latestRoute = params.latestRoute;
+  if (
+    latestRoute &&
+    latestRoute.postRouteBalanceLamports <= params.currentBalanceLamports &&
+    latestRoute.txSignature
+  ) {
+    if (baselineLamports == null) {
+      baselineLamports = latestRoute.postRouteBalanceLamports;
+      lastRouteSignature = latestRoute.txSignature;
+      lastRoutedAt = latestRoute.routedAt || lastRoutedAt;
+      reconciledFromChain = true;
+    } else if (
+      latestRoute.txSignature !== lastRouteSignature &&
+      latestRoute.postRouteBalanceLamports > baselineLamports
+    ) {
+      baselineLamports = latestRoute.postRouteBalanceLamports;
+      lastRouteSignature = latestRoute.txSignature;
+      lastRoutedAt = latestRoute.routedAt || lastRoutedAt;
+      reconciledFromChain = true;
+    }
+  }
+
+  return {
+    baselineLamports,
+    lastRouteSignature,
+    lastRoutedAt,
+    reconciledFromChain,
+  };
+}
+
+export async function findLatestPoolRouteSnapshot(params: {
+  connection: Connection;
+  wallet: PublicKey;
+  pool: PublicKey;
+  limit?: number;
+}): Promise<AutoStakeRouteSnapshot | null> {
+  const limit = Math.max(1, Math.min(100, Math.floor(params.limit ?? 100)));
+  const [walletSignatures, poolSignatures] = await Promise.all([
+    params.connection.getSignaturesForAddress(params.wallet, { limit }, 'confirmed'),
+    params.connection.getSignaturesForAddress(params.pool, { limit }, 'confirmed'),
+  ]);
+
+  const poolSignatureSet = new Set(
+    poolSignatures
+      .filter(row => !row.err && typeof row.signature === 'string' && row.signature.trim())
+      .map(row => row.signature.trim())
+  );
+  if (poolSignatureSet.size === 0) return null;
+
+  for (const row of walletSignatures) {
+    const signature = typeof row.signature === 'string' ? row.signature.trim() : '';
+    if (!signature || row.err || !poolSignatureSet.has(signature)) continue;
+
+    const tx = await params.connection.getTransaction(signature, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+    if (!tx || tx.meta?.err) continue;
+
+    const accountKeys = getTransactionAccountKeys(tx);
+    const walletIndex = accountKeys.indexOf(params.wallet.toBase58());
+    if (walletIndex === -1) continue;
+
+    const postBalances = tx.meta?.postBalances ?? [];
+    if (walletIndex >= postBalances.length) continue;
+
+    const blockTime = tx.blockTime ?? row.blockTime ?? null;
+    return {
+      txSignature: signature,
+      routedAt:
+        typeof blockTime === 'number' && Number.isFinite(blockTime)
+          ? new Date(blockTime * 1000).toISOString()
+          : '',
+      postRouteBalanceLamports: BigInt(postBalances[walletIndex] ?? 0),
+    };
+  }
+
+  return null;
+}
+
 function getUserUnclaimedLamports(
   breakdown: Awaited<ReturnType<typeof readFeeVault>>,
   address: string
@@ -3394,12 +3547,61 @@ export class KamiyoAgentRuntime {
     const minLamports = BigInt(this.runtimeEnv.KAMIYO_AUTO_STAKE_MIN_LAMPORTS);
 
     const baselineKey = `auto_stake_baseline:${params.depositor.publicKey.toBase58()}`;
+    const routeSignatureKey = `auto_stake_last_route_signature:${params.depositor.publicKey.toBase58()}:${params.poolAddress}`;
+    const routeAtKey = `auto_stake_last_route_at:${params.depositor.publicKey.toBase58()}:${params.poolAddress}`;
+
     const baselineRaw = this.db.kvGet(baselineKey);
-    if (baselineRaw == null) {
+    let latestRoute: AutoStakeRouteSnapshot | null = null;
+    try {
+      latestRoute = await this.rpcRead('find_latest_auto_stake_route', connection =>
+        findLatestPoolRouteSnapshot({
+          connection,
+          wallet: params.depositor.publicKey,
+          pool: new PublicKey(params.poolAddress),
+        })
+      );
+    } catch (error) {
+      log('warn', 'Auto-stake baseline reconciliation skipped after RPC failure', {
+        pool: params.poolAddress,
+        wallet: params.depositor.publicKey.toBase58(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const reconciledBaseline = reconcileAutoStakeBaseline({
+      currentBalanceLamports: balanceLamports,
+      baselineLamports: baselineRaw == null ? null : BigInt(baselineRaw),
+      lastRouteSignature: this.db.kvGet(routeSignatureKey),
+      lastRoutedAt: this.db.kvGet(routeAtKey),
+      latestRoute,
+    });
+    if (reconciledBaseline.reconciledFromChain) {
+      this.db.kvSet(baselineKey, reconciledBaseline.baselineLamports!.toString());
+      this.db.kvSet(routeSignatureKey, reconciledBaseline.lastRouteSignature);
+      this.db.kvSet(routeAtKey, reconciledBaseline.lastRoutedAt);
+      this.db.addAction(
+        params.tickId,
+        'auto_stake_baseline_reconcile',
+        {
+          source: params.source,
+          pool: params.poolAddress,
+          wallet: params.depositor.publicKey.toBase58(),
+          previousBaselineLamports: baselineRaw ?? null,
+        },
+        {
+          reconciled: true,
+          baselineLamports: reconciledBaseline.baselineLamports!.toString(),
+          routeSignature: reconciledBaseline.lastRouteSignature,
+          routedAt: reconciledBaseline.lastRoutedAt,
+        }
+      );
+    }
+
+    if (reconciledBaseline.baselineLamports == null) {
       this.db.kvSet(baselineKey, balanceLamports.toString());
       return params.budget;
     }
-    let baselineLamports = BigInt(baselineRaw);
+    let baselineLamports = reconciledBaseline.baselineLamports;
     if (balanceLamports < baselineLamports) {
       this.db.kvSet(baselineKey, balanceLamports.toString());
       baselineLamports = balanceLamports;
@@ -3539,7 +3741,34 @@ export class KamiyoAgentRuntime {
     });
 
     this.status.treasury.lastRouteSignature = depositResult.signature;
-    this.db.kvSet(baselineKey, (baselineLamports + routeLamports).toString());
+    let observedAfterBalanceLamports: bigint | null = null;
+    try {
+      observedAfterBalanceLamports = BigInt(
+        await this.rpcRead('read_depositor_balance_after_route', connection =>
+          connection.getBalance(params.depositor.publicKey, 'confirmed')
+        )
+      );
+    } catch (error) {
+      log('warn', 'Auto-stake post-route balance refresh failed', {
+        pool: pool.toBase58(),
+        wallet: params.depositor.publicKey.toBase58(),
+        signature: depositResult.signature,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    this.db.kvSet(
+      baselineKey,
+      advanceAutoStakeBaseline({
+        baselineLamports,
+        routedLamports: routeLamports,
+        observedBalanceLamports: observedAfterBalanceLamports,
+      }).toString()
+    );
+    if (depositResult.signature) {
+      this.db.kvSet(routeSignatureKey, depositResult.signature);
+    }
+    this.db.kvSet(routeAtKey, new Date().toISOString());
 
     return {
       ...params.budget,

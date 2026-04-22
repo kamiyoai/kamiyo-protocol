@@ -52,29 +52,29 @@ const STAGE_CAPS: Record<ExecutionStage, StageCaps> = {
     autoStakeMaxLamportsPerTxCap: 0,
   },
   canary_1: {
-    dailyCapSol: 0.02,
-    perTxCapSol: 0.003,
-    maxTxPerDay: 4,
+    dailyCapSol: 0.5,
+    perTxCapSol: 0.05,
+    maxTxPerDay: 48,
     swarmJobExecutionsPerTick: 1,
     minMarginSol: 0.0005,
     allowSwarmExecution: true,
     allowAutoClaim: false,
     allowKamiyoAgentClaim: false,
-    allowAutoStake: false,
-    autoStakeAvailableBpsCap: 0,
-    autoStakeMaxLamportsPerTxCap: 0,
+    allowAutoStake: true,
+    autoStakeAvailableBpsCap: 1500,
+    autoStakeMaxLamportsPerTxCap: 25_000_000,
   },
   canary_2: {
-    dailyCapSol: 0.05,
-    perTxCapSol: 0.01,
-    maxTxPerDay: 60,
+    dailyCapSol: 0.5,
+    perTxCapSol: 0.05,
+    maxTxPerDay: 48,
     swarmJobExecutionsPerTick: 1,
     minMarginSol: 0.0001,
     allowSwarmExecution: true,
     allowAutoClaim: true,
     allowKamiyoAgentClaim: true,
     allowAutoStake: true,
-    autoStakeAvailableBpsCap: 1000,
+    autoStakeAvailableBpsCap: 1500,
     autoStakeMaxLamportsPerTxCap: 25_000_000,
   },
   full: {
@@ -145,10 +145,15 @@ export function buildExecutionPolicy(env: ExecutionPolicyInput): ExecutionPolicy
   const swarmJobExecutionsPerTick = swarmJobExecutionEnabled
     ? Math.max(
         1,
-        Math.floor(clampMax(env.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK, stageCaps.swarmJobExecutionsPerTick))
+        Math.floor(
+          clampMax(env.KAMIYO_SWARM_JOB_EXECUTIONS_PER_TICK, stageCaps.swarmJobExecutionsPerTick)
+        )
       )
     : 0;
-  const swarmJobMinMarginSol = clampMin(env.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL, stageCaps.minMarginSol);
+  const swarmJobMinMarginSol = clampMin(
+    env.KAMIYO_SWARM_JOB_MIN_MARGIN_SOL,
+    stageCaps.minMarginSol
+  );
 
   const autoClaimEnabled = !hardStop && env.KAMIYO_AUTO_CLAIM_ENABLED && stageCaps.allowAutoClaim;
   const kamiyoAgentAutoClaimEnabled =
@@ -156,7 +161,12 @@ export function buildExecutionPolicy(env: ExecutionPolicyInput): ExecutionPolicy
   const autoStakeEnabled = !hardStop && env.KAMIYO_AUTO_STAKE_ENABLED && stageCaps.allowAutoStake;
 
   const autoStakeAvailableBps = autoStakeEnabled
-    ? Math.max(1, Math.floor(clampMax(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS, stageCaps.autoStakeAvailableBpsCap)))
+    ? Math.max(
+        1,
+        Math.floor(
+          clampMax(env.KAMIYO_AUTO_STAKE_AVAILABLE_BPS, stageCaps.autoStakeAvailableBpsCap)
+        )
+      )
     : 0;
 
   const autoStakeMaxLamportsPerTx = autoStakeEnabled
