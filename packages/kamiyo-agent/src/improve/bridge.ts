@@ -59,7 +59,7 @@ interface RouteDecision {
   variant: { id: string; genome: AgentGenome; status: string };
   tournamentId: string;
   decisionId: string;
-  strategy: 'thompson' | 'promoted' | 'fallback';
+  strategy: 'thompson' | 'promoted' | 'fallback' | 'canary';
 }
 
 interface GenomeOverrides {
@@ -87,6 +87,7 @@ export interface SelfImproveConfig {
   enabled?: boolean;
   taskType?: string;
   autoScore?: boolean;
+  recordInteractions?: boolean;
   autoMutate?: boolean;
   rubric?: string;
   rubricModel?: string;
@@ -190,7 +191,7 @@ export class SelfImproveBridge {
     latencyMs: number;
     costUsd?: number;
   }): void {
-    if (!this.api || !this.enabled) return;
+    if (!this.api || !this.enabled || this.config.recordInteractions === false) return;
     this.api.recordVariantEntry(this.decision, {
       input: params.input,
       output: params.output,
@@ -322,7 +323,11 @@ export class SelfImproveBridge {
       promptTemplate,
       modelId,
       toolAllowlist: Array.isArray(options?.toolAllowlist)
-        ? [...new Set(options.toolAllowlist.filter(tool => typeof tool === 'string' && tool.trim()))]
+        ? [
+            ...new Set(
+              options.toolAllowlist.filter(tool => typeof tool === 'string' && tool.trim())
+            ),
+          ]
         : [],
       temperature:
         typeof options?.temperature === 'number' && Number.isFinite(options.temperature)

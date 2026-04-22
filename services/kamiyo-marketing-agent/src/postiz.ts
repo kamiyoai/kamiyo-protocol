@@ -45,15 +45,27 @@ export class PostizClient {
     return (await res.json()) as { id: string };
   }
 
-  async listUpcoming(): Promise<Array<{ id: string; scheduledFor: string }>> {
+  async listScheduled(): Promise<Array<{ id: string; scheduledFor: string }>> {
+    return this.listByStatus('SCHEDULED');
+  }
+
+  async listPublished(): Promise<Array<{ id: string; scheduledFor: string }>> {
+    return this.listByStatus('PUBLISHED');
+  }
+
+  private async listByStatus(
+    status: 'SCHEDULED' | 'PUBLISHED'
+  ): Promise<Array<{ id: string; scheduledFor: string }>> {
     if (!this.cfg.POSTIZ_URL || !this.cfg.POSTIZ_API_KEY) {
       throw new Error('POSTIZ_URL and POSTIZ_API_KEY required for listing posts');
     }
-    const res = await fetch(`${this.cfg.POSTIZ_URL}/public/v1/posts?status=SCHEDULED`, {
+    const res = await fetch(`${this.cfg.POSTIZ_URL}/public/v1/posts?status=${status}`, {
       headers: this.headers(),
     });
     if (!res.ok) {
-      throw new Error(`postiz list failed: ${res.status} ${await res.text()}`);
+      throw new Error(
+        `postiz ${status.toLowerCase()} list failed: ${res.status} ${await res.text()}`
+      );
     }
     return (await res.json()) as Array<{ id: string; scheduledFor: string }>;
   }

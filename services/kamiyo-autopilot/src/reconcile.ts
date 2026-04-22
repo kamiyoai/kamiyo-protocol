@@ -4,10 +4,19 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
+  advanceDelayedLearningControl,
   applyAgentSchema,
   assessAgentOutcome,
+  buildAgentLearningRunPayload,
+  createReconciliationPatch,
   emitOutcomeMetric,
+  getReceiptNumber,
+  getReceiptString,
+  hoursFromNow,
   listPendingAgentRunReceipts,
+  publishAgentLearningPromotion,
+  publishAgentLearningRun,
+  recordDelayedVariantScore,
   updateAgentRunReceipt,
   type AgentRunReceipt,
   type DB,
@@ -17,9 +26,7 @@ import {
   applySchema as applySelfImproveSchema,
   createNoopLogger,
   createNoopMetrics,
-  getOrCreateStandingTournament,
   initSelfImprove,
-  recordTournamentEntry,
   type DatabaseAdapter,
 } from '@kamiyo-org/selfimprove';
 import { loadConfig, type Config } from './config';
@@ -79,7 +86,11 @@ export function assessAutopilotDelayedOutcome(params: {
       },
       { name: 'pr_ready_for_merge', value: !params.prDraft && mergeableReady, weight: 1.5 },
       { name: 'no_follow_up_pushes_needed', value: !followUpPushesNeeded, weight: 1.5 },
-      { name: 'closed_without_merge', value: !(params.prState === 'closed' && !params.prMerged), weight: 3 },
+      {
+        name: 'closed_without_merge',
+        value: !(params.prState === 'closed' && !params.prMerged),
+        weight: 3,
+      },
     ],
     metadata: {
       issue: params.issueNumber,
@@ -111,26 +122,7 @@ function openAutopilotDatabase(dbPath: string): AutopilotDatabase {
   return new Database(resolveAutopilotDbPath(dbPath));
 }
 
-function getReceiptString(receipt: AgentRunReceipt, key: string): string | null {
-  const value = receipt.receipt[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function getReceiptNumber(receipt: AgentRunReceipt, key: string): number | null {
-  const value = receipt.receipt[key];
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function retryAt(hours: number): number {
-  return Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(hours)) * 60 * 60;
-}
-
-function markAutopilotReceiptReconciled(
+async function persistReceiptUpdate(
   db: AutopilotDatabase,
   receipt: AgentRunReceipt,
   params: {
@@ -138,59 +130,26 @@ function markAutopilotReceiptReconciled(
     snapshot: Record<string, unknown>;
     reconcileAfter?: number | null;
     delayedRecorded?: boolean;
-    note?: string;
+    note?: string | null;
+    reconciled?: boolean;
   }
-): void {
-  const existingOutcome = getReceiptString(receipt, 'initialOutcome') ?? receipt.outcome ?? null;
-  const existingQuality =
-    getReceiptNumber(receipt, 'initialQualityScore') ?? receipt.qualityScore ?? null;
-
-  updateAgentRunReceipt(db, receipt.runId, {
-    outcome: params.assessment?.metric.outcome ?? receipt.outcome,
-    qualityScore: params.assessment?.qualityScore ?? receipt.qualityScore,
-    reconcileAfter:
-      params.reconcileAfter !== undefined ? params.reconcileAfter : receipt.reconcileAfter,
-    reconciledAt:
-      params.assessment || params.note === 'no_pr' || params.note === 'missing_pr'
-        ? Math.floor(Date.now() / 1000)
-        : null,
-    receipt: {
-      ...params.snapshot,
-      initialOutcome: existingOutcome,
-      initialQualityScore: existingQuality,
-      delayedOutcome: params.assessment?.metric.outcome ?? null,
-      delayedQualityScore: params.assessment?.qualityScore ?? null,
-      delayedMetric: params.assessment?.metric ?? null,
-      delayedTournamentRecorded: params.delayedRecorded ?? false,
-      reconciliationNote: params.note ?? null,
-      reconciledAtIso:
-        params.assessment || params.note === 'no_pr' || params.note === 'missing_pr'
-          ? new Date().toISOString()
-          : null,
-    },
-  });
-}
-
-function recordDelayedVariantScore(
-  receipt: AgentRunReceipt,
-  assessment: OutcomeAssessment
-): boolean {
-  if (!receipt.variantId) return false;
-  try {
-    const tournament = getOrCreateStandingTournament(receipt.taskType);
-    const result = recordTournamentEntry({
-      tournamentId: tournament.id,
-      variantId: receipt.variantId,
-      qualityScore: assessment.qualityScore,
-      cost: assessment.metric.cost_usd,
-      latencyMs: assessment.metric.duration_ms,
-      outcome: assessment.metric.outcome,
-    });
-    return result.ok;
-  } catch (error) {
-    console.error('[autopilot] failed to record delayed variant score:', error);
-    return false;
+): Promise<AgentRunReceipt | null> {
+  const updated = updateAgentRunReceipt(
+    db,
+    receipt.runId,
+    createReconciliationPatch(receipt, {
+      assessment: params.assessment,
+      snapshot: params.snapshot,
+      reconcileAfter: params.reconcileAfter,
+      delayedRecorded: params.delayedRecorded,
+      note: params.note,
+      reconciled: params.reconciled,
+    })
+  );
+  if (updated) {
+    await publishAgentLearningRun(buildAgentLearningRunPayload(updated));
   }
+  return updated;
 }
 
 export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
@@ -224,19 +183,22 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
 
   try {
     for (const receipt of pending) {
-      const issueNumber = Number(receipt.subjectId ?? getReceiptNumber(receipt, 'issueNumber') ?? 0);
+      const issueNumber = Number(
+        receipt.subjectId ?? getReceiptNumber(receipt, 'issueNumber') ?? 0
+      );
       const prUrl = getReceiptString(receipt, 'prUrl');
       const initialHeadSha = getReceiptString(receipt, 'prHeadSha');
       const model = getReceiptString(receipt, 'model') ?? cfg.CLAUDE_MODEL;
 
       if (!prUrl) {
-        markAutopilotReceiptReconciled(db, receipt, {
+        await persistReceiptUpdate(db, receipt, {
           note: 'no_pr',
           snapshot: {
             reconciledPrState: null,
             followUpPushesNeeded: false,
           },
           reconcileAfter: null,
+          reconciled: true,
         });
         skipped += 1;
         continue;
@@ -244,13 +206,14 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
 
       const prState = await github.getPullRequestState(prUrl);
       if (!prState) {
-        markAutopilotReceiptReconciled(db, receipt, {
+        await persistReceiptUpdate(db, receipt, {
           note: 'missing_pr',
           snapshot: {
             reconciledPrState: 'missing',
             followUpPushesNeeded: false,
           },
           reconcileAfter: null,
+          reconciled: true,
         });
         skipped += 1;
         continue;
@@ -266,9 +229,10 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
       };
 
       if (!shouldFinalizeAutopilotReceipt(prState)) {
-        markAutopilotReceiptReconciled(db, receipt, {
+        await persistReceiptUpdate(db, receipt, {
           snapshot,
-          reconcileAfter: retryAt(RECONCILE_RETRY_HOURS),
+          reconcileAfter: hoursFromNow(RECONCILE_RETRY_HOURS),
+          note: 'pr_still_open',
         });
         console.log(
           `[autopilot] receipt ${receipt.runId.slice(0, 8)} still open; requeueing reconciliation`
@@ -300,14 +264,31 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
 
       emitOutcomeMetric(assessment.metric);
       const delayedRecorded = cfg.SELF_IMPROVE_ENABLED
-        ? recordDelayedVariantScore(receipt, assessment)
+        ? recordDelayedVariantScore(receipt.taskType, receipt.variantId, assessment)
         : false;
-      markAutopilotReceiptReconciled(db, receipt, {
+      await persistReceiptUpdate(db, receipt, {
         assessment,
         snapshot,
         delayedRecorded,
         reconcileAfter: null,
       });
+      if (cfg.SELF_IMPROVE_ENABLED) {
+        const events = advanceDelayedLearningControl({
+          taskType: receipt.taskType,
+          minSamples: cfg.SELF_IMPROVE_MIN_SAMPLES,
+          pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
+        });
+        for (const event of events) {
+          await publishAgentLearningPromotion({
+            service: 'kamiyo-autopilot',
+            taskType: receipt.taskType,
+            variantId: event.variantId,
+            priorVariantId: event.priorVariantId ?? null,
+            eventKind: event.eventKind,
+            payload: event.payload,
+          });
+        }
+      }
 
       console.log(
         `[autopilot] reconciled #${issueNumber} pr=${prState.number} outcome=${assessment.metric.outcome} score=${assessment.qualityScore}`

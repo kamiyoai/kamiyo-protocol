@@ -227,6 +227,28 @@ describe('SelfImproveBridge', () => {
     }).not.toThrow();
   });
 
+  it('skips judged interaction recording when recordInteractions=false', async () => {
+    process.env.VARIANT_ROUTING_ENABLED = 'true';
+    const db = freshSetup();
+    const events = new EventEmitter();
+    const bridge = new SelfImproveBridge('test-bot', { recordInteractions: false }, events);
+
+    await bridge.init(db);
+    bridge.seedVariant('prompt', 'model');
+    bridge.routeVariant();
+
+    bridge.recordInteraction({
+      input: 'hello',
+      output: 'world',
+      latencyMs: 50,
+    });
+
+    const variantId = listActiveVariants('test-bot')[0]?.id;
+    expect(variantId).toBeTruthy();
+    expect(getVariantScores(variantId!)).toHaveLength(0);
+    delete process.env.VARIANT_ROUTING_ENABLED;
+  });
+
   it('recordOutcomeScore stores an explicit production score for the current variant', async () => {
     const db = freshSetup();
     const events = new EventEmitter();

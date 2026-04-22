@@ -105,6 +105,32 @@ export {
 } from './run-ledger';
 
 export {
+  type ReconciliationPatchInput,
+  createReconciliationPatch,
+  getReceiptFiles,
+  getReceiptNumber,
+  getReceiptString,
+  hoursFromNow,
+  recordDelayedVariantScore,
+} from './reconcile';
+
+export {
+  type AgentLearningReconcileStatus,
+  type AgentLearningRunPayload,
+  type AgentLearningPromotionPayload,
+  buildAgentLearningRunPayload,
+  deriveLearningReconcileStatus,
+  publishAgentLearningPromotion,
+  publishAgentLearningRun,
+} from './learning-publisher';
+
+export {
+  type DelayedLearningControlOptions,
+  type LearningControlEvent,
+  advanceDelayedLearningControl,
+} from './learning-control';
+
+export {
   AgentError,
   ProviderError,
   ToolError,

@@ -684,7 +684,7 @@ importers:
         version: 3.25.1(zod@3.25.76)
     devDependencies:
       '@kamiyo-org/selfimprove':
-        specifier: workspace:*
+        specifier: file:../kamiyo-selfimprove
         version: link:../kamiyo-selfimprove
       '@types/better-sqlite3':
         specifier: ^7.6.0
@@ -2411,12 +2411,18 @@ importers:
 
   services/kamiyo-autopilot:
     dependencies:
-      '@kamiyo/local-agent':
-        specifier: file:../../packages/local-agent
-        version: link:../../packages/local-agent
+      '@kamiyo-org/agent':
+        specifier: file:../../packages/kamiyo-agent
+        version: link:../../packages/kamiyo-agent
+      '@kamiyo-org/selfimprove':
+        specifier: file:../../packages/kamiyo-selfimprove
+        version: link:../../packages/kamiyo-selfimprove
       '@octokit/rest':
         specifier: ^21.0.0
         version: 21.1.1
+      better-sqlite3:
+        specifier: ^11.8.1
+        version: 11.8.1
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -2424,6 +2430,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.0
+        version: 7.6.13
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -2439,9 +2448,15 @@ importers:
 
   services/kamiyo-docs-agent:
     dependencies:
-      '@kamiyo/local-agent':
-        specifier: file:../../packages/local-agent
-        version: link:../../packages/local-agent
+      '@kamiyo-org/agent':
+        specifier: file:../../packages/kamiyo-agent
+        version: link:../../packages/kamiyo-agent
+      '@kamiyo-org/selfimprove':
+        specifier: file:../../packages/kamiyo-selfimprove
+        version: link:../../packages/kamiyo-selfimprove
+      better-sqlite3:
+        specifier: ^11.8.1
+        version: 11.8.1
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -2449,6 +2464,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.0
+        version: 7.6.13
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -2461,9 +2479,15 @@ importers:
 
   services/kamiyo-marketing-agent:
     dependencies:
-      '@kamiyo/local-agent':
-        specifier: file:../../packages/local-agent
-        version: link:../../packages/local-agent
+      '@kamiyo-org/agent':
+        specifier: file:../../packages/kamiyo-agent
+        version: link:../../packages/kamiyo-agent
+      '@kamiyo-org/selfimprove':
+        specifier: file:../../packages/kamiyo-selfimprove
+        version: link:../../packages/kamiyo-selfimprove
+      better-sqlite3:
+        specifier: ^11.8.1
+        version: 11.8.1
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -2471,6 +2495,9 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.0
+        version: 7.6.13
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -20144,7 +20171,7 @@ snapshots:
       parse-png: 2.1.0
       resolve-from: 5.0.0
       resolve-global: 1.0.0
-      semver: 7.7.3
+      semver: 7.7.4
       temp-dir: 2.0.0
       unique-string: 2.0.0
 
@@ -20260,7 +20287,7 @@ snapshots:
       debug: 4.4.3(supports-color@8.1.1)
       expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(bufferutil@4.1.0)(expo-router@6.0.23)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.1.0)(utf-8-validate@5.0.10))(react@19.1.0)(utf-8-validate@5.0.10)
       resolve-from: 5.0.0
-      semver: 7.7.3
+      semver: 7.7.4
       xml2js: 0.6.0
     transitivePeerDependencies:
       - supports-color
@@ -35466,7 +35493,7 @@ snapshots:
     dependencies:
       hosted-git-info: 7.0.2
       proc-log: 4.2.0
-      semver: 7.7.3
+      semver: 7.7.4
       validate-npm-package-name: 5.0.1
 
   npm-run-path@4.0.1:

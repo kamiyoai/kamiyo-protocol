@@ -11,6 +11,7 @@ import { initX402, setAnthropicClient as setPaidAnthropicClient } from './routes
 import { initCreditsRoutes } from './routes/credits';
 import internalRevenueRouter from './routes/internal-revenue';
 import agentPerformanceRouter from './routes/agent-performance';
+import agentLearningRouter from './routes/agent-learning';
 import variantsRouter from './routes/variants';
 import companyRouter from './routes/company';
 import { registry } from '../metrics';
@@ -248,6 +249,7 @@ export function createApiServer(config: ApiServerConfig = {}): Express {
   app.use('/api', companyRouter);
   app.use('/api/internal/revenue-events', internalRevenueRouter);
   app.use('/api', agentPerformanceRouter);
+  app.use('/api', agentLearningRouter);
   app.use('/api', variantsRouter);
 
   // MCP routes (OAuth + Streamable HTTP transport)

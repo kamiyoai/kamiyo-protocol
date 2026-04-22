@@ -54,6 +54,8 @@ jobs:
       AUTOPILOT_DB_PATH: .autopilot/agent.db
       DAILY_USD_MAX: "0"
       RECONCILE_DELAY_HOURS: "6"
+      AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
+      AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:

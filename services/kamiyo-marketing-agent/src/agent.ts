@@ -2,8 +2,10 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import {
   assessAgentOutcome,
+  buildAgentLearningRunPayload,
   createAgent,
   genericProvider,
+  publishAgentLearningRun,
   recordAgentRunReceipt,
   type DB,
   type OutcomeAssessment as AgentOutcomeAssessment,
@@ -54,7 +56,6 @@ export interface MarketingDraftResult {
   turnCount: number;
   variantId: string | null;
   variantStrategy: string | null;
-  recordOutcomeScore(assessment: AgentOutcomeAssessment): boolean;
   recordRunReceipt(params: {
     outcome?: string | null;
     qualityScore?: number | null;
@@ -156,7 +157,10 @@ function seedMarketingVariants(agentId: string, taskType: string, model: string)
   }
 }
 
-export function parseDraftPosts(output: string, maxPosts: number): Array<{ text: string; reason: string }> {
+export function parseDraftPosts(
+  output: string,
+  maxPosts: number
+): Array<{ text: string; reason: string }> {
   const match = output.match(/\[[\s\S]*\]/);
   if (!match) {
     throw new Error(`no JSON array in agent output: ${output}`);
@@ -187,13 +191,16 @@ export function assessMarketingOutcome(params: {
   const drafted = params.posts.length;
   const scheduleCoverage = drafted === 0 ? 1 : params.scheduledCount / drafted;
   const verifiedCoverage =
-    drafted === 0 ? 1 : Math.min((params.verifiedScheduledCount ?? params.scheduledCount) / drafted, 1);
+    drafted === 0
+      ? 1
+      : Math.min((params.verifiedScheduledCount ?? params.scheduledCount) / drafted, 1);
   const draftCoverage = params.postsPerDay > 0 ? Math.min(drafted / params.postsPerDay, 1) : 0;
   const scheduledAll = drafted === 0 || params.scheduledCount >= drafted;
   const status = drafted === 0 ? 'neutral' : scheduledAll ? 'success' : 'partial';
   const uniquePostCoverage =
     drafted === 0 ? 1 : Math.min((params.uniquePostCount ?? drafted) / drafted, 1);
-  const integrationConfigured = params.dryRun || drafted === 0 || (params.integrationCount ?? 0) > 0;
+  const integrationConfigured =
+    params.dryRun || drafted === 0 || (params.integrationCount ?? 0) > 0;
 
   return assessAgentOutcome({
     service: 'kamiyo-marketing-agent',
@@ -213,8 +220,16 @@ export function assessMarketingOutcome(params: {
       { name: 'queue_verification_coverage', value: verifiedCoverage, weight: 2.5 },
       { name: 'unique_post_coverage', value: uniquePostCoverage, weight: 1.5 },
       { name: 'integration_targets_configured', value: integrationConfigured, weight: 1 },
-      { name: 'reasons_present', value: params.posts.every(post => post.reason.trim().length > 0), weight: 1 },
-      { name: 'within_x_length_cap', value: params.posts.every(post => post.text.length <= 280), weight: 1 },
+      {
+        name: 'reasons_present',
+        value: params.posts.every(post => post.reason.trim().length > 0),
+        weight: 1,
+      },
+      {
+        name: 'within_x_length_cap',
+        value: params.posts.every(post => post.text.length <= 280),
+        weight: 1,
+      },
       { name: 'clean_skip', value: drafted === 0, weight: 1 },
       { name: 'dry_run_respected', value: !params.dryRun || scheduledAll, weight: 1 },
     ],
@@ -230,10 +245,58 @@ export function assessMarketingOutcome(params: {
   });
 }
 
+export function assessMarketingDelayedOutcome(params: {
+  model: string;
+  scheduledIds: string[];
+  publishedIds: string[];
+  latestScheduledAt?: string | null;
+  initialOutcome?: string | null;
+  costUsd?: number;
+  durationMs?: number;
+  variantId?: string | null;
+  variantStrategy?: string | null;
+}): AgentOutcomeAssessment {
+  const scheduledCount = params.scheduledIds.length;
+  const publishedCount = params.publishedIds.length;
+  const publishedCoverage = scheduledCount === 0 ? 0 : Math.min(publishedCount / scheduledCount, 1);
+  const status = publishedCount > 0 ? 'success' : 'failure';
+  const outcome = publishedCount > 0 ? 'published_posts' : 'missing_after_schedule';
+
+  return assessAgentOutcome({
+    service: 'kamiyo-marketing-agent',
+    taskType: 'marketing_post_reconciliation',
+    status,
+    outcome,
+    model: params.model,
+    durationMs: params.durationMs ?? 0,
+    costUsd: params.costUsd ?? 0,
+    variantId: params.variantId,
+    variantStrategy: params.variantStrategy,
+    signals: [
+      { name: 'published_coverage', value: publishedCoverage, weight: 5 },
+      { name: 'at_least_one_published', value: publishedCount > 0, weight: 3 },
+      {
+        name: 'all_scheduled_posts_published',
+        value: publishedCount >= scheduledCount && scheduledCount > 0,
+        weight: 2,
+      },
+      { name: 'not_missing_after_schedule', value: publishedCount > 0, weight: 3 },
+    ],
+    metadata: {
+      scheduled_ids: params.scheduledIds,
+      published_ids: params.publishedIds,
+      latest_scheduled_at: params.latestScheduledAt ?? null,
+      initial_outcome: params.initialOutcome ?? null,
+    },
+  });
+}
+
 export async function draftPosts(cfg: Config, mergeContext: string): Promise<MarketingDraftResult> {
   const model = cfg.CLAUDE_MODEL;
   console.log(`[marketing-agent] model=${model}`);
-  const db = cfg.SELF_IMPROVE_ENABLED ? openMarketingDatabase(cfg.MARKETING_AGENT_DB_PATH) : undefined;
+  const db = cfg.SELF_IMPROVE_ENABLED
+    ? openMarketingDatabase(cfg.MARKETING_AGENT_DB_PATH)
+    : undefined;
   const agent = createAgent({
     id: 'kamiyo-marketing-agent',
     name: 'kamiyo-marketing-agent',
@@ -254,6 +317,8 @@ export async function draftPosts(cfg: Config, mergeContext: string): Promise<Mar
       ? {
           enabled: true,
           taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+          autoScore: false,
+          recordInteractions: false,
           rubric: SELF_IMPROVE_RUBRIC,
           rubricModel: cfg.SELF_IMPROVE_JUDGE_MODEL,
           rubricBudgetUsd: cfg.DAILY_USD_MAX,
@@ -317,18 +382,9 @@ Return JSON only.`;
       turnCount,
       variantId: agent.selfImprove.currentVariantId,
       variantStrategy: agent.selfImprove.currentStrategy,
-      recordOutcomeScore(assessment) {
-        return agent.selfImprove.recordOutcomeScore({
-          qualityScore: assessment.qualityScore,
-          latencyMs: assessment.metric.duration_ms,
-          costUsd: assessment.metric.cost_usd,
-          outcome: assessment.metric.outcome,
-          variantId: assessment.metric.variant_id,
-        });
-      },
       recordRunReceipt(params) {
         if (!db || !runId) return false;
-        recordAgentRunReceipt(db, {
+        const receipt = recordAgentRunReceipt(db, {
           runId,
           agentId: agent.id,
           service: 'kamiyo-marketing-agent',
@@ -344,9 +400,18 @@ Return JSON only.`;
               : null,
           costUsd: params.costUsd ?? 0,
           durationMs: params.durationMs ?? durationMs,
-          receipt: params.receipt,
+          receipt: {
+            model,
+            initialOutcome: params.outcome ?? null,
+            initialQualityScore:
+              params.qualityScore !== undefined && params.qualityScore !== null
+                ? params.qualityScore
+                : null,
+            ...params.receipt,
+          },
           reconcileAfter: params.reconcileAfter ?? null,
         });
+        void publishAgentLearningRun(buildAgentLearningRunPayload(receipt));
         return true;
       },
       cleanup,

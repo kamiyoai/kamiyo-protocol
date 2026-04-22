@@ -5,10 +5,12 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import {
   assessAgentOutcome,
+  buildAgentLearningRunPayload,
   createAgent,
   emitOutcomeMetric,
   genericProvider,
   parseTaggedFields,
+  publishAgentLearningRun,
   recordAgentRunReceipt,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
@@ -110,7 +112,9 @@ export function assessAutopilotOutcome(params: {
   const fields = parseTaggedFields(params.finalText);
   const testsField = fields.TESTS?.trim() ?? '';
   const outcome =
-    params.resolvedOutcome ?? fields.OUTCOME ?? inferAutopilotOutcome(params.openedPr, params.commented);
+    params.resolvedOutcome ??
+    fields.OUTCOME ??
+    inferAutopilotOutcome(params.openedPr, params.commented);
   const hasError = params.finalText.trim().startsWith('Error:');
   const status = hasError
     ? 'failure'
@@ -119,7 +123,8 @@ export function assessAutopilotOutcome(params: {
       : params.commented
         ? 'partial'
         : 'neutral';
-  const hasVerification = testsField !== '' && !/\b(none|not run|not_run|blocked)\b/i.test(testsField);
+  const hasVerification =
+    testsField !== '' && !/\b(none|not run|not_run|blocked)\b/i.test(testsField);
   const outcomeMatchesActions =
     (outcome === 'opened_pr' && params.openedPr) ||
     (outcome === 'commented_blocker' && params.commented) ||
@@ -371,6 +376,8 @@ export async function runAgentOnIssue(
       ? {
           enabled: true,
           taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+          autoScore: false,
+          recordInteractions: false,
           rubric: SELF_IMPROVE_RUBRIC,
           rubricModel: cfg.SELF_IMPROVE_JUDGE_MODEL,
           rubricBudgetUsd: cfg.DAILY_USD_MAX,
@@ -379,9 +386,7 @@ export async function runAgentOnIssue(
           sweepIntervalMs: 12 * 60 * 60 * 1000,
         }
       : { enabled: false },
-    selfImproveInit: cfg.SELF_IMPROVE_ENABLED
-      ? { judgeLLM: createAutopilotJudge(cfg) }
-      : undefined,
+    selfImproveInit: cfg.SELF_IMPROVE_ENABLED ? { judgeLLM: createAutopilotJudge(cfg) } : undefined,
   });
   for (const tool of createAutopilotTools(repoRoot)) {
     agent.useTool(tool);
@@ -488,15 +493,9 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
       prMergeableState,
       ciStatus,
     });
-    agent.selfImprove.recordOutcomeScore({
-      qualityScore: outcomeAssessment.qualityScore,
-      latencyMs: outcomeAssessment.metric.duration_ms,
-      costUsd: 0,
-      outcome: outcomeAssessment.metric.outcome,
-    });
     if (db && runId) {
       const fields = parseTaggedFields(finalText);
-      recordAgentRunReceipt(db, {
+      const receipt = recordAgentRunReceipt(db, {
         runId,
         agentId: agent.id,
         service: 'kamiyo-autopilot',
@@ -509,8 +508,9 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
         qualityScore: outcomeAssessment.qualityScore,
         costUsd: 0,
         durationMs: outcomeAssessment.metric.duration_ms,
-        reconcileAfter:
-          cfg.DRY_RUN ? null : Math.floor(Date.now() / 1000) + cfg.RECONCILE_DELAY_HOURS * 60 * 60,
+        reconcileAfter: cfg.DRY_RUN
+          ? null
+          : Math.floor(Date.now() / 1000) + cfg.RECONCILE_DELAY_HOURS * 60 * 60,
         receipt: {
           issueNumber,
           model,
@@ -530,6 +530,7 @@ Start now. Make the edits, commit, push, and open the PR in this single run.`;
           prMergeableState,
         },
       });
+      await publishAgentLearningRun(buildAgentLearningRunPayload(receipt));
     }
   } finally {
     await agent.stop();

@@ -1910,6 +1910,46 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_judge_runs_task_day ON judge_runs(task_type, created_at);
 
+  CREATE TABLE IF NOT EXISTS agent_learning_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    subject_type TEXT,
+    subject_id TEXT,
+    variant_id TEXT,
+    variant_strategy TEXT,
+    immediate_outcome TEXT,
+    immediate_quality_score REAL,
+    delayed_outcome TEXT,
+    delayed_quality_score REAL,
+    reconcile_status TEXT NOT NULL DEFAULT 'not_required',
+    summary_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    UNIQUE(service, run_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_runs_service_updated
+    ON agent_learning_runs(service, updated_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_runs_variant
+    ON agent_learning_runs(service, variant_id, updated_at DESC);
+
+  CREATE TABLE IF NOT EXISTS agent_learning_promotions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    variant_id TEXT NOT NULL,
+    prior_variant_id TEXT,
+    event_kind TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_promotions_service_created
+    ON agent_learning_promotions(service, created_at DESC);
+
   CREATE TABLE IF NOT EXISTS counterfactual_cases (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,

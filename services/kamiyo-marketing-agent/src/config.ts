@@ -36,6 +36,7 @@ const Schema = z
     SELF_IMPROVE_JUDGE_MODEL: z.string().default(MODELS.haiku),
     SELF_IMPROVE_MIN_SAMPLES: z.coerce.number().int().positive().default(5),
     SELF_IMPROVE_P_THRESHOLD: z.coerce.number().min(0).max(1).default(0.1),
+    RECONCILE_DELAY_HOURS: z.coerce.number().int().positive().default(2),
     DRY_RUN: z
       .string()
       .optional()

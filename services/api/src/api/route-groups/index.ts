@@ -13,6 +13,7 @@ export { EDGE_ROUTE_IDS, createEdgeRouteGroups, mountEdgeRouteGroups } from './e
 export const SUPPORT_ROUTE_IDS = [
   'hive-swarm',
   'poch-store',
+  'agent-learning',
   'agent-performance',
   'variants',
   'company',

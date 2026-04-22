@@ -3,10 +3,20 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
+  advanceDelayedLearningControl,
   applyAgentSchema,
   assessAgentOutcome,
+  buildAgentLearningRunPayload,
+  createReconciliationPatch,
   emitOutcomeMetric,
+  getReceiptFiles,
+  getReceiptNumber,
+  getReceiptString,
+  hoursFromNow,
   listPendingAgentRunReceipts,
+  publishAgentLearningPromotion,
+  publishAgentLearningRun,
+  recordDelayedVariantScore,
   updateAgentRunReceipt,
   type AgentRunReceipt,
   type DB,
@@ -16,9 +26,7 @@ import {
   applySchema as applySelfImproveSchema,
   createNoopLogger,
   createNoopMetrics,
-  getOrCreateStandingTournament,
   initSelfImprove,
-  recordTournamentEntry,
   type DatabaseAdapter,
 } from '@kamiyo-org/selfimprove';
 import { loadConfig, type Config } from './config';
@@ -39,33 +47,8 @@ function openDocsDatabase(dbPath: string): DocsDatabase {
   return new Database(resolveDocsDbPath(dbPath));
 }
 
-function getReceiptString(receipt: AgentRunReceipt, key: string): string | null {
-  const value = receipt.receipt[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function getReceiptNumber(receipt: AgentRunReceipt, key: string): number | null {
-  const value = receipt.receipt[key];
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function getReceiptFiles(receipt: AgentRunReceipt, key: string): string[] {
-  const value = receipt.receipt[key];
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).sort();
-}
-
 function isDocsFile(file: string): boolean {
   return file.endsWith('README.md') || file.endsWith('CHANGELOG.md');
-}
-
-function retryAt(hours: number): number {
-  return Math.floor(Date.now() / 1000) + Math.max(1, Math.floor(hours)) * 60 * 60;
 }
 
 export function assessDocsDelayedOutcome(params: {
@@ -100,7 +83,8 @@ export function assessDocsDelayedOutcome(params: {
   const mergedFilesMatchReceipt = mergedFiles.length > 0 && sameFileList(mergedFiles, changedFiles);
   const mergedTargetsMatchExpected =
     mergedFiles.length > 0 &&
-    (expectedDocTargets.length === 0 || mergedFiles.every(file => expectedDocTargets.includes(file)));
+    (expectedDocTargets.length === 0 ||
+      mergedFiles.every(file => expectedDocTargets.includes(file)));
 
   const outcome = !prOpened
     ? 'missing_follow_up_pr'
@@ -149,7 +133,7 @@ export function shouldFinalizeDocsReceipt(pr: PullRequestSnapshot): boolean {
   return pr.merged || pr.state === 'closed';
 }
 
-function markDocsReceiptReconciled(
+async function persistReceiptUpdate(
   db: DocsDatabase,
   receipt: AgentRunReceipt,
   params: {
@@ -158,50 +142,25 @@ function markDocsReceiptReconciled(
     reconcileAfter?: number | null;
     delayedRecorded?: boolean;
     note?: string | null;
+    reconciled?: boolean;
   }
-): void {
-  const existingOutcome = getReceiptString(receipt, 'initialOutcome') ?? receipt.outcome ?? null;
-  const existingQuality =
-    getReceiptNumber(receipt, 'initialQualityScore') ?? receipt.qualityScore ?? null;
-  const reconciledNow = Boolean(params.assessment);
-
-  updateAgentRunReceipt(db, receipt.runId, {
-    outcome: params.assessment?.metric.outcome ?? receipt.outcome,
-    qualityScore: params.assessment?.qualityScore ?? receipt.qualityScore,
-    reconcileAfter:
-      params.reconcileAfter !== undefined ? params.reconcileAfter : receipt.reconcileAfter,
-    reconciledAt: reconciledNow ? Math.floor(Date.now() / 1000) : null,
-    receipt: {
-      ...params.snapshot,
-      initialOutcome: existingOutcome,
-      initialQualityScore: existingQuality,
-      delayedOutcome: params.assessment?.metric.outcome ?? null,
-      delayedQualityScore: params.assessment?.qualityScore ?? null,
-      delayedMetric: params.assessment?.metric ?? null,
-      delayedTournamentRecorded: params.delayedRecorded ?? false,
-      reconciliationNote: params.note ?? null,
-      reconciledAtIso: reconciledNow ? new Date().toISOString() : null,
-    },
-  });
-}
-
-function recordDelayedVariantScore(receipt: AgentRunReceipt, assessment: OutcomeAssessment): boolean {
-  if (!receipt.variantId) return false;
-  try {
-    const tournament = getOrCreateStandingTournament(receipt.taskType);
-    const result = recordTournamentEntry({
-      tournamentId: tournament.id,
-      variantId: receipt.variantId,
-      qualityScore: assessment.qualityScore,
-      cost: assessment.metric.cost_usd,
-      latencyMs: assessment.metric.duration_ms,
-      outcome: assessment.metric.outcome,
-    });
-    return result.ok;
-  } catch (error) {
-    console.error('[docs-agent] failed to record delayed variant score:', error);
-    return false;
+): Promise<AgentRunReceipt | null> {
+  const updated = updateAgentRunReceipt(
+    db,
+    receipt.runId,
+    createReconciliationPatch(receipt, {
+      assessment: params.assessment,
+      snapshot: params.snapshot,
+      reconcileAfter: params.reconcileAfter,
+      delayedRecorded: params.delayedRecorded,
+      note: params.note,
+      reconciled: params.reconciled,
+    })
+  );
+  if (updated) {
+    await publishAgentLearningRun(buildAgentLearningRunPayload(updated));
   }
+  return updated;
 }
 
 export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
@@ -252,7 +211,7 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
       }
 
       if (prState && !shouldFinalizeDocsReceipt(prState)) {
-        markDocsReceiptReconciled(db, receipt, {
+        await persistReceiptUpdate(db, receipt, {
           snapshot: {
             followUpBranch,
             followUpPrUrl: prState.url,
@@ -263,7 +222,7 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
             mergedAt: prState.mergedAt,
             closedAt: prState.closedAt,
           },
-          reconcileAfter: retryAt(RECONCILE_RETRY_HOURS),
+          reconcileAfter: hoursFromNow(RECONCILE_RETRY_HOURS),
           note: 'pr_still_open',
         });
         console.log(
@@ -297,10 +256,10 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
 
       emitOutcomeMetric(assessment.metric);
       const delayedRecorded = cfg.SELF_IMPROVE_ENABLED
-        ? recordDelayedVariantScore(receipt, assessment)
+        ? recordDelayedVariantScore(receipt.taskType, receipt.variantId, assessment)
         : false;
 
-      markDocsReceiptReconciled(db, receipt, {
+      await persistReceiptUpdate(db, receipt, {
         assessment,
         snapshot: {
           followUpBranch,
@@ -317,6 +276,23 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
         reconcileAfter: null,
         note: prState ? null : 'missing_pr',
       });
+      if (cfg.SELF_IMPROVE_ENABLED) {
+        const events = advanceDelayedLearningControl({
+          taskType: receipt.taskType,
+          minSamples: cfg.SELF_IMPROVE_MIN_SAMPLES,
+          pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
+        });
+        for (const event of events) {
+          await publishAgentLearningPromotion({
+            service: 'kamiyo-docs-agent',
+            taskType: receipt.taskType,
+            variantId: event.variantId,
+            priorVariantId: event.priorVariantId ?? null,
+            eventKind: event.eventKind,
+            payload: event.payload,
+          });
+        }
+      }
 
       console.log(
         `[docs-agent] reconciled merge ${mergeSha.slice(0, 8)} outcome=${assessment.metric.outcome} score=${assessment.qualityScore}`

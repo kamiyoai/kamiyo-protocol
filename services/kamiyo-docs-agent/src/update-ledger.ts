@@ -1,6 +1,11 @@
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { updateLatestAgentRunReceipt, type DB } from '@kamiyo-org/agent';
+import {
+  buildAgentLearningRunPayload,
+  publishAgentLearningRun,
+  updateLatestAgentRunReceipt,
+  type DB,
+} from '@kamiyo-org/agent';
 
 type DocsDatabase = DB & { close(): void };
 
@@ -61,6 +66,8 @@ function main() {
       console.warn(`[docs-agent] no ledger receipt found for merge ${mergeSha}`);
       return;
     }
+
+    void publishAgentLearningRun(buildAgentLearningRunPayload(updated));
 
     console.log(
       `[docs-agent] ledger updated for ${mergeSha}: branch=${branch || 'none'} pr=${prUrl || 'none'}`

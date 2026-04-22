@@ -54,6 +54,8 @@ jobs:
       SELF_IMPROVE_MIN_SAMPLES: "5"
       SELF_IMPROVE_P_THRESHOLD: "0.1"
       RECONCILE_DELAY_HOURS: "4"
+      AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
+      AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
       MERGE_SHA: ${{ github.event.inputs.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4

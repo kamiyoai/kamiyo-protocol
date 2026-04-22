@@ -43,7 +43,6 @@ async function main() {
         variantStrategy: draft.variantStrategy,
       });
       emitOutcomeMetric(assessment.metric);
-      draft.recordOutcomeScore(assessment);
       draft.recordRunReceipt({
         outcome: assessment.metric.outcome,
         qualityScore: assessment.qualityScore,
@@ -88,7 +87,7 @@ async function main() {
 
     let verifiedScheduledCount = scheduledCount;
     if (!cfg.DRY_RUN && scheduledIds.length > 0) {
-      const upcoming = await postiz.listUpcoming();
+      const upcoming = await postiz.listScheduled();
       const queuedIds = new Set(upcoming.map(post => post.id));
       verifiedScheduledCount = scheduledIds.filter(id => queuedIds.has(id)).length;
       console.log(
@@ -112,7 +111,6 @@ async function main() {
       variantStrategy: draft.variantStrategy,
     });
     emitOutcomeMetric(assessment.metric);
-    draft.recordOutcomeScore(assessment);
     const latestScheduledMs = scheduledForTimes.reduce((maxMs, value) => {
       const ms = Date.parse(value);
       return Number.isFinite(ms) ? Math.max(maxMs, ms) : maxMs;
@@ -123,7 +121,9 @@ async function main() {
       costUsd: draft.costUsd,
       durationMs: assessment.metric.duration_ms,
       reconcileAfter:
-        !cfg.DRY_RUN && latestScheduledMs > 0 ? Math.floor(latestScheduledMs / 1000) + 2 * 60 * 60 : null,
+        !cfg.DRY_RUN && latestScheduledMs > 0
+          ? Math.floor(latestScheduledMs / 1000) + cfg.RECONCILE_DELAY_HOURS * 60 * 60
+          : null,
       receipt: {
         repo: cfg.GITHUB_REPO,
         commitShas,

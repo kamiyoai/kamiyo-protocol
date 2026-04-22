@@ -58,6 +58,9 @@ jobs:
       SELF_IMPROVE_JUDGE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
       SELF_IMPROVE_MIN_SAMPLES: "5"
       SELF_IMPROVE_P_THRESHOLD: "0.1"
+      RECONCILE_DELAY_HOURS: "2"
+      AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
+      AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
       DRY_RUN: ${{ github.event.inputs.dry_run || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -85,3 +88,8 @@ jobs:
       - name: Run marketing-agent
         working-directory: services/kamiyo-marketing-agent
         run: node dist/index.js
+
+      - name: Reconcile marketing-agent receipts
+        if: github.event.inputs.dry_run != '1' && github.event.inputs.dry_run != 'true'
+        working-directory: services/kamiyo-marketing-agent
+        run: node dist/reconcile.js

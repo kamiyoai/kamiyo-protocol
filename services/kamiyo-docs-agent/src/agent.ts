@@ -3,11 +3,13 @@ import { execSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import {
   assessAgentOutcome,
+  buildAgentLearningRunPayload,
   createAgent,
   type DB,
   emitOutcomeMetric,
   genericProvider,
   parseTaggedFields,
+  publishAgentLearningRun,
   recordAgentRunReceipt,
   type OutcomeAssessment as AgentOutcomeAssessment,
 } from '@kamiyo-org/agent';
@@ -57,11 +59,17 @@ function toToolInput(input: unknown): Record<string, unknown> {
 }
 
 function collectDocSnapshots(repoRoot: string): Map<string, string> {
-  const output = execSync(`find '${repoRoot}' -type f \\( -name 'README.md' -o -name 'CHANGELOG.md' \\) | sort`, {
-    encoding: 'utf-8',
-  });
+  const output = execSync(
+    `find '${repoRoot}' -type f \\( -name 'README.md' -o -name 'CHANGELOG.md' \\) | sort`,
+    {
+      encoding: 'utf-8',
+    }
+  );
   const snapshots = new Map<string, string>();
-  for (const filePath of output.split('\n').map(line => line.trim()).filter(Boolean)) {
+  for (const filePath of output
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)) {
     const relative = path.relative(repoRoot, filePath);
     snapshots.set(relative, readFileSync(filePath, 'utf-8'));
   }
@@ -261,14 +269,16 @@ export function assessDocsOutcome(params: {
   const fields = parseTaggedFields(params.finalText);
   const reportedFiles = parseReportedFiles(fields.FILES);
   const hasError = params.finalText.trim().startsWith('Error:');
-  const outcome = fields.OUTCOME ?? (params.changedFiles.length > 0 ? 'updated_docs' : 'no_changes');
+  const outcome =
+    fields.OUTCOME ?? (params.changedFiles.length > 0 ? 'updated_docs' : 'no_changes');
   const status = hasError ? 'failure' : params.changedFiles.length > 0 ? 'success' : 'neutral';
   const expectedDocTargets = deriveExpectedDocTargets(params.mergeChangedPaths ?? []);
   const outcomeMatchesFiles =
     (outcome === 'updated_docs' && params.changedFiles.length > 0) ||
     (outcome === 'no_changes' && params.changedFiles.length === 0);
   const changelogSatisfied =
-    params.changedFiles.length === 0 || params.changedFiles.some(file => file.endsWith('CHANGELOG.md'));
+    params.changedFiles.length === 0 ||
+    params.changedFiles.some(file => file.endsWith('CHANGELOG.md'));
   const docsScopedToChangedAreas =
     params.changedFiles.length === 0 ||
     expectedDocTargets.length === 0 ||
@@ -292,7 +302,11 @@ export function assessDocsOutcome(params: {
       { name: 'summary_present', value: Boolean(fields.SUMMARY), weight: 1 },
       { name: 'docs_updated', value: params.changedFiles.length > 0, weight: 3 },
       { name: 'outcome_matches_files', value: outcomeMatchesFiles, weight: 3 },
-      { name: 'reported_files_match_actual', value: sameFileList(reportedFiles, params.changedFiles), weight: 2 },
+      {
+        name: 'reported_files_match_actual',
+        value: sameFileList(reportedFiles, params.changedFiles),
+        weight: 2,
+      },
       { name: 'docs_scoped_to_changed_areas', value: docsScopedToChangedAreas, weight: 2.5 },
       { name: 'root_readme_reasonable', value: rootReadmeReasonable, weight: 1.5 },
       { name: 'updated_changelog_when_needed', value: changelogSatisfied, weight: 1.5 },
@@ -337,6 +351,8 @@ export async function runDocsAgent(cfg: Config, mergeContext: string) {
       ? {
           enabled: true,
           taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+          autoScore: false,
+          recordInteractions: false,
           rubric: SELF_IMPROVE_RUBRIC,
           rubricModel: cfg.SELF_IMPROVE_JUDGE_MODEL,
           rubricBudgetUsd: cfg.DAILY_USD_MAX,
@@ -415,15 +431,9 @@ Steps:
       variantStrategy: agent.selfImprove.currentStrategy,
     });
     emitOutcomeMetric(outcomeAssessment.metric);
-    agent.selfImprove.recordOutcomeScore({
-      qualityScore: outcomeAssessment.qualityScore,
-      latencyMs: outcomeAssessment.metric.duration_ms,
-      costUsd: 0,
-      outcome: outcomeAssessment.metric.outcome,
-    });
     if (db && runId) {
       const fields = parseTaggedFields(finalText);
-      recordAgentRunReceipt(db, {
+      const receipt = recordAgentRunReceipt(db, {
         runId,
         agentId: agent.id,
         service: 'kamiyo-docs-agent',
@@ -453,6 +463,7 @@ Steps:
           followUpPrNumber: null,
         },
       });
+      await publishAgentLearningRun(buildAgentLearningRunPayload(receipt));
     }
   } finally {
     await agent.stop();

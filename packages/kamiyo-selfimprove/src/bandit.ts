@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getContext } from './context';
+import { pickCanaryArm } from './canary';
 import { type AgentVariant, listActiveVariants, thompsonSample } from './service';
 import { createTournament } from './tournament';
 
@@ -61,7 +62,7 @@ export type RouteDecision = {
   variant: AgentVariant;
   tournamentId: string;
   decisionId: string;
-  strategy: 'thompson' | 'promoted' | 'fallback';
+  strategy: 'thompson' | 'promoted' | 'fallback' | 'canary';
 };
 
 export function isBanditRoutingEnabled(): boolean {
@@ -90,6 +91,20 @@ export function routeVariant(
 
   if (opts.forceStrategy === 'promoted' && promoted) {
     return fromPromoted(taskType, promoted);
+  }
+
+  if (!opts.forceStrategy) {
+    const canaryPick = pickCanaryArm(taskType);
+    if (canaryPick) {
+      const tournament = getOrCreateStandingTournament(taskType);
+      metrics.banditDecisions.inc({ task_type: taskType, strategy: 'canary', result: 'ok' });
+      return {
+        variant: canaryPick.variant,
+        tournamentId: tournament.id,
+        decisionId: randomUUID(),
+        strategy: 'canary',
+      };
+    }
   }
 
   if (active.length === 0 && promoted) {
