@@ -75,7 +75,10 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         self.mod.STATE_PATH.write_text(json.dumps({'baselineBalanceSol': 1.0}), encoding='utf-8')
 
-        with patch.object(self.mod, 'read_balance_sol', side_effect=[1.4, 1.199995]):
+        with (
+            patch.object(self.mod, 'read_balance_sol', side_effect=[1.4, 1.199995]),
+            patch.object(self.mod, 'latest_pool_route_snapshot', return_value={}),
+        ):
             code, summary = self._run()
 
         self.assertEqual(code, 0)
@@ -104,6 +107,7 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
                 'run_custom_route_command',
                 return_value={'txSignature': 'sig-partial', 'routedSol': 0.1, 'method': 'custom_cmd'},
             ),
+            patch.object(self.mod, 'latest_pool_route_snapshot', return_value={}),
         ):
             code, summary = self._run()
 
@@ -122,7 +126,10 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         self.mod.STATE_PATH.write_text(json.dumps({'baselineBalanceSol': 2.0}), encoding='utf-8')
 
-        with patch.object(self.mod, 'read_balance_sol', return_value=2.3):
+        with (
+            patch.object(self.mod, 'read_balance_sol', return_value=2.3),
+            patch.object(self.mod, 'latest_pool_route_snapshot', return_value={}),
+        ):
             code, summary = self._run()
 
         self.assertEqual(code, 0)
@@ -139,7 +146,10 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         self.mod.STATE_PATH.write_text(json.dumps({'baselineBalanceSol': 1.0}), encoding='utf-8')
 
-        with patch.object(self.mod, 'read_balance_sol', return_value=1.08):
+        with (
+            patch.object(self.mod, 'read_balance_sol', return_value=1.08),
+            patch.object(self.mod, 'latest_pool_route_snapshot', return_value={}),
+        ):
             code, summary = self._run()
 
         self.assertEqual(code, 0)
@@ -156,7 +166,10 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         self.mod.STATE_PATH.write_text(json.dumps({'baselineBalanceSol': 1.5}), encoding='utf-8')
 
-        with patch.object(self.mod, 'read_balance_sol', return_value=1.1):
+        with (
+            patch.object(self.mod, 'read_balance_sol', return_value=1.1),
+            patch.object(self.mod, 'latest_pool_route_snapshot', return_value={}),
+        ):
             code, summary = self._run()
 
         self.assertEqual(code, 0)
@@ -167,6 +180,67 @@ class KamiyoAgentCreatorFeeInflowRouteTests(unittest.TestCase):
         state = json.loads(self.mod.STATE_PATH.read_text(encoding='utf-8'))
         self.assertAlmostEqual(float(state.get('baselineBalanceSol')), 1.1, places=9)
         self.assertAlmostEqual(float(state.get('pendingPositiveDeltaSol')), 0.0, places=9)
+
+    def test_reconciles_stale_baseline_from_latest_onchain_pool_route(self):
+        self.mod.DRY_RUN = False
+        self.mod.KEYPAIR_PATH = '/tmp/treasury.json'
+        self.mod.ADMIN_KEYPAIR_PATH = '/tmp/treasury.json'
+        self.mod.STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        self.mod.STATE_PATH.write_text(
+            json.dumps(
+                {
+                    'baselineBalanceSol': 0.031070965,
+                    'lastRoutedAt': '2026-04-20T13:09:41+00:00',
+                    'lastTxSignature': 'old-route-signature',
+                }
+            ),
+            encoding='utf-8',
+        )
+
+        with (
+            patch.object(self.mod, 'read_balance_sol', side_effect=[2.745706662, 2.264278413]),
+            patch.object(
+                self.mod,
+                'latest_pool_route_snapshot',
+                return_value={
+                    'txSignature': 'manual-catchup',
+                    'routedAt': '2026-04-21T14:50:11+00:00',
+                    'postRouteBalanceSol': 1.782850164,
+                },
+            ),
+            patch.object(
+                self.mod,
+                'run_staking_period_deposit',
+                return_value={
+                    'txSignature': 'sig-next',
+                    'routedSol': 0.481428249,
+                    'method': 'staking_period_deposit',
+                },
+            ),
+            patch.object(
+                self.mod,
+                'route_authority_status',
+                return_value={
+                    'ready': True,
+                    'mode': 'keypair',
+                    'reason': '',
+                    'signerPubkey': self.mod.WATCH_WALLET,
+                },
+            ),
+        ):
+            code, summary = self._run()
+
+        self.assertEqual(code, 0)
+        self.assertEqual(summary.get('status'), 'routed')
+        self.assertTrue(summary.get('baselineReconciledFromChain'))
+        self.assertEqual(summary.get('reconciledTxSignature'), 'manual-catchup')
+        self.assertAlmostEqual(float(summary.get('positiveDeltaSol')), 0.962856498, places=9)
+        self.assertAlmostEqual(float(summary.get('routeSol')), 0.481428249, places=9)
+
+        state = json.loads(self.mod.STATE_PATH.read_text(encoding='utf-8'))
+        self.assertAlmostEqual(float(state.get('baselineBalanceSol')), 2.264278413, places=9)
+        self.assertEqual(state.get('lastTxSignature'), 'sig-next')
+        self.assertEqual(state.get('lastRoutedAt'), summary.get('at'))
 
 
 if __name__ == '__main__':

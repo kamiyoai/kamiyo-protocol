@@ -232,6 +232,104 @@ def read_balance_sol(pubkey: str) -> float:
         return max(0.0, parse_float(proc.stdout, 0.0))
 
 
+def read_recent_signatures(pubkey: str, limit: int = 100) -> list[dict[str, Any]]:
+    capped_limit = max(1, min(100, int(limit)))
+    response = rpc_request('getSignaturesForAddress', [pubkey, {'limit': capped_limit, 'commitment': 'confirmed'}])
+    result = response.get('result') if isinstance(response, dict) else None
+    if isinstance(result, list):
+        return [row for row in result if isinstance(row, dict)]
+    return []
+
+
+def read_block(slot: int) -> dict[str, Any]:
+    response = rpc_request(
+        'getBlock',
+        [
+            int(slot),
+            {
+                'encoding': 'json',
+                'transactionDetails': 'full',
+                'rewards': False,
+                'maxSupportedTransactionVersion': 0,
+            },
+        ],
+    )
+    result = response.get('result') if isinstance(response, dict) else None
+    return result if isinstance(result, dict) else {}
+
+
+def latest_pool_route_snapshot(*, wallet_pubkey: str, pool_id: str) -> dict[str, Any]:
+    wallet_signatures = read_recent_signatures(wallet_pubkey, limit=100)
+    pool_signatures = read_recent_signatures(pool_id, limit=100)
+    if not wallet_signatures or not pool_signatures:
+        return {}
+
+    pool_signature_set = {
+        str(row.get('signature') or '').strip()
+        for row in pool_signatures
+        if not row.get('err') and SOLANA_SIGNATURE_RE.match(str(row.get('signature') or '').strip())
+    }
+    if not pool_signature_set:
+        return {}
+
+    target_signature_row = None
+    for row in wallet_signatures:
+        signature = str(row.get('signature') or '').strip()
+        if not row.get('err') and signature in pool_signature_set:
+            target_signature_row = row
+            break
+    if not target_signature_row:
+        return {}
+
+    signature = str(target_signature_row.get('signature') or '').strip()
+    slot = int(target_signature_row.get('slot') or 0)
+    if not signature or slot <= 0:
+        return {}
+
+    block = read_block(slot)
+    transactions = block.get('transactions') if isinstance(block, dict) else None
+    if not isinstance(transactions, list):
+        return {}
+
+    matched_transaction = None
+    for transaction in transactions:
+        tx_payload = transaction.get('transaction') if isinstance(transaction, dict) else None
+        signatures = tx_payload.get('signatures') if isinstance(tx_payload, dict) else None
+        tx_signature = str(signatures[0] if isinstance(signatures, list) and signatures else '').strip()
+        if tx_signature == signature:
+            matched_transaction = transaction
+            break
+    if not isinstance(matched_transaction, dict):
+        return {}
+
+    tx_payload = matched_transaction.get('transaction') if isinstance(matched_transaction, dict) else {}
+    message = tx_payload.get('message') if isinstance(tx_payload, dict) else {}
+    meta = matched_transaction.get('meta') if isinstance(matched_transaction, dict) else {}
+    account_keys = list(message.get('accountKeys') or []) if isinstance(message, dict) else []
+    loaded_addresses = meta.get('loadedAddresses') if isinstance(meta, dict) else {}
+    if isinstance(loaded_addresses, dict):
+        account_keys.extend(loaded_addresses.get('writable') or [])
+        account_keys.extend(loaded_addresses.get('readonly') or [])
+    if wallet_pubkey not in account_keys:
+        return {}
+
+    wallet_index = account_keys.index(wallet_pubkey)
+    post_balances = meta.get('postBalances') if isinstance(meta, dict) else None
+    if not isinstance(post_balances, list) or wallet_index >= len(post_balances):
+        return {}
+
+    lamports = int(post_balances[wallet_index] or 0)
+    block_time = int(block.get('blockTime') or target_signature_row.get('blockTime') or 0)
+    routed_at = datetime.fromtimestamp(block_time, tz=timezone.utc).isoformat() if block_time > 0 else ''
+    return {
+        'txSignature': signature,
+        'slot': slot,
+        'blockTime': block_time,
+        'routedAt': routed_at,
+        'postRouteBalanceSol': floor_precision(max(0.0, lamports / 1_000_000_000.0), 9),
+    }
+
+
 def keypair_pubkey(keypair: Path) -> str:
     keygen_bin = shutil.which('solana-keygen')
     if not keygen_bin:
@@ -398,6 +496,24 @@ def run() -> int:
 
     previous_state = read_json(STATE_PATH, {})
     baseline_value = parse_float(previous_state.get('baselineBalanceSol'), float('nan')) if isinstance(previous_state, dict) else float('nan')
+    last_routed_at = str(previous_state.get('lastRoutedAt') or '').strip() if isinstance(previous_state, dict) else ''
+    last_tx_signature = str(previous_state.get('lastTxSignature') or '').strip() if isinstance(previous_state, dict) else ''
+    reconciled_route = {}
+    reconciled_from_chain = False
+    if WATCH_WALLET and pool_id:
+        try:
+            reconciled_route = latest_pool_route_snapshot(wallet_pubkey=WATCH_WALLET, pool_id=pool_id)
+        except Exception:
+            reconciled_route = {}
+
+    reconciled_post_route_balance_sol = max(0.0, parse_float(reconciled_route.get('postRouteBalanceSol'), 0.0))
+    reconciled_tx_signature = str(reconciled_route.get('txSignature') or '').strip()
+    reconciled_routed_at = str(reconciled_route.get('routedAt') or '').strip()
+    if baseline_value != baseline_value and reconciled_tx_signature and reconciled_post_route_balance_sol <= current_balance_sol + BALANCE_EPSILON_SOL:
+        baseline_value = reconciled_post_route_balance_sol
+        last_routed_at = reconciled_routed_at or last_routed_at
+        last_tx_signature = reconciled_tx_signature or last_tx_signature
+        reconciled_from_chain = True
 
     if baseline_value != baseline_value:
         summary = {
@@ -415,12 +531,38 @@ def run() -> int:
             'stakingPoolId': pool_id,
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=current_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        write_state(
+            baseline_balance_sol=current_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         print(json.dumps(summary, ensure_ascii=True))
         return 0
 
     baseline_balance_sol = max(0.0, baseline_value)
+    if (
+        reconciled_tx_signature
+        and reconciled_tx_signature != last_tx_signature
+        and reconciled_post_route_balance_sol > baseline_balance_sol + BALANCE_EPSILON_SOL
+        and reconciled_post_route_balance_sol <= current_balance_sol + BALANCE_EPSILON_SOL
+    ):
+        baseline_balance_sol = reconciled_post_route_balance_sol
+        last_routed_at = reconciled_routed_at or last_routed_at
+        last_tx_signature = reconciled_tx_signature
+        reconciled_from_chain = True
+
+    reconciliation_fields = {}
+    if reconciled_from_chain:
+        reconciliation_fields = {
+            'baselineReconciledFromChain': True,
+            'reconciledTxSignature': last_tx_signature,
+            'reconciledRoutedAt': last_routed_at,
+            'reconciledBaselineBalanceSol': round(baseline_balance_sol, 9),
+        }
+
     if current_balance_sol + BALANCE_EPSILON_SOL < baseline_balance_sol:
         summary = {
             'ok': True,
@@ -439,7 +581,14 @@ def run() -> int:
             'reason': 'balance_below_baseline',
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=current_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        summary.update(reconciliation_fields)
+        write_state(
+            baseline_balance_sol=current_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         print(json.dumps(summary, ensure_ascii=True))
         return 0
@@ -464,7 +613,14 @@ def run() -> int:
             'stakingPoolId': pool_id,
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=baseline_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        summary.update(reconciliation_fields)
+        write_state(
+            baseline_balance_sol=baseline_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         print(json.dumps(summary, ensure_ascii=True))
         return 0
@@ -488,7 +644,14 @@ def run() -> int:
             'stakingPoolId': pool_id,
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=baseline_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        summary.update(reconciliation_fields)
+        write_state(
+            baseline_balance_sol=baseline_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         print(json.dumps(summary, ensure_ascii=True))
         return 0
@@ -515,7 +678,14 @@ def run() -> int:
             'stakingPoolId': pool_id,
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=baseline_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        summary.update(reconciliation_fields)
+        write_state(
+            baseline_balance_sol=baseline_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         append_json_line(
             LOG_PATH,
@@ -565,7 +735,14 @@ def run() -> int:
             'stakingPoolId': pool_id,
             'receiptsPath': str(RECEIPTS_PATH),
         }
-        write_state(baseline_balance_sol=baseline_balance_sol, current_balance_sol=current_balance_sol, last_status=summary)
+        summary.update(reconciliation_fields)
+        write_state(
+            baseline_balance_sol=baseline_balance_sol,
+            current_balance_sol=current_balance_sol,
+            last_status=summary,
+            last_routed_at=last_routed_at,
+            last_tx_signature=last_tx_signature,
+        )
         write_json(OUTPUT_PATH, summary)
         append_json_line(
             LOG_PATH,
@@ -643,6 +820,7 @@ def run() -> int:
         'stakingPoolId': pool_id,
         'receiptsPath': str(RECEIPTS_PATH),
     }
+    summary.update(reconciliation_fields)
     write_state(
         baseline_balance_sol=new_baseline_balance_sol,
         current_balance_sol=observed_after_sol,

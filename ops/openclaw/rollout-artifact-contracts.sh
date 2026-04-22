@@ -179,7 +179,7 @@ run() {
   append_env_if_missing "KYO_ENABLE_CLAWMART_STAKING_ROUTE" "true"
   append_env_if_missing "KYO_REQUIRE_CLAWMART_STAKING_ROUTE" "true"
   append_env_if_missing "KYO_ENABLE_CREATOR_FEE_INFLOW_ROUTE" "true"
-  append_env_if_missing "KYO_REQUIRE_CREATOR_FEE_INFLOW_ROUTE" "false"
+  append_env_if_missing "KYO_REQUIRE_CREATOR_FEE_INFLOW_ROUTE" "true"
   append_env_if_missing "KYO_CREATOR_FEE_INFLOW_WALLET" "Gxa8pZeSMGrNGTGLLyrPsqHgr6cUhBQrs7TEBhBSocYx"
   append_env_if_missing "KYO_CREATOR_FEE_INFLOW_ROUTE_BPS" "5000"
   append_env_if_missing "KYO_CREATOR_FEE_INFLOW_MIN_TRANSFER_SOL" "0.000001"
