@@ -1,6 +1,28 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { assessDocsDelayedOutcome, shouldFinalizeDocsReceipt } from './reconcile';
+import Database from 'better-sqlite3';
+import test, { afterEach } from 'node:test';
+import {
+  applySchema,
+  createVariant,
+  initSelfImprove,
+  resetContextForTests,
+  startCanary,
+} from '@kamiyo-org/selfimprove';
+import {
+  assessDocsDelayedOutcome,
+  shouldAdvanceDocsLearning,
+  shouldFinalizeDocsReceipt,
+  syncDocsLearningCommands,
+} from './reconcile';
+
+function freshDb() {
+  const db = new Database(':memory:');
+  applySchema(db);
+  initSelfImprove({ db, judgeLLM: null });
+  return db;
+}
+
+afterEach(() => resetContextForTests());
 
 test('assessDocsDelayedOutcome scores merged docs PRs as success', () => {
   const assessment = assessDocsDelayedOutcome({
@@ -90,4 +112,68 @@ test('shouldFinalizeDocsReceipt returns true only for closed docs PRs', () => {
     }),
     false
   );
+});
+
+test('shouldAdvanceDocsLearning skips auto advancement when paused', () => {
+  assert.equal(shouldAdvanceDocsLearning({ mode: 'paused' }), false);
+  assert.equal(shouldAdvanceDocsLearning({ mode: 'auto' }), true);
+  assert.equal(shouldAdvanceDocsLearning(null), true);
+});
+
+test('syncDocsLearningCommands rolls back active canaries and mirrors the rollback event', async () => {
+  freshDb();
+  const baseline = createVariant({
+    agentId: 'agent-a',
+    taskType: 'docs_regeneration',
+    genome: {
+      promptTemplate: 'baseline',
+      modelId: 'local-model',
+      toolAllowlist: [],
+      temperature: 0.2,
+      maxTokens: 512,
+      systemGuardrails: '',
+    },
+    notes: 'baseline',
+  }).variant;
+  const canary = createVariant({
+    agentId: 'agent-a',
+    taskType: 'docs_regeneration',
+    genome: {
+      promptTemplate: 'canary',
+      modelId: 'local-model',
+      toolAllowlist: [],
+      temperature: 0.4,
+      maxTokens: 512,
+      systemGuardrails: '',
+    },
+    notes: 'canary',
+  }).variant;
+  startCanary({
+    taskType: 'docs_regeneration',
+    canaryVariantId: canary.id,
+    baselineVariantId: baseline.id,
+    trafficPct: 0.1,
+    minSamples: 10,
+  });
+
+  const acknowledgements: Array<{ status?: string }> = [];
+  const promotions: Array<{ eventKind?: string; service?: string }> = [];
+  const result = await syncDocsLearningCommands({
+    taskType: 'docs_regeneration',
+    commands: [{ id: 'cmd-1', kind: 'rollback_active_canary', note: 'manual rollback' }],
+    acknowledge: async input => {
+      acknowledgements.push(input);
+      return true;
+    },
+    publishPromotion: async payload => {
+      promotions.push(payload);
+      return true;
+    },
+  });
+
+  assert.equal(result.applied, 1);
+  assert.equal(result.failed, 0);
+  assert.equal(acknowledgements[0]?.status, 'applied');
+  assert.equal(promotions[0]?.eventKind, 'canary_rolled_back');
+  assert.equal(promotions[0]?.service, 'kamiyo-docs-agent');
 });

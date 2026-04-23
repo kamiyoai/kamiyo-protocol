@@ -1,10 +1,19 @@
 import { Router, type Request, type Response } from 'express';
 import {
+  acknowledgeAgentLearningCommand,
+  createAgentLearningCommand,
+  getAgentLearningControlState,
   getAgentLearningServiceDetail,
   getAgentLearningSummary,
+  listAgentLearningCommands,
   listAgentLearningRuns,
   recordAgentLearningPromotion,
+  upsertAgentLearningCanarySnapshot,
+  upsertAgentLearningControl,
   upsertAgentLearningRun,
+  type AgentLearningCanarySnapshotInput,
+  type AgentLearningCommandInput,
+  type AgentLearningControlInput,
   type AgentLearningPromotionInput,
   type AgentLearningRunInput,
 } from '../../agent-learning';
@@ -29,6 +38,10 @@ function requireInternalToken(req: Request, res: Response, next: () => void): vo
     return;
   }
   next();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 router.post(
@@ -67,10 +80,7 @@ router.post(
       delayedQualityScore:
         typeof body?.delayedQualityScore === 'number' ? body.delayedQualityScore : null,
       reconcileStatus: reconcileStatus as AgentLearningRunInput['reconcileStatus'],
-      summary:
-        body?.summary && typeof body.summary === 'object' && !Array.isArray(body.summary)
-          ? (body.summary as Record<string, unknown>)
-          : {},
+      summary: isRecord(body?.summary) ? body.summary : {},
       createdAt: typeof body?.createdAt === 'number' ? body.createdAt : null,
       updatedAt: typeof body?.updatedAt === 'number' ? body.updatedAt : null,
     });
@@ -99,13 +109,183 @@ router.post(
       variantId,
       priorVariantId: typeof body?.priorVariantId === 'string' ? body.priorVariantId : null,
       eventKind,
-      payload:
-        body?.payload && typeof body.payload === 'object' && !Array.isArray(body.payload)
-          ? (body.payload as Record<string, unknown>)
-          : {},
+      payload: isRecord(body?.payload) ? body.payload : {},
       createdAt: typeof body?.createdAt === 'number' ? body.createdAt : null,
     });
     res.status(202).json({ ok: true });
+  }
+);
+
+router.get(
+  '/internal/agent-learning/controls',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const service = typeof req.query.service === 'string' ? req.query.service.trim() : '';
+    const taskType = typeof req.query.taskType === 'string' ? req.query.taskType.trim() : '';
+    if (!service || !taskType) {
+      res.status(400).json({ error: 'service and taskType required' });
+      return;
+    }
+    res.json(getAgentLearningControlState(service, taskType));
+  }
+);
+
+router.post(
+  '/internal/agent-learning/controls',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const body = req.body as Partial<AgentLearningControlInput> | undefined;
+    const service = typeof body?.service === 'string' ? body.service.trim() : '';
+    const taskType = typeof body?.taskType === 'string' ? body.taskType.trim() : '';
+    const mode = typeof body?.mode === 'string' ? body.mode.trim() : '';
+    if (!service || !taskType || (mode !== 'auto' && mode !== 'paused')) {
+      res.status(400).json({ error: 'service, taskType, mode required' });
+      return;
+    }
+
+    const control = upsertAgentLearningControl({
+      service,
+      taskType,
+      mode,
+      updatedBy: typeof body?.updatedBy === 'string' ? body.updatedBy : null,
+      note: typeof body?.note === 'string' ? body.note : null,
+      updatedAt: typeof body?.updatedAt === 'number' ? body.updatedAt : null,
+    });
+    res.status(202).json(control);
+  }
+);
+
+router.get(
+  '/internal/agent-learning/commands',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const service = typeof req.query.service === 'string' ? req.query.service.trim() : undefined;
+    const taskType = typeof req.query.taskType === 'string' ? req.query.taskType.trim() : undefined;
+    const status = typeof req.query.status === 'string' ? req.query.status.trim() : undefined;
+    const limit = Number(req.query.limit);
+
+    if (status && !['pending', 'applied', 'failed', 'expired'].includes(status)) {
+      res.status(400).json({ error: 'invalid status' });
+      return;
+    }
+
+    res.json({
+      commands: listAgentLearningCommands({
+        service,
+        taskType,
+        status: status as 'pending' | 'applied' | 'failed' | 'expired' | undefined,
+        limit: Number.isFinite(limit) ? limit : undefined,
+      }),
+    });
+  }
+);
+
+router.post(
+  '/internal/agent-learning/commands',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const body = req.body as Partial<AgentLearningCommandInput> | undefined;
+    const service = typeof body?.service === 'string' ? body.service.trim() : '';
+    const taskType = typeof body?.taskType === 'string' ? body.taskType.trim() : '';
+    const kind = typeof body?.kind === 'string' ? body.kind.trim() : '';
+    if (
+      !service ||
+      !taskType ||
+      !['pause_auto', 'resume_auto', 'rollback_active_canary'].includes(kind)
+    ) {
+      res.status(400).json({ error: 'service, taskType, kind required' });
+      return;
+    }
+
+    const command = createAgentLearningCommand({
+      service,
+      taskType,
+      kind: kind as AgentLearningCommandInput['kind'],
+      requestedBy: typeof body?.requestedBy === 'string' ? body.requestedBy : null,
+      note: typeof body?.note === 'string' ? body.note : null,
+      createdAt: typeof body?.createdAt === 'number' ? body.createdAt : null,
+    });
+    res.status(202).json(command);
+  }
+);
+
+router.post(
+  '/internal/agent-learning/commands/:id/ack',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const id = req.params.id?.trim();
+    const body = req.body as
+      | { status?: unknown; result?: unknown; processedAt?: unknown }
+      | undefined;
+    const status = typeof body?.status === 'string' ? body.status.trim() : '';
+
+    if (!id || !['applied', 'failed', 'expired'].includes(status)) {
+      res.status(400).json({ error: 'valid id and status required' });
+      return;
+    }
+
+    const command = acknowledgeAgentLearningCommand(id, {
+      status: status as 'applied' | 'failed' | 'expired',
+      result: isRecord(body?.result) ? body.result : {},
+      processedAt: typeof body?.processedAt === 'number' ? body.processedAt : null,
+    });
+
+    if (!command) {
+      res.status(404).json({ error: 'command not found' });
+      return;
+    }
+
+    res.status(202).json(command);
+  }
+);
+
+router.post(
+  '/internal/agent-learning/canary-snapshots',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const body = req.body as Partial<AgentLearningCanarySnapshotInput> | undefined;
+    const service = typeof body?.service === 'string' ? body.service.trim() : '';
+    const taskType = typeof body?.taskType === 'string' ? body.taskType.trim() : '';
+    const status = typeof body?.status === 'string' ? body.status.trim() : '';
+    if (
+      !service ||
+      !taskType ||
+      !['inactive', 'active', 'promoted', 'rolled_back'].includes(status)
+    ) {
+      res.status(400).json({ error: 'service, taskType, status required' });
+      return;
+    }
+
+    const snapshot = upsertAgentLearningCanarySnapshot({
+      service,
+      taskType,
+      rolloutId: typeof body?.rolloutId === 'string' ? body.rolloutId : null,
+      status: status as AgentLearningCanarySnapshotInput['status'],
+      canaryVariantId: typeof body?.canaryVariantId === 'string' ? body.canaryVariantId : null,
+      baselineVariantId:
+        typeof body?.baselineVariantId === 'string' ? body.baselineVariantId : null,
+      trafficPct: typeof body?.trafficPct === 'number' ? body.trafficPct : null,
+      decisionKind: typeof body?.decisionKind === 'string' ? body.decisionKind : null,
+      decisionReason: typeof body?.decisionReason === 'string' ? body.decisionReason : null,
+      canarySamples: typeof body?.canarySamples === 'number' ? body.canarySamples : null,
+      baselineSamples: typeof body?.baselineSamples === 'number' ? body.baselineSamples : null,
+      uplift: typeof body?.uplift === 'number' ? body.uplift : null,
+      pValue: typeof body?.pValue === 'number' ? body.pValue : null,
+      alerts: Array.isArray(body?.alerts)
+        ? body.alerts.filter(isRecord).map(alert => ({
+            code: typeof alert.code === 'string' ? alert.code : '',
+            level:
+              alert.level === 'info' || alert.level === 'warning' || alert.level === 'error'
+                ? alert.level
+                : 'warning',
+            message: typeof alert.message === 'string' ? alert.message : '',
+            detectedAt:
+              typeof alert.detectedAt === 'string' ? alert.detectedAt : new Date().toISOString(),
+          }))
+        : [],
+      updatedAt: typeof body?.updatedAt === 'number' ? body.updatedAt : null,
+    });
+    res.status(202).json(snapshot);
   }
 );
 

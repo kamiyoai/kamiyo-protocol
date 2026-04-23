@@ -125,9 +125,28 @@ export {
 } from './learning-publisher';
 
 export {
+  type AgentLearningAlert,
+  type AgentLearningCanarySnapshot,
+  type AgentLearningCanaryStatus,
+  type AgentLearningCommand,
+  type AgentLearningCommandKind,
+  type AgentLearningCommandStatus,
+  type AgentLearningControlMode,
+  type AgentLearningControlState,
+  deriveAgentLearningAlerts,
+  fetchAgentLearningControlState,
+  fetchPendingAgentLearningCommands,
+  publishAgentLearningCanarySnapshot,
+  acknowledgeAgentLearningCommand,
+} from './learning-control-plane';
+
+export {
   type DelayedLearningControlOptions,
+  type AppliedLearningCommand,
   type LearningControlEvent,
   advanceDelayedLearningControl,
+  applyDelayedLearningCommands,
+  snapshotDelayedLearningCanary,
 } from './learning-control';
 
 export {

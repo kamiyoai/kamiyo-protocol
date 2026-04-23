@@ -1,8 +1,30 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
-import { createReconciliationPatch, type AgentRunReceipt } from '@kamiyo-org/agent';
+import Database from 'better-sqlite3';
+import test, { afterEach } from 'node:test';
+import {
+  createReconciliationPatch,
+  deriveAgentLearningAlerts,
+  snapshotDelayedLearningCanary,
+  type AgentRunReceipt,
+} from '@kamiyo-org/agent';
+import {
+  applySchema,
+  createVariant,
+  initSelfImprove,
+  resetContextForTests,
+  startCanary,
+} from '@kamiyo-org/selfimprove';
 import { assessMarketingDelayedOutcome } from './agent';
 import { classifyMarketingReconciliation } from './reconcile';
+
+function freshDb() {
+  const db = new Database(':memory:');
+  applySchema(db);
+  initSelfImprove({ db, judgeLLM: null });
+  return db;
+}
+
+afterEach(() => resetContextForTests());
 
 function freshReceipt() {
   return {
@@ -112,4 +134,55 @@ test('finalized reconciliation patch records delayed marketing outcome', () => {
   assert.equal(patch.receipt?.delayedOutcome, 'published_posts');
   assert.equal(patch.receipt?.delayedTournamentRecorded, true);
   assert.equal(patch.reconciledAt, Math.floor(Date.parse('2026-04-22T16:00:00.000Z') / 1000));
+});
+
+test('marketing read-only path still snapshots active canaries and backlog alerts', () => {
+  freshDb();
+  const baseline = createVariant({
+    agentId: 'agent-a',
+    taskType: 'marketing_post_drafting',
+    genome: {
+      promptTemplate: 'baseline',
+      modelId: 'local-model',
+      toolAllowlist: [],
+      temperature: 0.2,
+      maxTokens: 512,
+      systemGuardrails: '',
+    },
+    notes: 'baseline',
+  }).variant;
+  const canary = createVariant({
+    agentId: 'agent-a',
+    taskType: 'marketing_post_drafting',
+    genome: {
+      promptTemplate: 'canary',
+      modelId: 'local-model',
+      toolAllowlist: [],
+      temperature: 0.4,
+      maxTokens: 512,
+      systemGuardrails: '',
+    },
+    notes: 'canary',
+  }).variant;
+  startCanary({
+    taskType: 'marketing_post_drafting',
+    canaryVariantId: canary.id,
+    baselineVariantId: baseline.id,
+    trafficPct: 0.1,
+    minSamples: 10,
+  });
+
+  const snapshot = snapshotDelayedLearningCanary({
+    service: 'kamiyo-marketing-agent',
+    taskType: 'marketing_post_drafting',
+  });
+  const alerts = deriveAgentLearningAlerts({
+    pendingReconciliations: 7,
+    canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+    now: new Date('2026-04-22T16:00:00.000Z'),
+  });
+
+  assert.equal(snapshot.status, 'active');
+  assert.equal(snapshot.canaryVariantId, canary.id);
+  assert.ok(alerts.some(alert => alert.code === 'pending_reconciliation_backlog'));
 });

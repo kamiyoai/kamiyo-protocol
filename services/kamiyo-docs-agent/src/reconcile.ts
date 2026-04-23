@@ -3,21 +3,30 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
+  acknowledgeAgentLearningCommand,
   advanceDelayedLearningControl,
   applyAgentSchema,
+  applyDelayedLearningCommands,
   assessAgentOutcome,
   buildAgentLearningRunPayload,
   createReconciliationPatch,
+  deriveAgentLearningAlerts,
   emitOutcomeMetric,
+  fetchAgentLearningControlState,
+  fetchPendingAgentLearningCommands,
   getReceiptFiles,
   getReceiptNumber,
   getReceiptString,
   hoursFromNow,
   listPendingAgentRunReceipts,
+  publishAgentLearningCanarySnapshot,
   publishAgentLearningPromotion,
   publishAgentLearningRun,
   recordDelayedVariantScore,
+  snapshotDelayedLearningCanary,
   updateAgentRunReceipt,
+  type AgentLearningCommand,
+  type AgentLearningControlState,
   type AgentRunReceipt,
   type DB,
   type OutcomeAssessment,
@@ -36,6 +45,50 @@ import { GitHubClient, type PullRequestSnapshot } from './github';
 type DocsDatabase = DB & { close(): void };
 
 const RECONCILE_RETRY_HOURS = 4;
+
+export function shouldAdvanceDocsLearning(
+  controlState: Pick<AgentLearningControlState, 'mode'> | null | undefined
+): boolean {
+  return controlState?.mode !== 'paused';
+}
+
+export async function syncDocsLearningCommands(params: {
+  taskType: string;
+  commands: Pick<AgentLearningCommand, 'id' | 'kind' | 'note'>[];
+  acknowledge?: typeof acknowledgeAgentLearningCommand;
+  publishPromotion?: typeof publishAgentLearningPromotion;
+}): Promise<{ applied: number; failed: number }> {
+  const acknowledge = params.acknowledge ?? acknowledgeAgentLearningCommand;
+  const publishPromotion = params.publishPromotion ?? publishAgentLearningPromotion;
+  const outcomes = applyDelayedLearningCommands({
+    taskType: params.taskType,
+    commands: params.commands,
+  });
+
+  let applied = 0;
+  let failed = 0;
+  for (const outcome of outcomes) {
+    if (outcome.event) {
+      await publishPromotion({
+        service: 'kamiyo-docs-agent',
+        taskType: params.taskType,
+        variantId: outcome.event.variantId,
+        priorVariantId: outcome.event.priorVariantId ?? null,
+        eventKind: outcome.event.eventKind,
+        payload: outcome.event.payload,
+      });
+    }
+    await acknowledge({
+      id: outcome.commandId,
+      status: outcome.status,
+      result: outcome.result,
+    });
+    if (outcome.status === 'applied') applied += 1;
+    else failed += 1;
+  }
+
+  return { applied, failed };
+}
 
 function resolveDocsDbPath(dbPath: string): string {
   const resolved = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
@@ -182,10 +235,23 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
   }
 
   const github = new GitHubClient(cfg);
+  const controlState = await fetchAgentLearningControlState({
+    service: 'kamiyo-docs-agent',
+    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+  });
+  const pendingCommands = await fetchPendingAgentLearningCommands({
+    service: 'kamiyo-docs-agent',
+    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+  });
+  await syncDocsLearningCommands({
+    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+    commands: pendingCommands,
+  });
   const pending = listPendingAgentRunReceipts(db, {
     service: 'kamiyo-docs-agent',
     taskType: cfg.SELF_IMPROVE_TASK_TYPE,
   });
+  const autoLearningEnabled = shouldAdvanceDocsLearning(controlState);
 
   let finalized = 0;
   let requeued = 0;
@@ -276,7 +342,7 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
         reconcileAfter: null,
         note: prState ? null : 'missing_pr',
       });
-      if (cfg.SELF_IMPROVE_ENABLED) {
+      if (cfg.SELF_IMPROVE_ENABLED && autoLearningEnabled) {
         const events = advanceDelayedLearningControl({
           taskType: receipt.taskType,
           minSamples: cfg.SELF_IMPROVE_MIN_SAMPLES,
@@ -299,6 +365,23 @@ export async function reconcilePendingDocsReceipts(cfg: Config): Promise<{
       );
       finalized += 1;
     }
+
+    const remainingPending = listPendingAgentRunReceipts(db, {
+      service: 'kamiyo-docs-agent',
+      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+    });
+    const snapshot = snapshotDelayedLearningCanary({
+      service: 'kamiyo-docs-agent',
+      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
+    });
+    await publishAgentLearningCanarySnapshot({
+      ...snapshot,
+      alerts: deriveAgentLearningAlerts({
+        pendingReconciliations: remainingPending.length,
+        canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+      }),
+    });
 
     return {
       processed: pending.length,

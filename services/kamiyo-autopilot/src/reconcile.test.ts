@@ -1,6 +1,29 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, it } from 'vitest';
-import { assessAutopilotDelayedOutcome, shouldFinalizeAutopilotReceipt } from './reconcile';
+import Database from 'better-sqlite3';
+import { afterEach, vi } from 'vitest';
+import {
+  applySchema,
+  createVariant,
+  initSelfImprove,
+  resetContextForTests,
+  startCanary,
+} from '@kamiyo-org/selfimprove';
+import {
+  assessAutopilotDelayedOutcome,
+  shouldAdvanceAutopilotLearning,
+  shouldFinalizeAutopilotReceipt,
+  syncAutopilotLearningCommands,
+} from './reconcile';
+
+function freshDb() {
+  const db = new Database(':memory:');
+  applySchema(db);
+  initSelfImprove({ db, judgeLLM: null });
+  return db;
+}
+
+afterEach(() => resetContextForTests());
 
 describe('assessAutopilotDelayedOutcome', () => {
   it('scores merged PRs as successful delayed outcomes', () => {
@@ -89,5 +112,75 @@ describe('shouldFinalizeAutopilotReceipt', () => {
         checkState: 'pending',
       })
     ).toBe(false);
+  });
+});
+
+describe('learning controls', () => {
+  it('skips auto advancement when the mirrored control mode is paused', () => {
+    expect(shouldAdvanceAutopilotLearning({ mode: 'paused' })).toBe(false);
+    expect(shouldAdvanceAutopilotLearning({ mode: 'auto' })).toBe(true);
+    expect(shouldAdvanceAutopilotLearning(null)).toBe(true);
+  });
+
+  it('rolls back active canaries and mirrors the rollback event', async () => {
+    freshDb();
+    const baseline = createVariant({
+      agentId: 'agent-a',
+      taskType: 'autopilot_issue_resolution',
+      genome: {
+        promptTemplate: 'baseline',
+        modelId: 'local-model',
+        toolAllowlist: [],
+        temperature: 0.2,
+        maxTokens: 512,
+        systemGuardrails: '',
+      },
+      notes: 'baseline',
+    }).variant;
+    const canary = createVariant({
+      agentId: 'agent-a',
+      taskType: 'autopilot_issue_resolution',
+      genome: {
+        promptTemplate: 'canary',
+        modelId: 'local-model',
+        toolAllowlist: [],
+        temperature: 0.4,
+        maxTokens: 512,
+        systemGuardrails: '',
+      },
+      notes: 'canary',
+    }).variant;
+    startCanary({
+      taskType: 'autopilot_issue_resolution',
+      canaryVariantId: canary.id,
+      baselineVariantId: baseline.id,
+      trafficPct: 0.1,
+      minSamples: 10,
+    });
+
+    const acknowledge = vi.fn(async () => true);
+    const publishPromotion = vi.fn(async () => true);
+
+    const result = await syncAutopilotLearningCommands({
+      taskType: 'autopilot_issue_resolution',
+      commands: [{ id: 'cmd-1', kind: 'rollback_active_canary', note: 'manual rollback' }],
+      acknowledge,
+      publishPromotion,
+    });
+
+    expect(result.applied).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(acknowledge).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'cmd-1',
+        status: 'applied',
+      })
+    );
+    expect(publishPromotion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        service: 'kamiyo-autopilot',
+        eventKind: 'canary_rolled_back',
+      })
+    );
   });
 });

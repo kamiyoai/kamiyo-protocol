@@ -7,13 +7,16 @@ import {
   assessAgentOutcome,
   buildAgentLearningRunPayload,
   createReconciliationPatch,
+  deriveAgentLearningAlerts,
   emitOutcomeMetric,
   getReceiptFiles,
   getReceiptString,
   hoursFromNow,
   listPendingAgentRunReceipts,
+  publishAgentLearningCanarySnapshot,
   publishAgentLearningRun,
   recordDelayedVariantScore,
+  snapshotDelayedLearningCanary,
   updateAgentRunReceipt,
   type AgentRunReceipt,
   type DB,
@@ -256,6 +259,23 @@ export async function reconcilePendingMarketingReceipts(cfg: Config): Promise<{
       );
       finalized += 1;
     }
+
+    const remainingPending = listPendingAgentRunReceipts(db, {
+      service: 'kamiyo-marketing-agent',
+      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+    });
+    const snapshot = snapshotDelayedLearningCanary({
+      service: 'kamiyo-marketing-agent',
+      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
+    });
+    await publishAgentLearningCanarySnapshot({
+      ...snapshot,
+      alerts: deriveAgentLearningAlerts({
+        pendingReconciliations: remainingPending.length,
+        canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+      }),
+    });
 
     return {
       processed: pending.length,

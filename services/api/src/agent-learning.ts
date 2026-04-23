@@ -1,6 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import db from './db';
 
 export type AgentLearningReconcileStatus = 'not_required' | 'pending' | 'finalized';
+export type AgentLearningControlMode = 'auto' | 'paused';
+export type AgentLearningCommandKind = 'pause_auto' | 'resume_auto' | 'rollback_active_canary';
+export type AgentLearningCommandStatus = 'pending' | 'applied' | 'failed' | 'expired';
+export type AgentLearningCanaryStatus = 'inactive' | 'active' | 'promoted' | 'rolled_back';
+export type AgentLearningAlertLevel = 'info' | 'warning' | 'error';
+
+export interface AgentLearningAlert {
+  code: string;
+  level: AgentLearningAlertLevel;
+  message: string;
+  detectedAt: string;
+}
 
 export interface AgentLearningRunInput {
   service: string;
@@ -28,6 +41,88 @@ export interface AgentLearningPromotionInput {
   eventKind: string;
   payload?: Record<string, unknown>;
   createdAt?: number | null;
+}
+
+export interface AgentLearningControlInput {
+  service: string;
+  taskType: string;
+  mode: AgentLearningControlMode;
+  updatedBy?: string | null;
+  note?: string | null;
+  updatedAt?: number | null;
+}
+
+export interface AgentLearningCommandInput {
+  service: string;
+  taskType: string;
+  kind: AgentLearningCommandKind;
+  requestedBy?: string | null;
+  note?: string | null;
+  createdAt?: number | null;
+}
+
+export interface AgentLearningCommandAckInput {
+  status: Exclude<AgentLearningCommandStatus, 'pending'>;
+  result?: Record<string, unknown> | null;
+  processedAt?: number | null;
+}
+
+export interface AgentLearningCanarySnapshotInput {
+  service: string;
+  taskType: string;
+  rolloutId?: string | null;
+  status: AgentLearningCanaryStatus;
+  canaryVariantId?: string | null;
+  baselineVariantId?: string | null;
+  trafficPct?: number | null;
+  decisionKind?: string | null;
+  decisionReason?: string | null;
+  canarySamples?: number | null;
+  baselineSamples?: number | null;
+  uplift?: number | null;
+  pValue?: number | null;
+  alerts?: AgentLearningAlert[];
+  updatedAt?: number | null;
+}
+
+export interface AgentLearningControlState {
+  service: string;
+  taskType: string;
+  mode: AgentLearningControlMode;
+  updatedBy: string | null;
+  note: string | null;
+  updatedAt: string | null;
+}
+
+export interface AgentLearningCommand {
+  id: string;
+  service: string;
+  taskType: string;
+  kind: AgentLearningCommandKind;
+  status: AgentLearningCommandStatus;
+  requestedBy: string | null;
+  note: string | null;
+  createdAt: string;
+  processedAt: string | null;
+  result: Record<string, unknown>;
+}
+
+export interface AgentLearningCanarySnapshot {
+  service: string;
+  taskType: string;
+  rolloutId: string | null;
+  status: AgentLearningCanaryStatus;
+  canaryVariantId: string | null;
+  baselineVariantId: string | null;
+  trafficPct: number | null;
+  decisionKind: string | null;
+  decisionReason: string | null;
+  canarySamples: number | null;
+  baselineSamples: number | null;
+  uplift: number | null;
+  pValue: number | null;
+  alerts: AgentLearningAlert[];
+  updatedAt: string;
 }
 
 export interface AgentLearningSummaryService {
@@ -99,12 +194,16 @@ export interface AgentLearningServiceDetail {
     payload: Record<string, unknown>;
     createdAt: string;
   }>;
+  recentCommands: AgentLearningCommand[];
   pendingReconciliations: number;
   finalizedDelayedSamples: number;
   immediateAvgScore7d: number | null;
   delayedAvgScore7d: number | null;
   currentPromotedVariantId: string | null;
   activeCanary: AgentLearningSummaryService['activeCanary'];
+  controlState: AgentLearningControlState | null;
+  activeCanarySnapshot: AgentLearningCanarySnapshot | null;
+  alerts: AgentLearningAlert[];
 }
 
 type RunRow = {
@@ -134,6 +233,50 @@ type PromotionRow = {
   payload_json: string;
   created_at: number;
 };
+
+type ControlRow = {
+  service: string;
+  task_type: string;
+  mode: AgentLearningControlMode;
+  updated_by: string | null;
+  note: string | null;
+  updated_at: number;
+};
+
+type CommandRow = {
+  id: string;
+  service: string;
+  task_type: string;
+  kind: AgentLearningCommandKind;
+  status: AgentLearningCommandStatus;
+  requested_by: string | null;
+  note: string | null;
+  result_json: string;
+  created_at: number;
+  processed_at: number | null;
+};
+
+type CanarySnapshotRow = {
+  service: string;
+  task_type: string;
+  rollout_id: string | null;
+  status: AgentLearningCanaryStatus;
+  canary_variant_id: string | null;
+  baseline_variant_id: string | null;
+  traffic_pct: number | null;
+  decision_kind: string | null;
+  decision_reason: string | null;
+  canary_samples: number | null;
+  baseline_samples: number | null;
+  uplift: number | null;
+  p_value: number | null;
+  alerts_json: string;
+  updated_at: number;
+};
+
+const COMMAND_EXPIRY_HOURS = 24;
+const STALE_UPDATE_HOURS = 24;
+const PENDING_BACKLOG_THRESHOLD = 5;
 
 export function upsertAgentLearningRun(input: AgentLearningRunInput): void {
   const now = Math.floor(Date.now() / 1000);
@@ -223,6 +366,195 @@ export function recordAgentLearningPromotion(input: AgentLearningPromotionInput)
   );
 }
 
+export function upsertAgentLearningControl(
+  input: AgentLearningControlInput
+): AgentLearningControlState {
+  const updatedAt = normalizeEpoch(input.updatedAt, Math.floor(Date.now() / 1000));
+  db.prepare(
+    `INSERT INTO agent_learning_controls (
+        service, task_type, mode, updated_by, note, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(service, task_type) DO UPDATE SET
+        mode = excluded.mode,
+        updated_by = excluded.updated_by,
+        note = excluded.note,
+        updated_at = excluded.updated_at`
+  ).run(
+    input.service,
+    input.taskType,
+    input.mode,
+    input.updatedBy ?? null,
+    input.note ?? null,
+    updatedAt
+  );
+
+  return getAgentLearningControlState(input.service, input.taskType);
+}
+
+export function getAgentLearningControlState(
+  service: string,
+  taskType: string
+): AgentLearningControlState {
+  const row = db
+    .prepare(
+      `SELECT * FROM agent_learning_controls
+       WHERE service = ? AND task_type = ?`
+    )
+    .get(service, taskType) as ControlRow | undefined;
+
+  if (!row) {
+    return {
+      service,
+      taskType,
+      mode: 'auto',
+      updatedBy: null,
+      note: null,
+      updatedAt: null,
+    };
+  }
+
+  return mapControlRow(row);
+}
+
+export function createAgentLearningCommand(input: AgentLearningCommandInput): AgentLearningCommand {
+  const createdAt = normalizeEpoch(input.createdAt, Math.floor(Date.now() / 1000));
+  const id = randomUUID();
+
+  const tx = db.transaction(() => {
+    if (input.kind === 'pause_auto' || input.kind === 'resume_auto') {
+      upsertAgentLearningControl({
+        service: input.service,
+        taskType: input.taskType,
+        mode: input.kind === 'pause_auto' ? 'paused' : 'auto',
+        updatedBy: input.requestedBy ?? null,
+        note: input.note ?? null,
+        updatedAt: createdAt,
+      });
+    }
+
+    db.prepare(
+      `INSERT INTO agent_learning_commands (
+          id, service, task_type, kind, status, requested_by, note, result_json, created_at, processed_at
+        ) VALUES (?, ?, ?, ?, 'pending', ?, ?, '{}', ?, NULL)`
+    ).run(
+      id,
+      input.service,
+      input.taskType,
+      input.kind,
+      input.requestedBy ?? null,
+      input.note ?? null,
+      createdAt
+    );
+
+    return db.prepare(`SELECT * FROM agent_learning_commands WHERE id = ?`).get(id) as CommandRow;
+  });
+
+  return mapCommandRow(tx());
+}
+
+export function acknowledgeAgentLearningCommand(
+  id: string,
+  input: AgentLearningCommandAckInput
+): AgentLearningCommand | null {
+  const existing = db.prepare(`SELECT * FROM agent_learning_commands WHERE id = ?`).get(id) as
+    | CommandRow
+    | undefined;
+  if (!existing) return null;
+
+  const processedAt = normalizeEpoch(input.processedAt, Math.floor(Date.now() / 1000));
+  db.prepare(
+    `UPDATE agent_learning_commands
+        SET status = ?,
+            result_json = ?,
+            processed_at = ?
+      WHERE id = ?`
+  ).run(input.status, JSON.stringify(input.result ?? {}), processedAt, id);
+
+  const updated = db.prepare(`SELECT * FROM agent_learning_commands WHERE id = ?`).get(id) as
+    | CommandRow
+    | undefined;
+  return updated ? mapCommandRow(updated) : null;
+}
+
+export function listAgentLearningCommands(options?: {
+  service?: string;
+  taskType?: string;
+  status?: AgentLearningCommandStatus;
+  limit?: number;
+}): AgentLearningCommand[] {
+  expireStaleAgentLearningCommands();
+
+  const limit = Math.max(1, Math.min(100, options?.limit ?? 20));
+  let sql = `SELECT * FROM agent_learning_commands`;
+  const clauses: string[] = [];
+  const params: Array<string | number> = [];
+
+  if (options?.service) {
+    clauses.push(`service = ?`);
+    params.push(options.service);
+  }
+  if (options?.taskType) {
+    clauses.push(`task_type = ?`);
+    params.push(options.taskType);
+  }
+  if (options?.status) {
+    clauses.push(`status = ?`);
+    params.push(options.status);
+  }
+
+  if (clauses.length > 0) sql += ` WHERE ${clauses.join(' AND ')}`;
+  sql += ` ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit);
+
+  const rows = db.prepare(sql).all(...params) as CommandRow[];
+  return rows.map(mapCommandRow);
+}
+
+export function upsertAgentLearningCanarySnapshot(
+  input: AgentLearningCanarySnapshotInput
+): AgentLearningCanarySnapshot {
+  const updatedAt = normalizeEpoch(input.updatedAt, Math.floor(Date.now() / 1000));
+  db.prepare(
+    `INSERT INTO agent_learning_canary_snapshots (
+        service, task_type, rollout_id, status, canary_variant_id, baseline_variant_id,
+        traffic_pct, decision_kind, decision_reason, canary_samples, baseline_samples,
+        uplift, p_value, alerts_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(service, task_type) DO UPDATE SET
+        rollout_id = excluded.rollout_id,
+        status = excluded.status,
+        canary_variant_id = excluded.canary_variant_id,
+        baseline_variant_id = excluded.baseline_variant_id,
+        traffic_pct = excluded.traffic_pct,
+        decision_kind = excluded.decision_kind,
+        decision_reason = excluded.decision_reason,
+        canary_samples = excluded.canary_samples,
+        baseline_samples = excluded.baseline_samples,
+        uplift = excluded.uplift,
+        p_value = excluded.p_value,
+        alerts_json = excluded.alerts_json,
+        updated_at = excluded.updated_at`
+  ).run(
+    input.service,
+    input.taskType,
+    input.rolloutId ?? null,
+    input.status,
+    input.canaryVariantId ?? null,
+    input.baselineVariantId ?? null,
+    normalizeNumber(input.trafficPct),
+    input.decisionKind ?? null,
+    input.decisionReason ?? null,
+    normalizeInteger(input.canarySamples),
+    normalizeInteger(input.baselineSamples),
+    normalizeNumber(input.uplift),
+    normalizeNumber(input.pValue),
+    JSON.stringify(input.alerts ?? []),
+    updatedAt
+  );
+
+  return getAgentLearningCanarySnapshot(input.service, input.taskType);
+}
+
 export function getAgentLearningSummary(): AgentLearningSummary {
   const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
   const runs = db
@@ -266,6 +598,8 @@ export function getAgentLearningSummary(): AgentLearningSummary {
 }
 
 export function getAgentLearningServiceDetail(service: string): AgentLearningServiceDetail {
+  expireStaleAgentLearningCommands();
+
   const rows = db
     .prepare(
       `SELECT * FROM agent_learning_runs
@@ -282,21 +616,41 @@ export function getAgentLearningServiceDetail(service: string): AgentLearningSer
        LIMIT 20`
     )
     .all(service) as PromotionRow[];
+  const commands = listAgentLearningCommands({ service, limit: 20 });
 
   const aggregate = summarizeService(service, rows);
   const topVariants = aggregateVariants(rows);
+  const primaryTaskType =
+    rows[0]?.task_type ??
+    promotions[0]?.task_type ??
+    commands[0]?.taskType ??
+    getLatestCanarySnapshot(service)?.taskType ??
+    null;
+  const controlState = primaryTaskType
+    ? getAgentLearningControlState(service, primaryTaskType)
+    : null;
+  const activeCanarySnapshot = getLatestCanarySnapshot(service, primaryTaskType ?? undefined);
 
   return {
     service,
     recentRuns: rows.map(mapRunRow),
     topVariants,
     recentEvents: promotions.map(mapPromotionRow),
+    recentCommands: commands,
     pendingReconciliations: aggregate.pendingReconciliations,
     finalizedDelayedSamples: aggregate.finalizedDelayedSamples,
     immediateAvgScore7d: aggregate.immediateAvgScore7d,
     delayedAvgScore7d: aggregate.delayedAvgScore7d,
     currentPromotedVariantId: aggregate.currentPromotedVariantId,
     activeCanary: aggregate.activeCanary,
+    controlState,
+    activeCanarySnapshot,
+    alerts: buildServiceAlerts({
+      rows,
+      snapshot: activeCanarySnapshot,
+      commands,
+      pendingReconciliations: aggregate.pendingReconciliations,
+    }),
   };
 }
 
@@ -333,6 +687,7 @@ function summarizeService(service: string, rows: RunRow[]): AgentLearningSummary
        ORDER BY created_at DESC`
     )
     .all(service) as PromotionRow[];
+  const snapshot = getLatestCanarySnapshot(service);
 
   const immediateScores = serviceRows
     .map(row => row.immediate_quality_score)
@@ -340,12 +695,20 @@ function summarizeService(service: string, rows: RunRow[]): AgentLearningSummary
   const delayedScores = serviceRows
     .map(row => row.delayed_quality_score)
     .filter((value): value is number => typeof value === 'number');
-  const latestTaskType = serviceRows[0]?.task_type ?? null;
+  const latestTaskType = serviceRows[0]?.task_type ?? snapshot?.taskType ?? null;
   const lastPromotion = promotionRows.find(row => /promoted/i.test(row.event_kind)) ?? null;
   const latestCanaryEvent = promotionRows.find(row => row.event_kind.startsWith('canary_')) ?? null;
 
   let activeCanary: AgentLearningSummaryService['activeCanary'] = null;
-  if (
+  if (snapshot?.status === 'active' && snapshot.canaryVariantId) {
+    activeCanary = {
+      variantId: snapshot.canaryVariantId,
+      priorVariantId: snapshot.baselineVariantId,
+      trafficPct: snapshot.trafficPct,
+      eventKind: snapshot.decisionKind ? `decision:${snapshot.decisionKind}` : 'active',
+      startedAt: snapshot.updatedAt,
+    };
+  } else if (
     latestCanaryEvent &&
     (latestCanaryEvent.event_kind === 'canary_started' ||
       latestCanaryEvent.event_kind === 'canary_ramped')
@@ -402,8 +765,9 @@ function aggregateVariants(rows: RunRow[]) {
       delayedScores: [],
     };
     current.runs += 1;
-    if (typeof row.immediate_quality_score === 'number')
+    if (typeof row.immediate_quality_score === 'number') {
       current.immediateScores.push(row.immediate_quality_score);
+    }
     if (typeof row.delayed_quality_score === 'number') {
       current.delayedScores.push(row.delayed_quality_score);
       current.delayedSamples += 1;
@@ -422,6 +786,129 @@ function aggregateVariants(rows: RunRow[]) {
     }))
     .sort((left, right) => (right.avgDelayedScore ?? -1) - (left.avgDelayedScore ?? -1))
     .slice(0, 10);
+}
+
+function buildServiceAlerts(params: {
+  rows: RunRow[];
+  snapshot: AgentLearningCanarySnapshot | null;
+  commands: AgentLearningCommand[];
+  pendingReconciliations: number;
+}): AgentLearningAlert[] {
+  const alerts: AgentLearningAlert[] = [];
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const latestRunUpdatedAt = params.rows[0]?.updated_at ?? null;
+  const latestSnapshotUpdatedAt = params.snapshot
+    ? Date.parse(params.snapshot.updatedAt) / 1000
+    : null;
+  const latestCommandAt = params.commands[0]?.createdAt
+    ? Math.floor(Date.parse(params.commands[0].createdAt) / 1000)
+    : null;
+  const latestActivity = [latestRunUpdatedAt, latestSnapshotUpdatedAt, latestCommandAt]
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    .reduce((max, value) => (value > max ? value : max), 0);
+
+  if (latestActivity > 0 && nowSeconds - latestActivity >= STALE_UPDATE_HOURS * 60 * 60) {
+    alerts.push({
+      code: 'stale_service_updates',
+      level: 'warning',
+      message: `No mirrored learning update has been seen in the last ${STALE_UPDATE_HOURS}h.`,
+      detectedAt: new Date(nowSeconds * 1000).toISOString(),
+    });
+  }
+
+  if (params.pendingReconciliations >= PENDING_BACKLOG_THRESHOLD) {
+    alerts.push({
+      code: 'pending_reconciliation_backlog',
+      level: 'warning',
+      message: `${params.pendingReconciliations} receipts are still waiting on reconciliation.`,
+      detectedAt: new Date(nowSeconds * 1000).toISOString(),
+    });
+  }
+
+  if (params.snapshot) alerts.push(...params.snapshot.alerts);
+
+  for (const command of params.commands) {
+    if (command.status !== 'failed' && command.status !== 'expired') continue;
+    alerts.push({
+      code: command.status === 'failed' ? 'failed_operator_command' : 'expired_operator_command',
+      level: 'error',
+      message:
+        command.status === 'failed'
+          ? `Command ${command.kind} failed.`
+          : `Command ${command.kind} expired before the service applied it.`,
+      detectedAt: command.processedAt ?? command.createdAt,
+    });
+  }
+
+  return dedupeAlerts(alerts);
+}
+
+function expireStaleAgentLearningCommands(): void {
+  const threshold = Math.floor(Date.now() / 1000) - COMMAND_EXPIRY_HOURS * 60 * 60;
+  db.prepare(
+    `UPDATE agent_learning_commands
+        SET status = 'expired',
+            processed_at = ?,
+            result_json = json_set(COALESCE(NULLIF(result_json, ''), '{}'), '$.reason', 'command_expired')
+      WHERE status = 'pending' AND created_at < ?`
+  ).run(Math.floor(Date.now() / 1000), threshold);
+}
+
+function getLatestCanarySnapshot(
+  service: string,
+  taskType?: string
+): AgentLearningCanarySnapshot | null {
+  const row = taskType
+    ? (db
+        .prepare(
+          `SELECT * FROM agent_learning_canary_snapshots
+           WHERE service = ? AND task_type = ?`
+        )
+        .get(service, taskType) as CanarySnapshotRow | undefined)
+    : (db
+        .prepare(
+          `SELECT * FROM agent_learning_canary_snapshots
+           WHERE service = ?
+           ORDER BY updated_at DESC
+           LIMIT 1`
+        )
+        .get(service) as CanarySnapshotRow | undefined);
+
+  return row ? mapCanarySnapshotRow(row) : null;
+}
+
+function getAgentLearningCanarySnapshot(
+  service: string,
+  taskType: string
+): AgentLearningCanarySnapshot {
+  const row = db
+    .prepare(
+      `SELECT * FROM agent_learning_canary_snapshots
+       WHERE service = ? AND task_type = ?`
+    )
+    .get(service, taskType) as CanarySnapshotRow | undefined;
+
+  if (!row) {
+    return {
+      service,
+      taskType,
+      rolloutId: null,
+      status: 'inactive',
+      canaryVariantId: null,
+      baselineVariantId: null,
+      trafficPct: null,
+      decisionKind: null,
+      decisionReason: null,
+      canarySamples: null,
+      baselineSamples: null,
+      uplift: null,
+      pValue: null,
+      alerts: [],
+      updatedAt: new Date(0).toISOString(),
+    };
+  }
+
+  return mapCanarySnapshotRow(row);
 }
 
 function mapRunRow(row: RunRow) {
@@ -455,6 +942,64 @@ function mapPromotionRow(row: PromotionRow) {
   };
 }
 
+function mapControlRow(row: ControlRow): AgentLearningControlState {
+  return {
+    service: row.service,
+    taskType: row.task_type,
+    mode: row.mode,
+    updatedBy: row.updated_by,
+    note: row.note,
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function mapCommandRow(row: CommandRow): AgentLearningCommand {
+  return {
+    id: row.id,
+    service: row.service,
+    taskType: row.task_type,
+    kind: row.kind,
+    status: row.status,
+    requestedBy: row.requested_by,
+    note: row.note,
+    createdAt: toIso(row.created_at),
+    processedAt: row.processed_at ? toIso(row.processed_at) : null,
+    result: parseJson(row.result_json),
+  };
+}
+
+function mapCanarySnapshotRow(row: CanarySnapshotRow): AgentLearningCanarySnapshot {
+  return {
+    service: row.service,
+    taskType: row.task_type,
+    rolloutId: row.rollout_id,
+    status: row.status,
+    canaryVariantId: row.canary_variant_id,
+    baselineVariantId: row.baseline_variant_id,
+    trafficPct: row.traffic_pct,
+    decisionKind: row.decision_kind,
+    decisionReason: row.decision_reason,
+    canarySamples: row.canary_samples,
+    baselineSamples: row.baseline_samples,
+    uplift: row.uplift,
+    pValue: row.p_value,
+    alerts: parseAlertArray(row.alerts_json),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+function dedupeAlerts(alerts: AgentLearningAlert[]): AgentLearningAlert[] {
+  const seen = new Set<string>();
+  const deduped: AgentLearningAlert[] = [];
+  for (const alert of alerts) {
+    const key = `${alert.code}:${alert.message}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(alert);
+  }
+  return deduped;
+}
+
 function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -462,6 +1007,10 @@ function average(values: number[]): number | null {
 
 function normalizeEpoch(value: number | null | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback;
+}
+
+function normalizeInteger(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : null;
 }
 
 function normalizeNumber(value: number | null | undefined): number | null {
@@ -476,6 +1025,26 @@ function parseJson(value: string): Record<string, unknown> {
       : {};
   } catch {
     return {};
+  }
+}
+
+function parseAlertArray(value: string): AgentLearningAlert[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap(item => {
+      if (!item || typeof item !== 'object') return [];
+      const alert = item as Record<string, unknown>;
+      const code = typeof alert.code === 'string' ? alert.code : '';
+      const level = typeof alert.level === 'string' ? alert.level : '';
+      const message = typeof alert.message === 'string' ? alert.message : '';
+      const detectedAt = typeof alert.detectedAt === 'string' ? alert.detectedAt : '';
+      if (!code || !message || !detectedAt) return [];
+      if (level !== 'info' && level !== 'warning' && level !== 'error') return [];
+      return [{ code, level, message, detectedAt }];
+    });
+  } catch {
+    return [];
   }
 }
 

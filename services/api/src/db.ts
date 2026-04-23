@@ -1950,6 +1950,57 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_agent_learning_promotions_service_created
     ON agent_learning_promotions(service, created_at DESC);
 
+  CREATE TABLE IF NOT EXISTS agent_learning_controls (
+    service TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'auto' CHECK (mode IN ('auto', 'paused')),
+    updated_by TEXT,
+    note TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (service, task_type)
+  );
+
+  CREATE TABLE IF NOT EXISTS agent_learning_commands (
+    id TEXT PRIMARY KEY,
+    service TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('pause_auto', 'resume_auto', 'rollback_active_canary')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'applied', 'failed', 'expired')),
+    requested_by TEXT,
+    note TEXT,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    processed_at INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_commands_service_created
+    ON agent_learning_commands(service, task_type, created_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_commands_status
+    ON agent_learning_commands(status, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS agent_learning_canary_snapshots (
+    service TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    rollout_id TEXT,
+    status TEXT NOT NULL DEFAULT 'inactive' CHECK (status IN ('inactive', 'active', 'promoted', 'rolled_back')),
+    canary_variant_id TEXT,
+    baseline_variant_id TEXT,
+    traffic_pct REAL,
+    decision_kind TEXT,
+    decision_reason TEXT,
+    canary_samples INTEGER,
+    baseline_samples INTEGER,
+    uplift REAL,
+    p_value REAL,
+    alerts_json TEXT NOT NULL DEFAULT '[]',
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (service, task_type)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_canary_snapshots_updated
+    ON agent_learning_canary_snapshots(service, updated_at DESC);
+
   CREATE TABLE IF NOT EXISTS counterfactual_cases (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,
