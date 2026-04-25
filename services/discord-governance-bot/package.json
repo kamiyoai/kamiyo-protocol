@@ -12,7 +12,7 @@
     "@anthropic-ai/sdk": "^0.77.0",
     "@solana/web3.js": "^1.98.0",
     "discord.js": "^14.26.3",
-    "dotenv": "^16.3.1"
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

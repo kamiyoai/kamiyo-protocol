@@ -11,7 +11,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.77.0",
     "@solana/web3.js": "^1.98.0",
-    "dotenv": "^16.3.1",
+    "dotenv": "^17.4.2",
     "telegraf": "^4.16.0"
   },
   "devDependencies": {

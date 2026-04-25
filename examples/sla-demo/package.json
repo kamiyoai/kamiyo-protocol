@@ -15,7 +15,7 @@
     "@solana/web3.js": "^1.98.0",
     "bs58": "^6.0.0",
     "bn.js": "^5.2.1",
-    "dotenv": "^16.4.0"
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",

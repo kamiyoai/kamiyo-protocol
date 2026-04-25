@@ -18,7 +18,7 @@
     "@kamiyo-org/agent": "file:../../packages/kamiyo-agent",
     "@kamiyo-org/selfimprove": "file:../../packages/kamiyo-selfimprove",
     "better-sqlite3": "^11.8.1",
-    "dotenv": "^16.3.1",
+    "dotenv": "^17.4.2",
     "zod": "^3.23.0"
   },
   "devDependencies": {
