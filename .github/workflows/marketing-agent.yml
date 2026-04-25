@@ -50,7 +50,8 @@ jobs:
       POSTIZ_API_KEY: ${{ secrets.POSTIZ_API_KEY }}
       POSTIZ_INTEGRATIONS: ${{ secrets.POSTIZ_INTEGRATIONS }}
       CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
-      MARKETING_AGENT_DB_PATH: .marketing-agent/agent.db
+      AGENT_STATE_DIR: ${{ github.workspace }}/../.kamiyo-agent-state
+      MARKETING_AGENT_DB_PATH: ${{ github.workspace }}/../.kamiyo-agent-state/kamiyo-marketing-agent/agent.db
       DAILY_USD_MAX: "0"
       POSTS_PER_DAY: "2"
       SELF_IMPROVE_ENABLED: "true"
@@ -61,6 +62,7 @@ jobs:
       RECONCILE_DELAY_HOURS: "2"
       AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
       AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
+      AGENT_LEARNING_CONTROL_LOOP_TRIGGER: ${{ github.event_name }}
       DRY_RUN: ${{ github.event.inputs.dry_run || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +70,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Prepare persistent agent state
+        run: mkdir -p "$AGENT_STATE_DIR/kamiyo-marketing-agent"
 
       - name: Build selfimprove
         working-directory: packages/kamiyo-selfimprove

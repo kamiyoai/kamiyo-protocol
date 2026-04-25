@@ -51,11 +51,13 @@ jobs:
       LLM_API_KEY: ollama
       GITHUB_REPO: ${{ github.repository }}
       CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
-      AUTOPILOT_DB_PATH: .autopilot/agent.db
+      AGENT_STATE_DIR: ${{ github.workspace }}/../.kamiyo-agent-state
+      AUTOPILOT_DB_PATH: ${{ github.workspace }}/../.kamiyo-agent-state/kamiyo-autopilot/agent.db
       DAILY_USD_MAX: "0"
       RECONCILE_DELAY_HOURS: "6"
       AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
       AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
+      AGENT_LEARNING_CONTROL_LOOP_TRIGGER: ${{ github.event_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,6 +72,9 @@ jobs:
         run: |
           git config user.name "kamiyo-bot"
           git config user.email "bot@kamiyo.dev"
+
+      - name: Prepare persistent agent state
+        run: mkdir -p "$AGENT_STATE_DIR/kamiyo-autopilot"
 
       - name: Build selfimprove
         working-directory: packages/kamiyo-selfimprove

@@ -118,6 +118,15 @@ test('shouldAdvanceDocsLearning skips auto advancement when paused', () => {
   assert.equal(shouldAdvanceDocsLearning({ mode: 'paused' }), false);
   assert.equal(shouldAdvanceDocsLearning({ mode: 'auto' }), true);
   assert.equal(shouldAdvanceDocsLearning(null), true);
+  assert.equal(shouldAdvanceDocsLearning({ mode: 'auto' }, { commandsFailed: 1 }), false);
+  assert.equal(shouldAdvanceDocsLearning({ mode: 'auto' }, { rollbackApplied: true }), false);
+  assert.equal(
+    shouldAdvanceDocsLearning(
+      { mode: 'auto' },
+      { unsafeStateReason: 'agent_db_inside_github_workspace' }
+    ),
+    false
+  );
 });
 
 test('syncDocsLearningCommands rolls back active canaries and mirrors the rollback event', async () => {
@@ -173,6 +182,7 @@ test('syncDocsLearningCommands rolls back active canaries and mirrors the rollba
 
   assert.equal(result.applied, 1);
   assert.equal(result.failed, 0);
+  assert.equal(result.rollbackApplied, true);
   assert.equal(acknowledgements[0]?.status, 'applied');
   assert.equal(promotions[0]?.eventKind, 'canary_rolled_back');
   assert.equal(promotions[0]?.service, 'kamiyo-docs-agent');

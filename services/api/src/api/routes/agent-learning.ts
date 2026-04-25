@@ -10,10 +10,12 @@ import {
   recordAgentLearningPromotion,
   upsertAgentLearningCanarySnapshot,
   upsertAgentLearningControl,
+  upsertAgentLearningControlLoopRun,
   upsertAgentLearningRun,
   type AgentLearningCanarySnapshotInput,
   type AgentLearningCommandInput,
   type AgentLearningControlInput,
+  type AgentLearningControlLoopRunInput,
   type AgentLearningPromotionInput,
   type AgentLearningRunInput,
 } from '../../agent-learning';
@@ -42,6 +44,10 @@ function requireInternalToken(req: Request, res: Response, next: () => void): vo
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function optionalNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 router.post(
@@ -85,6 +91,41 @@ router.post(
       updatedAt: typeof body?.updatedAt === 'number' ? body.updatedAt : null,
     });
     res.status(202).json({ ok: true });
+  }
+);
+
+router.post(
+  '/internal/agent-learning/control-loop-runs',
+  requireInternalToken,
+  (req: Request, res: Response) => {
+    const body = req.body as Partial<AgentLearningControlLoopRunInput> | undefined;
+    const service = typeof body?.service === 'string' ? body.service.trim() : '';
+    const taskType = typeof body?.taskType === 'string' ? body.taskType.trim() : '';
+    const trigger = typeof body?.trigger === 'string' ? body.trigger.trim() : '';
+    const status = typeof body?.status === 'string' ? body.status.trim() : '';
+
+    if (!service || !taskType || !trigger || !['started', 'succeeded', 'failed'].includes(status)) {
+      res.status(400).json({ error: 'service, taskType, trigger, status required' });
+      return;
+    }
+
+    const run = upsertAgentLearningControlLoopRun({
+      id: typeof body?.id === 'string' ? body.id : null,
+      service,
+      taskType,
+      trigger,
+      status: status as AgentLearningControlLoopRunInput['status'],
+      processed: optionalNumber(body?.processed),
+      finalized: optionalNumber(body?.finalized),
+      requeued: optionalNumber(body?.requeued),
+      skipped: optionalNumber(body?.skipped),
+      commandsApplied: optionalNumber(body?.commandsApplied),
+      commandsFailed: optionalNumber(body?.commandsFailed),
+      startedAt: optionalNumber(body?.startedAt),
+      completedAt: optionalNumber(body?.completedAt),
+      result: isRecord(body?.result) ? body.result : {},
+    });
+    res.status(202).json(run);
   }
 );
 
@@ -286,6 +327,72 @@ router.post(
       updatedAt: typeof body?.updatedAt === 'number' ? body.updatedAt : null,
     });
     res.status(202).json(snapshot);
+  }
+);
+
+router.post(
+  '/internal/agent-learning/control-loop-dispatch',
+  requireInternalToken,
+  async (req: Request, res: Response) => {
+    const body = req.body as { service?: unknown; ref?: unknown } | undefined;
+    const service = typeof body?.service === 'string' ? body.service.trim() : 'all';
+    const ref = typeof body?.ref === 'string' && body.ref.trim() ? body.ref.trim() : 'main';
+    const allowedServices = [
+      'all',
+      'kamiyo-autopilot',
+      'kamiyo-docs-agent',
+      'kamiyo-marketing-agent',
+    ];
+
+    if (!allowedServices.includes(service)) {
+      res.status(400).json({ error: 'valid service required' });
+      return;
+    }
+
+    const repo = process.env.KIZUNA_LEARNING_GITHUB_REPO?.trim();
+    const workflow =
+      process.env.KIZUNA_LEARNING_GITHUB_WORKFLOW?.trim() || 'agent-learning-control-loop.yml';
+    const token = process.env.KIZUNA_LEARNING_GITHUB_DISPATCH_TOKEN?.trim();
+    const workflowUrl = repo
+      ? `https://github.com/${repo}/actions/workflows/${encodeURIComponent(workflow)}`
+      : null;
+
+    if (!repo || !token) {
+      res.status(503).json({
+        dispatched: false,
+        error: 'GitHub workflow dispatch is not configured',
+        workflowUrl,
+      });
+      return;
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${repo}/actions/workflows/${encodeURIComponent(workflow)}/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+        body: JSON.stringify({
+          ref,
+          inputs: { service },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      res.status(response.status).json({
+        dispatched: false,
+        error: `GitHub dispatch failed with ${response.status}`,
+        workflowUrl,
+      });
+      return;
+    }
+
+    res.status(202).json({ dispatched: true, service, workflowUrl });
   }
 );
 

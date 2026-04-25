@@ -120,6 +120,14 @@ describe('learning controls', () => {
     expect(shouldAdvanceAutopilotLearning({ mode: 'paused' })).toBe(false);
     expect(shouldAdvanceAutopilotLearning({ mode: 'auto' })).toBe(true);
     expect(shouldAdvanceAutopilotLearning(null)).toBe(true);
+    expect(shouldAdvanceAutopilotLearning({ mode: 'auto' }, { commandsFailed: 1 })).toBe(false);
+    expect(shouldAdvanceAutopilotLearning({ mode: 'auto' }, { rollbackApplied: true })).toBe(false);
+    expect(
+      shouldAdvanceAutopilotLearning(
+        { mode: 'auto' },
+        { unsafeStateReason: 'agent_db_inside_github_workspace' }
+      )
+    ).toBe(false);
   });
 
   it('rolls back active canaries and mirrors the rollback event', async () => {
@@ -170,6 +178,7 @@ describe('learning controls', () => {
 
     expect(result.applied).toBe(1);
     expect(result.failed).toBe(0);
+    expect(result.rollbackApplied).toBe(true);
     expect(acknowledge).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'cmd-1',

@@ -7,6 +7,7 @@ export type AgentLearningCommandKind = 'pause_auto' | 'resume_auto' | 'rollback_
 export type AgentLearningCommandStatus = 'pending' | 'applied' | 'failed' | 'expired';
 export type AgentLearningCanaryStatus = 'inactive' | 'active' | 'promoted' | 'rolled_back';
 export type AgentLearningAlertLevel = 'info' | 'warning' | 'error';
+export type AgentLearningControlLoopStatus = 'started' | 'succeeded' | 'failed';
 
 export interface AgentLearningAlert {
   code: string;
@@ -85,6 +86,23 @@ export interface AgentLearningCanarySnapshotInput {
   updatedAt?: number | null;
 }
 
+export interface AgentLearningControlLoopRunInput {
+  id?: string | null;
+  service: string;
+  taskType: string;
+  trigger: string;
+  status: AgentLearningControlLoopStatus;
+  processed?: number | null;
+  finalized?: number | null;
+  requeued?: number | null;
+  skipped?: number | null;
+  commandsApplied?: number | null;
+  commandsFailed?: number | null;
+  startedAt?: number | null;
+  completedAt?: number | null;
+  result?: Record<string, unknown> | null;
+}
+
 export interface AgentLearningControlState {
   service: string;
   taskType: string;
@@ -123,6 +141,31 @@ export interface AgentLearningCanarySnapshot {
   pValue: number | null;
   alerts: AgentLearningAlert[];
   updatedAt: string;
+}
+
+export interface AgentLearningControlLoopRun {
+  id: string;
+  service: string;
+  taskType: string;
+  trigger: string;
+  status: AgentLearningControlLoopStatus;
+  processed: number;
+  finalized: number;
+  requeued: number;
+  skipped: number;
+  commandsApplied: number;
+  commandsFailed: number;
+  startedAt: string;
+  completedAt: string | null;
+  result: Record<string, unknown>;
+}
+
+export interface AgentLearningControlLoopState {
+  lastRun: AgentLearningControlLoopRun | null;
+  lastSuccessAt: string | null;
+  expectedIntervalMinutes: number;
+  pendingCommandAgeSeconds: number | null;
+  blockedAutoReason: string | null;
 }
 
 export interface AgentLearningSummaryService {
@@ -203,6 +246,7 @@ export interface AgentLearningServiceDetail {
   activeCanary: AgentLearningSummaryService['activeCanary'];
   controlState: AgentLearningControlState | null;
   activeCanarySnapshot: AgentLearningCanarySnapshot | null;
+  controlLoop: AgentLearningControlLoopState;
   alerts: AgentLearningAlert[];
 }
 
@@ -274,9 +318,27 @@ type CanarySnapshotRow = {
   updated_at: number;
 };
 
+type ControlLoopRunRow = {
+  id: string;
+  service: string;
+  task_type: string;
+  trigger: string;
+  status: AgentLearningControlLoopStatus;
+  processed: number;
+  finalized: number;
+  requeued: number;
+  skipped: number;
+  commands_applied: number;
+  commands_failed: number;
+  result_json: string;
+  started_at: number;
+  completed_at: number | null;
+};
+
 const COMMAND_EXPIRY_HOURS = 24;
 const STALE_UPDATE_HOURS = 24;
 const PENDING_BACKLOG_THRESHOLD = 5;
+const DEFAULT_CONTROL_LOOP_INTERVAL_MINUTES = 30;
 
 export function upsertAgentLearningRun(input: AgentLearningRunInput): void {
   const now = Math.floor(Date.now() / 1000);
@@ -555,6 +617,58 @@ export function upsertAgentLearningCanarySnapshot(
   return getAgentLearningCanarySnapshot(input.service, input.taskType);
 }
 
+export function upsertAgentLearningControlLoopRun(
+  input: AgentLearningControlLoopRunInput
+): AgentLearningControlLoopRun {
+  const now = Math.floor(Date.now() / 1000);
+  const id = input.id?.trim() || randomUUID();
+  const startedAt = normalizeEpoch(input.startedAt, now);
+  const completedAt =
+    typeof input.completedAt === 'number' && Number.isFinite(input.completedAt)
+      ? Math.floor(input.completedAt)
+      : null;
+
+  db.prepare(
+    `INSERT INTO agent_learning_control_loop_runs (
+        id, service, task_type, trigger, status, processed, finalized, requeued, skipped,
+        commands_applied, commands_failed, result_json, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        service = excluded.service,
+        task_type = excluded.task_type,
+        trigger = excluded.trigger,
+        status = excluded.status,
+        processed = excluded.processed,
+        finalized = excluded.finalized,
+        requeued = excluded.requeued,
+        skipped = excluded.skipped,
+        commands_applied = excluded.commands_applied,
+        commands_failed = excluded.commands_failed,
+        result_json = excluded.result_json,
+        completed_at = excluded.completed_at`
+  ).run(
+    id,
+    input.service,
+    input.taskType,
+    input.trigger,
+    input.status,
+    normalizeInteger(input.processed) ?? 0,
+    normalizeInteger(input.finalized) ?? 0,
+    normalizeInteger(input.requeued) ?? 0,
+    normalizeInteger(input.skipped) ?? 0,
+    normalizeInteger(input.commandsApplied) ?? 0,
+    normalizeInteger(input.commandsFailed) ?? 0,
+    JSON.stringify(input.result ?? {}),
+    startedAt,
+    completedAt
+  );
+
+  const row = db
+    .prepare(`SELECT * FROM agent_learning_control_loop_runs WHERE id = ?`)
+    .get(id) as ControlLoopRunRow;
+  return mapControlLoopRunRow(row);
+}
+
 export function getAgentLearningSummary(): AgentLearningSummary {
   const sevenDaysAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
   const runs = db
@@ -630,6 +744,11 @@ export function getAgentLearningServiceDetail(service: string): AgentLearningSer
     ? getAgentLearningControlState(service, primaryTaskType)
     : null;
   const activeCanarySnapshot = getLatestCanarySnapshot(service, primaryTaskType ?? undefined);
+  const controlLoop = getAgentLearningControlLoopState(
+    service,
+    primaryTaskType ?? undefined,
+    commands
+  );
 
   return {
     service,
@@ -645,11 +764,13 @@ export function getAgentLearningServiceDetail(service: string): AgentLearningSer
     activeCanary: aggregate.activeCanary,
     controlState,
     activeCanarySnapshot,
+    controlLoop,
     alerts: buildServiceAlerts({
       rows,
       snapshot: activeCanarySnapshot,
       commands,
       pendingReconciliations: aggregate.pendingReconciliations,
+      controlLoop,
     }),
   };
 }
@@ -788,11 +909,78 @@ function aggregateVariants(rows: RunRow[]) {
     .slice(0, 10);
 }
 
+function getAgentLearningControlLoopState(
+  service: string,
+  taskType: string | undefined,
+  commands: AgentLearningCommand[]
+): AgentLearningControlLoopState {
+  const expectedIntervalMinutes = getControlLoopIntervalMinutes();
+  const latestRunRow = taskType
+    ? (db
+        .prepare(
+          `SELECT * FROM agent_learning_control_loop_runs
+           WHERE service = ? AND task_type = ?
+           ORDER BY started_at DESC
+           LIMIT 1`
+        )
+        .get(service, taskType) as ControlLoopRunRow | undefined)
+    : (db
+        .prepare(
+          `SELECT * FROM agent_learning_control_loop_runs
+           WHERE service = ?
+           ORDER BY started_at DESC
+           LIMIT 1`
+        )
+        .get(service) as ControlLoopRunRow | undefined);
+  const latestSuccessRow = taskType
+    ? (db
+        .prepare(
+          `SELECT * FROM agent_learning_control_loop_runs
+           WHERE service = ? AND task_type = ? AND status = 'succeeded'
+           ORDER BY completed_at DESC, started_at DESC
+           LIMIT 1`
+        )
+        .get(service, taskType) as ControlLoopRunRow | undefined)
+    : (db
+        .prepare(
+          `SELECT * FROM agent_learning_control_loop_runs
+           WHERE service = ? AND status = 'succeeded'
+           ORDER BY completed_at DESC, started_at DESC
+           LIMIT 1`
+        )
+        .get(service) as ControlLoopRunRow | undefined);
+  const pendingCommandEpochs = commands
+    .filter(command => command.status === 'pending')
+    .map(command => Math.floor(Date.parse(command.createdAt) / 1000))
+    .filter(value => Number.isFinite(value));
+  const oldestPendingCommand =
+    pendingCommandEpochs.length > 0 ? Math.min(...pendingCommandEpochs) : null;
+  const lastRun = latestRunRow ? mapControlLoopRunRow(latestRunRow) : null;
+  const result = lastRun?.result ?? {};
+
+  return {
+    lastRun,
+    lastSuccessAt: latestSuccessRow
+      ? toIso(latestSuccessRow.completed_at ?? latestSuccessRow.started_at)
+      : null,
+    expectedIntervalMinutes,
+    pendingCommandAgeSeconds:
+      oldestPendingCommand === null
+        ? null
+        : Math.max(0, Math.floor(Date.now() / 1000) - oldestPendingCommand),
+    blockedAutoReason:
+      typeof result.blockedAutoReason === 'string' && result.blockedAutoReason.trim()
+        ? result.blockedAutoReason
+        : null,
+  };
+}
+
 function buildServiceAlerts(params: {
   rows: RunRow[];
   snapshot: AgentLearningCanarySnapshot | null;
   commands: AgentLearningCommand[];
   pendingReconciliations: number;
+  controlLoop: AgentLearningControlLoopState;
 }): AgentLearningAlert[] {
   const alerts: AgentLearningAlert[] = [];
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -826,6 +1014,52 @@ function buildServiceAlerts(params: {
   }
 
   if (params.snapshot) alerts.push(...params.snapshot.alerts);
+
+  if (params.controlLoop.lastRun && !params.controlLoop.lastSuccessAt) {
+    alerts.push({
+      code: 'control_loop_not_successful',
+      level: 'warning',
+      message: 'The learning control loop has reported but has not completed successfully yet.',
+      detectedAt: new Date(nowSeconds * 1000).toISOString(),
+    });
+  }
+
+  if (params.controlLoop.lastSuccessAt) {
+    const lastSuccess = Math.floor(Date.parse(params.controlLoop.lastSuccessAt) / 1000);
+    if (
+      Number.isFinite(lastSuccess) &&
+      nowSeconds - lastSuccess >= params.controlLoop.expectedIntervalMinutes * 3 * 60
+    ) {
+      alerts.push({
+        code: 'stale_control_loop',
+        level: 'warning',
+        message: `No successful learning control loop has reported in more than ${params.controlLoop.expectedIntervalMinutes * 3} minutes.`,
+        detectedAt: new Date(nowSeconds * 1000).toISOString(),
+      });
+    }
+  }
+
+  if (
+    typeof params.controlLoop.pendingCommandAgeSeconds === 'number' &&
+    params.controlLoop.pendingCommandAgeSeconds >= params.controlLoop.expectedIntervalMinutes * 60
+  ) {
+    alerts.push({
+      code: 'pending_operator_command',
+      level: 'warning',
+      message: `An operator command has been pending for ${Math.round(params.controlLoop.pendingCommandAgeSeconds / 60)} minutes.`,
+      detectedAt: new Date(nowSeconds * 1000).toISOString(),
+    });
+  }
+
+  if (params.controlLoop.blockedAutoReason) {
+    alerts.push({
+      code: 'auto_promotion_blocked',
+      level: 'warning',
+      message: `Delayed-score auto-promotion is blocked: ${params.controlLoop.blockedAutoReason}.`,
+      detectedAt:
+        params.controlLoop.lastRun?.completedAt ?? new Date(nowSeconds * 1000).toISOString(),
+    });
+  }
 
   for (const command of params.commands) {
     if (command.status !== 'failed' && command.status !== 'expired') continue;
@@ -988,6 +1222,25 @@ function mapCanarySnapshotRow(row: CanarySnapshotRow): AgentLearningCanarySnapsh
   };
 }
 
+function mapControlLoopRunRow(row: ControlLoopRunRow): AgentLearningControlLoopRun {
+  return {
+    id: row.id,
+    service: row.service,
+    taskType: row.task_type,
+    trigger: row.trigger,
+    status: row.status,
+    processed: row.processed,
+    finalized: row.finalized,
+    requeued: row.requeued,
+    skipped: row.skipped,
+    commandsApplied: row.commands_applied,
+    commandsFailed: row.commands_failed,
+    startedAt: toIso(row.started_at),
+    completedAt: row.completed_at ? toIso(row.completed_at) : null,
+    result: parseJson(row.result_json),
+  };
+}
+
 function dedupeAlerts(alerts: AgentLearningAlert[]): AgentLearningAlert[] {
   const seen = new Set<string>();
   const deduped: AgentLearningAlert[] = [];
@@ -1015,6 +1268,11 @@ function normalizeInteger(value: number | null | undefined): number | null {
 
 function normalizeNumber(value: number | null | undefined): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function getControlLoopIntervalMinutes(): number {
+  const raw = Number(process.env.AGENT_LEARNING_CONTROL_LOOP_INTERVAL_MINUTES);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_CONTROL_LOOP_INTERVAL_MINUTES;
 }
 
 function parseJson(value: string): Record<string, unknown> {

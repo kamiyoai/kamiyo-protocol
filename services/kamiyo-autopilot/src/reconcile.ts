@@ -8,9 +8,12 @@ import {
   advanceDelayedLearningControl,
   applyAgentSchema,
   applyDelayedLearningCommands,
+  assessAgentLearningDbPath,
   assessAgentOutcome,
   buildAgentLearningRunPayload,
+  createAgentLearningControlLoopRunId,
   createReconciliationPatch,
+  decideDelayedLearningAutoAdvance,
   deriveAgentLearningAlerts,
   emitOutcomeMetric,
   fetchAgentLearningControlState,
@@ -20,6 +23,7 @@ import {
   hoursFromNow,
   listPendingAgentRunReceipts,
   publishAgentLearningCanarySnapshot,
+  publishAgentLearningControlLoopRun,
   publishAgentLearningPromotion,
   publishAgentLearningRun,
   recordDelayedVariantScore,
@@ -47,9 +51,19 @@ type PullRequestSnapshot = NonNullable<Awaited<ReturnType<GitHubClient['getPullR
 const RECONCILE_RETRY_HOURS = 2;
 
 export function shouldAdvanceAutopilotLearning(
-  controlState: Pick<AgentLearningControlState, 'mode'> | null | undefined
+  controlState: Pick<AgentLearningControlState, 'mode'> | null | undefined,
+  options?: {
+    commandsFailed?: number;
+    rollbackApplied?: boolean;
+    unsafeStateReason?: string | null;
+  }
 ): boolean {
-  return controlState?.mode !== 'paused';
+  return decideDelayedLearningAutoAdvance({
+    controlState,
+    commandsFailed: options?.commandsFailed,
+    rollbackApplied: options?.rollbackApplied,
+    unsafeStateReason: options?.unsafeStateReason,
+  }).shouldAdvance;
 }
 
 export async function syncAutopilotLearningCommands(params: {
@@ -57,7 +71,7 @@ export async function syncAutopilotLearningCommands(params: {
   commands: Pick<AgentLearningCommand, 'id' | 'kind' | 'note'>[];
   acknowledge?: typeof acknowledgeAgentLearningCommand;
   publishPromotion?: typeof publishAgentLearningPromotion;
-}): Promise<{ applied: number; failed: number }> {
+}): Promise<{ applied: number; failed: number; rollbackApplied: boolean }> {
   const acknowledge = params.acknowledge ?? acknowledgeAgentLearningCommand;
   const publishPromotion = params.publishPromotion ?? publishAgentLearningPromotion;
   const outcomes = applyDelayedLearningCommands({
@@ -67,6 +81,7 @@ export async function syncAutopilotLearningCommands(params: {
 
   let applied = 0;
   let failed = 0;
+  let rollbackApplied = false;
   for (const outcome of outcomes) {
     if (outcome.event) {
       await publishPromotion({
@@ -85,9 +100,12 @@ export async function syncAutopilotLearningCommands(params: {
     });
     if (outcome.status === 'applied') applied += 1;
     else failed += 1;
+    if (outcome.kind === 'rollback_active_canary' && outcome.status === 'applied') {
+      rollbackApplied = true;
+    }
   }
 
-  return { applied, failed };
+  return { applied, failed, rollbackApplied };
 }
 
 export function assessAutopilotDelayedOutcome(params: {
@@ -211,43 +229,95 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
   requeued: number;
   skipped: number;
 }> {
-  const db = openAutopilotDatabase(cfg.AUTOPILOT_DB_PATH);
-  applyAgentSchema(db);
-
-  if (cfg.SELF_IMPROVE_ENABLED) {
-    const selfImproveDb = db as unknown as DatabaseAdapter;
-    initSelfImprove({
-      db: selfImproveDb,
-      logger: createNoopLogger(),
-      metrics: createNoopMetrics(),
-    });
-    applySelfImproveSchema(selfImproveDb);
+  const service = 'kamiyo-autopilot';
+  const taskType = cfg.SELF_IMPROVE_TASK_TYPE;
+  const loopRunId = createAgentLearningControlLoopRunId(service);
+  const startedAt = Math.floor(Date.now() / 1000);
+  const trigger =
+    process.env.AGENT_LEARNING_CONTROL_LOOP_TRIGGER || process.env.GITHUB_EVENT_NAME || 'manual';
+  const dbPathSafety = assessAgentLearningDbPath({
+    dbPath: cfg.AUTOPILOT_DB_PATH,
+    cwd: process.cwd(),
+    githubWorkspace: process.env.GITHUB_WORKSPACE,
+  });
+  if (dbPathSafety.unsafe) {
+    console.warn(`[autopilot] unsafe learning DB path: ${dbPathSafety.reason}`);
   }
 
-  const github = new GitHubClient(cfg);
-  const controlState = await fetchAgentLearningControlState({
-    service: 'kamiyo-autopilot',
-    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+  await publishAgentLearningControlLoopRun({
+    id: loopRunId,
+    service,
+    taskType,
+    trigger,
+    status: 'started',
+    processed: 0,
+    finalized: 0,
+    requeued: 0,
+    skipped: 0,
+    commandsApplied: 0,
+    commandsFailed: 0,
+    startedAt,
+    result: {
+      dbPath: dbPathSafety.resolvedPath,
+      unsafeStateReason: dbPathSafety.reason,
+    },
   });
-  const pendingCommands = await fetchPendingAgentLearningCommands({
-    service: 'kamiyo-autopilot',
-    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
-  });
-  await syncAutopilotLearningCommands({
-    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
-    commands: pendingCommands,
-  });
-  const pending = listPendingAgentRunReceipts(db, {
-    service: 'kamiyo-autopilot',
-    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
-  });
-  const autoLearningEnabled = shouldAdvanceAutopilotLearning(controlState);
 
+  let db: AutopilotDatabase | null = null;
+  let processed = 0;
   let finalized = 0;
   let requeued = 0;
   let skipped = 0;
+  let commandsApplied = 0;
+  let commandsFailed = 0;
+  let rollbackApplied = false;
+  let blockedAutoReason: string | null = null;
 
   try {
+    db = openAutopilotDatabase(cfg.AUTOPILOT_DB_PATH);
+    applyAgentSchema(db);
+
+    if (cfg.SELF_IMPROVE_ENABLED) {
+      const selfImproveDb = db as unknown as DatabaseAdapter;
+      initSelfImprove({
+        db: selfImproveDb,
+        logger: createNoopLogger(),
+        metrics: createNoopMetrics(),
+      });
+      applySelfImproveSchema(selfImproveDb);
+    }
+
+    const github = new GitHubClient(cfg);
+    const controlState = await fetchAgentLearningControlState({
+      service,
+      taskType,
+    });
+    const pendingCommands = await fetchPendingAgentLearningCommands({
+      service,
+      taskType,
+    });
+    const commandSync = await syncAutopilotLearningCommands({
+      taskType,
+      commands: pendingCommands,
+    });
+    commandsApplied = commandSync.applied;
+    commandsFailed = commandSync.failed;
+    rollbackApplied = commandSync.rollbackApplied;
+
+    const autoDecision = decideDelayedLearningAutoAdvance({
+      controlState,
+      commandsFailed,
+      rollbackApplied,
+      unsafeStateReason: dbPathSafety.reason,
+    });
+    blockedAutoReason = autoDecision.blockedReason;
+    const pending = listPendingAgentRunReceipts(db, {
+      service,
+      taskType,
+    });
+    processed = pending.length;
+    const autoLearningEnabled = autoDecision.shouldAdvance;
+
     for (const receipt of pending) {
       const issueNumber = Number(
         receipt.subjectId ?? getReceiptNumber(receipt, 'issueNumber') ?? 0
@@ -363,12 +433,12 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
     }
 
     const remainingPending = listPendingAgentRunReceipts(db, {
-      service: 'kamiyo-autopilot',
-      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      service,
+      taskType,
     });
     const snapshot = snapshotDelayedLearningCanary({
-      service: 'kamiyo-autopilot',
-      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      service,
+      taskType,
       pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
     });
     await publishAgentLearningCanarySnapshot({
@@ -376,17 +446,64 @@ export async function reconcilePendingAutopilotReceipts(cfg: Config): Promise<{
       alerts: deriveAgentLearningAlerts({
         pendingReconciliations: remainingPending.length,
         canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+        unsafeStateReason: dbPathSafety.reason,
       }),
     });
 
+    await publishAgentLearningControlLoopRun({
+      id: loopRunId,
+      service,
+      taskType,
+      trigger,
+      status: 'succeeded',
+      processed,
+      finalized,
+      requeued,
+      skipped,
+      commandsApplied,
+      commandsFailed,
+      startedAt,
+      completedAt: Math.floor(Date.now() / 1000),
+      result: {
+        blockedAutoReason,
+        rollbackApplied,
+        dbPath: dbPathSafety.resolvedPath,
+        unsafeStateReason: dbPathSafety.reason,
+      },
+    });
+
     return {
-      processed: pending.length,
+      processed,
       finalized,
       requeued,
       skipped,
     };
+  } catch (error) {
+    await publishAgentLearningControlLoopRun({
+      id: loopRunId,
+      service,
+      taskType,
+      trigger,
+      status: 'failed',
+      processed,
+      finalized,
+      requeued,
+      skipped,
+      commandsApplied,
+      commandsFailed,
+      startedAt,
+      completedAt: Math.floor(Date.now() / 1000),
+      result: {
+        error: error instanceof Error ? error.message : String(error),
+        blockedAutoReason,
+        rollbackApplied,
+        dbPath: dbPathSafety.resolvedPath,
+        unsafeStateReason: dbPathSafety.reason,
+      },
+    });
+    throw error;
   } finally {
-    db.close();
+    db?.close();
   }
 }
 

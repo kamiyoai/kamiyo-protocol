@@ -210,6 +210,52 @@ describe('agent-learning routes', () => {
     });
     expect(promotion.status).toBe(202);
 
+    const controlLoopStarted = await fetch(
+      `${baseUrl}/api/internal/agent-learning/control-loop-runs`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          id: 'loop-1',
+          service: 'kamiyo-autopilot',
+          taskType: 'autopilot_issue_resolution',
+          trigger: 'workflow_dispatch',
+          status: 'started',
+          startedAt: 1_777_100_700,
+          result: { dbPath: '/runner/.kamiyo-agent-state/kamiyo-autopilot/agent.db' },
+        }),
+      }
+    );
+    expect(controlLoopStarted.status).toBe(202);
+
+    const controlLoopSucceeded = await fetch(
+      `${baseUrl}/api/internal/agent-learning/control-loop-runs`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          id: 'loop-1',
+          service: 'kamiyo-autopilot',
+          taskType: 'autopilot_issue_resolution',
+          trigger: 'workflow_dispatch',
+          status: 'succeeded',
+          processed: 1,
+          finalized: 1,
+          requeued: 0,
+          skipped: 0,
+          commandsApplied: 1,
+          commandsFailed: 1,
+          startedAt: 1_777_100_700,
+          completedAt: 1_777_100_760,
+          result: {
+            blockedAutoReason: 'operator_command_failed',
+            dbPath: '/runner/.kamiyo-agent-state/kamiyo-autopilot/agent.db',
+          },
+        }),
+      }
+    );
+    expect(controlLoopSucceeded.status).toBe(202);
+
     const summaryRes = await fetch(`${baseUrl}/api/agent-learning/summary`);
     expect(summaryRes.status).toBe(200);
     const summary = (await summaryRes.json()) as {
@@ -242,12 +288,23 @@ describe('agent-learning routes', () => {
       recentRuns: Array<{ runId: string; delayedOutcome: string | null; reconcileStatus: string }>;
       recentEvents: Array<{ eventKind: string }>;
       topVariants: Array<{ variantId: string; avgDelayedScore: number | null }>;
+      controlLoop: {
+        lastRun: { id: string; status: string; commandsFailed: number } | null;
+        lastSuccessAt: string | null;
+        blockedAutoReason: string | null;
+      };
     };
     expect(detail.controlState?.mode).toBe('paused');
     expect(detail.activeCanarySnapshot?.status).toBe('active');
     expect(detail.activeCanarySnapshot?.canaryVariantId).toBe('variant-a');
     expect(detail.alerts.some(alert => alert.code === 'active_canary_stalled')).toBe(true);
     expect(detail.alerts.some(alert => alert.code === 'failed_operator_command')).toBe(true);
+    expect(detail.alerts.some(alert => alert.code === 'auto_promotion_blocked')).toBe(true);
+    expect(detail.controlLoop.lastRun?.id).toBe('loop-1');
+    expect(detail.controlLoop.lastRun?.status).toBe('succeeded');
+    expect(detail.controlLoop.lastRun?.commandsFailed).toBe(1);
+    expect(detail.controlLoop.lastSuccessAt).toBe('2026-04-25T07:06:00.000Z');
+    expect(detail.controlLoop.blockedAutoReason).toBe('operator_command_failed');
     expect(
       detail.recentCommands.some(
         command => command.status === 'failed' && command.kind === 'rollback_active_canary'
@@ -266,6 +323,20 @@ describe('agent-learning routes', () => {
     const runs = (await runsRes.json()) as { runs: Array<{ runId: string }> };
     expect(runs.runs[0]?.runId).toBe('run-42');
 
+    await close();
+  });
+
+  it('reports dispatch as unavailable when GitHub workflow dispatch is not configured', async () => {
+    const { baseUrl, close } = await startServer();
+    const res = await fetch(`${baseUrl}/api/internal/agent-learning/control-loop-dispatch`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer test-token' },
+      body: JSON.stringify({ service: 'kamiyo-autopilot' }),
+    });
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { dispatched: boolean; error: string };
+    expect(body.dispatched).toBe(false);
+    expect(body.error).toMatch(/not configured/);
     await close();
   });
 });

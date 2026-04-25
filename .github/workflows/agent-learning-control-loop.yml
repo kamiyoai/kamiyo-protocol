@@ -1,0 +1,106 @@
+name: agent-learning-control-loop
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to reconcile"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - kamiyo-autopilot
+          - kamiyo-docs-agent
+          - kamiyo-marketing-agent
+
+concurrency:
+  group: agent-learning-control-loop-${{ github.event.inputs.service || 'all' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  reconcile:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      SELECTED_SERVICE: ${{ github.event.inputs.service || 'all' }}
+      AGENT_STATE_DIR: ${{ github.workspace }}/../.kamiyo-agent-state
+      LLM_BASE_URL: http://localhost:11434/v1
+      LLM_API_KEY: ollama
+      GITHUB_REPO: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ secrets.AUTOPILOT_PAT || github.token }}
+      CLAUDE_MODEL: hf.co/OBLITERATUS/gemma-4-E4B-it-OBLITERATED:Q5_K_M
+      AUTOPILOT_DB_PATH: ${{ github.workspace }}/../.kamiyo-agent-state/kamiyo-autopilot/agent.db
+      DOCS_AGENT_DB_PATH: ${{ github.workspace }}/../.kamiyo-agent-state/kamiyo-docs-agent/agent.db
+      MARKETING_AGENT_DB_PATH: ${{ github.workspace }}/../.kamiyo-agent-state/kamiyo-marketing-agent/agent.db
+      DAILY_USD_MAX: "0"
+      SELF_IMPROVE_ENABLED: "true"
+      SELF_IMPROVE_MIN_SAMPLES: "5"
+      SELF_IMPROVE_P_THRESHOLD: "0.1"
+      POSTIZ_URL: ${{ secrets.POSTIZ_URL }}
+      POSTIZ_API_KEY: ${{ secrets.POSTIZ_API_KEY }}
+      POSTIZ_INTEGRATIONS: ${{ secrets.POSTIZ_INTEGRATIONS }}
+      DRY_RUN: "0"
+      AGENT_LEARNING_API_URL: ${{ secrets.AGENT_LEARNING_API_URL }}
+      AGENT_LEARNING_API_TOKEN: ${{ secrets.AGENT_LEARNING_API_TOKEN }}
+      AGENT_LEARNING_CONTROL_LOOP_TRIGGER: ${{ github.event_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.AUTOPILOT_PAT || github.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Prepare persistent agent state
+        run: |
+          mkdir -p "$AGENT_STATE_DIR/kamiyo-autopilot"
+          mkdir -p "$AGENT_STATE_DIR/kamiyo-docs-agent"
+          mkdir -p "$AGENT_STATE_DIR/kamiyo-marketing-agent"
+
+      - name: Build selfimprove
+        working-directory: packages/kamiyo-selfimprove
+        run: pnpm install --ignore-workspace && pnpm build
+
+      - name: Build agent runtime
+        working-directory: packages/kamiyo-agent
+        run: pnpm install --ignore-workspace && pnpm build
+
+      - name: Reconcile autopilot receipts
+        if: env.SELECTED_SERVICE == 'all' || env.SELECTED_SERVICE == 'kamiyo-autopilot'
+        working-directory: services/kamiyo-autopilot
+        env:
+          SELF_IMPROVE_TASK_TYPE: autopilot_issue_resolution
+        run: |
+          pnpm install --ignore-workspace
+          pnpm build
+          node dist/reconcile.js
+
+      - name: Reconcile docs-agent receipts
+        if: env.SELECTED_SERVICE == 'all' || env.SELECTED_SERVICE == 'kamiyo-docs-agent'
+        working-directory: services/kamiyo-docs-agent
+        env:
+          SELF_IMPROVE_TASK_TYPE: docs_regeneration
+        run: |
+          pnpm install --ignore-workspace
+          pnpm build
+          node dist/reconcile.js
+
+      - name: Reconcile marketing-agent receipts
+        if: env.SELECTED_SERVICE == 'all' || env.SELECTED_SERVICE == 'kamiyo-marketing-agent'
+        working-directory: services/kamiyo-marketing-agent
+        env:
+          SELF_IMPROVE_TASK_TYPE: marketing_post_drafting
+        run: |
+          pnpm install --ignore-workspace
+          pnpm build
+          node dist/reconcile.js

@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+
 export type AgentLearningControlMode = 'auto' | 'paused';
 export type AgentLearningCommandKind = 'pause_auto' | 'resume_auto' | 'rollback_active_canary';
 export type AgentLearningCommandStatus = 'pending' | 'applied' | 'failed' | 'expired';
 export type AgentLearningCanaryStatus = 'inactive' | 'active' | 'promoted' | 'rolled_back';
 export type AgentLearningAlertLevel = 'info' | 'warning' | 'error';
+export type AgentLearningControlLoopStatus = 'started' | 'succeeded' | 'failed';
 
 export interface AgentLearningAlert {
   code: string;
@@ -51,13 +55,49 @@ export interface AgentLearningCanarySnapshot {
   updatedAt?: number | null;
 }
 
+export interface AgentLearningControlLoopRun {
+  id: string;
+  service: string;
+  taskType: string;
+  trigger: string;
+  status: AgentLearningControlLoopStatus;
+  processed: number;
+  finalized: number;
+  requeued: number;
+  skipped: number;
+  commandsApplied: number;
+  commandsFailed: number;
+  startedAt: number;
+  completedAt?: number | null;
+  result: Record<string, unknown>;
+}
+
 export interface AgentLearningAlertInput {
   pendingReconciliations: number;
   canarySnapshot: Pick<
     AgentLearningCanarySnapshot,
     'status' | 'decisionKind' | 'decisionReason' | 'canarySamples' | 'baselineSamples'
   > | null;
+  unsafeStateReason?: string | null;
   backlogThreshold?: number;
+  now?: number | Date;
+}
+
+export interface AgentLearningDbPathSafety {
+  resolvedPath: string;
+  unsafe: boolean;
+  reason: string | null;
+}
+
+export interface DelayedLearningAutoAdvanceDecision {
+  shouldAdvance: boolean;
+  blockedReason: string | null;
+}
+
+export interface AgentLearningControlLoopAlertInput {
+  lastSuccessAt?: string | number | Date | null;
+  expectedIntervalMinutes?: number;
+  pendingCommandAgeSeconds?: number | null;
   now?: number | Date;
 }
 
@@ -119,6 +159,84 @@ export async function publishAgentLearningCanarySnapshot(
   });
 }
 
+export function createAgentLearningControlLoopRunId(service: string): string {
+  return `${service}:${randomUUID()}`;
+}
+
+export async function publishAgentLearningControlLoopRun(
+  payload: AgentLearningControlLoopRun
+): Promise<boolean> {
+  return learningWrite('/api/internal/agent-learning/control-loop-runs', {
+    method: 'POST',
+    body: {
+      ...payload,
+      startedAt: Math.floor(payload.startedAt),
+      completedAt:
+        typeof payload.completedAt === 'number' && Number.isFinite(payload.completedAt)
+          ? Math.floor(payload.completedAt)
+          : undefined,
+    },
+  });
+}
+
+export function assessAgentLearningDbPath(input: {
+  dbPath: string;
+  cwd?: string;
+  githubWorkspace?: string | null;
+  githubActions?: boolean;
+  allowWorkspaceDb?: boolean;
+}): AgentLearningDbPathSafety {
+  const cwd = input.cwd ?? process.cwd();
+  const resolvedPath = path.isAbsolute(input.dbPath)
+    ? path.normalize(input.dbPath)
+    : path.resolve(cwd, input.dbPath);
+  const workspace = input.githubWorkspace?.trim();
+  const githubActions = input.githubActions ?? process.env.GITHUB_ACTIONS === 'true';
+  const allowWorkspaceDb =
+    input.allowWorkspaceDb ?? process.env.AGENT_LEARNING_ALLOW_WORKSPACE_DB === 'true';
+
+  if (!githubActions || !workspace || allowWorkspaceDb) {
+    return { resolvedPath, unsafe: false, reason: null };
+  }
+
+  const resolvedWorkspace = path.resolve(workspace);
+  const relative = path.relative(resolvedWorkspace, resolvedPath);
+  const insideWorkspace =
+    relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+
+  if (!insideWorkspace) {
+    return { resolvedPath, unsafe: false, reason: null };
+  }
+
+  return {
+    resolvedPath,
+    unsafe: true,
+    reason:
+      'agent_db_inside_github_workspace; move the DB outside checkout cleanup or set AGENT_LEARNING_ALLOW_WORKSPACE_DB=true',
+  };
+}
+
+export function decideDelayedLearningAutoAdvance(input: {
+  controlState?: Pick<AgentLearningControlState, 'mode'> | null;
+  commandsFailed?: number;
+  rollbackApplied?: boolean;
+  unsafeStateReason?: string | null;
+}): DelayedLearningAutoAdvanceDecision {
+  if (input.controlState?.mode === 'paused') {
+    return { shouldAdvance: false, blockedReason: 'control_mode_paused' };
+  }
+  if ((input.commandsFailed ?? 0) > 0) {
+    return { shouldAdvance: false, blockedReason: 'operator_command_failed' };
+  }
+  if (input.rollbackApplied) {
+    return { shouldAdvance: false, blockedReason: 'rollback_command_applied' };
+  }
+  if (input.unsafeStateReason) {
+    return { shouldAdvance: false, blockedReason: input.unsafeStateReason };
+  }
+  return { shouldAdvance: true, blockedReason: null };
+}
+
 export function deriveAgentLearningAlerts(input: AgentLearningAlertInput): AgentLearningAlert[] {
   const alerts: AgentLearningAlert[] = [];
   const backlogThreshold = Math.max(1, input.backlogThreshold ?? 5);
@@ -148,6 +266,53 @@ export function deriveAgentLearningAlerts(input: AgentLearningAlertInput): Agent
       code: 'active_canary_stalled',
       level: 'warning',
       message: `Active canary is holding: ${input.canarySnapshot.decisionReason}.`,
+      detectedAt,
+    });
+  }
+
+  if (input.unsafeStateReason) {
+    alerts.push({
+      code: 'unsafe_agent_state_path',
+      level: 'error',
+      message: input.unsafeStateReason,
+      detectedAt,
+    });
+  }
+
+  return dedupeAlerts(alerts);
+}
+
+export function deriveAgentLearningControlLoopAlerts(
+  input: AgentLearningControlLoopAlertInput
+): AgentLearningAlert[] {
+  const alerts: AgentLearningAlert[] = [];
+  const expectedIntervalMinutes = Math.max(1, input.expectedIntervalMinutes ?? 30);
+  const nowMs =
+    typeof input.now === 'number'
+      ? input.now
+      : input.now instanceof Date
+        ? input.now.getTime()
+        : Date.now();
+  const detectedAt = toIso(nowMs);
+  const lastSuccessMs = parseMaybeTime(input.lastSuccessAt);
+
+  if (lastSuccessMs !== null && nowMs - lastSuccessMs > expectedIntervalMinutes * 3 * 60 * 1000) {
+    alerts.push({
+      code: 'stale_control_loop',
+      level: 'warning',
+      message: `No successful learning control loop has reported in more than ${expectedIntervalMinutes * 3} minutes.`,
+      detectedAt,
+    });
+  }
+
+  if (
+    typeof input.pendingCommandAgeSeconds === 'number' &&
+    input.pendingCommandAgeSeconds > expectedIntervalMinutes * 60
+  ) {
+    alerts.push({
+      code: 'pending_operator_command',
+      level: 'warning',
+      message: `An operator command has been pending for ${Math.round(input.pendingCommandAgeSeconds / 60)} minutes.`,
       detectedAt,
     });
   }
@@ -218,4 +383,16 @@ function dedupeAlerts(alerts: AgentLearningAlert[]): AgentLearningAlert[] {
 
 function toIso(value: number): string {
   return new Date(value).toISOString();
+}
+
+function parseMaybeTime(value: string | number | Date | null | undefined): number | null {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 10_000_000_000 ? value : value * 1000;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }

@@ -179,10 +179,12 @@ test('marketing read-only path still snapshots active canaries and backlog alert
   const alerts = deriveAgentLearningAlerts({
     pendingReconciliations: 7,
     canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+    unsafeStateReason: 'agent_db_inside_github_workspace',
     now: new Date('2026-04-22T16:00:00.000Z'),
   });
 
   assert.equal(snapshot.status, 'active');
   assert.equal(snapshot.canaryVariantId, canary.id);
   assert.ok(alerts.some(alert => alert.code === 'pending_reconciliation_backlog'));
+  assert.ok(alerts.some(alert => alert.code === 'unsafe_agent_state_path'));
 });

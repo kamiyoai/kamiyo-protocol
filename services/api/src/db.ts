@@ -2001,6 +2001,29 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_agent_learning_canary_snapshots_updated
     ON agent_learning_canary_snapshots(service, updated_at DESC);
 
+  CREATE TABLE IF NOT EXISTS agent_learning_control_loop_runs (
+    id TEXT PRIMARY KEY,
+    service TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    trigger TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('started', 'succeeded', 'failed')),
+    processed INTEGER NOT NULL DEFAULT 0,
+    finalized INTEGER NOT NULL DEFAULT 0,
+    requeued INTEGER NOT NULL DEFAULT 0,
+    skipped INTEGER NOT NULL DEFAULT 0,
+    commands_applied INTEGER NOT NULL DEFAULT 0,
+    commands_failed INTEGER NOT NULL DEFAULT 0,
+    result_json TEXT NOT NULL DEFAULT '{}',
+    started_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    completed_at INTEGER
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_control_loop_runs_service_started
+    ON agent_learning_control_loop_runs(service, task_type, started_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_agent_learning_control_loop_runs_status_started
+    ON agent_learning_control_loop_runs(status, started_at DESC);
+
   CREATE TABLE IF NOT EXISTS counterfactual_cases (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL,

@@ -4,8 +4,10 @@ import { mkdirSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import {
   applyAgentSchema,
+  assessAgentLearningDbPath,
   assessAgentOutcome,
   buildAgentLearningRunPayload,
+  createAgentLearningControlLoopRunId,
   createReconciliationPatch,
   deriveAgentLearningAlerts,
   emitOutcomeMetric,
@@ -14,6 +16,7 @@ import {
   hoursFromNow,
   listPendingAgentRunReceipts,
   publishAgentLearningCanarySnapshot,
+  publishAgentLearningControlLoopRun,
   publishAgentLearningRun,
   recordDelayedVariantScore,
   snapshotDelayedLearningCanary,
@@ -151,29 +154,67 @@ export async function reconcilePendingMarketingReceipts(cfg: Config): Promise<{
   requeued: number;
   skipped: number;
 }> {
-  const db = openMarketingDatabase(cfg.MARKETING_AGENT_DB_PATH);
-  applyAgentSchema(db);
-
-  if (cfg.SELF_IMPROVE_ENABLED) {
-    const selfImproveDb = db as unknown as DatabaseAdapter;
-    initSelfImprove({
-      db: selfImproveDb,
-      logger: createNoopLogger(),
-      metrics: createNoopMetrics(),
-    });
-    applySelfImproveSchema(selfImproveDb);
+  const service = 'kamiyo-marketing-agent';
+  const taskType = cfg.SELF_IMPROVE_TASK_TYPE;
+  const loopRunId = createAgentLearningControlLoopRunId(service);
+  const startedAt = Math.floor(Date.now() / 1000);
+  const trigger =
+    process.env.AGENT_LEARNING_CONTROL_LOOP_TRIGGER || process.env.GITHUB_EVENT_NAME || 'manual';
+  const dbPathSafety = assessAgentLearningDbPath({
+    dbPath: cfg.MARKETING_AGENT_DB_PATH,
+    cwd: process.cwd(),
+    githubWorkspace: process.env.GITHUB_WORKSPACE,
+  });
+  if (dbPathSafety.unsafe) {
+    console.warn(`[marketing-agent] unsafe learning DB path: ${dbPathSafety.reason}`);
   }
 
-  const pending = listPendingAgentRunReceipts(db, {
-    service: 'kamiyo-marketing-agent',
-    taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+  await publishAgentLearningControlLoopRun({
+    id: loopRunId,
+    service,
+    taskType,
+    trigger,
+    status: 'started',
+    processed: 0,
+    finalized: 0,
+    requeued: 0,
+    skipped: 0,
+    commandsApplied: 0,
+    commandsFailed: 0,
+    startedAt,
+    result: {
+      readOnlyPromotionControl: true,
+      dbPath: dbPathSafety.resolvedPath,
+      unsafeStateReason: dbPathSafety.reason,
+    },
   });
 
+  let db: MarketingDatabase | null = null;
+  let processed = 0;
   let finalized = 0;
   let requeued = 0;
   let skipped = 0;
 
   try {
+    db = openMarketingDatabase(cfg.MARKETING_AGENT_DB_PATH);
+    applyAgentSchema(db);
+
+    if (cfg.SELF_IMPROVE_ENABLED) {
+      const selfImproveDb = db as unknown as DatabaseAdapter;
+      initSelfImprove({
+        db: selfImproveDb,
+        logger: createNoopLogger(),
+        metrics: createNoopMetrics(),
+      });
+      applySelfImproveSchema(selfImproveDb);
+    }
+
+    const pending = listPendingAgentRunReceipts(db, {
+      service,
+      taskType,
+    });
+    processed = pending.length;
+
     const scheduledPosts =
       !cfg.DRY_RUN && pending.length > 0 ? await new PostizClient(cfg).listScheduled() : [];
     const publishedPosts =
@@ -261,12 +302,12 @@ export async function reconcilePendingMarketingReceipts(cfg: Config): Promise<{
     }
 
     const remainingPending = listPendingAgentRunReceipts(db, {
-      service: 'kamiyo-marketing-agent',
-      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      service,
+      taskType,
     });
     const snapshot = snapshotDelayedLearningCanary({
-      service: 'kamiyo-marketing-agent',
-      taskType: cfg.SELF_IMPROVE_TASK_TYPE,
+      service,
+      taskType,
       pThreshold: cfg.SELF_IMPROVE_P_THRESHOLD,
     });
     await publishAgentLearningCanarySnapshot({
@@ -274,17 +315,64 @@ export async function reconcilePendingMarketingReceipts(cfg: Config): Promise<{
       alerts: deriveAgentLearningAlerts({
         pendingReconciliations: remainingPending.length,
         canarySnapshot: snapshot.status === 'active' ? snapshot : null,
+        unsafeStateReason: dbPathSafety.reason,
       }),
     });
 
+    await publishAgentLearningControlLoopRun({
+      id: loopRunId,
+      service,
+      taskType,
+      trigger,
+      status: 'succeeded',
+      processed,
+      finalized,
+      requeued,
+      skipped,
+      commandsApplied: 0,
+      commandsFailed: 0,
+      startedAt,
+      completedAt: Math.floor(Date.now() / 1000),
+      result: {
+        blockedAutoReason: 'marketing_agent_read_only_this_sprint',
+        readOnlyPromotionControl: true,
+        dbPath: dbPathSafety.resolvedPath,
+        unsafeStateReason: dbPathSafety.reason,
+      },
+    });
+
     return {
-      processed: pending.length,
+      processed,
       finalized,
       requeued,
       skipped,
     };
+  } catch (error) {
+    await publishAgentLearningControlLoopRun({
+      id: loopRunId,
+      service,
+      taskType,
+      trigger,
+      status: 'failed',
+      processed,
+      finalized,
+      requeued,
+      skipped,
+      commandsApplied: 0,
+      commandsFailed: 0,
+      startedAt,
+      completedAt: Math.floor(Date.now() / 1000),
+      result: {
+        error: error instanceof Error ? error.message : String(error),
+        blockedAutoReason: 'marketing_agent_read_only_this_sprint',
+        readOnlyPromotionControl: true,
+        dbPath: dbPathSafety.resolvedPath,
+        unsafeStateReason: dbPathSafety.reason,
+      },
+    });
+    throw error;
   } finally {
-    db.close();
+    db?.close();
   }
 }
 

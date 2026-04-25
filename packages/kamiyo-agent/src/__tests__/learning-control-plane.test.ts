@@ -10,10 +10,14 @@ import {
 import {
   acknowledgeAgentLearningCommand,
   applyDelayedLearningCommands,
+  assessAgentLearningDbPath,
+  decideDelayedLearningAutoAdvance,
   deriveAgentLearningAlerts,
+  deriveAgentLearningControlLoopAlerts,
   fetchAgentLearningControlState,
   fetchPendingAgentLearningCommands,
   publishAgentLearningCanarySnapshot,
+  publishAgentLearningControlLoopRun,
   snapshotDelayedLearningCanary,
 } from '../index';
 
@@ -28,6 +32,7 @@ afterEach(() => {
   resetContextForTests();
   delete process.env.AGENT_LEARNING_API_URL;
   delete process.env.AGENT_LEARNING_API_TOKEN;
+  delete process.env.AGENT_LEARNING_ALLOW_WORKSPACE_DB;
   vi.unstubAllGlobals();
 });
 
@@ -127,6 +132,41 @@ describe('learning control plane helpers', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('publishes control-loop run snapshots', async () => {
+    process.env.AGENT_LEARNING_API_URL = 'https://api.kamiyo.ai';
+    process.env.AGENT_LEARNING_API_TOKEN = 'test-token';
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe(
+        'https://api.kamiyo.ai/api/internal/agent-learning/control-loop-runs'
+      );
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+      expect(body.status).toBe('succeeded');
+      expect(body.commandsFailed).toBe(1);
+      return new Response('{}', { status: 202, headers: { 'Content-Type': 'application/json' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const published = await publishAgentLearningControlLoopRun({
+      id: 'loop-1',
+      service: 'kamiyo-autopilot',
+      taskType: 'autopilot_issue_resolution',
+      trigger: 'workflow_dispatch',
+      status: 'succeeded',
+      processed: 1,
+      finalized: 1,
+      requeued: 0,
+      skipped: 0,
+      commandsApplied: 0,
+      commandsFailed: 1,
+      startedAt: 1_777_200_000,
+      completedAt: 1_777_200_060,
+      result: { blockedAutoReason: 'operator_command_failed' },
+    });
+
+    expect(published).toBe(true);
+  });
+
   it('derives backlog and stalled canary alerts', () => {
     const alerts = deriveAgentLearningAlerts({
       pendingReconciliations: 6,
@@ -142,6 +182,55 @@ describe('learning control plane helpers', () => {
 
     expect(alerts.map(alert => alert.code)).toContain('pending_reconciliation_backlog');
     expect(alerts.map(alert => alert.code)).toContain('active_canary_stalled');
+  });
+
+  it('detects unsafe GitHub Actions DB paths and blocks delayed auto advancement', () => {
+    const safety = assessAgentLearningDbPath({
+      dbPath: '.autopilot/agent.db',
+      cwd: '/runner/work/kamiyo-protocol/services/kamiyo-autopilot',
+      githubWorkspace: '/runner/work/kamiyo-protocol',
+      githubActions: true,
+    });
+    const safe = assessAgentLearningDbPath({
+      dbPath: '/runner/work/.kamiyo-agent-state/kamiyo-autopilot/agent.db',
+      cwd: '/runner/work/kamiyo-protocol/services/kamiyo-autopilot',
+      githubWorkspace: '/runner/work/kamiyo-protocol',
+      githubActions: true,
+    });
+    const decision = decideDelayedLearningAutoAdvance({
+      controlState: { mode: 'auto' },
+      unsafeStateReason: safety.reason,
+    });
+
+    expect(safety.unsafe).toBe(true);
+    expect(safety.reason).toMatch(/agent_db_inside_github_workspace/);
+    expect(safe.unsafe).toBe(false);
+    expect(decision.shouldAdvance).toBe(false);
+    expect(decision.blockedReason).toBe(safety.reason);
+    expect(
+      decideDelayedLearningAutoAdvance({
+        controlState: { mode: 'auto' },
+        commandsFailed: 1,
+      }).blockedReason
+    ).toBe('operator_command_failed');
+    expect(
+      decideDelayedLearningAutoAdvance({
+        controlState: { mode: 'auto' },
+        rollbackApplied: true,
+      }).blockedReason
+    ).toBe('rollback_command_applied');
+  });
+
+  it('derives stale control-loop alerts', () => {
+    const alerts = deriveAgentLearningControlLoopAlerts({
+      lastSuccessAt: '2026-04-22T10:00:00.000Z',
+      expectedIntervalMinutes: 30,
+      pendingCommandAgeSeconds: 2_400,
+      now: new Date('2026-04-22T12:00:00.000Z'),
+    });
+
+    expect(alerts.map(alert => alert.code)).toContain('stale_control_loop');
+    expect(alerts.map(alert => alert.code)).toContain('pending_operator_command');
   });
 
   it('rolls back an active canary through delayed learning commands and snapshots the decision', () => {
