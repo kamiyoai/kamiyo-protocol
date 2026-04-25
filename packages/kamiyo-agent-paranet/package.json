@@ -20,7 +20,7 @@
     "discover-paranet-ual": "tsx scripts/discover-paranet-ual.ts"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api": "^1.9.1",
     "dkg.js": "^8.2.4",
     "viem": "^2.0.0",
     "zod": "^3.22.0"
