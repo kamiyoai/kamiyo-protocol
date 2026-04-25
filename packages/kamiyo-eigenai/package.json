@@ -46,7 +46,7 @@
     "@kamiyo/sdk": "workspace:*",
     "@solana/spl-token": "^0.4.0",
     "@solana/web3.js": "^1.98.0",
-    "viem": "^2.0.0"
+    "viem": "^2.48.4"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

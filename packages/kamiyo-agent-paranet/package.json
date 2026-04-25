@@ -22,7 +22,7 @@
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
     "dkg.js": "^8.2.4",
-    "viem": "^2.0.0",
+    "viem": "^2.48.4",
     "zod": "^3.22.0"
   },
   "peerDependencies": {
