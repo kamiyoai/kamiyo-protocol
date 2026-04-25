@@ -41,10 +41,18 @@ const Schema = z
       .string()
       .optional()
       .transform(v => v === '1' || v === 'true'),
+    MARKETING_RECONCILE_ALLOW_MISSING_POSTIZ: z
+      .string()
+      .optional()
+      .transform(v => v === '1' || v === 'true'),
   })
-  .refine(d => d.DRY_RUN || (d.POSTIZ_URL && d.POSTIZ_API_KEY), {
-    message: 'POSTIZ_URL and POSTIZ_API_KEY required unless DRY_RUN=1',
-  });
+  .refine(
+    d =>
+      d.DRY_RUN || d.MARKETING_RECONCILE_ALLOW_MISSING_POSTIZ || (d.POSTIZ_URL && d.POSTIZ_API_KEY),
+    {
+      message: 'POSTIZ_URL and POSTIZ_API_KEY required unless DRY_RUN=1',
+    }
+  );
 
 export type Config = z.infer<typeof Schema>;
 

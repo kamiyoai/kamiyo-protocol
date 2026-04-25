@@ -69,11 +69,11 @@ jobs:
 
       - name: Build selfimprove
         working-directory: packages/kamiyo-selfimprove
-        run: pnpm install --ignore-workspace && pnpm build
+        run: pnpm install --ignore-workspace --config.onlyBuiltDependencies=better-sqlite3 --config.onlyBuiltDependencies=esbuild && pnpm build
 
       - name: Build agent runtime
         working-directory: packages/kamiyo-agent
-        run: pnpm install --ignore-workspace && pnpm build
+        run: pnpm install --ignore-workspace --config.onlyBuiltDependencies=better-sqlite3 --config.onlyBuiltDependencies=esbuild && pnpm build
 
       - name: Reconcile autopilot receipts
         if: env.SELECTED_SERVICE == 'all' || env.SELECTED_SERVICE == 'kamiyo-autopilot'
@@ -81,7 +81,7 @@ jobs:
         env:
           SELF_IMPROVE_TASK_TYPE: autopilot_issue_resolution
         run: |
-          pnpm install --ignore-workspace
+          pnpm install --ignore-workspace --config.onlyBuiltDependencies=better-sqlite3 --config.onlyBuiltDependencies=esbuild
           pnpm build
           node dist/reconcile.js
 
@@ -91,7 +91,7 @@ jobs:
         env:
           SELF_IMPROVE_TASK_TYPE: docs_regeneration
         run: |
-          pnpm install --ignore-workspace
+          pnpm install --ignore-workspace --config.onlyBuiltDependencies=better-sqlite3 --config.onlyBuiltDependencies=esbuild
           pnpm build
           node dist/reconcile.js
 
@@ -100,7 +100,8 @@ jobs:
         working-directory: services/kamiyo-marketing-agent
         env:
           SELF_IMPROVE_TASK_TYPE: marketing_post_drafting
+          MARKETING_RECONCILE_ALLOW_MISSING_POSTIZ: "true"
         run: |
-          pnpm install --ignore-workspace
+          pnpm install --ignore-workspace --config.onlyBuiltDependencies=better-sqlite3 --config.onlyBuiltDependencies=esbuild
           pnpm build
           node dist/reconcile.js

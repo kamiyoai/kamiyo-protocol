@@ -215,14 +215,43 @@ export async function reconcilePendingMarketingReceipts(cfg: Config): Promise<{
     });
     processed = pending.length;
 
+    const postizConfigured = Boolean(cfg.POSTIZ_URL && cfg.POSTIZ_API_KEY);
+    if (!cfg.DRY_RUN && !postizConfigured) {
+      for (const receipt of pending) {
+        await persistReceiptUpdate(db, receipt, {
+          note: 'postiz_config_missing',
+          snapshot: {
+            postizConfigured: false,
+            scheduledIds: getReceiptFiles(receipt, 'scheduledIds'),
+            scheduledFor: getReceiptFiles(receipt, 'scheduledFor'),
+          },
+          reconcileAfter: hoursFromNow(RECONCILE_RETRY_HOURS),
+          reconciled: false,
+        });
+        requeued += 1;
+      }
+      if (pending.length > 0) {
+        console.warn(
+          `[marketing-agent] Postiz credentials are not configured; requeued ${pending.length} pending receipt(s)`
+        );
+      }
+    }
+
     const scheduledPosts =
-      !cfg.DRY_RUN && pending.length > 0 ? await new PostizClient(cfg).listScheduled() : [];
+      !cfg.DRY_RUN && postizConfigured && pending.length > 0
+        ? await new PostizClient(cfg).listScheduled()
+        : [];
     const publishedPosts =
-      !cfg.DRY_RUN && pending.length > 0 ? await new PostizClient(cfg).listPublished() : [];
+      !cfg.DRY_RUN && postizConfigured && pending.length > 0
+        ? await new PostizClient(cfg).listPublished()
+        : [];
     const scheduledSet = new Set(scheduledPosts.map(post => post.id));
     const publishedSet = new Set(publishedPosts.map(post => post.id));
 
     for (const receipt of pending) {
+      if (!cfg.DRY_RUN && !postizConfigured) {
+        continue;
+      }
       const scheduledIds = getReceiptFiles(receipt, 'scheduledIds');
       const scheduledFor = getReceiptFiles(receipt, 'scheduledFor');
       const model = getReceiptString(receipt, 'model') ?? cfg.CLAUDE_MODEL;
