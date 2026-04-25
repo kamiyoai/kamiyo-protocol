@@ -56,6 +56,12 @@
     "sql",
     "README.md"
   ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  },
   "engines": {
     "node": ">=18.0.0"
   }
