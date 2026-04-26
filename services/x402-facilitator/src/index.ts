@@ -23,6 +23,7 @@ import { createDiscoveryRouter } from './routes/discovery';
 import { createSupportedRouter } from './routes/supported';
 import { createSessionRouter } from './routes/session';
 import { createKizunaRouter } from './routes/kizuna';
+import { createKizunaSaepRouter } from './routes/kizuna-saep';
 import { createFairscaleRouter } from './routes/fairscale';
 import { isBaseEnabled } from './services/base-settlement';
 import { startFairscaleTrustSync, stopFairscaleTrustSync } from './services/fairscale-trust-sync';
@@ -34,7 +35,8 @@ function writeLog(stream: NodeJS.WriteStream, message: string, detail?: unknown)
     return;
   }
 
-  const serialized = typeof detail === 'string' ? detail : inspect(detail, { depth: null, breakLength: Infinity });
+  const serialized =
+    typeof detail === 'string' ? detail : inspect(detail, { depth: null, breakLength: Infinity });
   stream.write(`${message} ${serialized}\n`);
 }
 
@@ -173,10 +175,16 @@ async function main() {
   app.use('/fees', rateLimit, createFeesRouter());
   app.use('/reputation', rateLimit, createReputationRouter());
   app.use('/session', rateLimit, createSessionRouter(connection, facilitatorKeypair));
+  app.use('/kizuna/adapters/saep', rateLimit, createKizunaSaepRouter());
   app.use('/kizuna/fairscale', rateLimit, createFairscaleRouter());
   app.use('/kizuna', rateLimit, createKizunaRouter());
 
-  app.use('/verify', optionalApiKeyAuth, rateLimit, createVerifyRouter(connection, facilitatorKeypair.publicKey));
+  app.use(
+    '/verify',
+    optionalApiKeyAuth,
+    rateLimit,
+    createVerifyRouter(connection, facilitatorKeypair.publicKey)
+  );
   app.use('/settle', apiKeyAuth, rateLimit, createSettleRouter(connection, facilitatorKeypair));
   app.use('/escrow', apiKeyAuth, rateLimit, createEscrowRouter(connection, facilitatorKeypair));
   app.use('/dispute', apiKeyAuth, rateLimit, createDisputeRouter(connection, facilitatorKeypair));
@@ -190,7 +198,7 @@ async function main() {
 
   async function shutdown(signal: string) {
     logInfo(`[shutdown] ${signal} received`);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await new Promise<void>(resolve => server.close(() => resolve()));
     await stopFairscaleTrustSync();
     await closePool();
     process.exit(0);
@@ -198,16 +206,16 @@ async function main() {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('unhandledRejection', (err) => {
+  process.on('unhandledRejection', err => {
     logError('[fatal] unhandledRejection', err);
   });
-  process.on('uncaughtException', (err) => {
+  process.on('uncaughtException', err => {
     logError('[fatal] uncaughtException', err);
     void shutdown('uncaughtException');
   });
 }
 
-main().catch((err) => {
+main().catch(err => {
   logError('[fatal]', err);
   process.exit(1);
 });
