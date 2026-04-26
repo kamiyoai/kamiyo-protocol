@@ -42,6 +42,27 @@ and the package follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0
   `SAEP_TASK_DISCRIMINATOR_HEX`, `SAEP_ALLOWED_PAYMENT_MINTS`,
   `SAEP_RPC_URL_DEVNET`. Empty program id leaves the routes inert.
 
+### Sprint W4 — settlement ingest (in `services/x402-facilitator`)
+
+- `POST /kizuna/adapters/saep/settlement-ingest` finalizes Kizuna
+  settlement state from a SAEP release/proof reference. KAMIYO never
+  signs the on-chain release — this route ingests the *result* of a
+  SAEP-side `release` or `expire` and updates Kizuna debt, settlement,
+  and billable-event state.
+- Released path: insert settlement, finalize Kizuna debt, emit billable
+  event. Agent payout = `payment_amount - protocol_fee - solrep_fee`
+  per the SAEP release math; merchant wallet defaults to
+  `snapshot.assignedAgent` and accepts an explicit override.
+- Expired path: release the reservation with reason `expired`. No debt,
+  no billable event, no settlement record.
+- Idempotency: a repeat call with the same `reservationId` returns the
+  original settlement / debt / billable-event ids without re-emitting.
+- Tests: 11 cases — Released happy path, Expired path, idempotent
+  retry, missing inputs, reservation not found, wrong reservation
+  state, SAEP not yet terminal, no assigned_agent without override,
+  explicit merchantWallet override, non-positive payout math, missing
+  internal auth.
+
 ### Notes
 
 - The `TaskContract` Anchor discriminator is a placeholder — operators must
@@ -50,7 +71,11 @@ and the package follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0
 - Crypto-fast funding lane only in v1; enterprise prefund follows in a later
   sprint.
 - Agent-DID identity check (cross-referencing the SAEP `agent_did` against
-  KAMIYO's AgentRegistry mapping) is deferred to W4 alongside the
-  settlement-ingest path.
+  KAMIYO's AgentRegistry mapping) remains deferred to a future iteration —
+  the W3/W4 routes enforce `payerWallet` against the Kizuna account.
+- Settlement-ingest currently requires the caller to pass `taskPda` — the
+  decision row does not yet persist `external_work_ref` as a first-class
+  column. Storing it explicitly is a lightweight follow-up that would let
+  the route resolve `taskPda` from `reservationId` alone.
 
 [Unreleased]: https://github.com/kamiyo-ai/kamiyo-protocol/commits/main/packages/kamiyo-saep-adapter

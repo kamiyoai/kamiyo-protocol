@@ -30,6 +30,10 @@ const {
   mockCreateKizunaReservation,
   mockGetKizunaReservationById,
   mockGetKizunaDebtByReservationId,
+  mockFinalizeKizunaSettlement,
+  mockGetKizunaBillableSettlementEvent,
+  mockInsertSettlement,
+  mockReleaseKizunaReservation,
 } = vi.hoisted(() => ({
   mockGetKizunaAccount: vi.fn(),
   mockGetKizunaReservationByNonce: vi.fn(),
@@ -39,6 +43,10 @@ const {
   mockCreateKizunaReservation: vi.fn(),
   mockGetKizunaReservationById: vi.fn(),
   mockGetKizunaDebtByReservationId: vi.fn(),
+  mockFinalizeKizunaSettlement: vi.fn(),
+  mockGetKizunaBillableSettlementEvent: vi.fn(),
+  mockInsertSettlement: vi.fn(),
+  mockReleaseKizunaReservation: vi.fn(),
 }));
 
 vi.mock('../src/db/queries', () => ({
@@ -50,6 +58,10 @@ vi.mock('../src/db/queries', () => ({
   createKizunaReservation: mockCreateKizunaReservation,
   getKizunaReservationById: mockGetKizunaReservationById,
   getKizunaDebtByReservationId: mockGetKizunaDebtByReservationId,
+  finalizeKizunaSettlement: mockFinalizeKizunaSettlement,
+  getKizunaBillableSettlementEvent: mockGetKizunaBillableSettlementEvent,
+  insertSettlement: mockInsertSettlement,
+  releaseKizunaReservation: mockReleaseKizunaReservation,
 }));
 
 // Imported AFTER vi.mock so the mocks are active.
@@ -204,6 +216,24 @@ beforeEach(() => {
     funding_mode: 'collateralized',
     status: 'reserved',
   });
+
+  // Settlement-ingest defaults
+  mockGetKizunaReservationById.mockResolvedValue({
+    id: 'reservation-1',
+    agent_id: 'agent-1',
+    payer_wallet: 'PayerPubkey1111111111111111111111111111111111',
+    network: 'solana',
+    lane: 'crypto-fast',
+    pool_id: 'fastpath-main',
+    amount_micro: '1000000',
+    funding_mode: 'collateralized',
+    status: 'reserved',
+  });
+  mockGetKizunaDebtByReservationId.mockResolvedValue(null);
+  mockInsertSettlement.mockResolvedValue({ id: 'settlement-1' });
+  mockFinalizeKizunaSettlement.mockResolvedValue({ debt: { id: 'debt-1' } });
+  mockGetKizunaBillableSettlementEvent.mockResolvedValue({ id: 'billable-1' });
+  mockReleaseKizunaReservation.mockResolvedValue(undefined);
 });
 
 const validBody = () => ({
@@ -341,6 +371,185 @@ describe('POST /kizuna/adapters/saep/underwrite', () => {
   it('returns 401 when the internal auth header is missing', async () => {
     const router = createKizunaSaepRouter({ saepFactory: buildSaepFactory(buildSnapshot()) });
     const result = await invokePost(router, '/underwrite', validBody(), {});
+    expect(result.statusCode).toBe(401);
+  });
+});
+
+// --- /settlement-ingest -----------------------------------------------------
+
+const ASSIGNED_AGENT = Keypair.generate().publicKey;
+
+const settlementBody = (overrides: Record<string, unknown> = {}) => ({
+  reservationId: 'reservation-1',
+  taskPda: TEST_TASK_PDA.toBase58(),
+  cluster: 'mainnet-beta',
+  releaseSignature: 'sig-test-1',
+  ...overrides,
+});
+
+describe('POST /kizuna/adapters/saep/settlement-ingest', () => {
+  it('finalizes a Released task: settlement + debt + billable event', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        buildSnapshot({
+          status: SaepTaskStatus.Released,
+          assignedAgent: ASSIGNED_AGENT,
+          paymentAmount: new BN(1_000_000),
+          protocolFee: new BN(1_000),
+          solrepFee: new BN(500),
+        }),
+      ),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body.settlementRef).toBe('settlement-1');
+    expect(result.body.debtId).toBe('debt-1');
+    expect(result.body.billableEventId).toBe('billable-1');
+    expect(result.body.terminalStatus).toBe('released');
+    expect(result.body.agentPayoutMicro).toBe('998500');
+    expect(result.body.taskRef).toMatchObject({ venue: 'saep' });
+    expect(mockInsertSettlement).toHaveBeenCalledOnce();
+    expect(mockFinalizeKizunaSettlement).toHaveBeenCalledOnce();
+    // Agent wallet was resolved from snapshot.assignedAgent.
+    expect(mockInsertSettlement.mock.calls[0][0]).toBe(ASSIGNED_AGENT.toBase58());
+  });
+
+  it('releases the reservation on Expired with no debt and no billable event', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Expired })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body.settlementRef).toBeNull();
+    expect(result.body.debtId).toBeNull();
+    expect(result.body.billableEventId).toBeNull();
+    expect(result.body.terminalStatus).toBe('expired');
+    expect(mockReleaseKizunaReservation).toHaveBeenCalledWith('reservation-1', 'expired');
+    expect(mockInsertSettlement).not.toHaveBeenCalled();
+    expect(mockFinalizeKizunaSettlement).not.toHaveBeenCalled();
+  });
+
+  it('returns the existing settlement on idempotent retry', async () => {
+    mockGetKizunaDebtByReservationId.mockResolvedValue({
+      id: 'debt-existing',
+      settlement_id: 'settlement-existing',
+    });
+    mockGetKizunaBillableSettlementEvent.mockResolvedValue({ id: 'billable-existing' });
+
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body.settlementRef).toBe('settlement-existing');
+    expect(result.body.debtId).toBe('debt-existing');
+    expect(result.body.billableEventId).toBe('billable-existing');
+    expect(result.body.replay).toBe(true);
+    expect(mockInsertSettlement).not.toHaveBeenCalled();
+    expect(mockFinalizeKizunaSettlement).not.toHaveBeenCalled();
+  });
+
+  it('rejects when required inputs are missing', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(
+      router,
+      '/settlement-ingest',
+      { reservationId: 'reservation-1' },
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(400);
+  });
+
+  it('rejects when the reservation is not found', async () => {
+    mockGetKizunaReservationById.mockResolvedValue(null);
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('rejects when the reservation is no longer in `reserved` state', async () => {
+    mockGetKizunaReservationById.mockResolvedValue({
+      id: 'reservation-1',
+      agent_id: 'agent-1',
+      payer_wallet: 'PayerPubkey1111111111111111111111111111111111',
+      network: 'solana',
+      lane: 'crypto-fast',
+      pool_id: 'fastpath-main',
+      amount_micro: '1000000',
+      funding_mode: 'collateralized',
+      status: 'released',
+    });
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+    expect(result.statusCode).toBe(409);
+  });
+
+  it('rejects when the SAEP task has not reached a terminal state', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Funded })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+    expect(result.statusCode).toBe(409);
+    expect(result.body.reasonCodes).toContain('saep_task_not_terminal');
+  });
+
+  it('requires merchantWallet when the SAEP task has no assigned_agent', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        buildSnapshot({ status: SaepTaskStatus.Released }), // no assignedAgent
+      ),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+    expect(result.statusCode).toBe(400);
+    expect(result.body.reasonCodes).toContain('saep_no_assigned_agent');
+  });
+
+  it('accepts an explicit merchantWallet override when assigned_agent is absent', async () => {
+    const explicit = Keypair.generate().publicKey.toBase58();
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(
+      router,
+      '/settlement-ingest',
+      settlementBody({ merchantWallet: explicit }),
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(200);
+    expect(mockInsertSettlement.mock.calls[0][0]).toBe(explicit);
+  });
+
+  it('rejects when the SAEP release math produces a non-positive payout', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        buildSnapshot({
+          status: SaepTaskStatus.Released,
+          assignedAgent: ASSIGNED_AGENT,
+          paymentAmount: new BN(100),
+          protocolFee: new BN(100),
+          solrepFee: new BN(100),
+        }),
+      ),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), authHeaders());
+    expect(result.statusCode).toBe(409);
+    expect(result.body.reasonCodes).toContain('saep_release_math_invalid');
+  });
+
+  it('returns 401 when the internal auth header is missing', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(router, '/settlement-ingest', settlementBody(), {});
     expect(result.statusCode).toBe(401);
   });
 });

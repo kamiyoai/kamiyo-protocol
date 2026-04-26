@@ -27,14 +27,19 @@ import { Router, type Request, type Response } from 'express';
 import { getConfig } from '../config';
 import {
   createKizunaReservation,
+  finalizeKizunaSettlement,
   getKizunaAccount,
+  getKizunaBillableSettlementEvent,
   getKizunaDebtByReservationId,
   getKizunaLatestHealthSnapshot,
   getKizunaOutstandingMicro,
   getKizunaReservationById,
   getKizunaReservationByNonce,
   insertKizunaUnderwriteDecision,
+  insertSettlement,
+  releaseKizunaReservation,
 } from '../db/queries';
+import { isTerminal, SaepTaskStatus } from '@kamiyo/saep-adapter';
 
 // ---------------------------------------------------------------------------
 // Local helpers (mirror the patterns in kizuna.ts so this router stays
@@ -375,6 +380,182 @@ export function createKizunaSaepRouter(options: CreateRouterOptions = {}): Route
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to underwrite SAEP task';
+      sendError(res, 500, message);
+    }
+  });
+
+  // --------------------------------------------------------------------
+  // POST /settlement-ingest
+  // --------------------------------------------------------------------
+  // Finalize Kizuna settlement state from a SAEP release/proof reference.
+  // KAMIYO never signs the release on-chain — this route ingests the
+  // *result* of the SAEP-side release/expire and updates Kizuna's debt,
+  // receipt, and billable-event state accordingly.
+  //
+  // Idempotent on (reservationId): a repeated call returns the original
+  // settlement record without re-emitting debt or billable events.
+  router.post('/settlement-ingest', async (req: Request, res: Response) => {
+    const config = getConfig();
+    if (!config.KIZUNA_ENABLED) {
+      sendError(res, 404, 'Kizuna is disabled');
+      return;
+    }
+    if (!requireInternalToken(req, res)) return;
+
+    const reservationId = asString(req.body?.reservationId);
+    const taskPdaStr = asString(req.body?.taskPda);
+    const cluster = parseCluster(req.body?.cluster);
+    const releaseSignature = asString(req.body?.releaseSignature);
+    const merchantWalletOverride = asString(req.body?.merchantWallet); // optional
+
+    if (!reservationId || !taskPdaStr || !cluster || !releaseSignature) {
+      sendError(res, 400, 'reservationId, taskPda, cluster, and releaseSignature are required');
+      return;
+    }
+
+    let taskPda: PublicKey;
+    try {
+      taskPda = new PublicKey(taskPdaStr);
+    } catch {
+      sendError(res, 400, 'taskPda is not a valid Solana address');
+      return;
+    }
+
+    try {
+      // 1. Idempotency: existing settlement for this reservation -> return.
+      const existingDebt = await getKizunaDebtByReservationId(reservationId);
+      if (existingDebt?.settlement_id) {
+        const existingBillable = await getKizunaBillableSettlementEvent(
+          reservationId,
+          existingDebt.settlement_id
+        );
+        res.json({
+          settlementRef: existingDebt.settlement_id,
+          debtId: existingDebt.id,
+          billableEventId: existingBillable?.id ?? null,
+          replay: true,
+        });
+        return;
+      }
+
+      // 2. Reservation must exist and be in `reserved` state.
+      const reservation = await getKizunaReservationById(reservationId);
+      if (!reservation) {
+        sendError(res, 404, 'Reservation not found');
+        return;
+      }
+      if (reservation.status !== 'reserved') {
+        sendError(res, 409, `Reservation is ${reservation.status}`);
+        return;
+      }
+
+      // 3. Read the SAEP task. SAEP is the source of truth on terminal state.
+      let snapshot: SaepTaskSnapshot;
+      try {
+        const reader = saep.readerFor(cluster);
+        snapshot = await reader.fetchTaskByPda(taskPda);
+      } catch (err) {
+        if (err instanceof SaepAdapterError) {
+          if (err.code === 'rpc_account_not_found') {
+            sendError(res, 404, 'SAEP task not found', {
+              reasonCodes: reasonCodesForSaepError(err),
+            });
+            return;
+          }
+          sendError(res, 503, 'SAEP read failed', {
+            reasonCodes: reasonCodesForSaepError(err),
+          });
+          return;
+        }
+        throw err;
+      }
+
+      // 4. Reject if SAEP hasn't reached a terminal state.
+      if (!isTerminal(snapshot.status)) {
+        sendError(res, 409, 'SAEP task is not in a terminal state', {
+          reasonCodes: ['saep_task_not_terminal'],
+          status: snapshot.status,
+        });
+        return;
+      }
+
+      const workRef = normalizeSnapshot(snapshot);
+
+      // 5. Branch on terminal kind.
+      if (snapshot.status === SaepTaskStatus.Expired) {
+        // Client refunded on chain; KAMIYO releases the reservation with
+        // no debt and no billable event.
+        await releaseKizunaReservation(reservationId, 'expired');
+        res.json({
+          settlementRef: null,
+          debtId: null,
+          billableEventId: null,
+          terminalStatus: 'expired',
+          taskRef: workRef,
+        });
+        return;
+      }
+
+      // Released or Resolved -> the agent earned the payout. Compute the
+      // SAEP release math: agent_payout = payment_amount - protocol_fee - solrep_fee.
+      const paymentAmount = BigInt(snapshot.paymentAmount.toString(10));
+      const protocolFee = BigInt(snapshot.protocolFee.toString(10));
+      const solrepFee = BigInt(snapshot.solrepFee.toString(10));
+      const agentPayout = paymentAmount - protocolFee - solrepFee;
+      if (agentPayout <= 0n) {
+        sendError(res, 409, 'SAEP release math produced a non-positive payout', {
+          reasonCodes: ['saep_release_math_invalid'],
+        });
+        return;
+      }
+
+      // 6. Resolve the merchant wallet — either explicit override or the
+      //    SAEP `assigned_agent`. Without either we cannot record the
+      //    settlement target.
+      const merchantWallet =
+        merchantWalletOverride || (snapshot.assignedAgent ? snapshot.assignedAgent.toBase58() : '');
+      if (!merchantWallet) {
+        sendError(res, 400, 'merchantWallet is required when SAEP task has no assigned_agent', {
+          reasonCodes: ['saep_no_assigned_agent'],
+        });
+        return;
+      }
+
+      // 7. Insert settlement + finalize Kizuna state.
+      const settlement = await insertSettlement(
+        merchantWallet,
+        reservation.payer_wallet,
+        Number(agentPayout),
+        Number(protocolFee + solrepFee),
+        workRef.paymentMint,
+        releaseSignature,
+        'confirmed',
+        reservation.network
+      );
+
+      const settlementResult = await finalizeKizunaSettlement({
+        reservationId,
+        settlementId: settlement.id,
+        txHash: releaseSignature,
+        feeAmount: Number(protocolFee + solrepFee),
+        feeTxHash: releaseSignature,
+        lane: reservation.lane,
+        poolId: reservation.pool_id,
+        decisionEnvelopeHash: workRef.riskHash,
+      });
+
+      const billableEvent = await getKizunaBillableSettlementEvent(reservationId, settlement.id);
+
+      res.json({
+        settlementRef: settlement.id,
+        debtId: settlementResult.debt?.id ?? null,
+        billableEventId: billableEvent?.id ?? null,
+        terminalStatus: workRef.status,
+        agentPayoutMicro: agentPayout.toString(10),
+        taskRef: workRef,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to ingest SAEP settlement';
       sendError(res, 500, message);
     }
   });
