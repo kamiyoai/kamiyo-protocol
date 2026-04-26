@@ -1,0 +1,52 @@
+{
+  "name": "@kamiyo/saep-adapter",
+  "version": "0.1.0",
+  "description": "Read/sim adapter for SAEP task-market accounts. KAMIYO underwrites SAEP activity; SAEP owns the task-market source of truth.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-saep-adapter"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "SAEP_SMOKE_ENABLED=1 vitest run --config vitest.smoke.config.ts",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.0",
+    "bn.js": "^5.2.1"
+  },
+  "peerDependencies": {
+    "@kamiyo/sdk": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/node": "^25.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "fixtures/**/*",
+    "README.md",
+    "BOUNDARY.md",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "kamiyo",
+    "kizuna",
+    "saep",
+    "solana",
+    "task-market",
+    "underwriting",
+    "agent-payments"
+  ]
+}
