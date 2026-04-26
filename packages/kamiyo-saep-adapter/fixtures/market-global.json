@@ -1,0 +1,28 @@
+{
+  "$schema": "../src/pda.ts#deriveMarketGlobalPda",
+  "note": "Informational snapshot of the SAEP MarketGlobal singleton. Adapter does not currently decode this account; included for reference only.",
+  "authority": "MarketAuthority11111111111111111111111111111",
+  "agentRegistry": "AgentRegistry11111111111111111111111111111111",
+  "treasuryStandard": "TreasuryStandard11111111111111111111111111111",
+  "proofVerifier": "ProofVerifier1111111111111111111111111111111",
+  "feeCollector": "FeeCollector1111111111111111111111111111111",
+  "solrepPool": "SolrepPool11111111111111111111111111111111111",
+  "protocolFeeBps": 10,
+  "solrepFeeBps": 5,
+  "disputeWindowSecs": 86400,
+  "maxDeadlineSecs": 2592000,
+  "allowedPaymentMints": [
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111",
+    "11111111111111111111111111111111"
+  ],
+  "paused": false,
+  "pendingAuthority": null,
+  "hookAllowlist": "11111111111111111111111111111111",
+  "bump": 254
+}
