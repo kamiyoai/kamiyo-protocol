@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Keypair, PublicKey } from '@solana/web3.js';
+import { Keypair } from '@solana/web3.js';
 
 import {
   deriveMarketGlobalPda,
@@ -8,10 +8,10 @@ import {
   type SaepProgramIds,
 } from './pda.js';
 
-// A fixed program id for deterministic tests. Real callers should pass the
+// A program id stable within this test file's lifetime. Real callers pass the
 // SAEP-published value at construction time.
 const TEST_PROGRAM_IDS: SaepProgramIds = {
-  taskMarket: new PublicKey('SAEPTaskMarket1111111111111111111111111111'),
+  taskMarket: Keypair.generate().publicKey,
 };
 
 describe('deriveTaskPda', () => {
@@ -95,7 +95,7 @@ describe('deriveMarketGlobalPda', () => {
 
   it('depends on the program id', () => {
     const otherProgram: SaepProgramIds = {
-      taskMarket: new PublicKey('SAEPTaskMarket2222222222222222222222222222'),
+      taskMarket: Keypair.generate().publicKey,
     };
 
     const a = deriveMarketGlobalPda(TEST_PROGRAM_IDS);
