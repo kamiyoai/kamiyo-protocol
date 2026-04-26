@@ -61,13 +61,19 @@ export interface Config {
   FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS: number;
   FAIRSCALE_TRUST_EVENTS_LEASE_MS: number;
   FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS: number;
+
+  // SAEP adapter (read/sim only — KAMIYO never signs SAEP transactions).
+  SAEP_TASK_MARKET_PROGRAM_ID: string;
+  SAEP_TASK_DISCRIMINATOR_HEX: string;
+  SAEP_ALLOWED_PAYMENT_MINTS: string[];
+  SAEP_RPC_URL_DEVNET: string;
 }
 
 const REQUIRED_VARS = [
   'SOLANA_RPC_URL',
   'FACILITATOR_PRIVATE_KEY',
   'TREASURY_WALLET',
-  'DATABASE_URL'
+  'DATABASE_URL',
 ] as const;
 
 const DEFAULTS: Partial<Config> = {
@@ -126,6 +132,14 @@ const DEFAULTS: Partial<Config> = {
   FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS: 5_000,
   FAIRSCALE_TRUST_EVENTS_LEASE_MS: 30_000,
   FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS: 300_000,
+
+  // SAEP adapter defaults — empty program id means SAEP routes are disabled
+  // until the SAEP team's mainnet id is wired in. USDC mainnet is the v1
+  // allowlist per the sprint plan.
+  SAEP_TASK_MARKET_PROGRAM_ID: '',
+  SAEP_TASK_DISCRIMINATOR_HEX: '',
+  SAEP_ALLOWED_PAYMENT_MINTS: ['EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'],
+  SAEP_RPC_URL_DEVNET: '',
 };
 
 let cachedConfig: Config | null = null;
@@ -151,19 +165,29 @@ export function validateConfig(): ValidationResult {
   if (pk) {
     try {
       const bytes = JSON.parse(pk);
-      if (!Array.isArray(bytes) || bytes.length !== 64) errors.push('FACILITATOR_PRIVATE_KEY must be a 64-byte JSON array');
+      if (!Array.isArray(bytes) || bytes.length !== 64)
+        errors.push('FACILITATOR_PRIVATE_KEY must be a 64-byte JSON array');
     } catch {
-      if (!/^[1-9A-HJ-NP-Za-km-z]{80,100}$/.test(pk)) errors.push('FACILITATOR_PRIVATE_KEY must be base58 or JSON array');
+      if (!/^[1-9A-HJ-NP-Za-km-z]{80,100}$/.test(pk))
+        errors.push('FACILITATOR_PRIVATE_KEY must be base58 or JSON array');
     }
   }
 
   const treasury = process.env.TREASURY_WALLET;
   if (treasury) {
-    try { new PublicKey(treasury); } catch { errors.push('TREASURY_WALLET must be a valid Solana address'); }
+    try {
+      new PublicKey(treasury);
+    } catch {
+      errors.push('TREASURY_WALLET must be a valid Solana address');
+    }
   }
 
   const escrowPid = process.env.ESCROW_PROGRAM_ID || DEFAULTS.ESCROW_PROGRAM_ID!;
-  try { new PublicKey(escrowPid); } catch { errors.push('ESCROW_PROGRAM_ID must be a valid Solana address'); }
+  try {
+    new PublicKey(escrowPid);
+  } catch {
+    errors.push('ESCROW_PROGRAM_ID must be a valid Solana address');
+  }
 
   const feeBps = process.env.SETTLEMENT_FEE_BPS;
   if (feeBps) {
@@ -203,7 +227,10 @@ export function validateConfig(): ValidationResult {
     errors.push('SHADOWPAY_API_URL must be a valid URL');
   }
 
-  if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL?.startsWith('postgresql')) {
+  if (
+    process.env.NODE_ENV === 'production' &&
+    !process.env.DATABASE_URL?.startsWith('postgresql')
+  ) {
     warnings.push('DATABASE_URL should use postgresql:// in production');
   }
   if (process.env.NODE_ENV === 'production' && process.env.LOG_LEVEL === 'debug') {
@@ -377,7 +404,10 @@ export function validateConfig(): ValidationResult {
 
   for (const [envName, envValue] of [
     ['FAIRSCALE_TRUST_EVENTS_BATCH_SIZE', process.env.FAIRSCALE_TRUST_EVENTS_BATCH_SIZE],
-    ['FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS', process.env.FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS],
+    [
+      'FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS',
+      process.env.FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS,
+    ],
     ['FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS', process.env.FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS],
     ['FAIRSCALE_TRUST_EVENTS_LEASE_MS', process.env.FAIRSCALE_TRUST_EVENTS_LEASE_MS],
     ['FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS', process.env.FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS],
@@ -397,7 +427,9 @@ export function validateConfig(): ValidationResult {
     fairscaleSignatureMode === 'hmac-sha256-body' &&
     !process.env.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET?.trim()
   ) {
-    errors.push('FAIRSCALE_TRUST_EVENTS_HMAC_SECRET is required when FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE=hmac-sha256-body');
+    errors.push(
+      'FAIRSCALE_TRUST_EVENTS_HMAC_SECRET is required when FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE=hmac-sha256-body'
+    );
   }
 
   const kernelSigningKeysRaw = process.env.KIZUNA_KERNEL_SIGNING_KEYS;
@@ -460,7 +492,9 @@ export function validateConfig(): ValidationResult {
     if (enterpriseRequirePrefundRaw !== 'true' && enterpriseRequirePrefundRaw !== 'false') {
       errors.push('KIZUNA_ENTERPRISE_REQUIRE_PREFUND must be true or false');
     }
-    const kernelFailClosed = (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) === 'true';
+    const kernelFailClosed =
+      (process.env.KIZUNA_KERNEL_FAIL_CLOSED || String(DEFAULTS.KIZUNA_KERNEL_FAIL_CLOSED)) ===
+      'true';
     if (kernelFailClosed && !kizunaKernelUrl?.trim()) {
       errors.push('KIZUNA_KERNEL_URL is required when fail-closed mode is enabled');
     }
@@ -489,11 +523,20 @@ export function getConfig(): Config {
     PORT: parseInt(process.env.PORT || String(DEFAULTS.PORT), 10),
     NODE_ENV: (process.env.NODE_ENV as Config['NODE_ENV']) || DEFAULTS.NODE_ENV!,
     LOG_LEVEL: (process.env.LOG_LEVEL as Config['LOG_LEVEL']) || DEFAULTS.LOG_LEVEL!,
-    SETTLEMENT_FEE_BPS: parseInt(process.env.SETTLEMENT_FEE_BPS || String(DEFAULTS.SETTLEMENT_FEE_BPS), 10),
+    SETTLEMENT_FEE_BPS: parseInt(
+      process.env.SETTLEMENT_FEE_BPS || String(DEFAULTS.SETTLEMENT_FEE_BPS),
+      10
+    ),
     ESCROW_FEE_BPS: parseInt(process.env.ESCROW_FEE_BPS || String(DEFAULTS.ESCROW_FEE_BPS), 10),
     DISPUTE_FEE_BPS: parseInt(process.env.DISPUTE_FEE_BPS || String(DEFAULTS.DISPUTE_FEE_BPS), 10),
-    MAX_PAYMENT_AGE_MS: parseInt(process.env.MAX_PAYMENT_AGE_MS || String(DEFAULTS.MAX_PAYMENT_AGE_MS), 10),
-    MAX_SETTLEMENT_AMOUNT: parseInt(process.env.MAX_SETTLEMENT_AMOUNT || String(DEFAULTS.MAX_SETTLEMENT_AMOUNT), 10),
+    MAX_PAYMENT_AGE_MS: parseInt(
+      process.env.MAX_PAYMENT_AGE_MS || String(DEFAULTS.MAX_PAYMENT_AGE_MS),
+      10
+    ),
+    MAX_SETTLEMENT_AMOUNT: parseInt(
+      process.env.MAX_SETTLEMENT_AMOUNT || String(DEFAULTS.MAX_SETTLEMENT_AMOUNT),
+      10
+    ),
     PRIVACY_ENABLED: process.env.PRIVACY_ENABLED === 'true',
     SHADOWPAY_API_URL: process.env.SHADOWPAY_API_URL || DEFAULTS.SHADOWPAY_API_URL!,
     SHADOWPAY_API_KEY: process.env.SHADOWPAY_API_KEY || DEFAULTS.SHADOWPAY_API_KEY!,
@@ -529,7 +572,8 @@ export function getConfig(): Config {
       const parsed = JSON.parse(raw) as Record<string, string>;
       return Object.fromEntries(
         Object.entries(parsed).filter(
-          ([key, value]) => key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
+          ([key, value]) =>
+            key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
         )
       );
     })(),
@@ -539,7 +583,8 @@ export function getConfig(): Config {
       const parsed = JSON.parse(raw) as Record<string, string>;
       return Object.fromEntries(
         Object.entries(parsed).filter(
-          ([key, value]) => key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
+          ([key, value]) =>
+            key.trim().length > 0 && typeof value === 'string' && value.trim().length > 0
         )
       );
     })(),
@@ -548,10 +593,8 @@ export function getConfig(): Config {
     KIZUNA_FASTPATH_POOL_ID:
       process.env.KIZUNA_FASTPATH_POOL_ID || DEFAULTS.KIZUNA_FASTPATH_POOL_ID!,
     KIZUNA_ENTERPRISE_REQUIRE_PREFUND:
-      (
-        process.env.KIZUNA_ENTERPRISE_REQUIRE_PREFUND ||
-        String(DEFAULTS.KIZUNA_ENTERPRISE_REQUIRE_PREFUND)
-      ) === 'true',
+      (process.env.KIZUNA_ENTERPRISE_REQUIRE_PREFUND ||
+        String(DEFAULTS.KIZUNA_ENTERPRISE_REQUIRE_PREFUND)) === 'true',
     KIZUNA_SECURED_ONLY:
       (process.env.KIZUNA_SECURED_ONLY || String(DEFAULTS.KIZUNA_SECURED_ONLY)) === 'true',
     KIZUNA_FASTPATH_LTV_CAP_BPS: parseInt(
@@ -580,12 +623,9 @@ export function getConfig(): Config {
       DEFAULTS.KIZUNA_AGENT_REGISTRY_IPFS_GATEWAY_URL!,
     KIZUNA_PUBLIC_X402_BASE_URL:
       process.env.KIZUNA_PUBLIC_X402_BASE_URL || DEFAULTS.KIZUNA_PUBLIC_X402_BASE_URL!,
-    KIZUNA_PUBLIC_MCP_URL:
-      process.env.KIZUNA_PUBLIC_MCP_URL || DEFAULTS.KIZUNA_PUBLIC_MCP_URL!,
-    KIZUNA_PUBLIC_A2A_URL:
-      process.env.KIZUNA_PUBLIC_A2A_URL || DEFAULTS.KIZUNA_PUBLIC_A2A_URL!,
-    KIZUNA_PUBLIC_WEB_URL:
-      process.env.KIZUNA_PUBLIC_WEB_URL || DEFAULTS.KIZUNA_PUBLIC_WEB_URL!,
+    KIZUNA_PUBLIC_MCP_URL: process.env.KIZUNA_PUBLIC_MCP_URL || DEFAULTS.KIZUNA_PUBLIC_MCP_URL!,
+    KIZUNA_PUBLIC_A2A_URL: process.env.KIZUNA_PUBLIC_A2A_URL || DEFAULTS.KIZUNA_PUBLIC_A2A_URL!,
+    KIZUNA_PUBLIC_WEB_URL: process.env.KIZUNA_PUBLIC_WEB_URL || DEFAULTS.KIZUNA_PUBLIC_WEB_URL!,
     KIZUNA_ALLOW_LEGACY_AGENT_IDS:
       (process.env.KIZUNA_ALLOW_LEGACY_AGENT_IDS ||
         String(DEFAULTS.KIZUNA_ALLOW_LEGACY_AGENT_IDS)) === 'true',
@@ -596,13 +636,15 @@ export function getConfig(): Config {
     FAIRSCALE_TRUST_EVENTS_KEY_HEADER:
       process.env.FAIRSCALE_TRUST_EVENTS_KEY_HEADER || DEFAULTS.FAIRSCALE_TRUST_EVENTS_KEY_HEADER!,
     FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE:
-      (process.env.FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE as Config['FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE']) ||
+      (process.env
+        .FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE as Config['FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE']) ||
       DEFAULTS.FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE!,
     FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER:
       process.env.FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER ||
       DEFAULTS.FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER!,
     FAIRSCALE_TRUST_EVENTS_HMAC_SECRET:
-      process.env.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET || DEFAULTS.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET!,
+      process.env.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET ||
+      DEFAULTS.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET!,
     FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD:
       process.env.FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD ||
       DEFAULTS.FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD!,
@@ -622,7 +664,8 @@ export function getConfig(): Config {
       10
     ),
     FAIRSCALE_TRUST_EVENTS_LEASE_MS: parseInt(
-      process.env.FAIRSCALE_TRUST_EVENTS_LEASE_MS || String(DEFAULTS.FAIRSCALE_TRUST_EVENTS_LEASE_MS),
+      process.env.FAIRSCALE_TRUST_EVENTS_LEASE_MS ||
+        String(DEFAULTS.FAIRSCALE_TRUST_EVENTS_LEASE_MS),
       10
     ),
     FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS: parseInt(
@@ -630,6 +673,21 @@ export function getConfig(): Config {
         String(DEFAULTS.FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS),
       10
     ),
+
+    // SAEP adapter
+    SAEP_TASK_MARKET_PROGRAM_ID:
+      process.env.SAEP_TASK_MARKET_PROGRAM_ID || DEFAULTS.SAEP_TASK_MARKET_PROGRAM_ID!,
+    SAEP_TASK_DISCRIMINATOR_HEX:
+      process.env.SAEP_TASK_DISCRIMINATOR_HEX || DEFAULTS.SAEP_TASK_DISCRIMINATOR_HEX!,
+    SAEP_ALLOWED_PAYMENT_MINTS: (() => {
+      const raw = process.env.SAEP_ALLOWED_PAYMENT_MINTS;
+      if (!raw) return DEFAULTS.SAEP_ALLOWED_PAYMENT_MINTS!;
+      return raw
+        .split(',')
+        .map(m => m.trim())
+        .filter(m => m.length > 0);
+    })(),
+    SAEP_RPC_URL_DEVNET: process.env.SAEP_RPC_URL_DEVNET || DEFAULTS.SAEP_RPC_URL_DEVNET!,
   };
 
   return cachedConfig;
@@ -695,12 +753,21 @@ export function getRedactedConfig(): Record<string, string> {
     FAIRSCALE_TRUST_EVENTS_KEY_HEADER: config.FAIRSCALE_TRUST_EVENTS_KEY_HEADER,
     FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE: config.FAIRSCALE_TRUST_EVENTS_SIGNATURE_MODE,
     FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER: config.FAIRSCALE_TRUST_EVENTS_SIGNATURE_HEADER,
-    FAIRSCALE_TRUST_EVENTS_HMAC_SECRET: config.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET ? '[REDACTED]' : '',
-    FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD: config.FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD,
+    FAIRSCALE_TRUST_EVENTS_HMAC_SECRET: config.FAIRSCALE_TRUST_EVENTS_HMAC_SECRET
+      ? '[REDACTED]'
+      : '',
+    FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD:
+      config.FAIRSCALE_TRUST_EVENTS_EVENT_SIGNATURE_FIELD,
     FAIRSCALE_TRUST_EVENTS_BATCH_SIZE: String(config.FAIRSCALE_TRUST_EVENTS_BATCH_SIZE),
-    FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS: String(config.FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS),
+    FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS: String(
+      config.FAIRSCALE_TRUST_EVENTS_FLUSH_INTERVAL_MS
+    ),
     FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS: String(config.FAIRSCALE_TRUST_EVENTS_TIMEOUT_MS),
     FAIRSCALE_TRUST_EVENTS_LEASE_MS: String(config.FAIRSCALE_TRUST_EVENTS_LEASE_MS),
     FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS: String(config.FAIRSCALE_TRUST_EVENTS_MAX_RETRY_MS),
+    SAEP_TASK_MARKET_PROGRAM_ID: config.SAEP_TASK_MARKET_PROGRAM_ID,
+    SAEP_TASK_DISCRIMINATOR_HEX: config.SAEP_TASK_DISCRIMINATOR_HEX ? '[set]' : '',
+    SAEP_ALLOWED_PAYMENT_MINTS: config.SAEP_ALLOWED_PAYMENT_MINTS.join(','),
+    SAEP_RPC_URL_DEVNET: config.SAEP_RPC_URL_DEVNET,
   };
 }
