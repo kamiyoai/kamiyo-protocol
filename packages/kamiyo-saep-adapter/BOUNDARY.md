@@ -47,6 +47,10 @@ be settled here, not in code.
   is the one and only place that resolves a Kizuna agent's claim.
 - Idempotency keys on Kizuna routes — see the facilitator service, not this
   adapter.
+- The persisted `externalWorkRef` on the underwrite decision row.
+  Settlement-ingest reads it back to recover `taskPda` + `cluster` from a
+  `reservationId` alone, so the SAEP coordinates are not part of the wire
+  contract for repayment.
 
 ## Failure modes that cross the boundary
 
@@ -60,8 +64,10 @@ be settled here, not in code.
   notes it.
 - **A SAEP-side dispute lands while a KAMIYO underwriting decision is
   in-flight.** SAEP's status moves to `Disputed`; the adapter rejects new
-  underwriting via `validate_status_not_eligible`. Settlement-ingest (W4
-  surface, not in this package) handles the in-flight reservation.
+  underwriting via `validate_status_not_eligible`. The settlement-ingest
+  surface (`/kizuna/adapters/saep/settlement-ingest` in the facilitator
+  service) handles the in-flight reservation by waiting for the SAEP
+  terminal status (`Released` or `Expired`) before finalizing Kizuna debt.
 
 ## Versioning
 
@@ -78,7 +84,10 @@ is non-breaking and ships in a minor.
 
 - The Kizuna routes themselves (`/kizuna/adapters/saep/*`). Those live in
   the facilitator service and consume this adapter via its public types.
-- Receipt and debt models. Those land in W4.
+- Receipt, debt, and settlement persistence. Those land in the facilitator
+  service (W4 surface) and use this adapter's read primitives.
 - The crypto-fast lane decision logic. That lives in Kizuna; this adapter
   provides the inputs (snapshot, work-ref, validation result, risk hash).
+- The operator CLI (`@kamiyo/saep-cli`) and demo script. Those wrap the
+  facilitator routes for ops use; they do not live here.
 - Solana mainnet transaction signing for SAEP. **Never in this package.**

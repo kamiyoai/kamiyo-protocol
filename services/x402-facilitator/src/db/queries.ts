@@ -582,6 +582,18 @@ export type KizunaAccountRow = {
 export type KizunaLane = 'enterprise' | 'crypto-fast';
 export type KizunaFundingMode = 'none' | 'prefunded' | 'collateralized';
 
+/**
+ * Loose shape stored in `kizuna_underwrite_decisions.external_work_ref`. The
+ * adapter package owns the strict types; queries.ts keeps a structural view so
+ * the DB layer doesn't import workspace adapters. Today only `venue: 'saep'`
+ * is written; the field set is otherwise opaque to the DB layer.
+ */
+export type ExternalWorkRefRow = {
+  venue: string;
+  cluster?: string;
+  taskPda?: string;
+};
+
 export type KizunaDecisionRow = {
   id: string;
   agent_id: string;
@@ -609,6 +621,7 @@ export type KizunaDecisionRow = {
   signing_kid: string | null;
   envelope_version: string | null;
   decision_envelope_hash: string | null;
+  external_work_ref: ExternalWorkRefRow | null;
   created_at: Date;
 };
 
@@ -1436,6 +1449,7 @@ export async function insertKizunaUnderwriteDecision(params: {
   signingKid?: string | null;
   envelopeVersion?: string | null;
   decisionEnvelopeHash?: string | null;
+  externalWorkRef?: ExternalWorkRefRow | null;
 }): Promise<KizunaDecisionRow> {
   const rows = await query<KizunaDecisionRow>(
     `INSERT INTO kizuna_underwrite_decisions (
@@ -1463,9 +1477,10 @@ export async function insertKizunaUnderwriteDecision(params: {
        request_hash,
        signing_kid,
        envelope_version,
-       decision_envelope_hash
+       decision_envelope_hash,
+       external_work_ref
      )
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
      RETURNING
        id,
        agent_id,
@@ -1493,6 +1508,7 @@ export async function insertKizunaUnderwriteDecision(params: {
        signing_kid,
        envelope_version,
        decision_envelope_hash,
+       external_work_ref,
        created_at`,
     [
       params.agentId,
@@ -1520,6 +1536,7 @@ export async function insertKizunaUnderwriteDecision(params: {
       params.signingKid ?? null,
       params.envelopeVersion ?? null,
       params.decisionEnvelopeHash ?? null,
+      params.externalWorkRef ? JSON.stringify(params.externalWorkRef) : null,
     ]
   );
   return rows[0];
@@ -1681,6 +1698,7 @@ export async function getKizunaReservationByNonce(
       decision_signing_kid: string | null;
       decision_envelope_version: string | null;
       decision_envelope_hash: string | null;
+      decision_external_work_ref: ExternalWorkRefRow | null;
       decision_created_at: Date;
     }
   >(
@@ -1728,6 +1746,7 @@ export async function getKizunaReservationByNonce(
        d.signing_kid AS decision_signing_kid,
        d.envelope_version AS decision_envelope_version,
        d.decision_envelope_hash AS decision_envelope_hash,
+       d.external_work_ref AS decision_external_work_ref,
        d.created_at AS decision_created_at
      FROM kizuna_credit_reservations r
      INNER JOIN kizuna_underwrite_decisions d ON d.id = r.decision_id
@@ -1780,9 +1799,57 @@ export async function getKizunaReservationByNonce(
       signing_kid: row.decision_signing_kid,
       envelope_version: row.decision_envelope_version,
       decision_envelope_hash: row.decision_envelope_hash,
+      external_work_ref: row.decision_external_work_ref,
       created_at: row.decision_created_at,
     },
   };
+}
+
+/**
+ * Fetch the decision that backs a reservation. Returned by reservation id so
+ * settlement-ingest can recover the originally-underwritten externalWorkRef
+ * (and therefore the SAEP `taskPda` + `cluster`) without the caller having to
+ * pass it. Returns `null` when the reservation does not exist.
+ */
+export async function getKizunaDecisionByReservationId(
+  reservationId: string
+): Promise<KizunaDecisionRow | null> {
+  return queryOne<KizunaDecisionRow>(
+    `SELECT
+       d.id,
+       d.agent_id,
+       d.payer_wallet,
+       d.repay_wallet,
+       d.request_nonce,
+       d.network,
+       d.lane,
+       d.pool_id,
+       d.requested_micro::text,
+       d.approved,
+       d.approved_micro::text,
+       d.available_micro::text,
+       d.outstanding_micro::text,
+       d.score_raw,
+       d.reason_codes,
+       d.tier,
+       d.policy_pack_id,
+       d.policy_pack_version,
+       d.risk_band,
+       d.risk_action,
+       d.ltv_bps,
+       d.health_factor::text,
+       d.request_hash,
+       d.signing_kid,
+       d.envelope_version,
+       d.decision_envelope_hash,
+       d.external_work_ref,
+       d.created_at
+     FROM kizuna_credit_reservations r
+     INNER JOIN kizuna_underwrite_decisions d ON d.id = r.decision_id
+     WHERE r.id = $1
+     LIMIT 1`,
+    [reservationId]
+  );
 }
 
 export async function releaseKizunaReservation(

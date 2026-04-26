@@ -1,0 +1,37 @@
+{
+  "name": "@kamiyo/saep-cli",
+  "version": "0.1.0",
+  "description": "Operator CLI for the KAMIYO SAEP adapter — read tasks, drive underwrite/settlement-ingest, inspect reservations.",
+  "main": "dist/index.js",
+  "bin": {
+    "kamiyo-saep": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "@kamiyo/saep-adapter": "workspace:*",
+    "@solana/web3.js": "^1.98.0",
+    "chalk": "^4.1.2",
+    "commander": "^12.0.0",
+    "dotenv": "^16.0.0",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiyo-ai/kamiyo-protocol.git",
+    "directory": "packages/kamiyo-saep-cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

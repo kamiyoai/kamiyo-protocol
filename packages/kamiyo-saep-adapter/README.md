@@ -16,9 +16,15 @@ This package **never** signs SAEP transactions. The
 between KAMIYO and SAEP — read it before reaching for code that does more
 than read state.
 
-> **Status:** Alpha. Surface is W1+W2 from the six-week SAEP-adapter
-> sprint. The facilitator routes (`/kizuna/adapters/saep/*`) and the
-> settlement-ingest path land in W3 and W4.
+> **Status:** 0.1.0 — first complete cut. W1–W6 of the SAEP-adapter sprint
+> are shipped: types, decoder, validator, risk hash (this package);
+> facilitator routes (`/kizuna/adapters/saep/{underwrite,
+> settlement-ingest, reservations/:id, health, decisions/:id, snapshots/:id}`)
+> in `services/x402-facilitator`; operator CLI in `@kamiyo/saep-cli`
+> (`kamiyo-saep read | underwrite | reservation | settle`); and ndjson
+> route metrics for ops. The pinned `TaskContract` Anchor discriminator is
+> the largest known gap remaining — operators pass the SAEP IDL value
+> via `DecoderConfig.expectedDiscriminator` until that's wired in.
 
 ## Install
 

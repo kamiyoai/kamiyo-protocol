@@ -30,6 +30,7 @@ const {
   mockCreateKizunaReservation,
   mockGetKizunaReservationById,
   mockGetKizunaDebtByReservationId,
+  mockGetKizunaDecisionByReservationId,
   mockFinalizeKizunaSettlement,
   mockGetKizunaBillableSettlementEvent,
   mockInsertSettlement,
@@ -43,6 +44,7 @@ const {
   mockCreateKizunaReservation: vi.fn(),
   mockGetKizunaReservationById: vi.fn(),
   mockGetKizunaDebtByReservationId: vi.fn(),
+  mockGetKizunaDecisionByReservationId: vi.fn(),
   mockFinalizeKizunaSettlement: vi.fn(),
   mockGetKizunaBillableSettlementEvent: vi.fn(),
   mockInsertSettlement: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock('../src/db/queries', () => ({
   createKizunaReservation: mockCreateKizunaReservation,
   getKizunaReservationById: mockGetKizunaReservationById,
   getKizunaDebtByReservationId: mockGetKizunaDebtByReservationId,
+  getKizunaDecisionByReservationId: mockGetKizunaDecisionByReservationId,
   finalizeKizunaSettlement: mockFinalizeKizunaSettlement,
   getKizunaBillableSettlementEvent: mockGetKizunaBillableSettlementEvent,
   insertSettlement: mockInsertSettlement,
@@ -158,6 +161,44 @@ async function invokePost(
   });
 }
 
+async function invokeGet(
+  router: any,
+  routePath: string,
+  params: Record<string, string>,
+  query: Record<string, string> = {},
+  extras?: Record<string, unknown>,
+): Promise<{ statusCode: number; body: any }> {
+  const layer = router.stack.find(
+    (entry: any) => entry.route?.path === routePath && entry.route?.methods?.get,
+  );
+  if (!layer) throw new Error(`get_route_not_found: ${routePath}`);
+  const handler = layer.route.stack[0].handle;
+
+  return new Promise((resolve, reject) => {
+    const req: any = {
+      body: {},
+      params,
+      query,
+      get: (h: string) => (extras as any)?.headers?.[h.toLowerCase()],
+      ...extras,
+    };
+    const res: any = {
+      statusCode: 200,
+      body: undefined,
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload: unknown) {
+        this.body = payload;
+        resolve({ statusCode: this.statusCode, body: payload });
+        return this;
+      },
+    };
+    Promise.resolve(handler(req, res, (err: unknown) => err && reject(err))).catch(reject);
+  });
+}
+
 // --- Env setup -------------------------------------------------------------
 
 function setEnv() {
@@ -230,6 +271,15 @@ beforeEach(() => {
     status: 'reserved',
   });
   mockGetKizunaDebtByReservationId.mockResolvedValue(null);
+  mockGetKizunaDecisionByReservationId.mockResolvedValue({
+    id: 'decision-1',
+    decision_envelope_hash: 'a'.repeat(64),
+    external_work_ref: {
+      venue: 'saep',
+      cluster: 'mainnet-beta',
+      taskPda: TEST_TASK_PDA.toBase58(),
+    },
+  });
   mockInsertSettlement.mockResolvedValue({ id: 'settlement-1' });
   mockFinalizeKizunaSettlement.mockResolvedValue({ debt: { id: 'debt-1' } });
   mockGetKizunaBillableSettlementEvent.mockResolvedValue({ id: 'billable-1' });
@@ -551,5 +601,438 @@ describe('POST /kizuna/adapters/saep/settlement-ingest', () => {
     });
     const result = await invokePost(router, '/settlement-ingest', settlementBody(), {});
     expect(result.statusCode).toBe(401);
+  });
+
+  it('resolves taskPda + cluster from the persisted external_work_ref when omitted', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        buildSnapshot({
+          status: SaepTaskStatus.Released,
+          assignedAgent: ASSIGNED_AGENT,
+          paymentAmount: new BN(1_000_000),
+          protocolFee: new BN(0),
+          solrepFee: new BN(0),
+        }),
+      ),
+    });
+    // body intentionally omits taskPda + cluster — must come from the decision
+    const result = await invokePost(
+      router,
+      '/settlement-ingest',
+      { reservationId: 'reservation-1', releaseSignature: 'sig-from-ref' },
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(200);
+    expect(result.body.terminalStatus).toBe('released');
+    expect(mockInsertSettlement).toHaveBeenCalledOnce();
+  });
+
+  it('returns 400 with saep_external_work_ref_missing when no ref is persisted and none passed', async () => {
+    mockGetKizunaDecisionByReservationId.mockResolvedValueOnce({
+      id: 'decision-1',
+      decision_envelope_hash: 'a'.repeat(64),
+      external_work_ref: null,
+    });
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot({ status: SaepTaskStatus.Released })),
+    });
+    const result = await invokePost(
+      router,
+      '/settlement-ingest',
+      { reservationId: 'reservation-1', releaseSignature: 'sig-test-1' },
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(400);
+    expect(result.body.reasonCodes).toContain('saep_external_work_ref_missing');
+  });
+});
+
+// --- W5 operator GET endpoints -------------------------------------------
+
+describe('GET /kizuna/adapters/saep/health', () => {
+  it('reports ready when Kizuna is on and program id is pinned', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(router, '/health', {}, {}, authHeaders());
+    expect(result.statusCode).toBe(200);
+    expect(result.body.kizunaEnabled).toBe(true);
+    expect(result.body.programIdConfigured).toBe(true);
+    expect(result.body.ready).toBe(true);
+    expect(result.body.allowedPaymentMints).toEqual([USDC.toBase58()]);
+    expect(result.body.clusters['mainnet-beta'].rpcConfigured).toBe(true);
+  });
+
+  it('reports not-ready when the program id is empty', async () => {
+    process.env.SAEP_TASK_MARKET_PROGRAM_ID = '';
+    clearConfigCache();
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(router, '/health', {}, {}, authHeaders());
+    expect(result.statusCode).toBe(200);
+    expect(result.body.programIdConfigured).toBe(false);
+    expect(result.body.ready).toBe(false);
+  });
+
+  it('returns 401 without internal auth', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(router, '/health', {}, {}, {});
+    expect(result.statusCode).toBe(401);
+  });
+});
+
+describe('GET /kizuna/adapters/saep/decisions/:reservationId', () => {
+  it('returns the decision envelope joined to the reservation', async () => {
+    mockGetKizunaDecisionByReservationId.mockResolvedValueOnce({
+      id: 'decision-7',
+      agent_id: 'agent-1',
+      payer_wallet: 'PayerPubkey1111111111111111111111111111111111',
+      repay_wallet: 'RepayPubkey1111111111111111111111111111111111',
+      request_nonce: 'nonce-123',
+      network: 'solana',
+      lane: 'crypto-fast',
+      pool_id: 'fastpath-main',
+      requested_micro: '1000000',
+      approved: true,
+      approved_micro: '1000000',
+      available_micro: '1000000',
+      outstanding_micro: '0',
+      score_raw: 700,
+      reason_codes: [],
+      tier: 'saep_adapter',
+      policy_pack_id: 'saep-cryptofast-v1',
+      policy_pack_version: null,
+      risk_band: 'low',
+      risk_action: null,
+      envelope_version: null,
+      decision_envelope_hash: 'b'.repeat(64),
+      external_work_ref: {
+        venue: 'saep',
+        cluster: 'mainnet-beta',
+        taskPda: TEST_TASK_PDA.toBase58(),
+      },
+      created_at: new Date(),
+    });
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/decisions/:reservationId',
+      { reservationId: 'reservation-1' },
+      {},
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(200);
+    expect(result.body.decision.id).toBe('decision-7');
+    expect(result.body.decision.envelopeHash).toBe('b'.repeat(64));
+    expect(result.body.externalWorkRef.taskPda).toBe(TEST_TASK_PDA.toBase58());
+  });
+
+  it('returns 404 when no decision exists for the reservation', async () => {
+    mockGetKizunaDecisionByReservationId.mockResolvedValueOnce(null);
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/decisions/:reservationId',
+      { reservationId: 'missing-1' },
+      {},
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(404);
+  });
+
+  it('returns 401 without internal auth', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/decisions/:reservationId',
+      { reservationId: 'reservation-1' },
+      {},
+      {},
+    );
+    expect(result.statusCode).toBe(401);
+  });
+});
+
+describe('GET /kizuna/adapters/saep/snapshots/:taskPda', () => {
+  it('returns serialized snapshot + workRef + riskHash', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/snapshots/:taskPda',
+      { taskPda: TEST_TASK_PDA.toBase58() },
+      { cluster: 'mainnet-beta' },
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(200);
+    expect(result.body.taskPda).toBe(TEST_TASK_PDA.toBase58());
+    expect(result.body.cluster).toBe('mainnet-beta');
+    expect(result.body.snapshot.taskPda).toBe(TEST_TASK_PDA.toBase58());
+    expect(result.body.workRef.venue).toBe('saep');
+    expect(typeof result.body.riskHash).toBe('string');
+    expect(result.body.riskHash).toBe(result.body.workRef.riskHash);
+  });
+
+  it('returns 404 with saep_rpc_account_not_found when the account is missing', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        new SaepAdapterError('rpc_account_not_found', 'no such task'),
+      ),
+    });
+    const result = await invokeGet(
+      router,
+      '/snapshots/:taskPda',
+      { taskPda: TEST_TASK_PDA.toBase58() },
+      {},
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(404);
+    expect(result.body.reasonCodes).toContain('saep_rpc_account_not_found');
+  });
+
+  it('returns 400 when taskPda is not a valid Solana address', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/snapshots/:taskPda',
+      { taskPda: 'not-a-valid-pubkey' },
+      {},
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(400);
+  });
+
+  it('returns 401 without internal auth', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(buildSnapshot()),
+    });
+    const result = await invokeGet(
+      router,
+      '/snapshots/:taskPda',
+      { taskPda: TEST_TASK_PDA.toBase58() },
+      {},
+      {},
+    );
+    expect(result.statusCode).toBe(401);
+  });
+});
+
+// --- W6 hardening — error-path + shape parity sweep --------------------
+
+describe('hardening: underwrite', () => {
+  it('replay response shape matches first-call shape (taskRef, riskHash, collateralAccount included)', async () => {
+    mockGetKizunaReservationByNonce.mockResolvedValueOnce({
+      id: 'reservation-existing',
+      lane: 'crypto-fast',
+      pool_id: 'fastpath-main',
+      amount_micro: '500000',
+      funding_mode: 'collateralized',
+      status: 'reserved',
+      decision: {
+        id: 'decision-existing',
+        decision_envelope_hash: 'c'.repeat(64),
+        external_work_ref: {
+          venue: 'saep',
+          cluster: 'mainnet-beta',
+          taskPda: TEST_TASK_PDA.toBase58(),
+        },
+      },
+    });
+    const router = createKizunaSaepRouter({ saepFactory: buildSaepFactory(buildSnapshot()) });
+    const result = await invokePost(router, '/underwrite', validBody(), authHeaders());
+
+    expect(result.statusCode).toBe(200);
+    expect(result.body.replay).toBe(true);
+    // W6 — replay must surface the same caller-relevant fields the first
+    // call emits, so callers don't have to branch on `replay`.
+    expect(result.body.taskRef).toMatchObject({ venue: 'saep' });
+    expect(result.body.riskHash).toBe('c'.repeat(64));
+    expect(result.body.collateralAccount).toBe('CollateralAcct11111111111111111111111111111');
+  });
+
+  it('propagates saep_rpc_unreachable as 503 with the right reason code', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        new SaepAdapterError('rpc_unreachable', 'cluster RPC down'),
+      ),
+    });
+    const result = await invokePost(router, '/underwrite', validBody(), authHeaders());
+    expect(result.statusCode).toBe(503);
+    expect(result.body.reasonCodes).toContain('saep_rpc_unreachable');
+  });
+
+  it('propagates saep_validate_unsupported_mint as 409', async () => {
+    const otherMint = Keypair.generate().publicKey;
+    const router = createKizunaSaepRouter({
+      saepFactory: {
+        rpcFor: () => 'http://localhost:8899',
+        readerFor: () =>
+          ({
+            fetchTaskByPda: vi.fn(async () => buildSnapshot({ paymentMint: otherMint })),
+            fetchTaskById: vi.fn(),
+          }) as unknown as SaepReader,
+        // policy only allows USDC; the snapshot is for a different mint
+        policy: () => ({ allowedPaymentMints: [USDC] }),
+      },
+    });
+    const result = await invokePost(router, '/underwrite', validBody(), authHeaders());
+    expect(result.statusCode).toBe(409);
+    expect(result.body.reasonCodes).toContain('saep_validate_unsupported_mint');
+  });
+});
+
+describe('hardening: settlement-ingest', () => {
+  it('returns 400 when both body fields are missing (empty object)', async () => {
+    const router = createKizunaSaepRouter({ saepFactory: buildSaepFactory(buildSnapshot()) });
+    const result = await invokePost(router, '/settlement-ingest', {}, authHeaders());
+    expect(result.statusCode).toBe(400);
+  });
+});
+
+describe('hardening: GET /snapshots/:taskPda', () => {
+  it('maps non-not-found SAEP errors to 503', async () => {
+    const router = createKizunaSaepRouter({
+      saepFactory: buildSaepFactory(
+        new SaepAdapterError('rpc_unreachable', 'connection reset'),
+      ),
+    });
+    const result = await invokeGet(
+      router,
+      '/snapshots/:taskPda',
+      { taskPda: TEST_TASK_PDA.toBase58() },
+      {},
+      authHeaders(),
+    );
+    expect(result.statusCode).toBe(503);
+    expect(result.body.reasonCodes).toContain('saep_rpc_unreachable');
+  });
+});
+
+// --- W6 acceptance — end-to-end pipeline (single router, threaded state) ---
+//
+// Drives underwrite → reservations GET → settlement-ingest back-to-back
+// against one router instance and the same set of mocks. Asserts the
+// state hand-off:
+//   - underwrite persists external_work_ref into the decision row
+//   - reservations GET surfaces that taskRef back to the caller
+//   - settlement-ingest resolves taskPda + cluster from the persisted ref
+//     (no taskPda/cluster passed in the body) and finalizes settlement.
+
+describe('acceptance: underwrite → reservation → settlement-ingest pipeline', () => {
+  it('threads the persisted externalWorkRef across the full lifecycle', async () => {
+    // Capture the SaepWorkRef that underwrite persists, then re-emit it for
+    // the settlement-ingest decision lookup so the routes flow as they
+    // would in production.
+    let persistedRef: Record<string, unknown> | null = null;
+    mockInsertKizunaUnderwriteDecision.mockImplementationOnce(async (params: {
+      externalWorkRef?: Record<string, unknown> | null;
+    }) => {
+      persistedRef = params.externalWorkRef ?? null;
+      return { id: 'decision-e2e' };
+    });
+
+    mockCreateKizunaReservation.mockResolvedValueOnce({
+      id: 'reservation-e2e',
+      lane: 'crypto-fast',
+      pool_id: 'fastpath-main',
+      amount_micro: '1000000',
+      funding_mode: 'collateralized',
+      status: 'reserved',
+    });
+
+    // Step 3 — settlement-ingest: snapshot moves to Released so payouts fire.
+    const ASSIGNED = Keypair.generate().publicKey;
+
+    // Underwrite reads a Funded snapshot; settlement-ingest reads Released.
+    // Two-call reader stub so each route sees the right state for its phase.
+    let saepCall = 0;
+    const saepFactory: SaepFactory = {
+      rpcFor: () => 'http://localhost:8899',
+      readerFor: () =>
+        ({
+          fetchTaskByPda: vi.fn(async () => {
+            saepCall += 1;
+            return saepCall === 1
+              ? buildSnapshot()
+              : buildSnapshot({
+                  status: SaepTaskStatus.Released,
+                  assignedAgent: ASSIGNED,
+                  paymentAmount: new BN(1_000_000),
+                  protocolFee: new BN(0),
+                  solrepFee: new BN(0),
+                });
+          }),
+          fetchTaskById: vi.fn(),
+        }) as unknown as SaepReader,
+      policy: () => ({ allowedPaymentMints: [USDC] }),
+    };
+
+    const router = createKizunaSaepRouter({ saepFactory });
+
+    // 1) underwrite
+    const underwrite = await invokePost(router, '/underwrite', validBody(), authHeaders());
+    expect(underwrite.statusCode).toBe(200);
+    expect(underwrite.body.escrowRef).toBe('reservation-e2e');
+    expect(underwrite.body.taskRef).toMatchObject({
+      venue: 'saep',
+      taskPda: TEST_TASK_PDA.toBase58(),
+    });
+    expect(persistedRef).not.toBeNull();
+    expect((persistedRef as Record<string, unknown>).venue).toBe('saep');
+    expect((persistedRef as Record<string, unknown>).taskPda).toBe(TEST_TASK_PDA.toBase58());
+
+    // From here on, the decision-by-reservation lookup must return the
+    // ref we just persisted. The default mock points at TEST_TASK_PDA, so
+    // re-pin to the captured ref to prove the round-trip.
+    mockGetKizunaDecisionByReservationId.mockResolvedValue({
+      id: 'decision-e2e',
+      decision_envelope_hash: 'd'.repeat(64),
+      external_work_ref: persistedRef,
+    });
+
+    // 2) reservations GET — the taskRef recovered from the decision is
+    //    surfaced to the caller as `taskRef`.
+    const reservation = await invokeGet(
+      router,
+      '/reservations/:id',
+      { id: 'reservation-e2e' },
+      {},
+      authHeaders(),
+    );
+    expect(reservation.statusCode).toBe(200);
+    expect(reservation.body.reservation.id).toBe('reservation-1'); // matches mockGetKizunaReservationById default
+    expect(reservation.body.taskRef).toMatchObject({
+      venue: 'saep',
+      taskPda: TEST_TASK_PDA.toBase58(),
+    });
+    expect(reservation.body.decision.id).toBe('decision-e2e');
+
+    // 3) settlement-ingest with taskPda + cluster OMITTED — must come
+    //    from the persisted ref. Asserts the W5 fallback resolution end
+    //    to end against a real route invocation.
+    const settle = await invokePost(
+      router,
+      '/settlement-ingest',
+      { reservationId: 'reservation-1', releaseSignature: 'sig-e2e' },
+      authHeaders(),
+    );
+    expect(settle.statusCode).toBe(200);
+    expect(settle.body.terminalStatus).toBe('released');
+    expect(settle.body.settlementRef).toBe('settlement-1');
+    expect(mockInsertSettlement).toHaveBeenCalledOnce();
+    // The reader was called twice: once on underwrite, once on settle.
+    expect(saepCall).toBe(2);
   });
 });

@@ -908,6 +908,21 @@ const MIGRATIONS = [
         ON kizuna_underwrite_decisions(signing_kid, created_at DESC);
     `,
   },
+  {
+    name: '019_kizuna_decision_external_work_ref',
+    sql: `
+      ALTER TABLE kizuna_underwrite_decisions
+        ADD COLUMN IF NOT EXISTS external_work_ref JSONB;
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_decisions_external_work_ref_task_pda
+        ON kizuna_underwrite_decisions((external_work_ref->>'taskPda'))
+        WHERE external_work_ref IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_kizuna_decisions_external_work_ref_venue
+        ON kizuna_underwrite_decisions((external_work_ref->>'venue'))
+        WHERE external_work_ref IS NOT NULL;
+    `,
+  },
 ];
 
 export async function runMigrations(): Promise<void> {
@@ -938,7 +953,7 @@ if (require.main === module) {
       console.log('[migrate] done');
       return closePool();
     })
-    .catch((err) => {
+    .catch(err => {
       console.error('[migrate] failed', err);
       process.exit(1);
     });
