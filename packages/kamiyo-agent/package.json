@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "zod": "^3.23.0",
-    "zod-to-json-schema": "^3.24.0"
+    "zod-to-json-schema": "^3.25.2"
   },
   "peerDependencies": {
     "@kamiyo-org/selfimprove": "^1.2.0",
