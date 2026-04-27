@@ -1797,6 +1797,31 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@25.6.0)(lightningcss@1.31.1)(terser@5.46.0)
 
+  packages/kamiyo-saep-adapter:
+    dependencies:
+      '@solana/spl-token':
+        specifier: ^0.4.13
+        version: 0.4.14(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@solana/web3.js':
+        specifier: 1.95.8
+        version: 1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.3
+    devDependencies:
+      '@types/bn.js':
+        specifier: 4.11.6
+        version: 4.11.6
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.6.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/kamiyo-sdk:
     dependencies:
       '@coral-xyz/anchor':
@@ -2803,6 +2828,9 @@ importers:
       '@coral-xyz/anchor':
         specifier: ^0.32.1
         version: 0.32.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@kamiyo/saep-adapter':
+        specifier: workspace:*
+        version: link:../../packages/kamiyo-saep-adapter
       '@solana/spl-token':
         specifier: ^0.4.9
         version: 0.4.14(@solana/web3.js@1.95.8(bufferutil@4.1.0)(utf-8-validate@5.0.10))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -2852,6 +2880,12 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
     devDependencies:
+      '@types/bn.js':
+        specifier: 4.11.6
+        version: 4.11.6
+      bn.js:
+        specifier: ^5.2.1
+        version: 5.2.3
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -28068,7 +28102,7 @@ snapshots:
 
   '@types/bn.js@4.11.6':
     dependencies:
-      '@types/node': 25.6.0
+      '@types/node': 20.19.39
 
   '@types/body-parser@1.19.6':
     dependencies:
@@ -37141,7 +37175,7 @@ snapshots:
       '@types/uuid': 8.3.4
       '@types/ws': 8.18.1
       buffer: 6.0.3
-      eventemitter3: 5.0.1
+      eventemitter3: 5.0.4
       uuid: 8.3.2
       ws: 8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
     optionalDependencies:
