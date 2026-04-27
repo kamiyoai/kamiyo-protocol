@@ -16,14 +16,14 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
-    "@langchain/core": ">=0.2.0",
+    "@langchain/core": ">=1.1.42",
     "@kamiyo/sdk": "workspace:*",
     "@kamiyo/x402-client": "workspace:*",
     "@solana/web3.js": "^1.98.0",
     "zod": "^3.23.0"
   },
   "peerDependencies": {
-    "@langchain/core": ">=0.2.0"
+    "@langchain/core": ">=1.1.42"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
