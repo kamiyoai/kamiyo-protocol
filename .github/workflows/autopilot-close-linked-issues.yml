@@ -14,7 +14,7 @@ jobs:
     if: github.event.pull_request.merged == true && github.event.pull_request.user.login == 'kamiyobot'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         with:
           github-token: ${{ secrets.AUTOPILOT_PAT || github.token }}
           script: |
