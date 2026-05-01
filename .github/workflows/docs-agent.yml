@@ -24,7 +24,7 @@ jobs:
       halted: ${{ steps.check.outputs.halted }}
     steps:
       - id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { data } = await github.rest.issues.listForRepo({
