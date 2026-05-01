@@ -57,7 +57,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.AUTOPILOT_PAT || github.token }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
 
